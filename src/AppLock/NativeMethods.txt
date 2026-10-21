@@ -29,3 +29,5 @@ ExtractIconEx
 DestroyIcon
 GetCurrentProcessId
 SHGetFileInfo
+SetWindowLongPtr
+GetWindowLongPtr

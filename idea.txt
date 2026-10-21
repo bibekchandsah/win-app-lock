@@ -57,3 +57,5 @@ done - lock icon in locked program tab in program icon
 done - process name (x count) if multiple same process window
 done - hide program title if main app title is already there
 done - show the hover and selected items in listView using theme background and foreground colors 
+custom duration for unlocking
+window hello support for unlocking

@@ -1,0 +1,312 @@
+<Window
+    x:Class="AppLock.Views.LockOverlayWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!-- Full-window dark frosted overlay -->
+    <Grid x:Name="RootGrid"
+          Background="#B2000000"
+          SizeChanged="RootGrid_SizeChanged">
+
+        <!-- Centered card — ScrollViewer handles very small windows -->
+        <Border x:Name="CardBorder"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                CornerRadius="12"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                MaxWidth="520"
+                MaxHeight="600"
+                Padding="32,28">
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="ContentPanel" Spacing="20" MinWidth="280">
+
+                    <!-- Lock icon badge -->
+                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            CornerRadius="16"
+                            Width="64" Height="64"
+                            HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE72E;"
+                                  FontSize="28"
+                                  Foreground="White"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Title block -->
+                    <StackPanel Spacing="6" HorizontalAlignment="Center">
+                        <TextBlock x:Name="TitleText"
+                                   Text="Program is already locked."
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   MaxWidth="420"/>
+                        <TextBlock Text="Enter the app password to resume"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Password field -->
+                    <PasswordBox x:Name="PasswordBox"
+                                 PlaceholderText="Enter password to unlock"
+                                 KeyDown="PasswordBox_KeyDown"
+                                 CornerRadius="6"
+                                 BorderThickness="1.5"
+                                 Padding="12,10"
+                                 FontSize="14"
+                                 HorizontalAlignment="Stretch"/>
+
+                    <!-- Error message -->
+                    <TextBlock x:Name="ErrorText"
+                               Foreground="{ThemeResource SystemErrorTextColor}"
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Margin="0,-10,0,0"/>
+
+                    <!-- Duration section -->
+                    <StackPanel Spacing="10">
+                        <!-- Duration label row -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Time allowed for this unlock"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="AutoRelockHint"
+                                       Grid.Column="1"
+                                       Text="Auto-relocks when time is up"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                       Visibility="Collapsed"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Duration pill buttons (wrap for small windows) -->
+                        <Grid x:Name="DurationGrid" ColumnSpacing="6" RowSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="BtnNoLimit"
+                                    Grid.Column="0"
+                                    Content="No limit"
+                                    Click="DurationButton_Click"
+                                    Tag="0"
+                                    Style="{ThemeResource AccentButtonStyle}"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="6,6"
+                                    FontSize="12"/>
+                            <Button x:Name="Btn15Min"
+                                    Grid.Column="1"
+                                    Content="15 minutes"
+                                    Click="DurationButton_Click"
+                                    Tag="15"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="6,6"
+                                    FontSize="12"/>
+                            <Button x:Name="Btn30Min"
+                                    Grid.Column="2"
+                                    Content="30 minutes"
+                                    Click="DurationButton_Click"
+                                    Tag="30"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="6,6"
+                                    FontSize="12"/>
+                            <Button x:Name="Btn60Min"
+                                    Grid.Column="3"
+                                    Content="60 minutes"
+                                    Click="DurationButton_Click"
+                                    Tag="60"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="6,6"
+                                    FontSize="12"/>
+                            <Button x:Name="BtnCustom"
+                                    Grid.Column="4"
+                                    Content="Custom"
+                                    Click="DurationButton_Click"
+                                    Tag="-1"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="6,6"
+                                    FontSize="12"/>
+                        </Grid>
+
+                        <!-- Small window: 2-row fallback duration grid (hidden by default, toggled in SizeChanged) -->
+                        <Grid x:Name="DurationGridSmall" ColumnSpacing="6" RowSpacing="6" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Button x:Name="BtnNoLimitS"
+                                    Grid.Row="0" Grid.Column="0"
+                                    Content="No limit"
+                                    Click="DurationButton_Click"
+                                    Tag="0"
+                                    Style="{ThemeResource AccentButtonStyle}"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,6"
+                                    FontSize="11"/>
+                            <Button x:Name="Btn15MinS"
+                                    Grid.Row="0" Grid.Column="1"
+                                    Content="15 min"
+                                    Click="DurationButton_Click"
+                                    Tag="15"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,6"
+                                    FontSize="11"/>
+                            <Button x:Name="Btn30MinS"
+                                    Grid.Row="0" Grid.Column="2"
+                                    Content="30 min"
+                                    Click="DurationButton_Click"
+                                    Tag="30"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,6"
+                                    FontSize="11"/>
+                            <Button x:Name="Btn60MinS"
+                                    Grid.Row="1" Grid.Column="0"
+                                    Content="60 min"
+                                    Click="DurationButton_Click"
+                                    Tag="60"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,6"
+                                    FontSize="11"/>
+                            <Button x:Name="BtnCustomS"
+                                    Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                    Content="Custom"
+                                    Click="DurationButton_Click"
+                                    Tag="-1"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,6"
+                                    FontSize="11"/>
+                        </Grid>
+
+                        <!-- Custom duration input -->
+                        <StackPanel x:Name="CustomDurationPanel"
+                                    Visibility="Collapsed"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    HorizontalAlignment="Center">
+                            <NumberBox x:Name="CustomMinutesBox"
+                                       PlaceholderText="Minutes"
+                                       Minimum="1"
+                                       Maximum="1440"
+                                       Value="60"
+                                       SpinButtonPlacementMode="Compact"
+                                       Width="90"
+                                       CornerRadius="6"
+                                       BorderThickness="1"/>
+                            <TextBlock Text="minutes"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Action buttons -->
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0"
+                                x:Name="UnlockButton"
+                                Content="Unlock"
+                                Click="UnlockButton_Click"
+                                Style="{ThemeResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Height="40"
+                                CornerRadius="6"
+                                FontSize="14"
+                                FontWeight="SemiBold"/>
+                        <Button Grid.Column="1"
+                                Content="Cancel"
+                                Click="CancelButton_Click"
+                                HorizontalAlignment="Stretch"
+                                Height="40"
+                                CornerRadius="6"
+                                FontSize="14"/>
+                    </Grid>
+
+                    <!-- Windows Hello button -->
+                    <Button x:Name="WindowsHelloButton"
+                            HorizontalAlignment="Center"
+                            Click="WindowsHelloButton_Click"
+                            CornerRadius="20"
+                            Padding="16,8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE77B;" FontSize="14"/>
+                            <TextBlock Text="Windows Hello" FontSize="13"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Divider -->
+                    <Border Height="1"
+                            Background="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            Margin="0,0,0,0"/>
+
+                    <!-- Footer -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Text="Emergency lock:"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="6,2">
+                                <TextBlock Text="Ctrl+Alt+L"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           FontFamily="Consolas"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+    </Grid>
+</Window>

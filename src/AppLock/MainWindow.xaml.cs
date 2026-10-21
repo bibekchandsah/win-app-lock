@@ -106,7 +106,39 @@ public sealed partial class MainWindow : Window
             if (dialog.IsAuthenticated)
             {
                 System.Diagnostics.Debug.WriteLine("Authentication successful, navigating to ProtectionPage");
-                ContentFrame.Navigate(typeof(ProtectionPage));
+                
+                try
+                {
+                    ContentFrame.Navigate(typeof(ProtectionPage));
+                    
+                    // Start overlay manager if protection is enabled
+                    if (ServiceContainer.Settings.IsProtectionEnabled)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Starting OverlayManager...");
+                        ServiceContainer.OverlayManager.Start();
+                        System.Diagnostics.Debug.WriteLine("OverlayManager started successfully");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ERROR during initialization: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+                    
+                    // Show error to user
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "Initialization Error",
+                        Content = $"Failed to start AppLock:\n{ex.Message}",
+                        CloseButtonText = "OK",
+                        XamlRoot = ContentFrame.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                    
+                    // Exit app
+                    Application.Current.Exit();
+                    return;
+                }
+                
                 break;
             }
             else

@@ -221,10 +221,12 @@ public sealed partial class ProtectionPage : Page
                 if (targetState)
                 {
                     _lockManager.EnableProtection();
+                    ServiceContainer.OverlayManager.Start();
                 }
                 else
                 {
                     _lockManager.DisableProtection();
+                    ServiceContainer.OverlayManager.Stop();
                 }
             }
             else

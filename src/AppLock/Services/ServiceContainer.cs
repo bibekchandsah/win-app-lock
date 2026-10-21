@@ -11,6 +11,7 @@ public static class ServiceContainer
     private static AppSettings? _settings;
     private static AuthService? _authService;
     private static LockManager? _lockManager;
+    private static OverlayManager? _overlayManager;
 
     public static SettingsStore SettingsStore
     {
@@ -74,12 +75,28 @@ public static class ServiceContainer
         }
     }
 
+    public static OverlayManager OverlayManager
+    {
+        get
+        {
+            if (_overlayManager == null)
+            {
+                _overlayManager = new OverlayManager(LockManager, AuthService);
+            }
+            return _overlayManager;
+        }
+    }
+
     public static void Reset()
     {
+        // Stop and dispose services that need cleanup
+        _overlayManager?.Dispose();
+        
         _settingsStore = null;
         _settings = null;
         _authService = null;
         _lockManager = null;
         _windowEnumerator = null;
+        _overlayManager = null;
     }
 }
