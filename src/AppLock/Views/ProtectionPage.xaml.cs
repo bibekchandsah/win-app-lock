@@ -84,6 +84,24 @@ public class LockTextConverter : IValueConverter
     }
 }
 
+// Formats process name with count suffix when multiple windows share the same process
+// Usage: Text="{x:Bind local:ProtectionPage.FormatProcessName(ProcessName, WindowCount), Mode=OneWay}"
+public class ProcessCountConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        // value = WindowCount (int), parameter = ProcessName (string)
+        int count = value is int c ? c : 1;
+        string name = parameter as string ?? string.Empty;
+        return count > 1 ? $"{name} (x{count})" : name;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 // Converts null/not-null to Visibility
 public class NullToVisibilityConverter : IValueConverter
 {

@@ -168,7 +168,7 @@
                                                 <TextBlock Text="{x:Bind WindowTitle}" 
                                                            FontWeight="SemiBold"
                                                            TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{x:Bind ProcessName}" 
+                                                <TextBlock Text="{x:Bind ProcessDisplayName, Mode=OneWay}" 
                                                            FontSize="12"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                             </StackPanel>
@@ -194,9 +194,10 @@
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                                 <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
+                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Padding" Value="2,1"/>
+                                        <Setter Property="CornerRadius" Value="6"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
@@ -315,9 +316,10 @@
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                                 <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
+                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Padding" Value="2,1"/>
+                                        <Setter Property="CornerRadius" Value="6"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>

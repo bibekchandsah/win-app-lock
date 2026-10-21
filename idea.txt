@@ -52,8 +52,8 @@ Remove-Item "$env:APPDATA\AppLock\settings.json" -ErrorAction SilentlyContinue
 
 
 
-running & locked program count
-lock icon in locked program tab in program icon
-x3 for multiple same process window
+done - running & locked program count
+done - lock icon in locked program tab in program icon
+process name (x count) if multiple same process window
 hide program title if main app title is already there
 show the hover and selected items in listView using theme background and foreground colors 
