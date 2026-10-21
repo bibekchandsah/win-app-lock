@@ -14,6 +14,7 @@
         <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
         <local:LockGlyphConverter x:Key="LockGlyphConverter"/>
         <local:LockTextConverter x:Key="LockTextConverter"/>
+        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
     </Page.Resources>
 
     <Grid Margin="24">
@@ -143,9 +144,10 @@
                                             <!-- Icon or First Letter -->
                                             <Grid Grid.Column="0" 
                                                   Width="32" Height="32">
-                                                <!-- First letter fallback -->
+                                                <!-- First letter fallback (shown only when Icon is null) -->
                                                 <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                        CornerRadius="4">
+                                                        CornerRadius="6"
+                                                        Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
                                                     <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
                                                                FontSize="16"
                                                                FontWeight="SemiBold"
@@ -153,10 +155,12 @@
                                                                VerticalAlignment="Center"
                                                                Foreground="White"/>
                                                 </Border>
-                                                <!-- Icon overlay (if available) -->
+                                                <!-- Program Icon (shown only when Icon is available) -->
                                                 <Image x:Name="AppIcon"
                                                        Source="{x:Bind Icon, Mode=OneWay}"
-                                                       Stretch="UniformToFill"/>
+                                                       Width="32" Height="32"
+                                                       Stretch="Uniform"
+                                                       Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
                                             </Grid>
 
                                             <!-- Info -->

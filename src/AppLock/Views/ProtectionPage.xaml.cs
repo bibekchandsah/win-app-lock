@@ -84,6 +84,25 @@ public class LockTextConverter : IValueConverter
     }
 }
 
+// Converts null/not-null to Visibility
+public class NullToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        bool isNull = value == null;
+        if (parameter is string param && param.Equals("Invert", StringComparison.OrdinalIgnoreCase))
+        {
+            return isNull ? Visibility.Collapsed : Visibility.Visible;
+        }
+        return isNull ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 public sealed partial class ProtectionPage : Page
 {
     public RunningProgramsViewModel RunningViewModel { get; }

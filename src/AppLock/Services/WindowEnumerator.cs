@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
+using System.IO;
 using AppLock.Models;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Storage.Streams;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -128,11 +130,21 @@ public class WindowEnumerator
         return windows.OrderBy(w => w.ProcessName).ToList();
     }
 
+    private readonly Dictionary<string, BitmapImage> _iconCache = new(StringComparer.OrdinalIgnoreCase);
+
     private BitmapImage? ExtractIcon(string path)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        if (_iconCache.TryGetValue(path, out var cachedIcon))
+            return cachedIcon;
+
         try
         {
-            // Use SHGetFileInfo to get the icon
+            if (!File.Exists(path))
+                return null;
+
             SHFILEINFOW fileInfo = default;
             unsafe
             {
@@ -143,22 +155,35 @@ public class WindowEnumerator
                         0,
                         &fileInfo,
                         (uint)sizeof(SHFILEINFOW),
-                        SHGFI_FLAGS.SHGFI_ICON | SHGFI_FLAGS.SHGFI_SMALLICON);
+                        SHGFI_FLAGS.SHGFI_ICON | SHGFI_FLAGS.SHGFI_LARGEICON);
 
                     if (result != 0 && !fileInfo.hIcon.IsNull)
                     {
-                        // TODO: Convert HICON to BitmapImage
-                        // For now, destroy the icon and return null
-                        // We'll implement proper icon conversion in the next iteration
-                        PInvoke.DestroyIcon(fileInfo.hIcon);
-                        return null;
+                        try
+                        {
+                            using var icon = System.Drawing.Icon.FromHandle(fileInfo.hIcon.Value);
+                            using var bitmap = icon.ToBitmap();
+                            using var stream = new MemoryStream();
+                            bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+                            stream.Position = 0;
+
+                            var bitmapImage = new BitmapImage();
+                            bitmapImage.SetSource(stream.AsRandomAccessStream());
+
+                            _iconCache[path] = bitmapImage;
+                            return bitmapImage;
+                        }
+                        finally
+                        {
+                            PInvoke.DestroyIcon(fileInfo.hIcon);
+                        }
                     }
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore icon extraction errors
+            System.Diagnostics.Debug.WriteLine($"Error extracting icon for {path}: {ex.Message}");
         }
 
         return null;
