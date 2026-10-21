@@ -89,6 +89,10 @@ public class WindowEnumerator
                                 string processPath = new string(pathBuffer, 0, (int)size);
                                 string processName = Path.GetFileNameWithoutExtension(processPath);
 
+                                // Skip AppLock itself
+                                if (processName.Equals("AppLock", StringComparison.OrdinalIgnoreCase))
+                                    return true;
+
                                 // Handle UWP apps (ApplicationFrameHost)
                                 if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
                                 {

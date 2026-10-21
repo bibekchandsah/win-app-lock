@@ -34,6 +34,7 @@ public partial class RunningProgramsViewModel : ObservableObject
         
         _lockManager.RuleAdded += (s, e) => UpdateLockStates();
         _lockManager.RuleRemoved += (s, e) => UpdateLockStates();
+        _lockManager.ProtectionStateChanged += (s, e) => UpdateLockStates();
         
         FilteredWindows.CollectionChanged += (s, e) => RunningCount = FilteredWindows.Count;
         

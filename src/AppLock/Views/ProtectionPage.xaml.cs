@@ -33,6 +33,7 @@ public sealed partial class ProtectionPage : Page
     
     private readonly LockManager _lockManager;
     private readonly AuthService _authService;
+    private bool _isUpdatingUI;
 
     public ProtectionPage()
     {
@@ -56,53 +57,105 @@ public sealed partial class ProtectionPage : Page
 
     private void UpdateStatusUI()
     {
-        MasterToggle.IsOn = _lockManager.IsProtectionEnabled;
-        
-        if (_lockManager.IsProtectionEnabled)
+        _isUpdatingUI = true;
+        try
         {
-            StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Colors.LimeGreen);
-            StatusText.Text = "AppLock protection is active";
+            MasterToggle.IsOn = _lockManager.IsProtectionEnabled;
+            
+            if (_lockManager.IsProtectionEnabled)
+            {
+                StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Microsoft.UI.Colors.LimeGreen);
+                StatusText.Text = "AppLock protection is active";
+            }
+            else
+            {
+                StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Microsoft.UI.Colors.Gray);
+                StatusText.Text = "AppLock protection is ready (currently OFF)";
+            }
         }
-        else
+        finally
         {
-            StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Colors.Gray);
-            StatusText.Text = "AppLock protection is ready (currently OFF)";
+            _isUpdatingUI = false;
         }
     }
 
     private async void MasterToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isUpdatingUI)
+            return;
+
         var toggle = (ToggleSwitch)sender;
         var targetState = toggle.IsOn;
 
-        // Verify password before changing state
-        var dialog = new AuthDialog(ServiceContainer.AuthService)
-        {
-            XamlRoot = this.XamlRoot
-        };
+        // If the toggle state already matches the current manager state, do nothing
+        if (targetState == _lockManager.IsProtectionEnabled)
+            return;
 
-        await dialog.ShowAsync();
-
-        if (dialog.IsAuthenticated)
+        var xamlRoot = this.XamlRoot ?? toggle.XamlRoot;
+        if (xamlRoot == null)
         {
-            // Password verified, apply the change
-            if (targetState)
+            _isUpdatingUI = true;
+            try
             {
-                _lockManager.EnableProtection();
+                toggle.IsOn = _lockManager.IsProtectionEnabled;
+            }
+            finally
+            {
+                _isUpdatingUI = false;
+            }
+            return;
+        }
+
+        try
+        {
+            // Verify password before changing state
+            var dialog = new AuthDialog(ServiceContainer.AuthService)
+            {
+                XamlRoot = xamlRoot
+            };
+
+            await dialog.ShowAsync();
+
+            if (dialog.IsAuthenticated)
+            {
+                // Password verified, apply the change
+                if (targetState)
+                {
+                    _lockManager.EnableProtection();
+                }
+                else
+                {
+                    _lockManager.DisableProtection();
+                }
             }
             else
             {
-                _lockManager.DisableProtection();
+                // Password not verified, revert toggle
+                _isUpdatingUI = true;
+                try
+                {
+                    toggle.IsOn = _lockManager.IsProtectionEnabled;
+                }
+                finally
+                {
+                    _isUpdatingUI = false;
+                }
             }
         }
-        else
+        catch (Exception ex)
         {
-            // Password not verified, revert toggle
-            toggle.Toggled -= MasterToggle_Toggled;
-            toggle.IsOn = _lockManager.IsProtectionEnabled;
-            toggle.Toggled += MasterToggle_Toggled;
+            System.Diagnostics.Debug.WriteLine($"Failed to verify auth for master toggle: {ex.Message}");
+            _isUpdatingUI = true;
+            try
+            {
+                toggle.IsOn = _lockManager.IsProtectionEnabled;
+            }
+            finally
+            {
+                _isUpdatingUI = false;
+            }
         }
     }
 
