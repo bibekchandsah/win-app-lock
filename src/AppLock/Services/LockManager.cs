@@ -64,10 +64,14 @@ public class LockManager
         switch (rule.Type)
         {
             case LockRuleType.ProcessName:
-                return window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase) ||
-                       window.ProcessPath.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase);
+                if (string.IsNullOrWhiteSpace(rule.ProcessName))
+                    return false;
+                return (!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(window.ProcessPath) && window.ProcessPath.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase));
 
             case LockRuleType.WindowTitle:
+                if (string.IsNullOrWhiteSpace(rule.WindowTitlePattern))
+                    return false;
                 if (rule.IsRegex)
                 {
                     try
@@ -84,13 +88,16 @@ public class LockManager
                 }
                 else
                 {
-                    return window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase);
+                    return !string.IsNullOrEmpty(window.WindowTitle) &&
+                           window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase);
                 }
 
             case LockRuleType.PickedWindow:
+                if (string.IsNullOrWhiteSpace(rule.ProcessName))
+                    return false;
                 // For picked windows, match both process and title
-                return window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase) &&
-                       window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase);
+                return (!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) &&
+                       (string.IsNullOrEmpty(rule.WindowTitlePattern) || (!string.IsNullOrEmpty(window.WindowTitle) && window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase)));
 
             default:
                 return false;

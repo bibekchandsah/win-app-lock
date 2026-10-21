@@ -11,6 +11,9 @@
     
     <Page.Resources>
         <local:FirstLetterConverter x:Key="FirstLetterConverter"/>
+        <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <local:LockGlyphConverter x:Key="LockGlyphConverter"/>
+        <local:LockTextConverter x:Key="LockTextConverter"/>
     </Page.Resources>
 
     <Grid Margin="24">
@@ -127,8 +130,7 @@
                                 CornerRadius="8">
                             <ListView x:Name="RunningProgramsList"
                                       ItemsSource="{x:Bind RunningViewModel.FilteredWindows, Mode=OneWay}"
-                                      SelectionMode="None"
-                                      ContainerContentChanging="RunningProgramsList_ContainerContentChanging">
+                                      SelectionMode="None">
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="models:RunningWindow">
                                         <Grid Padding="12,8" ColumnSpacing="12">
@@ -173,11 +175,15 @@
                                                     Style="{ThemeResource AccentButtonStyle}"
                                                     Click="LockButton_Click"
                                                     Tag="{x:Bind}"
+                                                    IsEnabled="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource InverseBoolConverter}}"
                                                     Padding="8,6"
                                                     VerticalAlignment="Center">
                                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon x:Name="LockIcon" Glyph="&#xE72E;" FontSize="14"/>
-                                                    <TextBlock x:Name="LockText" Text="Lock"/>
+                                                    <FontIcon x:Name="LockIcon" 
+                                                              Glyph="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockGlyphConverter}}" 
+                                                              FontSize="14"/>
+                                                    <TextBlock x:Name="LockText" 
+                                                               Text="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockTextConverter}}"/>
                                                 </StackPanel>
                                             </Button>
                                         </Grid>

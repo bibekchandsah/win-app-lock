@@ -26,6 +26,64 @@ public class FirstLetterConverter : IValueConverter
     }
 }
 
+// Inverts boolean for IsEnabled
+public class InverseBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool b)
+        {
+            return !b;
+        }
+        return true;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool b)
+        {
+            return !b;
+        }
+        return false;
+    }
+}
+
+// Converts IsLocked boolean to lock icon glyph
+public class LockGlyphConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool isLocked && isLocked)
+        {
+            return "\uE785"; // Padlock (Locked)
+        }
+        return "\uE72E"; // Lock (Unlocked)
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+// Converts IsLocked boolean to lock button text
+public class LockTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool isLocked && isLocked)
+        {
+            return "Locked";
+        }
+        return "Lock";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 public sealed partial class ProtectionPage : Page
 {
     public RunningProgramsViewModel RunningViewModel { get; }
@@ -171,73 +229,8 @@ public sealed partial class ProtectionPage : Page
             if (!window.IsLocked)
             {
                 RunningViewModel.LockWindowCommand.Execute(window);
-                UpdateButtonState(button, true);
             }
         }
-    }
-
-    private void RunningProgramsList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
-    {
-        if (!args.InRecycleQueue && args.Item is RunningWindow window)
-        {
-            // Schedule update after the item is rendered
-            var container = args.ItemContainer;
-            container.Loaded += (s, e) =>
-            {
-                var button = FindDescendant<Button>(container, "LockBtn");
-                if (button != null)
-                {
-                    UpdateButtonState(button, window.IsLocked);
-                }
-            };
-        }
-    }
-
-    private void UpdateButtonState(Button button, bool isLocked)
-    {
-        var content = button.Content as StackPanel;
-        if (content != null)
-        {
-            var icon = content.Children[0] as FontIcon;
-            var text = content.Children[1] as TextBlock;
-
-            if (icon != null && text != null)
-            {
-                if (isLocked)
-                {
-                    icon.Glyph = "\uE785"; // Padlock
-                    text.Text = "Locked";
-                    button.IsEnabled = false;
-                }
-                else
-                {
-                    icon.Glyph = "\uE72E"; // Lock
-                    text.Text = "Lock";
-                    button.IsEnabled = true;
-                }
-            }
-        }
-    }
-
-    private T? FindDescendant<T>(DependencyObject parent, string name) where T : FrameworkElement
-    {
-        int childCount = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < childCount; i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            
-            if (child is T typedChild && typedChild.Name == name)
-            {
-                return typedChild;
-            }
-
-            var result = FindDescendant<T>(child, name);
-            if (result != null)
-            {
-                return result;
-            }
-        }
-        return null;
     }
 
     private void UnlockButton_Click(object sender, RoutedEventArgs e)
