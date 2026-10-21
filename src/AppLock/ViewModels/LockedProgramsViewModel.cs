@@ -41,6 +41,10 @@ public partial class LockedProgramsViewModel : ObservableObject
         LockedRules.Clear();
         foreach (var rule in _lockManager.GetAllRules())
         {
+            if (rule.Icon == null)
+            {
+                rule.Icon = ServiceContainer.WindowEnumerator.GetIcon(rule.ProcessPath, rule.ProcessName);
+            }
             LockedRules.Add(rule);
         }
         FilterRules();
@@ -49,6 +53,10 @@ public partial class LockedProgramsViewModel : ObservableObject
 
     private void OnRuleAdded(object? sender, LockRule rule)
     {
+        if (rule.Icon == null)
+        {
+            rule.Icon = ServiceContainer.WindowEnumerator.GetIcon(rule.ProcessPath, rule.ProcessName);
+        }
         LockedRules.Add(rule);
         FilterRules();
         UpdateCount();

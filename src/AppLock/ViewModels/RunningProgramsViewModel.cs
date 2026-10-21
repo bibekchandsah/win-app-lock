@@ -29,7 +29,7 @@ public partial class RunningProgramsViewModel : ObservableObject
 
     public RunningProgramsViewModel(LockManager lockManager)
     {
-        _windowEnumerator = new WindowEnumerator();
+        _windowEnumerator = ServiceContainer.WindowEnumerator;
         _lockManager = lockManager;
         
         _lockManager.RuleAdded += (s, e) => UpdateLockStates();
@@ -95,7 +95,9 @@ public partial class RunningProgramsViewModel : ObservableObject
         {
             Type = LockRuleType.ProcessName,
             ProcessName = window.ProcessName,
-            DisplayName = $"{window.ProcessName} - {window.WindowTitle}"
+            ProcessPath = window.ProcessPath,
+            DisplayName = $"{window.ProcessName} - {window.WindowTitle}",
+            Icon = window.Icon
         };
 
         _lockManager.AddRule(rule);

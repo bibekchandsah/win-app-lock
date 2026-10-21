@@ -132,7 +132,24 @@ public class WindowEnumerator
 
     private readonly Dictionary<string, BitmapImage> _iconCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private BitmapImage? ExtractIcon(string path)
+    public BitmapImage? GetIcon(string? path, string? processName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var icon = ExtractIcon(path);
+            if (icon != null)
+                return icon;
+        }
+
+        if (!string.IsNullOrWhiteSpace(processName) && _iconCache.TryGetValue(processName, out var cached))
+        {
+            return cached;
+        }
+
+        return null;
+    }
+
+    public BitmapImage? ExtractIcon(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return null;
@@ -171,6 +188,11 @@ public class WindowEnumerator
                             bitmapImage.SetSource(stream.AsRandomAccessStream());
 
                             _iconCache[path] = bitmapImage;
+                            var processName = Path.GetFileNameWithoutExtension(path);
+                            if (!string.IsNullOrWhiteSpace(processName))
+                            {
+                                _iconCache[processName] = bitmapImage;
+                            }
                             return bitmapImage;
                         }
                         finally

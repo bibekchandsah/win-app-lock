@@ -48,6 +48,20 @@ public static class ServiceContainer
         }
     }
 
+    private static WindowEnumerator? _windowEnumerator;
+
+    public static WindowEnumerator WindowEnumerator
+    {
+        get
+        {
+            if (_windowEnumerator == null)
+            {
+                _windowEnumerator = new WindowEnumerator();
+            }
+            return _windowEnumerator;
+        }
+    }
+
     public static LockManager LockManager
     {
         get
@@ -66,5 +80,6 @@ public static class ServiceContainer
         _settings = null;
         _authService = null;
         _lockManager = null;
+        _windowEnumerator = null;
     }
 }

@@ -250,19 +250,58 @@
                                     <DataTemplate x:DataType="models:LockRule">
                                         <Grid Padding="12,8" ColumnSpacing="12">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <!-- Icon or First Letter with Locked Badge -->
+                                            <Grid Grid.Column="0" 
+                                                  Width="36" Height="36">
+                                                <!-- First letter fallback (shown only when Icon is null) -->
+                                                <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="6"
+                                                        Width="32" Height="32"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Top"
+                                                        Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
+                                                    <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
+                                                               FontSize="16"
+                                                               FontWeight="SemiBold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="White"/>
+                                                </Border>
+                                                <!-- Program Icon (shown only when Icon is available) -->
+                                                <Image x:Name="LockedAppIcon"
+                                                       Source="{x:Bind Icon, Mode=OneWay}"
+                                                       Width="32" Height="32"
+                                                       HorizontalAlignment="Left"
+                                                       VerticalAlignment="Top"
+                                                       Stretch="Uniform"
+                                                       Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                <!-- Mini Lock Badge Overlay -->
+                                                <Border Width="16" Height="16"
+                                                        CornerRadius="8"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Bottom"
+                                                        BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                        BorderThickness="1.5">
+                                                    <FontIcon Glyph="&#xE785;" FontSize="8" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{x:Bind DisplayName}" 
-                                                           FontWeight="SemiBold"/>
-                                                <TextBlock Text="{x:Bind Type}" 
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{x:Bind ProcessName}" 
                                                            FontSize="12"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                             </StackPanel>
 
-                                            <Button Grid.Column="1" 
+                                            <Button Grid.Column="2" 
                                                     Click="UnlockButton_Click"
                                                     Tag="{x:Bind}"
                                                     Padding="8,6"
