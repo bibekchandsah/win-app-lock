@@ -1,0 +1,55 @@
+echo "# win-app-lock" >> README.md
+git init
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/bibekchandsah/win-app-lock.git
+git push -u origin main
+
+git remote add origin https://github.com/bibekchandsah/win-app-lock.git
+git branch -M main
+git push -u origin main
+
+
+
+Open PowerShell as Administrator (Right-click → "Run as Administrator")
+
+Navigate to the project:
+cd "d:\programming exercise\winUI\win app lock"
+
+Restore and build: (.\build.ps1 or .\build-with-msbuild.ps1)
+dotnet restore
+dotnet build -c Release
+
+or,
+dotnet build -c Release -v detailed > build-log.txt 2>&1
+Get-Content build-log.txt | Select-String "error" -Context 3
+
+or, 
+open "Developer PowerShell for VS" 2022 from your Start menu and running:
+cd "D:\programming exercise\winUI\win app lock"
+msbuild src\AppLock\AppLock.csproj /p:Configuration=Release /p:Platform=x64 /t:Restore,Build
+
+# Fix any errors (there might be some since I couldn't test the build)
+
+Run the app:
+dotnet run --project src\AppLock\AppLock.csproj
+LAUNCH the app:- .\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe
+
+cache and rebuild:
+# Clean the build outputs
+Remove-Item -Recurse -Force "src\AppLock\bin","src\AppLock\obj" -ErrorAction SilentlyContinue
+
+# Rebuild
+.\build-with-msbuild.ps1
+
+# run App
+.\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe
+
+# deleting the settings file to start fresh:
+Remove-Item "$env:APPDATA\AppLock\settings.json" -ErrorAction SilentlyContinue
+
+
+
+
+running & locked program count
