@@ -134,70 +134,79 @@
                                       SelectionMode="None">
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="models:RunningWindow">
-                                        <Grid Padding="12,8" ColumnSpacing="12">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                        <Border Background="Transparent"
+                                                CornerRadius="6"
+                                                PointerEntered="ListItem_PointerEntered"
+                                                PointerExited="ListItem_PointerExited"
+                                                PointerPressed="ListItem_PointerPressed"
+                                                PointerReleased="ListItem_PointerReleased"
+                                                PointerCaptureLost="ListItem_PointerExited">
+                                            <Grid Padding="12,8" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
 
-                                            <!-- Icon or First Letter -->
-                                            <Grid Grid.Column="0" 
-                                                  Width="32" Height="32">
-                                                <!-- First letter fallback (shown only when Icon is null) -->
-                                                <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                        CornerRadius="6"
-                                                        Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
-                                                    <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
-                                                               FontSize="16"
+                                                <!-- Icon or First Letter -->
+                                                <Grid Grid.Column="0" 
+                                                      Width="32" Height="32">
+                                                    <!-- First letter fallback (shown only when Icon is null) -->
+                                                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                            CornerRadius="6"
+                                                            Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
+                                                        <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
+                                                                   FontSize="16"
+                                                                   FontWeight="SemiBold"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                    <!-- Program Icon (shown only when Icon is available) -->
+                                                    <Image x:Name="AppIcon"
+                                                           Source="{x:Bind Icon, Mode=OneWay}"
+                                                           Width="32" Height="32"
+                                                           Stretch="Uniform"
+                                                           Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                </Grid>
+
+                                                <!-- Info -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{x:Bind WindowTitle}" 
                                                                FontWeight="SemiBold"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="White"/>
-                                                </Border>
-                                                <!-- Program Icon (shown only when Icon is available) -->
-                                                <Image x:Name="AppIcon"
-                                                       Source="{x:Bind Icon, Mode=OneWay}"
-                                                       Width="32" Height="32"
-                                                       Stretch="Uniform"
-                                                       Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                            </Grid>
-
-                                            <!-- Info -->
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{x:Bind WindowTitle}" 
-                                                           FontWeight="SemiBold"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{x:Bind ProcessDisplayName, Mode=OneWay}" 
-                                                           FontSize="12"
-                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                            </StackPanel>
-
-                                            <!-- Lock Button -->
-                                            <Button Grid.Column="2"
-                                                    x:Name="LockBtn"
-                                                    Style="{ThemeResource AccentButtonStyle}"
-                                                    Click="LockButton_Click"
-                                                    Tag="{x:Bind}"
-                                                    IsEnabled="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource InverseBoolConverter}}"
-                                                    Padding="8,6"
-                                                    VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon x:Name="LockIcon" 
-                                                              Glyph="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockGlyphConverter}}" 
-                                                              FontSize="14"/>
-                                                    <TextBlock x:Name="LockText" 
-                                                               Text="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockTextConverter}}"/>
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind ProcessDisplayName, Mode=OneWay}" 
+                                                               FontSize="12"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                                 </StackPanel>
-                                            </Button>
-                                        </Grid>
+
+                                                <!-- Lock Button -->
+                                                <Button Grid.Column="2"
+                                                        x:Name="LockBtn"
+                                                        Style="{ThemeResource AccentButtonStyle}"
+                                                        Click="LockButton_Click"
+                                                        Tag="{x:Bind}"
+                                                        IsEnabled="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource InverseBoolConverter}}"
+                                                        Padding="8,6"
+                                                        VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon x:Name="LockIcon" 
+                                                                  Glyph="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockGlyphConverter}}" 
+                                                                  FontSize="14"/>
+                                                        <TextBlock x:Name="LockText" 
+                                                                   Text="{x:Bind IsLocked, Mode=OneWay, Converter={StaticResource LockTextConverter}}"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                                 <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                                    <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="Padding" Value="2,1"/>
-                                        <Setter Property="CornerRadius" Value="6"/>
+                                        <Setter Property="Padding" Value="4,1"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
@@ -249,77 +258,86 @@
                                       SelectionMode="None">
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="models:LockRule">
-                                        <Grid Padding="12,8" ColumnSpacing="12">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                        <Border Background="Transparent"
+                                                CornerRadius="6"
+                                                PointerEntered="ListItem_PointerEntered"
+                                                PointerExited="ListItem_PointerExited"
+                                                PointerPressed="ListItem_PointerPressed"
+                                                PointerReleased="ListItem_PointerReleased"
+                                                PointerCaptureLost="ListItem_PointerExited">
+                                            <Grid Padding="12,8" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
 
-                                            <!-- Icon or First Letter with Locked Badge -->
-                                            <Grid Grid.Column="0" 
-                                                  Width="36" Height="36">
-                                                <!-- First letter fallback (shown only when Icon is null) -->
-                                                <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                        CornerRadius="6"
-                                                        Width="32" Height="32"
-                                                        HorizontalAlignment="Left"
-                                                        VerticalAlignment="Top"
-                                                        Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
-                                                    <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
-                                                               FontSize="16"
+                                                <!-- Icon or First Letter with Locked Badge -->
+                                                <Grid Grid.Column="0" 
+                                                      Width="36" Height="36">
+                                                    <!-- First letter fallback (shown only when Icon is null) -->
+                                                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                            CornerRadius="6"
+                                                            Width="32" Height="32"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Top"
+                                                            Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
+                                                        <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
+                                                                   FontSize="16"
+                                                                   FontWeight="SemiBold"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                    <!-- Program Icon (shown only when Icon is available) -->
+                                                    <Image x:Name="LockedAppIcon"
+                                                           Source="{x:Bind Icon, Mode=OneWay}"
+                                                           Width="32" Height="32"
+                                                           HorizontalAlignment="Left"
+                                                           VerticalAlignment="Top"
+                                                           Stretch="Uniform"
+                                                           Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                    <!-- Mini Lock Badge Overlay -->
+                                                    <Border Width="16" Height="16"
+                                                            CornerRadius="8"
+                                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Bottom"
+                                                            BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                            BorderThickness="1.5">
+                                                        <FontIcon Glyph="&#xE785;" FontSize="8" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </Grid>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{x:Bind DisplayName}" 
                                                                FontWeight="SemiBold"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="White"/>
-                                                </Border>
-                                                <!-- Program Icon (shown only when Icon is available) -->
-                                                <Image x:Name="LockedAppIcon"
-                                                       Source="{x:Bind Icon, Mode=OneWay}"
-                                                       Width="32" Height="32"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Top"
-                                                       Stretch="Uniform"
-                                                       Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                                <!-- Mini Lock Badge Overlay -->
-                                                <Border Width="16" Height="16"
-                                                        CornerRadius="8"
-                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                        HorizontalAlignment="Right"
-                                                        VerticalAlignment="Bottom"
-                                                        BorderBrush="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                                        BorderThickness="1.5">
-                                                    <FontIcon Glyph="&#xE785;" FontSize="8" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </Grid>
-
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{x:Bind DisplayName}" 
-                                                           FontWeight="SemiBold"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{x:Bind ProcessName}" 
-                                                           FontSize="12"
-                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                            </StackPanel>
-
-                                            <Button Grid.Column="2" 
-                                                    Click="UnlockButton_Click"
-                                                    Tag="{x:Bind}"
-                                                    Padding="8,6"
-                                                    VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE785;" FontSize="14"/>
-                                                    <TextBlock Text="Unlock"/>
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind ProcessName}" 
+                                                               FontSize="12"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                                 </StackPanel>
-                                            </Button>
-                                        </Grid>
+
+                                                <Button Grid.Column="2" 
+                                                        Click="UnlockButton_Click"
+                                                        Tag="{x:Bind}"
+                                                        Padding="8,6"
+                                                        VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon Glyph="&#xE785;" FontSize="14"/>
+                                                        <TextBlock Text="Unlock"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                                 <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                                    <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="Padding" Value="2,1"/>
-                                        <Setter Property="CornerRadius" Value="6"/>
+                                        <Setter Property="Padding" Value="4,1"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>

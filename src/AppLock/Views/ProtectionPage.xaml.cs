@@ -4,7 +4,9 @@ using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 
 namespace AppLock.Views;
 
@@ -276,5 +278,48 @@ public sealed partial class ProtectionPage : Page
         {
             LockedViewModel.UnlockProgramCommand.Execute(rule);
         }
+    }
+
+    // --- List item hover visual states ---
+
+    private SolidColorBrush GetHoverBrush()
+    {
+        bool isDark = ActualTheme == ElementTheme.Dark;
+        return new SolidColorBrush(isDark
+            ? Color.FromArgb(20, 255, 255, 255)   // ~8% white overlay for dark theme
+            : Color.FromArgb(13, 0, 0, 0));        // ~5% black overlay for light theme
+    }
+
+    private SolidColorBrush GetPressedBrush()
+    {
+        bool isDark = ActualTheme == ElementTheme.Dark;
+        return new SolidColorBrush(isDark
+            ? Color.FromArgb(35, 255, 255, 255)   // ~14% white overlay for dark theme
+            : Color.FromArgb(22, 0, 0, 0));        // ~9% black overlay for light theme
+    }
+
+    private void ListItem_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+            border.Background = GetHoverBrush();
+    }
+
+    private void ListItem_PointerExited(object sender, RoutedEventArgs e)
+    {
+        if (sender is Border border)
+            border.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    }
+
+    private void ListItem_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border border)
+            border.Background = GetPressedBrush();
+    }
+
+    private void ListItem_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        // Return to hover state after release
+        if (sender is Border border)
+            border.Background = GetHoverBrush();
     }
 }
