@@ -47,4 +47,23 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <!-- Copy native hook DLL to output directory after build -->
+  <Target Name="CopyAppLockHookDll" AfterTargets="Build">
+    <PropertyGroup>
+      <!-- Check solution root x64\<Configuration>, project x64\<Configuration>, and fallback to Debug -->
+      <HookDllSrc Condition="Exists('$(MSBuildThisFileDirectory)..\..\x64\$(Configuration)\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\..\x64\$(Configuration)\AppLockHook.dll</HookDllSrc>
+      <HookDllSrc Condition="'$(HookDllSrc)' == '' and Exists('$(MSBuildThisFileDirectory)..\AppLockHook\x64\$(Configuration)\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\AppLockHook\x64\$(Configuration)\AppLockHook.dll</HookDllSrc>
+      <HookDllSrc Condition="'$(HookDllSrc)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\x64\Debug\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\..\x64\Debug\AppLockHook.dll</HookDllSrc>
+      <HookDllSrc Condition="'$(HookDllSrc)' == '' and Exists('$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll</HookDllSrc>
+      <HookDllDst>$(OutputPath)AppLockHook.dll</HookDllDst>
+    </PropertyGroup>
+    <Copy SourceFiles="$(HookDllSrc)" DestinationFiles="$(HookDllDst)"
+          SkipUnchangedFiles="false" Condition="'$(HookDllSrc)' != ''" />
+    <Message Text="Copied AppLockHook.dll: $(HookDllSrc) → $(HookDllDst)" Importance="high"
+             Condition="'$(HookDllSrc)' != ''" />
+    <Warning Text="AppLockHook.dll not found — thumbnail injection will be disabled"
+             Condition="'$(HookDllSrc)' == ''" />
+  </Target>
+
 </Project>

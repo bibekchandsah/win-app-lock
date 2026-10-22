@@ -248,20 +248,17 @@ public class OverlayManager
         if (_activeOverlays.ContainsKey(window.Handle))
             return;
 
-        var hwnd = new HWND(window.Handle);
+        var targetHwnd = new HWND(window.Handle);
 
         // Do not show overlay if target window is minimized
-        if (PInvoke.IsIconic(hwnd))
+        if (PInvoke.IsIconic(targetHwnd))
             return;
 
         try
         {
-            // Set locked thumbnail for taskbar preview
-            _thumbnailService.SetLockedThumbnail(hwnd);
-
             var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
             _activeOverlays[window.Handle] = overlay;
-            
+
             overlay.Closed += (s, e) =>
             {
                 if (overlay.IsUnlocked)
@@ -277,17 +274,21 @@ public class OverlayManager
                         _unlockTimers[window.Handle] = DateTime.Now.Add(overlay.UnlockDuration);
                     }
                 }
-                
-                // Clear locked thumbnail when overlay is removed
-                _thumbnailService.ClearLockedThumbnail(hwnd);
-                
+
+                // Remove hook DLL from target window
+                _thumbnailService.ClearLockedThumbnailByTarget(targetHwnd);
+
                 _activeOverlays.Remove(window.Handle);
             };
-            
+
             overlay.Activate();
 
             // Force correct theme immediately after activate (visual tree is now live)
             overlay.UpdateTheme(ServiceContainer.CurrentTheme);
+
+            // Inject hook DLL into target window's thread for "Locked" thumbnail
+            var overlayHwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(overlay));
+            _thumbnailService.SetLockedThumbnail(overlayHwnd, targetHwnd);
         }
         catch (Exception ex)
         {
@@ -299,14 +300,17 @@ public class OverlayManager
     {
         if (_activeOverlays.TryGetValue(windowHandle, out var overlay))
         {
+            // Remove hook DLL from target window before closing
+            try
+            {
+                _thumbnailService.ClearLockedThumbnailByTarget(new HWND(windowHandle));
+            }
+            catch { }
+
             overlay.Close();
             _activeOverlays.Remove(windowHandle);
         }
-        
-        // Clear thumbnail
-        var hwnd = new HWND(windowHandle);
-        _thumbnailService.ClearLockedThumbnail(hwnd);
-        
+
         _unlockTimers.Remove(windowHandle);
     }
 

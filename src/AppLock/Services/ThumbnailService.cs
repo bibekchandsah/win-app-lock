@@ -1,246 +1,157 @@
 using System;
-using System.Drawing;
-using System.Drawing.Imaging;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Windows.Win32;
 using Windows.Win32.Foundation;
-using Windows.Win32.Graphics.Dwm;
-using Windows.Win32.Graphics.Gdi;
 
 namespace AppLock.Services;
 
 /// <summary>
-/// Sets DWM taskbar thumbnails and live previews to show "Locked" image
-/// for protected windows, hiding their actual content from Alt-Tab and taskbar hover.
+/// Replaces the locked window's taskbar thumbnail and Alt-Tab preview with a "Locked" image.
+///
+/// Uses AppLockHook.dll injected into the target process. Because DWM enforces that
+/// DwmSetWindowAttribute(DWMWA_FORCE_ICONIC_REPRESENTATION) and DwmSetIconicThumbnail
+/// can ONLY be called by the process that owns the window (cross-process calls fail with
+/// E_ACCESSDENIED), the hook DLL executes inside the target process context:
+///   - Installs subclass on target window
+///   - Sets DWMWA_FORCE_ICONIC_REPRESENTATION and DWMWA_HAS_ICONIC_BITMAP in-process
+///   - Handles WM_DWMSENDICONICTHUMBNAIL with a 32-bit ARGB DIBSection (alpha = 0xFF)
+///   - Handles WM_DWMSENDICONICLIVEPREVIEWBITMAP for Alt-Tab / Aero Peek
+///   - Restores original thumbnail cleanly on unlock
 /// </summary>
 public sealed class ThumbnailService : IDisposable
 {
-    private readonly Dictionary<HWND, Bitmap> _lockedBitmaps = new();
-    
-    public ThumbnailService()
+    // Native hook DLL exports
+    [DllImport("AppLockHook.dll", EntryPoint = "InstallLockedThumbnail",
+        CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
+    private static extern bool NativeInstall(nint hwnd);
+
+    [DllImport("AppLockHook.dll", EntryPoint = "UninstallLockedThumbnail",
+        CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeUninstall(nint hwnd);
+
+    // Active locked targets
+    private readonly HashSet<nint> _lockedTargets = new();
+    private static bool? _dllAvailable;
+
+    public void SetLockedThumbnail(HWND overlayHwnd, HWND targetHwnd)
     {
-    }
+        nint tg = targetHwnd.Value;
+        if (tg == 0) return;
 
-    /// <summary>
-    /// Enable iconic representation for a window and set its thumbnail to "Locked" image.
-    /// </summary>
-    public void SetLockedThumbnail(HWND hwnd)
-    {
-        if (hwnd.Value == IntPtr.Zero) return;
-
-        try
+        lock (_lockedTargets)
         {
-            unsafe
-            {
-                // Enable iconic representation (forces DWM to use our custom thumbnail)
-                var enable = true;
-                PInvoke.DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWINDOWATTRIBUTE.DWMWA_FORCE_ICONIC_REPRESENTATION,
-                    &enable,
-                    sizeof(int));
+            if (_lockedTargets.Contains(tg)) return;
 
-                // Enable has iconic bitmap flag
-                PInvoke.DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWINDOWATTRIBUTE.DWMWA_HAS_ICONIC_BITMAP,
-                    &enable,
-                    sizeof(int));
-            }
-
-            System.Diagnostics.Debug.WriteLine($"Set locked thumbnail attributes for HWND {hwnd.Value:X}");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error setting locked thumbnail: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Remove locked thumbnail representation from a window.
-    /// </summary>
-    public void ClearLockedThumbnail(HWND hwnd)
-    {
-        if (hwnd.Value == IntPtr.Zero) return;
-
-        try
-        {
-            unsafe
-            {
-                var disable = false;
-                PInvoke.DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWINDOWATTRIBUTE.DWMWA_FORCE_ICONIC_REPRESENTATION,
-                    &disable,
-                    sizeof(int));
-
-                PInvoke.DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWINDOWATTRIBUTE.DWMWA_HAS_ICONIC_BITMAP,
-                    &disable,
-                    sizeof(int));
-            }
-
-            // Clean up stored bitmap
-            if (_lockedBitmaps.TryGetValue(hwnd, out var bitmap))
-            {
-                bitmap.Dispose();
-                _lockedBitmaps.Remove(hwnd);
-            }
-
-            System.Diagnostics.Debug.WriteLine($"Cleared locked thumbnail for HWND {hwnd.Value:X}");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error clearing locked thumbnail: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Create a "Locked" bitmap for use in thumbnails.
-    /// Dark background with "Locked" text and padlock icon.
-    /// </summary>
-    public Bitmap CreateLockedBitmap(int width, int height)
-    {
-        var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-        
-        using (var g = Graphics.FromImage(bitmap))
-        {
-            // Dark background
-            g.Clear(Color.FromArgb(255, 32, 32, 32));
-            
-            // Draw "Locked" text
-            using (var font = new Font("Segoe UI", 24, FontStyle.Bold))
-            using (var brush = new SolidBrush(Color.FromArgb(255, 217, 160, 232))) // Purple accent
-            {
-                var text = "🔒 Locked";
-                var size = g.MeasureString(text, font);
-                var x = (width - size.Width) / 2;
-                var y = (height - size.Height) / 2;
-                
-                g.DrawString(text, font, brush, x, y);
-            }
-            
-            // Optional: Draw subtitle
-            using (var font = new Font("Segoe UI", 12, FontStyle.Regular))
-            using (var brush = new SolidBrush(Color.FromArgb(200, 200, 200, 200)))
-            {
-                var text = "Protected by AppLock";
-                var size = g.MeasureString(text, font);
-                var x = (width - size.Width) / 2;
-                var y = (height / 2) + 30;
-                
-                g.DrawString(text, font, brush, x, y);
-            }
-        }
-
-        return bitmap;
-    }
-
-    /// <summary>
-    /// Handle WM_DWMSENDICONICTHUMBNAIL message.
-    /// Called by DWM when it needs the iconic thumbnail.
-    /// </summary>
-    public void HandleIconicThumbnailRequest(HWND hwnd, int width, int height)
-    {
-        try
-        {
-            // Create or retrieve cached bitmap
-            if (!_lockedBitmaps.TryGetValue(hwnd, out var bitmap))
-            {
-                bitmap = CreateLockedBitmap(width, height);
-                _lockedBitmaps[hwnd] = bitmap;
-            }
-
-            // Convert bitmap to HBITMAP and send to DWM
-            var hbitmap = bitmap.GetHbitmap();
             try
             {
-                unsafe
+                if (IsDllAvailable())
                 {
-                    PInvoke.DwmSetIconicThumbnail(hwnd, new HBITMAP(hbitmap), 0);
+                    bool ok = NativeInstall(tg);
+                    if (ok)
+                    {
+                        _lockedTargets.Add(tg);
+                        System.Diagnostics.Debug.WriteLine($"[ThumbnailService] Locked thumbnail installed for 0x{tg:X}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[ThumbnailService] NativeInstall returned false for 0x{tg:X}");
+                    }
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                // Clean up HBITMAP
-                PInvoke.DeleteObject(new HGDIOBJ(hbitmap));
+                System.Diagnostics.Debug.WriteLine($"[ThumbnailService] SetLockedThumbnail failed: {ex.Message}");
             }
-
-            System.Diagnostics.Debug.WriteLine($"Sent iconic thumbnail for HWND {hwnd.Value:X} ({width}x{height})");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error handling iconic thumbnail request: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// Handle WM_DWMSENDICONICLIVEPREVIEWBITMAP message.
-    /// Called by DWM when it needs the live preview bitmap.
-    /// </summary>
-    public void HandleIconicLivePreviewRequest(HWND hwnd)
+    public void ClearLockedThumbnailByTarget(HWND targetHwnd)
     {
-        try
+        nint tg = targetHwnd.Value;
+        if (tg == 0) return;
+
+        lock (_lockedTargets)
         {
-            // Get window dimensions for live preview
-            RECT rect;
-            if (!PInvoke.GetWindowRect(hwnd, out rect))
-            {
-                return;
-            }
+            if (!_lockedTargets.Remove(tg)) return;
 
-            var width = rect.right - rect.left;
-            var height = rect.bottom - rect.top;
-
-            if (width <= 0 || height <= 0) return;
-
-            // Create or retrieve bitmap
-            if (!_lockedBitmaps.TryGetValue(hwnd, out var bitmap))
-            {
-                bitmap = CreateLockedBitmap(width, height);
-                _lockedBitmaps[hwnd] = bitmap;
-            }
-
-            // Convert and send to DWM
-            var hbitmap = bitmap.GetHbitmap();
             try
             {
-                unsafe
+                if (IsDllAvailable())
                 {
-                    // DwmSetIconicLivePreviewBitmap expects a pointer to POINT
-                    // Use System.Drawing.Point converted to native struct
-                    var point = new System.Drawing.Point(0, 0);
-                    
-                    // Create a simple struct for the point
-                    int x = point.X;
-                    int y = point.Y;
-                    
-                    // Call with pointer to coordinates
-                    // Note: This may need adjustment based on actual CsWin32 signature
-                    PInvoke.DwmSetIconicLivePreviewBitmap(hwnd, new HBITMAP(hbitmap), null, 0);
+                    NativeUninstall(tg);
+                    System.Diagnostics.Debug.WriteLine($"[ThumbnailService] Locked thumbnail cleared for 0x{tg:X}");
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                PInvoke.DeleteObject(new HGDIOBJ(hbitmap));
+                System.Diagnostics.Debug.WriteLine($"[ThumbnailService] ClearLockedThumbnail failed: {ex.Message}");
             }
+        }
+    }
 
-            System.Diagnostics.Debug.WriteLine($"Sent iconic live preview for HWND {hwnd.Value:X}");
-        }
-        catch (Exception ex)
+    // Overload for callers passing overlay HWND (OverlayManager now calls ClearLockedThumbnailByTarget directly)
+    public void ClearLockedThumbnail(HWND overlayHwnd)
+    {
+    }
+
+    private static bool IsDllAvailable()
+    {
+        if (_dllAvailable.HasValue) return _dllAvailable.Value;
+        var path = Path.Combine(AppContext.BaseDirectory, "AppLockHook.dll");
+        if (File.Exists(path))
         {
-            System.Diagnostics.Debug.WriteLine($"Error handling iconic live preview request: {ex.Message}");
+            _dllAvailable = true;
+            return true;
         }
+
+        // Search candidate paths if not directly in output dir
+        string[] candidates = [
+            Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\x64\Release\AppLockHook.dll"),
+            Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\x64\Debug\AppLockHook.dll"),
+            Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\src\AppLockHook\x64\Release\AppLockHook.dll"),
+            Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\src\AppLockHook\x64\Debug\AppLockHook.dll"),
+            @"C:\Users\Public\AppLock\AppLockHook.dll"
+        ];
+
+        foreach (var c in candidates)
+        {
+            try
+            {
+                var full = Path.GetFullPath(c);
+                if (File.Exists(full))
+                {
+                    File.Copy(full, path, overwrite: true);
+                    System.Diagnostics.Debug.WriteLine($"[ThumbnailService] Copied AppLockHook.dll from {full} to {path}");
+                    _dllAvailable = true;
+                    return true;
+                }
+            }
+            catch { }
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[ThumbnailService] AppLockHook.dll NOT found at {path}");
+        _dllAvailable = false;
+        return false;
     }
 
     public void Dispose()
     {
-        foreach (var bitmap in _lockedBitmaps.Values)
+        lock (_lockedTargets)
         {
-            bitmap.Dispose();
+            foreach (var tg in _lockedTargets)
+            {
+                try
+                {
+                    if (IsDllAvailable())
+                    {
+                        NativeUninstall(tg);
+                    }
+                }
+                catch { }
+            }
+            _lockedTargets.Clear();
         }
-        _lockedBitmaps.Clear();
     }
 }

@@ -53,3 +53,5 @@ PostMessage
 EnableWindow
 IsWindowEnabled
 GetForegroundWindow
+DwmInvalidateIconicBitmaps
+IsWindow

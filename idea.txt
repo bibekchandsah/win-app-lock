@@ -93,6 +93,6 @@ require admin password or window hello if user exit from tray or from task manag
 ✅ Milestone 5: WinEventHook, overlay window, unlock flow
 ✅ Milestone 6: "Pick a window" tool with fullscreen overlay and mouse hook
 ✅ Milestone 7: Settings page - COMPLETE (all services, dialogs, integration)
-⏳ Milestone 8: Tray icon, DWM thumbnails, UWP handling, multi-monitor/DPI
+✅ Milestone 8: Tray icon, DWM thumbnails, UWP handling, multi-monitor/DPI
 ⏳ Milestone 9: Tests and installer
 ⏳ Milestone 10: Websites page (optional)
