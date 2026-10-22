@@ -72,6 +72,7 @@ done - Milestone 7 complete:
      ✅ Theme switching (System/Light/Dark)
      ✅ Start with Windows (registry)
      ✅ All 13 settings working
+done - redesign settings page layout with clean 2-column rows, compact toggle switches, and stretched expanders matching mockup
 
 todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
 

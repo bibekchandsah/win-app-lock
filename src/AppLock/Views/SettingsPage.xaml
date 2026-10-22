@@ -8,184 +8,291 @@
     Background="Transparent">
 
     <Grid Margin="24">
-        <ScrollViewer>
-            <StackPanel Spacing="16" MaxWidth="800">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16" MaxWidth="800" HorizontalAlignment="Left">
                 <TextBlock Text="Settings" 
                            Style="{ThemeResource TitleTextBlockStyle}"
-                           Margin="0,0,0,16"/>
+                           Margin="0,0,0,8"/>
 
                 <!-- General Section -->
-                <Expander Header="General" IsExpanded="True" HorizontalAlignment="Stretch">
+                <Expander Header="General" 
+                          IsExpanded="True" 
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch">
                     <Expander.Content>
-                        <StackPanel Spacing="16" Padding="16">
+                        <StackPanel Spacing="16" Padding="16,12" HorizontalAlignment="Stretch">
                             <!-- Language -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Language" FontWeight="SemiBold"/>
-                                <ComboBox x:Name="LanguageComboBox"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Language" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          x:Name="LanguageComboBox"
                                           ItemsSource="{x:Bind ViewModel.Languages}"
                                           SelectedItem="{x:Bind ViewModel.SelectedLanguage, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"
-                                          MinWidth="200"/>
-                            </StackPanel>
+                                          MinWidth="130"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Theme -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Theme" FontWeight="SemiBold"/>
-                                <ComboBox x:Name="ThemeComboBox"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Theme" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          x:Name="ThemeComboBox"
                                           ItemsSource="{x:Bind ViewModel.Themes}"
                                           SelectedItem="{x:Bind ViewModel.SelectedTheme, Mode=TwoWay}"
-                                          HorizontalAlignment="Stretch"
-                                          MinWidth="200"/>
-                            </StackPanel>
+                                          MinWidth="130"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Start with Windows -->
-                            <ToggleSwitch Header="Start with Windows"
-                                          IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}"
-                                          OnContent="Enabled"
-                                          OffContent="Disabled"/>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Start with Windows" VerticalAlignment="Center"/>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Mute Notifications -->
-                            <ToggleSwitch Header="Mute notifications"
-                                          IsOn="{x:Bind ViewModel.MuteNotifications, Mode=TwoWay}"
-                                          OnContent="Muted"
-                                          OffContent="Active"/>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Mute notifications"/>
+                                    <TextBlock Text="When on, in-app tips are silenced."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.MuteNotifications, Mode=TwoWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Expander.Content>
                 </Expander>
 
                 <!-- Security Section -->
-                <Expander Header="Security" IsExpanded="True" HorizontalAlignment="Stretch">
+                <Expander Header="Security" 
+                          IsExpanded="True" 
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch">
                     <Expander.Content>
-                        <StackPanel Spacing="16" Padding="16">
+                        <StackPanel Spacing="16" Padding="16,12" HorizontalAlignment="Stretch">
                             <!-- Change Password -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Admin Password" FontWeight="SemiBold"/>
-                                <Button Content="Change password"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Admin password" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="Change admin password"
                                         Click="ChangePasswordButton_Click"
-                                        Style="{StaticResource AccentButtonStyle}"/>
-                            </StackPanel>
+                                        VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Security Questions -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Password Recovery" FontWeight="SemiBold"/>
-                                <Button Content="Set security questions"
-                                        Command="{x:Bind ViewModel.ManageSecurityQuestionsCommand}"/>
-                            </StackPanel>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Security Questions" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="Security Questions"
+                                        Command="{x:Bind ViewModel.ManageSecurityQuestionsCommand}"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Lockout Duration -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Lockout duration (minutes)" FontWeight="SemiBold"/>
-                                <TextBlock Text="Lock out after too many failed attempts"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           FontSize="12"
-                                           TextWrapping="Wrap"/>
-                                <NumberBox x:Name="LockoutDurationBox"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Lockout duration (minutes)"/>
+                                    <TextBlock Text="Lockout duration after exceeding max attempts."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <NumberBox Grid.Column="1"
+                                           x:Name="LockoutDurationBox"
                                            Value="{x:Bind ViewModel.LockoutDuration, Mode=TwoWay}"
                                            Minimum="1"
                                            Maximum="60"
                                            SpinButtonPlacementMode="Inline"
-                                           MinWidth="200"
-                                           HorizontalAlignment="Left"/>
-                            </StackPanel>
+                                           MinWidth="110"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Windows Hello -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Windows Hello" FontWeight="SemiBold"/>
-                                <StackPanel Spacing="4">
-                                    <ToggleSwitch Header="Enable Windows Hello unlock"
-                                                  IsOn="{x:Bind ViewModel.WindowsHelloEnabled, Mode=TwoWay}"
-                                                  IsEnabled="{x:Bind ViewModel.WindowsHelloAvailable, Mode=OneWay}"
-                                                  OnContent="Enabled"
-                                                  OffContent="Disabled"/>
-                                    <TextBlock Text="{x:Bind ViewModel.WindowsHelloStatus, Mode=OneWay}"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Windows Hello unlock"/>
+                                    <TextBlock Text="Use fingerprint or face recognition instead of the admin password (device support required)."
+                                               FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               FontSize="12"/>
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
-                            </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.WindowsHelloEnabled, Mode=TwoWay}"
+                                              IsEnabled="{x:Bind ViewModel.WindowsHelloAvailable, Mode=OneWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Expander.Content>
                 </Expander>
 
                 <!-- Auto & Emergency Lock Section -->
-                <Expander Header="Auto &amp; Emergency Lock" IsExpanded="True" HorizontalAlignment="Stretch">
+                <Expander Header="Auto &amp; Emergency Lock" 
+                          IsExpanded="True" 
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch">
                     <Expander.Content>
-                        <StackPanel Spacing="16" Padding="16">
+                        <StackPanel Spacing="16" Padding="16,12" HorizontalAlignment="Stretch">
                             <!-- Auto-lock when idle -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Auto-lock when idle (minutes)" FontWeight="SemiBold"/>
-                                <TextBlock Text="Lock the app after no keyboard/mouse activity (0 = disabled)"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           FontSize="12"
-                                           TextWrapping="Wrap"/>
-                                <NumberBox x:Name="AutoLockIdleBox"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Auto-lock when idle"/>
+                                    <TextBlock Text="Hide the main window and require the admin password again after this period without keyboard/mouse activity. Set to 0 to disable."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <NumberBox Grid.Column="1"
+                                           x:Name="AutoLockIdleBox"
                                            Value="{x:Bind ViewModel.AutoLockIdleMinutes, Mode=TwoWay}"
                                            Minimum="0"
                                            Maximum="120"
                                            SpinButtonPlacementMode="Inline"
-                                           MinWidth="200"
-                                           HorizontalAlignment="Left"/>
-                            </StackPanel>
+                                           MinWidth="110"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- Emergency Hotkey -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Emergency Lock Hotkey" FontWeight="SemiBold"/>
-                                <TextBlock Text="Instantly re-lock all protected apps"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           FontSize="12"
-                                           TextWrapping="Wrap"/>
-                                <StackPanel Spacing="8">
-                                    <ToggleSwitch Header="Enable emergency hotkey"
-                                                  IsOn="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=TwoWay}"
-                                                  OnContent="Enabled"
-                                                  OffContent="Disabled"/>
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0"
-                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock Text="Emergency lock hotkey"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,2">
+                                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="4"
-                                                Padding="12,8">
+                                                Padding="10,4">
                                             <TextBlock Text="{x:Bind ViewModel.EmergencyHotkey, Mode=OneWay}"
-                                                       FontFamily="Consolas"/>
+                                                       FontFamily="Consolas"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
                                         </Border>
-                                        <Button Grid.Column="1"
-                                                Content="Change"
+                                        <Button Content="Change"
                                                 Click="ChangeHotkeyButton_Click"
-                                                IsEnabled="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=OneWay}"/>
-                                    </Grid>
+                                                IsEnabled="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=OneWay}"
+                                                Padding="12,4"/>
+                                    </StackPanel>
+                                    <TextBlock Text="Press this combination to lock all protected apps instantly; rebind it if it clashes with another program."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
-                            </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=TwoWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Top"
+                                              Margin="0,4,0,0"/>
+                            </Grid>
 
                             <!-- Keep lock screen on top -->
-                            <ToggleSwitch Header="Keep lock screen on top"
-                                          IsOn="{x:Bind ViewModel.KeepLockScreenOnTop, Mode=TwoWay}"
-                                          OnContent="Always on top"
-                                          OffContent="Normal"/>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Keep lock screen on top"/>
+                                    <TextBlock Text="On: the lock screen stays above every other window. Off: it only covers the locked window, so other apps can be placed over it."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.KeepLockScreenOnTop, Mode=TwoWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Expander.Content>
                 </Expander>
 
                 <!-- Other Section -->
-                <Expander Header="Other" HorizontalAlignment="Stretch">
+                <Expander Header="Other" 
+                          IsExpanded="True" 
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch">
                     <Expander.Content>
-                        <StackPanel Spacing="16" Padding="16">
+                        <StackPanel Spacing="16" Padding="16,12" HorizontalAlignment="Stretch">
                             <!-- Reset all prompts -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Reset Prompts" FontWeight="SemiBold"/>
-                                <Button Content="Reset all prompts"
-                                        Command="{x:Bind ViewModel.ResetAllPromptsCommand}"/>
-                            </StackPanel>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Reset all prompts" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="Reset all prompts"
+                                        Command="{x:Bind ViewModel.ResetAllPromptsCommand}"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
 
                             <!-- About -->
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="About" FontWeight="SemiBold"/>
-                                <Button Content="About AppLock"
-                                        Click="AboutButton_Click"/>
-                            </StackPanel>
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="About" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="About AppLock"
+                                        Click="AboutButton_Click"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Expander.Content>
                 </Expander>

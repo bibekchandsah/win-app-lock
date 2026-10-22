@@ -2,13 +2,9 @@
 # This imports the VS Developer environment which includes all required build tools
 
 # --- Kill any running AppLock instance so the EXE isn't locked during build ---
-$running = Get-Process -Name "AppLock" -ErrorAction SilentlyContinue
-if ($running) {
-    Write-Host "Stopping running AppLock instance (PID $($running.Id))..." -ForegroundColor Yellow
-    $running | Stop-Process -Force
-    Start-Sleep -Milliseconds 500   # brief wait for OS to release file handles
-    Write-Host "AppLock stopped." -ForegroundColor Yellow
-}
+# --- Kill any running AppLock instance so the EXE isn't locked during build ---
+& taskkill.exe /F /IM "AppLock.exe" 2>$null
+Start-Sleep -Milliseconds 600
 
 # Import VS Developer PowerShell environment
 $vsPath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
