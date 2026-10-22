@@ -20,6 +20,7 @@ public sealed partial class AuthDialog : ContentDialog
     private readonly AuthService _authService;
     private readonly HelloService _helloService;
     private AuthStep _currentStep = AuthStep.Password;
+    private System.Threading.CancellationTokenSource? _helloCts;
 
     public bool IsAuthenticated { get; private set; }
 
@@ -37,6 +38,7 @@ public sealed partial class AuthDialog : ContentDialog
             ApplyTheme();
             PasswordBox.Focus(FocusState.Programmatic);
         };
+        Closing += (s, e) => _helloCts?.Cancel();
     }
 
     private void ApplyTheme()
@@ -318,6 +320,8 @@ public sealed partial class AuthDialog : ContentDialog
         PasswordPanel.Visibility = Visibility.Visible;
         SecurityQuestionPanel.Visibility = Visibility.Collapsed;
         ResetPasswordPanel.Visibility = Visibility.Collapsed;
+        HelloPendingPanel.Visibility = Visibility.Collapsed;
+        IsPrimaryButtonEnabled = true;
 
         ErrorText.Visibility = Visibility.Collapsed;
         PasswordBox.Password = string.Empty;
@@ -327,25 +331,67 @@ public sealed partial class AuthDialog : ContentDialog
     private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
     {
         ErrorText.Visibility = Visibility.Collapsed;
+        WindowsHelloButton.IsEnabled = false;
+
+        // Switch dialog into Windows Hello pending view
+        PasswordPanel.Visibility = Visibility.Collapsed;
+        HelloPendingPanel.Visibility = Visibility.Visible;
+        IsPrimaryButtonEnabled = false;
 
         try
         {
-            bool verified = await _helloService.RequestVerificationAsync("Verify your identity to unlock AppLock");
+            _helloCts = new System.Threading.CancellationTokenSource();
+            bool verified = await _helloService.RequestVerificationAsync(
+                "Verify your identity to unlock AppLock",
+                _helloCts.Token);
+
             if (verified)
             {
                 IsAuthenticated = true;
                 Hide();
+                return;
             }
-            else
+
+            if (_helloCts?.IsCancellationRequested != true)
             {
-                ErrorText.Text = "Windows Hello verification failed";
+                ErrorText.Text = "Windows Hello verification failed. Try your password.";
                 ErrorText.Visibility = Visibility.Visible;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by user clicking "Cancel Windows Hello"
         }
         catch (Exception ex)
         {
             ErrorText.Text = $"Windows Hello error: {ex.Message}";
             ErrorText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _helloCts?.Dispose();
+            _helloCts = null;
+
+            if (!IsAuthenticated)
+            {
+                HelloPendingPanel.Visibility = Visibility.Collapsed;
+                PasswordPanel.Visibility = Visibility.Visible;
+                IsPrimaryButtonEnabled = true;
+                PasswordBox.Focus(FocusState.Programmatic);
+            }
+            WindowsHelloButton.IsEnabled = true;
+        }
+    }
+
+    private void HelloCancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _helloCts?.Cancel();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Cancel Windows Hello error: {ex.Message}");
         }
     }
 }

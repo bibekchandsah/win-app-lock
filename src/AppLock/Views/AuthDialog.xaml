@@ -122,5 +122,73 @@
                              HorizontalAlignment="Center"
                              FontSize="12"/>
         </StackPanel>
+
+        <!-- 4. Windows Hello Pending View -->
+        <StackPanel x:Name="HelloPendingPanel" Spacing="16" Visibility="Collapsed" HorizontalAlignment="Center" Padding="0,4">
+            <!-- Hello Icon -->
+            <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    CornerRadius="28"
+                    Width="56" Height="56"
+                    HorizontalAlignment="Center">
+                <FontIcon Glyph="&#xE77B;" FontSize="28" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <!-- Status text -->
+            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                <TextBlock Text="Windows Hello verification pending…"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"/>
+                <TextBlock Text="The Windows Hello prompt may be behind this window."
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="320"/>
+            </StackPanel>
+
+            <!-- Tip box -->
+            <Border Background="{ThemeResource LayerFillColorAltBrush}"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14,10"
+                    MaxWidth="340">
+                <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xE946;" FontSize="14"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="How to complete verification:"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               MaxWidth="320"
+                               Style="{ThemeResource CaptionTextBlockStyle}">
+                        <Run Text="• Use your fingerprint sensor, face, or PIN directly"/>
+                        <LineBreak/>
+                        <Run Text="• Or press "/>
+                        <Run Text="Alt+Tab" FontWeight="SemiBold"/>
+                        <Run Text=" to switch to the Windows Hello prompt"/>
+                        <LineBreak/>
+                        <Run Text="• Or use mouse gestures / taskbar to find it"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Cancel button -->
+            <Button x:Name="HelloCancelButton"
+                    Content="Cancel Windows Hello"
+                    Click="HelloCancelButton_Click"
+                    HorizontalAlignment="Center"
+                    CornerRadius="4"
+                    Padding="16,6"/>
+        </StackPanel>
     </StackPanel>
 </ContentDialog>
