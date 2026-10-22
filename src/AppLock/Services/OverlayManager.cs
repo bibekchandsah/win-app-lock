@@ -95,6 +95,13 @@ public class OverlayManager
         {
             if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
             {
+                var targetHwnd = new HWND(e.WindowHandle);
+                if (PInvoke.IsIconic(targetHwnd))
+                {
+                    overlay.HideOverlay();
+                    return;
+                }
+
                 overlay.PositionOverTarget();
                 overlay.Activate();
                 return;
@@ -111,6 +118,13 @@ public class OverlayManager
             // Update overlay position if it exists
             if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
             {
+                var targetHwnd = new HWND(e.WindowHandle);
+                if (PInvoke.IsIconic(targetHwnd))
+                {
+                    overlay.HideOverlay();
+                    return;
+                }
+
                 overlay.PositionOverTarget();
             }
         });
@@ -165,7 +179,7 @@ public class OverlayManager
         unsafe
         {
             var hwnd = new HWND(windowHandle);
-            if (!PInvoke.IsWindowVisible(hwnd))
+            if (!PInvoke.IsWindowVisible(hwnd) || PInvoke.IsIconic(hwnd))
                 return;
 
             int titleLength = PInvoke.GetWindowTextLength(hwnd);
@@ -234,8 +248,13 @@ public class OverlayManager
         if (_activeOverlays.ContainsKey(window.Handle))
             return;
 
-        // Set locked thumbnail for taskbar preview
         var hwnd = new HWND(window.Handle);
+
+        // Do not show overlay if target window is minimized
+        if (PInvoke.IsIconic(hwnd))
+            return;
+
+        // Set locked thumbnail for taskbar preview
         _thumbnailService.SetLockedThumbnail(hwnd);
 
         var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
