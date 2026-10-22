@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace AppLock.Views;
@@ -107,6 +108,15 @@ public sealed partial class LockOverlayWindow : Window
                 insertAfter,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+
+            // Request Windows 11 rounded corners via DWM
+            const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+            uint cornerPreference = 2; // DWMWCP_ROUND (round window corners to match Windows 11)
+            PInvoke.DwmSetWindowAttribute(
+                handle,
+                (DWMWINDOWATTRIBUTE)DWMWA_WINDOW_CORNER_PREFERENCE,
+                &cornerPreference,
+                sizeof(uint));
         }
     }
 
@@ -116,6 +126,12 @@ public sealed partial class LockOverlayWindow : Window
         {
             var targetHwnd = new HWND(_targetWindowHandle);
             
+            // If target window is minimized, don't position or show
+            if (PInvoke.IsIconic(targetHwnd))
+            {
+                return;
+            }
+
             // Get window bounds without shadow (more accurate)
             var rect = _displayHelper.GetWindowBoundsWithoutShadow(targetHwnd);
             
@@ -140,12 +156,25 @@ public sealed partial class LockOverlayWindow : Window
             width = Math.Max(width, 320);
             height = Math.Max(height, 400);
 
+            // Windows 11 rounded corners:
+            // If target is maximized, square corners (DWMWCP_DONOTROUND); otherwise round corners (DWMWCP_ROUND)
+            bool isMaximized = PInvoke.IsZoomed(targetHwnd);
+            const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+            uint cornerPreference = isMaximized ? 1u : 2u;
+            PInvoke.DwmSetWindowAttribute(
+                hwnd,
+                (DWMWINDOWATTRIBUTE)DWMWA_WINDOW_CORNER_PREFERENCE,
+                &cornerPreference,
+                sizeof(uint));
+
+            RootGrid.CornerRadius = isMaximized ? new CornerRadius(0) : new CornerRadius(10);
+
             // Z-order:
             //   KeepOnTop ON  → HWND_TOPMOST (-1): overlay stays above everything
-            //   KeepOnTop OFF → just above the target window: other apps can be placed over the overlay
+            //   KeepOnTop OFF → HWND_TOP (0): overlay stays at top of normal windows, right over target
             var insertAfter = _keepOnTop
                 ? new HWND((nint)(-1))          // HWND_TOPMOST
-                : new HWND(_targetWindowHandle); // just above the target
+                : new HWND((nint)(0));           // HWND_TOP (above target)
             
             PInvoke.SetWindowPos(
                 hwnd,
@@ -155,6 +184,32 @@ public sealed partial class LockOverlayWindow : Window
                 width,
                 height,
                 SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
+
+            if (!_keepOnTop)
+            {
+                // Ensure target window is placed immediately behind the overlay in Z-order
+                PInvoke.SetWindowPos(
+                    targetHwnd,
+                    hwnd,
+                    0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            }
+
+            // Re-assert foreground / top so keyboard focus goes to overlay PasswordBox
+            uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);
+            uint currentThreadId = PInvoke.GetCurrentThreadId();
+            if (targetThreadId != 0 && targetThreadId != currentThreadId)
+            {
+                PInvoke.AttachThreadInput(targetThreadId, currentThreadId, true);
+                PInvoke.BringWindowToTop(hwnd);
+                PInvoke.SetForegroundWindow(hwnd);
+                PInvoke.AttachThreadInput(targetThreadId, currentThreadId, false);
+            }
+            else
+            {
+                PInvoke.BringWindowToTop(hwnd);
+                PInvoke.SetForegroundWindow(hwnd);
+            }
         }
     }
 

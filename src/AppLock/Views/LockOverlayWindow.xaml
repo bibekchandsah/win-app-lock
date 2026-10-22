@@ -9,6 +9,7 @@
     <!-- Full-window semi-transparent gray overlay — syncs with theme -->
     <Grid x:Name="RootGrid"
           Background="#99202020"
+          CornerRadius="10"
           SizeChanged="RootGrid_SizeChanged">
 
         <!-- Card shadow layer (simulated drop shadow) -->

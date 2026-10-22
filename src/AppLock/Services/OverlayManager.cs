@@ -92,6 +92,13 @@ public class OverlayManager
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
+            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            {
+                overlay.PositionOverTarget();
+                overlay.Activate();
+                return;
+            }
+
             CheckWindow(e.WindowHandle);
         });
     }
