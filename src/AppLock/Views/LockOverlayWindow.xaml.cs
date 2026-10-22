@@ -14,6 +14,7 @@ public sealed partial class LockOverlayWindow : Window
     private readonly nint _targetWindowHandle;
     private readonly string _windowTitle;
     private readonly AuthService _authService;
+    private readonly DisplayHelper _displayHelper;
 
     public bool IsUnlocked { get; private set; }
     public TimeSpan UnlockDuration { get; private set; }
@@ -28,6 +29,7 @@ public sealed partial class LockOverlayWindow : Window
         _targetWindowHandle = targetWindowHandle;
         _windowTitle = windowTitle;
         _authService = ServiceContainer.AuthService;
+        _displayHelper = ServiceContainer.DisplayHelper;
 
         InitializeComponent();
 
@@ -73,20 +75,39 @@ public sealed partial class LockOverlayWindow : Window
         unsafe
         {
             var targetHwnd = new HWND(_targetWindowHandle);
-            Windows.Win32.Foundation.RECT rect;
-
-            if (PInvoke.GetWindowRect(targetHwnd, &rect))
+            
+            // Get window bounds without shadow (more accurate)
+            var rect = _displayHelper.GetWindowBoundsWithoutShadow(targetHwnd);
+            
+            // Get monitor and DPI info
+            var monitor = _displayHelper.GetMonitorFromWindow(targetHwnd);
+            var monitorInfo = _displayHelper.GetMonitorInfo(monitor);
+            
+            if (monitorInfo != null)
             {
-                var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
-                PInvoke.SetWindowPos(
-                    hwnd,
-                    new HWND((nint)(-1)), // HWND_TOPMOST
-                    rect.left,
-                    rect.top,
-                    rect.right - rect.left,
-                    rect.bottom - rect.top,
-                    SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
+                System.Diagnostics.Debug.WriteLine(
+                    $"Overlay positioning - Monitor: {monitorInfo.Width}x{monitorInfo.Height}, " +
+                    $"DPI: {monitorInfo.DpiX}, Scale: {monitorInfo.ScaleFactor:F2}x");
             }
+
+            var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            
+            // Use DWM extended frame bounds for better accuracy
+            var width = rect.right - rect.left;
+            var height = rect.bottom - rect.top;
+            
+            // Ensure minimum size
+            width = Math.Max(width, 320);
+            height = Math.Max(height, 400);
+            
+            PInvoke.SetWindowPos(
+                hwnd,
+                new HWND((nint)(-1)), // HWND_TOPMOST
+                rect.left,
+                rect.top,
+                width,
+                height,
+                SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
         }
     }
 

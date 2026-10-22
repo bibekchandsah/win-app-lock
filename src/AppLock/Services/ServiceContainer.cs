@@ -18,6 +18,10 @@ public static class ServiceContainer
     private static IdleService? _idleService;
     private static StartupService? _startupService;
     private static HelloService? _helloService;
+    private static TrayService? _trayService;
+    private static ThumbnailService? _thumbnailService;
+    private static UwpWindowResolver? _uwpWindowResolver;
+    private static DisplayHelper? _displayHelper;
 
     public static SettingsStore SettingsStore
     {
@@ -151,12 +155,62 @@ public static class ServiceContainer
         }
     }
 
+    public static TrayService TrayService
+    {
+        get
+        {
+            if (_trayService == null)
+            {
+                _trayService = new TrayService(SettingsStore, AuthService, LockManager);
+            }
+            return _trayService;
+        }
+    }
+
+    public static ThumbnailService ThumbnailService
+    {
+        get
+        {
+            if (_thumbnailService == null)
+            {
+                _thumbnailService = new ThumbnailService();
+            }
+            return _thumbnailService;
+        }
+    }
+
+    public static UwpWindowResolver UwpWindowResolver
+    {
+        get
+        {
+            if (_uwpWindowResolver == null)
+            {
+                _uwpWindowResolver = new UwpWindowResolver();
+            }
+            return _uwpWindowResolver;
+        }
+    }
+
+    public static DisplayHelper DisplayHelper
+    {
+        get
+        {
+            if (_displayHelper == null)
+            {
+                _displayHelper = new DisplayHelper();
+            }
+            return _displayHelper;
+        }
+    }
+
     public static void Reset()
     {
         // Stop and dispose services that need cleanup
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();
         _idleService?.Dispose();
+        _trayService?.Dispose();
+        _thumbnailService?.Dispose();
         
         _settingsStore = null;
         _settings = null;
@@ -169,5 +223,9 @@ public static class ServiceContainer
         _idleService = null;
         _startupService = null;
         _helloService = null;
+        _trayService = null;
+        _thumbnailService = null;
+        _uwpWindowResolver = null;
+        _displayHelper = null;
     }
 }

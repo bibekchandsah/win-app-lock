@@ -1,0 +1,45 @@
+<Page
+    x:Class="AppLock.TrayIconPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tb="using:H.NotifyIcon">
+
+    <tb:TaskbarIcon
+        x:Name="TrayIcon"
+        ToolTipText="AppLock">
+        
+        <tb:TaskbarIcon.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem Text="Open AppLock" Click="OpenMenuItem_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE8A7;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                
+                <MenuFlyoutSeparator/>
+                
+                <MenuFlyoutItem x:Name="ProtectionMenuItem" Text="Disable Protection" Click="ProtectionMenuItem_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE72E;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                
+                <MenuFlyoutSeparator/>
+                
+                <MenuFlyoutItem Text="Emergency Lock" Click="EmergencyLockMenuItem_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE72E;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                
+                <MenuFlyoutSeparator/>
+                
+                <MenuFlyoutItem Text="Exit" Click="ExitMenuItem_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE711;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+            </MenuFlyout>
+        </tb:TaskbarIcon.ContextFlyout>
+    </tb:TaskbarIcon>
+</Page>

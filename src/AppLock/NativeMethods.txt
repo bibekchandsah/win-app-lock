@@ -34,3 +34,14 @@ GetWindowLongPtr
 SetWindowsHookEx
 UnhookWindowsHookEx
 CallNextHookEx
+EnumChildWindows
+GetClassName
+GetApplicationUserModelId
+MonitorFromWindow
+MonitorFromPoint
+GetMonitorInfo
+EnumDisplayMonitors
+GetDpiForMonitor
+GetAwarenessFromDpiAwarenessContext
+GetThreadDpiAwarenessContext
+DeleteObject

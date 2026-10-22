@@ -190,6 +190,100 @@ public sealed partial class MainWindow : Window
 
         // Wire up idle service event
         ServiceContainer.IdleService.IdleTimeReached += IdleService_IdleTimeReached;
+
+        // Initialize and wire up tray service
+        InitializeTrayService();
+    }
+
+    private void InitializeTrayService()
+    {
+        try
+        {
+            ServiceContainer.TrayService.Initialize();
+            
+            // Wire up tray events
+            ServiceContainer.TrayService.OpenMainWindowRequested += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(() => Show());
+            };
+            
+            ServiceContainer.TrayService.EmergencyLockRequested += (s, e) =>
+            {
+                OnEmergencyLockHotkey();
+            };
+            
+            ServiceContainer.TrayService.ExitRequested += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(async () => await HandleExitRequestAsync());
+            };
+            
+            ServiceContainer.TrayService.ProtectionToggleRequested += (s, newState) =>
+            {
+                DispatcherQueue.TryEnqueue(async () => await HandleProtectionToggleAsync(newState));
+            };
+            
+            System.Diagnostics.Debug.WriteLine("Tray service initialized");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error initializing tray service: {ex.Message}");
+        }
+    }
+
+    private async Task HandleProtectionToggleAsync(bool enable)
+    {
+        // Show auth dialog
+        var dialog = new AuthDialog(ServiceContainer.AuthService)
+        {
+            Title = enable ? "Enable Protection" : "Disable Protection",
+            XamlRoot = Content?.XamlRoot
+        };
+
+        await dialog.ShowAsync();
+
+        if (dialog.IsAuthenticated)
+        {
+            if (enable)
+            {
+                ServiceContainer.LockManager.EnableProtection();
+                ServiceContainer.OverlayManager.Start();
+            }
+            else
+            {
+                ServiceContainer.LockManager.DisableProtection();
+                ServiceContainer.OverlayManager.Stop();
+            }
+            
+            // Update tray
+            ServiceContainer.TrayService.UpdateProtectionMenuItems();
+            
+            // Show notification
+            await ShowNotificationAsync(
+                "Protection " + (enable ? "Enabled" : "Disabled"),
+                "AppLock protection is now " + (enable ? "active" : "inactive") + "."
+            );
+        }
+    }
+
+    private async Task HandleExitRequestAsync()
+    {
+        // Show auth dialog to confirm exit
+        var dialog = new AuthDialog(ServiceContainer.AuthService)
+        {
+            Title = "Exit AppLock",
+            XamlRoot = Content?.XamlRoot
+        };
+
+        await dialog.ShowAsync();
+
+        if (dialog.IsAuthenticated)
+        {
+            // Perform cleanup
+            MainWindow_ActualClose();
+            
+            // Exit app
+            Application.Current.Exit();
+        }
     }
 
     private void RegisterEmergencyHotkey()
@@ -336,10 +430,24 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, Microsoft.UI.Xaml.WindowEventArgs args)
     {
-        // Cleanup
+        // Check if this is a minimize-to-tray or actual close
+        // For now, treat window close as minimize to tray
+        // Protection keeps running in background
+        
+        // Prevent actual close, just hide the window
+        args.Handled = true;
+        Hide();
+        
+        System.Diagnostics.Debug.WriteLine("Window minimized to tray");
+    }
+    
+    private void MainWindow_ActualClose()
+    {
+        // Actual cleanup when exiting app
         UnregisterEmergencyHotkey();
         ServiceContainer.IdleService.StopMonitoring();
         ServiceContainer.OverlayManager.Stop();
+        ServiceContainer.TrayService.Dispose();
     }
 
     private void Show()

@@ -12,6 +12,8 @@ public class OverlayManager
     private readonly AuthService _authService;
     private readonly WinEventHookService _winEventHook;
     private readonly WindowEnumerator _windowEnumerator;
+    private readonly ThumbnailService _thumbnailService;
+    private readonly DisplayHelper _displayHelper;
     private DispatcherQueue? _dispatcherQueue;
     
     private readonly Dictionary<nint, LockOverlayWindow> _activeOverlays = new();
@@ -25,6 +27,8 @@ public class OverlayManager
         _authService = authService;
         _windowEnumerator = new WindowEnumerator();
         _winEventHook = new WinEventHookService();
+        _thumbnailService = ServiceContainer.ThumbnailService;
+        _displayHelper = ServiceContainer.DisplayHelper;
         
         // Get the dispatcher queue from the main UI thread
         // Note: This will be null if not called on UI thread, we'll get it lazily in Start()
@@ -211,6 +215,10 @@ public class OverlayManager
         if (_activeOverlays.ContainsKey(window.Handle))
             return;
 
+        // Set locked thumbnail for taskbar preview
+        var hwnd = new HWND(window.Handle);
+        _thumbnailService.SetLockedThumbnail(hwnd);
+
         var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
         _activeOverlays[window.Handle] = overlay;
         
@@ -230,6 +238,9 @@ public class OverlayManager
                 }
             }
             
+            // Clear locked thumbnail when overlay is removed
+            _thumbnailService.ClearLockedThumbnail(hwnd);
+            
             _activeOverlays.Remove(window.Handle);
         };
         
@@ -243,6 +254,10 @@ public class OverlayManager
             overlay.Close();
             _activeOverlays.Remove(windowHandle);
         }
+        
+        // Clear thumbnail
+        var hwnd = new HWND(windowHandle);
+        _thumbnailService.ClearLockedThumbnail(hwnd);
         
         _unlockTimers.Remove(windowHandle);
     }

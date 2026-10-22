@@ -1,7 +1,9 @@
 <Application
     x:Class="AppLock.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AppLock"
+    xmlns:tb="using:H.NotifyIcon">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -11,6 +13,46 @@
             <!-- App-wide accent color -->
             <Color x:Key="AccentColor">#D9A0E8</Color>
             <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+            
+            <!-- Tray Icon -->
+            <tb:TaskbarIcon
+                x:Key="AppTrayIcon"
+                ToolTipText="AppLock">
+                
+                <tb:TaskbarIcon.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem x:Name="OpenMenuItem" Text="Open AppLock">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8A7;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutSeparator/>
+                        
+                        <MenuFlyoutItem x:Name="ProtectionMenuItem" Text="Disable Protection">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE72E;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutSeparator/>
+                        
+                        <MenuFlyoutItem x:Name="EmergencyLockMenuItem" Text="Emergency Lock">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE72E;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutSeparator/>
+                        
+                        <MenuFlyoutItem x:Name="ExitMenuItem" Text="Exit">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE711;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </tb:TaskbarIcon.ContextFlyout>
+            </tb:TaskbarIcon>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

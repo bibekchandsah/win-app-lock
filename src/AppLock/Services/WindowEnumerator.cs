@@ -20,6 +20,7 @@ public class WindowEnumerator
     {
         var windows = new List<RunningWindow>();
         var currentProcessId = PInvoke.GetCurrentProcessId();
+        var uwpResolver = ServiceContainer.UwpWindowResolver;
 
         unsafe
         {
@@ -96,11 +97,33 @@ public class WindowEnumerator
                                     return true;
 
                                 // Handle UWP apps (ApplicationFrameHost)
-                                if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
+                                if (uwpResolver.IsApplicationFrameHost(processPath))
                                 {
-                                    // Try to get the actual UWP app name from the window title
-                                    // For UWP apps, the title usually contains the app name
-                                    processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                                    // Resolve to actual UWP app
+                                    var (actualTitle, actualPath) = uwpResolver.ResolveUwpWindow(hwnd);
+                                    
+                                    if (!string.IsNullOrEmpty(actualTitle))
+                                    {
+                                        title = actualTitle;
+                                    }
+                                    
+                                    if (!string.IsNullOrEmpty(actualPath))
+                                    {
+                                        processPath = actualPath;
+                                        processName = Path.GetFileNameWithoutExtension(actualPath);
+                                    }
+                                    else
+                                    {
+                                        // Fallback: extract app name from title
+                                        processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                                    }
+                                    
+                                    // Get AUMID for better identification
+                                    var aumid = uwpResolver.GetAppUserModelId(hwnd);
+                                    if (!string.IsNullOrEmpty(aumid))
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"UWP App: {processName} - AUMID: {aumid}");
+                                    }
                                 }
 
                                 var window = new RunningWindow
