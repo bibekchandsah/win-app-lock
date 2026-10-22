@@ -24,10 +24,13 @@ public sealed partial class MainWindow : Window
     private static extern nint DefSubclassProc(nint hWnd, uint uMsg, nint wParam, nint lParam);
 
     private const uint WM_HOTKEY = 0x0312;
+    private const uint WM_CLOSE = 0x0010;
     private SUBCLASSPROC? _subclassProc; // keep delegate alive to prevent GC
 
     private SystemBackdropConfiguration? _backdropConfiguration;
     private MicaController? _micaController;
+    private Microsoft.UI.Windowing.AppWindow? _appWindow;
+    private bool _isExplicitExit = false;
     private bool _loginShown = false;
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
@@ -44,10 +47,11 @@ public sealed partial class MainWindow : Window
         var hWndNative = WindowNative.GetWindowHandle(this);
         _hwnd = new HWND(hWndNative);
         
-        // Set window size
+        // Set window size & wire closing event
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWndNative);
-        var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-        appWindow.Resize(new Windows.Graphics.SizeInt32(1000, 700));
+        _appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+        _appWindow.Resize(new Windows.Graphics.SizeInt32(1000, 700));
+        _appWindow.Closing += AppWindow_Closing;
         
         // Set up Mica backdrop
         SetupMica();
@@ -78,9 +82,6 @@ public sealed partial class MainWindow : Window
                 }
             };
         }
-        
-        // Handle window closing
-        this.Closed += MainWindow_Closed;
     }
 
     private void SetupMica()
@@ -223,6 +224,13 @@ public sealed partial class MainWindow : Window
 
     private nint WndProcSubclass(nint hWnd, uint uMsg, nint wParam, nint lParam, nint uIdSubclass, nint dwRefData)
     {
+        if (uMsg == WM_CLOSE && !_isExplicitExit)
+        {
+            Hide();
+            System.Diagnostics.Debug.WriteLine("WM_CLOSE intercepted -> Minimized to system tray");
+            return 0; // Prevent Win32 window destruction
+        }
+
         if (uMsg == WM_HOTKEY)
         {
             int hotkeyId = (int)wParam;
@@ -305,7 +313,7 @@ public sealed partial class MainWindow : Window
 
     private async Task HandleExitRequestAsync()
     {
-        // Show auth dialog to confirm exit
+        Show(); // Ensure window is visible so auth dialog can be displayed
         var dialog = new AuthDialog(ServiceContainer.AuthService)
         {
             Title = "Exit AppLock",
@@ -316,6 +324,7 @@ public sealed partial class MainWindow : Window
 
         if (dialog.IsAuthenticated)
         {
+            _isExplicitExit = true;
             // Perform cleanup
             MainWindow_ActualClose();
             
@@ -477,17 +486,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void MainWindow_Closed(object sender, Microsoft.UI.Xaml.WindowEventArgs args)
+    private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
-        // Check if this is a minimize-to-tray or actual close
-        // For now, treat window close as minimize to tray
-        // Protection keeps running in background
-        
-        // Prevent actual close, just hide the window
-        args.Handled = true;
-        Hide();
-        
-        System.Diagnostics.Debug.WriteLine("Window minimized to tray");
+        if (!_isExplicitExit)
+        {
+            // Cancel close and hide to system tray
+            args.Cancel = true;
+            Hide();
+            System.Diagnostics.Debug.WriteLine("Window minimized to system tray (AppWindow.Closing)");
+        }
     }
     
     private void MainWindow_ActualClose()
@@ -506,14 +513,32 @@ public sealed partial class MainWindow : Window
         Instance = null;
     }
 
-    private void Show()
+    public void Show()
     {
-        PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_SHOW);
-        PInvoke.SetForegroundWindow(_hwnd);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_appWindow != null)
+            {
+                _appWindow.Show();
+            }
+            PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
+            this.Activate();
+            PInvoke.BringWindowToTop(_hwnd);
+            PInvoke.SetForegroundWindow(_hwnd);
+            System.Diagnostics.Debug.WriteLine("MainWindow restored and brought to foreground");
+        });
     }
 
-    private void Hide()
+    public void Hide()
     {
-        PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_appWindow != null)
+            {
+                _appWindow.Hide();
+            }
+            PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+            System.Diagnostics.Debug.WriteLine("MainWindow hidden to system tray");
+        });
     }
 }

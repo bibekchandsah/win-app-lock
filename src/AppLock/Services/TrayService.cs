@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using H.NotifyIcon;
 using AppLock.Models;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AppLock.Services;
 
@@ -50,47 +51,73 @@ public sealed class TrayService : IDisposable
             // Load icon
             LoadIcon();
             
-            // Get menu items from the context flyout by index (since x:Name might not work in resources)
+            // Get menu items from the context flyout
             if (_trayIcon.ContextFlyout is MenuFlyout menuFlyout)
             {
                 System.Diagnostics.Debug.WriteLine($"Context menu has {menuFlyout.Items.Count} items");
                 
-                // Items are in order: Open (0), Separator (1), Protection (2), Separator (3), Emergency (4), Separator (5), Exit (6)
-                if (menuFlyout.Items.Count >= 7)
+                foreach (var item in menuFlyout.Items)
                 {
-                    _openMenuItem = menuFlyout.Items[0] as MenuFlyoutItem;
-                    _protectionMenuItem = menuFlyout.Items[2] as MenuFlyoutItem;
-                    _emergencyLockMenuItem = menuFlyout.Items[4] as MenuFlyoutItem;
-                    _exitMenuItem = menuFlyout.Items[6] as MenuFlyoutItem;
-                    
-                    System.Diagnostics.Debug.WriteLine($"Open: {_openMenuItem != null}, Protection: {_protectionMenuItem != null}, Emergency: {_emergencyLockMenuItem != null}, Exit: {_exitMenuItem != null}");
+                    if (item is MenuFlyoutItem mfi)
+                    {
+                        var text = mfi.Text ?? "";
+                        if (text.Contains("Open", StringComparison.OrdinalIgnoreCase))
+                            _openMenuItem = mfi;
+                        else if (text.Contains("Protection", StringComparison.OrdinalIgnoreCase))
+                            _protectionMenuItem = mfi;
+                        else if (text.Contains("Emergency", StringComparison.OrdinalIgnoreCase))
+                            _emergencyLockMenuItem = mfi;
+                        else if (text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
+                            _exitMenuItem = mfi;
+                    }
                 }
+
+                // Fallback to index if needed
+                if (_openMenuItem == null && menuFlyout.Items.Count > 0)
+                    _openMenuItem = menuFlyout.Items[0] as MenuFlyoutItem;
+                if (_protectionMenuItem == null && menuFlyout.Items.Count > 2)
+                    _protectionMenuItem = menuFlyout.Items[2] as MenuFlyoutItem;
+                if (_emergencyLockMenuItem == null && menuFlyout.Items.Count > 4)
+                    _emergencyLockMenuItem = menuFlyout.Items[4] as MenuFlyoutItem;
+                if (_exitMenuItem == null && menuFlyout.Items.Count > 6)
+                    _exitMenuItem = menuFlyout.Items[6] as MenuFlyoutItem;
                 
                 // Wire up click events
                 if (_openMenuItem != null)
                 {
+                    _openMenuItem.Click -= OpenMenuItem_Click;
                     _openMenuItem.Click += OpenMenuItem_Click;
                     System.Diagnostics.Debug.WriteLine("Open menu item wired");
                 }
                 
                 if (_protectionMenuItem != null)
                 {
+                    _protectionMenuItem.Click -= ProtectionMenuItem_Click;
                     _protectionMenuItem.Click += ProtectionMenuItem_Click;
                     System.Diagnostics.Debug.WriteLine("Protection menu item wired");
                 }
                 
                 if (_emergencyLockMenuItem != null)
                 {
+                    _emergencyLockMenuItem.Click -= EmergencyLockMenuItem_Click;
                     _emergencyLockMenuItem.Click += EmergencyLockMenuItem_Click;
                     System.Diagnostics.Debug.WriteLine("Emergency lock menu item wired");
                 }
                 
                 if (_exitMenuItem != null)
                 {
+                    _exitMenuItem.Click -= ExitMenuItem_Click;
                     _exitMenuItem.Click += ExitMenuItem_Click;
                     System.Diagnostics.Debug.WriteLine("Exit menu item wired");
                 }
             }
+
+            // Double click on tray icon opens main window
+            _trayIcon.DoubleClickCommand = new RelayCommand(() =>
+            {
+                System.Diagnostics.Debug.WriteLine("Tray icon double clicked!");
+                OpenMainWindowRequested?.Invoke(this, EventArgs.Empty);
+            });
             
             UpdateTooltip();
             UpdateProtectionMenuItems();
