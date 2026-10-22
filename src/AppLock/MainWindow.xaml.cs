@@ -523,8 +523,27 @@ public sealed partial class MainWindow : Window
             }
             PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
             this.Activate();
-            PInvoke.BringWindowToTop(_hwnd);
-            PInvoke.SetForegroundWindow(_hwnd);
+
+            // Force window to foreground even when Explorer owns the foreground thread
+            unsafe
+            {
+                var fgHwnd = PInvoke.GetForegroundWindow();
+                uint foregroundThreadId = PInvoke.GetWindowThreadProcessId(fgHwnd, null);
+                uint currentThreadId = PInvoke.GetCurrentThreadId();
+                if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+                {
+                    PInvoke.AttachThreadInput(foregroundThreadId, currentThreadId, true);
+                    PInvoke.BringWindowToTop(_hwnd);
+                    PInvoke.SetForegroundWindow(_hwnd);
+                    PInvoke.AttachThreadInput(foregroundThreadId, currentThreadId, false);
+                }
+                else
+                {
+                    PInvoke.BringWindowToTop(_hwnd);
+                    PInvoke.SetForegroundWindow(_hwnd);
+                }
+            }
+
             System.Diagnostics.Debug.WriteLine("MainWindow restored and brought to foreground");
         });
     }
