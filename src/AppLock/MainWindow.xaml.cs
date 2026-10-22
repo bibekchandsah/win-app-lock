@@ -8,19 +8,36 @@ using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
 using WinRT.Interop;
+using System.Runtime.InteropServices;
 
 namespace AppLock;
 
 public sealed partial class MainWindow : Window
 {
+    // Win32 subclassing for WM_HOTKEY interception
+    private delegate nint SUBCLASSPROC(nint hWnd, uint uMsg, nint wParam, nint lParam, nint uIdSubclass, nint dwRefData);
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern bool SetWindowSubclass(nint hWnd, SUBCLASSPROC pfnSubclass, nint uIdSubclass, nint dwRefData);
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern bool RemoveWindowSubclass(nint hWnd, SUBCLASSPROC pfnSubclass, nint uIdSubclass);
+    [DllImport("comctl32.dll")]
+    private static extern nint DefSubclassProc(nint hWnd, uint uMsg, nint wParam, nint lParam);
+
+    private const uint WM_HOTKEY = 0x0312;
+    private SUBCLASSPROC? _subclassProc; // keep delegate alive to prevent GC
+
     private SystemBackdropConfiguration? _backdropConfiguration;
     private MicaController? _micaController;
     private bool _loginShown = false;
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
 
+    // Allow SettingsPage to call reregister without needing a reference to MainWindow
+    internal static MainWindow? Instance { get; private set; }
+
     public MainWindow()
     {
+        Instance = this;
         InitializeComponent();
         
         // Get window handle
@@ -180,6 +197,9 @@ public sealed partial class MainWindow : Window
         // Set window handle for hotkey service
         ServiceContainer.HotkeyService.SetWindowHandle(_hwnd);
 
+        // Subclass the window to intercept WM_HOTKEY messages
+        InstallWndProcSubclass();
+
         // Register emergency hotkey if enabled
         RegisterEmergencyHotkey();
 
@@ -191,6 +211,26 @@ public sealed partial class MainWindow : Window
 
         // Initialize and wire up tray service
         InitializeTrayService();
+    }
+
+    private void InstallWndProcSubclass()
+    {
+        // Keep a strong reference to the delegate so GC doesn't collect it
+        _subclassProc = WndProcSubclass;
+        bool ok = SetWindowSubclass(_hwnd.Value, _subclassProc, 1, 0);
+        System.Diagnostics.Debug.WriteLine($"WndProc subclass installed: {ok}");
+    }
+
+    private nint WndProcSubclass(nint hWnd, uint uMsg, nint wParam, nint lParam, nint uIdSubclass, nint dwRefData)
+    {
+        if (uMsg == WM_HOTKEY)
+        {
+            int hotkeyId = (int)wParam;
+            System.Diagnostics.Debug.WriteLine($"WM_HOTKEY received: id={hotkeyId}");
+            ServiceContainer.HotkeyService.ProcessHotkeyMessage(hotkeyId);
+            return 0;
+        }
+        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }
 
     private void InitializeTrayService()
@@ -324,6 +364,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Re-register the emergency hotkey after a change in Settings.
+    /// Called by SettingsPage after saving the new hotkey string.
+    /// </summary>
+    internal void ReregisterEmergencyHotkey()
+    {
+        UnregisterEmergencyHotkey();
+        RegisterEmergencyHotkey();
+        System.Diagnostics.Debug.WriteLine($"Emergency hotkey re-registered: {ServiceContainer.Settings.EmergencyHotkey}");
+    }
+
     private void StartIdleMonitoring()
     {
         var settings = ServiceContainer.Settings;
@@ -443,9 +494,16 @@ public sealed partial class MainWindow : Window
     {
         // Actual cleanup when exiting app
         UnregisterEmergencyHotkey();
+        // Remove WndProc subclass
+        if (_subclassProc != null)
+        {
+            RemoveWindowSubclass(_hwnd.Value, _subclassProc, 1);
+            _subclassProc = null;
+        }
         ServiceContainer.IdleService.StopMonitoring();
         ServiceContainer.OverlayManager.Stop();
         ServiceContainer.TrayService.Dispose();
+        Instance = null;
     }
 
     private void Show()

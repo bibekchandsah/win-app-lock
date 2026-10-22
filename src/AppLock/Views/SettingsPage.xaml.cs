@@ -184,16 +184,8 @@ public sealed partial class SettingsPage : Page
     {
         try
         {
-            var hotkeyService = ServiceContainer.HotkeyService;
-            
-            // Unregister old hotkey
-            var (oldMods, oldKey) = HotkeyService.ParseHotkey(oldHotkey);
-            // Note: We'd need to track the hotkey ID, for now we'll just clear and re-register
-            
-            // Register new hotkey
-            var (newMods, newKey) = HotkeyService.ParseHotkey(newHotkey);
-            // This would need MainWindow integration - simplified for now
-            
+            // Delegate to MainWindow which owns the hotkey registration state
+            MainWindow.Instance?.ReregisterEmergencyHotkey();
             System.Diagnostics.Debug.WriteLine($"Hotkey changed from {oldHotkey} to {newHotkey}");
         }
         catch (Exception ex)
