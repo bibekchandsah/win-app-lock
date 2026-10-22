@@ -38,23 +38,60 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Status Indicator -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="LimeGreen"/>
-                    <TextBlock x:Name="StatusText" 
-                               Text="AppLock protection is ready" 
-                               VerticalAlignment="Center"
-                               FontSize="15"/>
-                </StackPanel>
-
-                <!-- Master Toggle -->
+                <!-- Master Toggle on the Left -->
                 <ToggleSwitch x:Name="MasterToggle" 
-                              Grid.Column="2"
-                              OnContent="Protection ON" 
-                              OffContent="Protection OFF"
+                              Grid.Column="0"
+                              OnContent="" 
+                              OffContent=""
+                              MinWidth="0"
                               IsOn="False"
                               Toggled="MasterToggle_Toggled"
-                              VerticalAlignment="Center"/>
+                              VerticalAlignment="Center"
+                              Margin="0,0,16,0"/>
+
+                <!-- Status Content in the Middle -->
+                <Grid Grid.Column="1" VerticalAlignment="Center">
+                    <!-- Normal Status Panel -->
+                    <StackPanel x:Name="NormalStatusPanel" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="LimeGreen" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StatusText" 
+                                       Text="AppLock protection is ready" 
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="StatusSubText" 
+                                   Text="AppLock is protecting your apps." 
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Margin="16,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Picking Mode Instructions Panel (Matches Reference Image Exactly) -->
+                    <StackPanel x:Name="PickingStatusPanel" Spacing="2" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Fill="#10B981" VerticalAlignment="Center"/>
+                            <TextBlock Text="🎯" FontFamily="Segoe UI Emoji" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Move the mouse to the target window, left-click to confirm (ESC to cancel)" 
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="AppLock is protecting your apps." 
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Margin="16,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Cancel Pick Button on the Right -->
+                <Button x:Name="CancelPickButton"
+                        Grid.Column="2"
+                        Click="CancelPickButton_Click"
+                        Content="Cancel"
+                        Visibility="Collapsed"
+                        VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -113,8 +150,8 @@
                                 </StackPanel>
                             </Button>
 
-                            <Button Grid.Column="3" 
-                                    Command="{x:Bind RunningViewModel.PickWindowCommand}"
+                            <Button x:Name="PickWindowButton" Grid.Column="3" 
+                                    Click="PickWindowButton_Click"
                                     MinWidth="140">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE7C4;" FontSize="14"/>

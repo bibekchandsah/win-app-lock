@@ -57,5 +57,20 @@ done - lock icon in locked program tab in program icon
 done - process name (x count) if multiple same process window
 done - hide program title if main app title is already there
 done - show the hover and selected items in listView using theme background and foreground colors 
-custom duration for unlocking
+done - custom duration for unlocking
+done - pick window with glowing rainbow border on hovered window and instruction inside master card
+overlay window resizing/moving along with attached locked program window
 window hello support for unlocking
+
+
+# Milestone Progress
+✅ Milestone 1: Solution scaffold with WinUI 3, Mica, dark theme
+✅ Milestone 2: Window enumeration and running programs list
+✅ Milestone 3: Settings store, first-run, auth service
+✅ Milestone 4: Lock rules, locked programs tab, master toggle
+✅ Milestone 5: WinEventHook, overlay window, unlock flow
+✅ Milestone 6: "Pick a window" tool with fullscreen overlay and mouse hook
+⏳ Milestone 7: Settings page (hotkeys, idle lock, security questions, Windows Hello, startup)
+⏳ Milestone 8: Tray icon, DWM thumbnails, UWP handling, multi-monitor/DPI
+⏳ Milestone 9: Tests and installer
+⏳ Milestone 10: Websites page (optional)

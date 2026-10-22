@@ -31,3 +31,6 @@ GetCurrentProcessId
 SHGetFileInfo
 SetWindowLongPtr
 GetWindowLongPtr
+SetWindowsHookEx
+UnhookWindowsHookEx
+CallNextHookEx

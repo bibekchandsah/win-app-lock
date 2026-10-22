@@ -17,6 +17,7 @@
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
     <AppxBundle>Never</AppxBundle>
     <EnablePreviewMsixTooling>false</EnablePreviewMsixTooling>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <!-- Disable PRI generation for unpackaged apps -->

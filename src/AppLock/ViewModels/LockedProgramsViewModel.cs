@@ -101,4 +101,10 @@ public partial class LockedProgramsViewModel : ObservableObject
     {
         _lockManager.RemoveRule(rule.Id);
     }
+
+    [RelayCommand]
+    private void RefreshLocked()
+    {
+        LoadRules();
+    }
 }

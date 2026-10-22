@@ -83,12 +83,6 @@ public partial class RunningProgramsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void PickWindow()
-    {
-        // TODO: Implement window picker in Milestone 6
-    }
-
-    [RelayCommand]
     private void LockWindow(RunningWindow window)
     {
         var rule = new LockRule

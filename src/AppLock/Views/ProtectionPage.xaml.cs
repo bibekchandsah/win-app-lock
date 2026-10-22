@@ -130,6 +130,7 @@ public sealed partial class ProtectionPage : Page
     
     private readonly LockManager _lockManager;
     private readonly AuthService _authService;
+    private readonly WindowPicker _windowPicker;
     private bool _isUpdatingUI;
 
     public ProtectionPage()
@@ -137,6 +138,7 @@ public sealed partial class ProtectionPage : Page
         // Use shared service instances
         _authService = ServiceContainer.AuthService;
         _lockManager = ServiceContainer.LockManager;
+        _windowPicker = ServiceContainer.WindowPicker;
         
         RunningViewModel = new RunningProgramsViewModel(_lockManager);
         LockedViewModel = new LockedProgramsViewModel(_lockManager);
@@ -164,12 +166,16 @@ public sealed partial class ProtectionPage : Page
                 StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                     Microsoft.UI.Colors.LimeGreen);
                 StatusText.Text = "AppLock protection is active";
+                if (StatusSubText != null)
+                    StatusSubText.Text = "AppLock is protecting your apps.";
             }
             else
             {
                 StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                     Microsoft.UI.Colors.Gray);
                 StatusText.Text = "AppLock protection is ready (currently OFF)";
+                if (StatusSubText != null)
+                    StatusSubText.Text = "Turn on protection to enforce locked windows.";
             }
         }
         finally
@@ -323,5 +329,92 @@ public sealed partial class ProtectionPage : Page
         // Return to hover state after release
         if (sender is Border border)
             border.Background = GetHoverBrush();
+    }
+
+    private void CancelPickButton_Click(object sender, RoutedEventArgs e)
+    {
+        _windowPicker.CancelPick();
+    }
+
+    private async void PickWindowButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Get main window HWND
+            var mainWindow = (Application.Current as App)?.FindMainWindow();
+            if (mainWindow == null)
+                return;
+
+            var mainHwnd = new Windows.Win32.Foundation.HWND(
+                WinRT.Interop.WindowNative.GetWindowHandle(mainWindow)
+            );
+
+            // Switch master card to picking mode
+            NormalStatusPanel.Visibility = Visibility.Collapsed;
+            PickingStatusPanel.Visibility = Visibility.Visible;
+            CancelPickButton.Visibility = Visibility.Visible;
+            if (PickWindowButton != null)
+                PickWindowButton.IsEnabled = false;
+
+            var result = await _windowPicker.PickWindowAsync(mainHwnd);
+            
+            if (result != null)
+            {
+                // Create a lock rule for the picked window
+                var rule = new LockRule
+                {
+                    Id = Guid.NewGuid(),
+                    Type = LockRuleType.PickedWindow,
+                    ProcessPath = result.ProcessPath,
+                    WindowTitlePattern = result.WindowTitle,
+                    DisplayName = $"Picked: {result.WindowTitle}",
+                    CreatedAt = DateTime.Now
+                };
+
+                _lockManager.AddRule(rule);
+                
+                // Refresh the lists
+                RunningViewModel.RefreshWindowsCommand.Execute(null);
+                LockedViewModel.RefreshLockedCommand.Execute(null);
+                
+                // Show confirmation
+                var infoBar = new InfoBar
+                {
+                    Title = "Window Locked",
+                    Message = $"Successfully locked: {result.WindowTitle}",
+                    Severity = InfoBarSeverity.Success,
+                    IsOpen = true
+                };
+                
+                // Find the root grid to add the InfoBar
+                if (Content is Grid rootGrid)
+                {
+                    rootGrid.Children.Insert(0, infoBar);
+                    
+                    // Auto-close after 3 seconds
+                    var timer = new System.Threading.Timer(_ =>
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            infoBar.IsOpen = false;
+                            rootGrid.Children.Remove(infoBar);
+                        });
+                    }, null, 3000, System.Threading.Timeout.Infinite);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Pick window failed: {ex.Message}");
+        }
+        finally
+        {
+            // Restore master card to normal status mode
+            NormalStatusPanel.Visibility = Visibility.Visible;
+            PickingStatusPanel.Visibility = Visibility.Collapsed;
+            CancelPickButton.Visibility = Visibility.Collapsed;
+            if (PickWindowButton != null)
+                PickWindowButton.IsEnabled = true;
+        }
     }
 }

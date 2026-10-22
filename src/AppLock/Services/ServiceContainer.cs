@@ -12,6 +12,8 @@ public static class ServiceContainer
     private static AuthService? _authService;
     private static LockManager? _lockManager;
     private static OverlayManager? _overlayManager;
+    private static WindowEnumerator? _windowEnumerator;
+    private static WindowPicker? _windowPicker;
 
     public static SettingsStore SettingsStore
     {
@@ -49,8 +51,6 @@ public static class ServiceContainer
         }
     }
 
-    private static WindowEnumerator? _windowEnumerator;
-
     public static WindowEnumerator WindowEnumerator
     {
         get
@@ -60,6 +60,18 @@ public static class ServiceContainer
                 _windowEnumerator = new WindowEnumerator();
             }
             return _windowEnumerator;
+        }
+    }
+
+    public static WindowPicker WindowPicker
+    {
+        get
+        {
+            if (_windowPicker == null)
+            {
+                _windowPicker = new WindowPicker();
+            }
+            return _windowPicker;
         }
     }
 
@@ -98,5 +110,6 @@ public static class ServiceContainer
         _lockManager = null;
         _windowEnumerator = null;
         _overlayManager = null;
+        _windowPicker = null;
     }
 }
