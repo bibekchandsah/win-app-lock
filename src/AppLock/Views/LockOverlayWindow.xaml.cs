@@ -21,6 +21,8 @@ public sealed partial class LockOverlayWindow : Window
 
     public bool IsUnlocked { get; private set; }
     public TimeSpan UnlockDuration { get; private set; }
+    public bool IsOverlayVisible { get; private set; } = true;
+    public nint WindowHandle => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
     // Track "small" layout mode (< 400px wide)
     private bool _isSmallLayout;
@@ -155,12 +157,14 @@ public sealed partial class LockOverlayWindow : Window
     /// </summary>
     public void HideOverlay()
     {
+        IsOverlayVisible = false;
         var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
         PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
     }
 
     public void PositionOverTarget()
     {
+        IsOverlayVisible = true;
         unsafe
         {
             var targetHwnd = new HWND(_targetWindowHandle);
@@ -428,13 +432,13 @@ public sealed partial class LockOverlayWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        // Minimize the target window and close overlay
+        // Minimize the target window and hide overlay (target remains locked!)
         unsafe
         {
             var targetHwnd = new HWND(_targetWindowHandle);
             PInvoke.ShowWindow(targetHwnd, SHOW_WINDOW_CMD.SW_MINIMIZE);
         }
-        Close();
+        HideOverlay();
     }
 
     /// <summary>

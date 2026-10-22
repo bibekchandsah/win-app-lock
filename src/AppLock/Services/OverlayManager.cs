@@ -22,6 +22,8 @@ public class OverlayManager
     private readonly Dictionary<nint, DateTime> _unlockTimers = new();
     private readonly HashSet<nint> _indefinitelyUnlocked = new(); // Windows unlocked with "No limit"
     private readonly System.Threading.Timer _relockTimer;
+    private readonly UwpWindowResolver _uwpResolver;
+    private nint _lastForegroundHwnd = 0;
 
     public OverlayManager(LockManager lockManager, AuthService authService)
     {
@@ -31,6 +33,7 @@ public class OverlayManager
         _winEventHook = new WinEventHookService();
         _thumbnailService = ServiceContainer.ThumbnailService;
         _displayHelper = ServiceContainer.DisplayHelper;
+        _uwpResolver = ServiceContainer.UwpWindowResolver;
         
         // Get the dispatcher queue from the main UI thread
         // Note: This will be null if not called on UI thread, we'll get it lazily in Start()
@@ -45,10 +48,10 @@ public class OverlayManager
         
         // Subscribe to window events
         _winEventHook.WindowShown += OnWindowEvent;
-        _winEventHook.WindowFocused += OnWindowEvent;
+        _winEventHook.WindowFocused += OnWindowFocused;
         _winEventHook.WindowMoved += OnWindowMoved;
         _winEventHook.WindowDestroyed += OnWindowDestroyed;
-        _winEventHook.WindowRestored += OnWindowEvent;
+        _winEventHook.WindowRestored += OnWindowRestored;
         _winEventHook.WindowMinimized += OnWindowMinimized;
     }
 
@@ -106,10 +109,74 @@ public class OverlayManager
 
                 overlay.PositionOverTarget();
                 overlay.Activate();
+                _lastForegroundHwnd = overlay.WindowHandle;
                 return;
             }
 
             CheckWindow(e.WindowHandle);
+        });
+    }
+
+    private void OnWindowFocused(object? sender, WindowEventArgs e)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            nint targetHandle = e.WindowHandle;
+            nint previousForeground = _lastForegroundHwnd;
+            _lastForegroundHwnd = targetHandle;
+
+            if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
+            {
+                var targetHwnd = new HWND(targetHandle);
+                if (PInvoke.IsIconic(targetHwnd))
+                {
+                    overlay.HideOverlay();
+                    return;
+                }
+
+                nint overlayHwnd = overlay.WindowHandle;
+
+                // TOGGLE MINIMIZE:
+                // If the overlay for this window was ALREADY visible, and the foreground window immediately
+                // before this event was the overlay window itself, then the user clicked the target
+                // window's taskbar button while already viewing it! In Windows, clicking an active window's
+                // taskbar button means "Minimize".
+                if (overlay.IsOverlayVisible && previousForeground == overlayHwnd)
+                {
+                    PInvoke.ShowWindow(targetHwnd, SHOW_WINDOW_CMD.SW_MINIMIZE);
+                    overlay.HideOverlay();
+                    _lastForegroundHwnd = 0;
+                    return;
+                }
+
+                overlay.PositionOverTarget();
+                overlay.Activate();
+                _lastForegroundHwnd = overlayHwnd;
+                return;
+            }
+
+            CheckWindow(targetHandle);
+        });
+    }
+
+    private void OnWindowRestored(object? sender, WindowEventArgs e)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            {
+                var targetHwnd = new HWND(e.WindowHandle);
+                if (!PInvoke.IsIconic(targetHwnd))
+                {
+                    overlay.PositionOverTarget();
+                    overlay.Activate();
+                    _lastForegroundHwnd = overlay.WindowHandle;
+                }
+            }
+            else
+            {
+                CheckWindow(e.WindowHandle);
+            }
         });
     }
 
@@ -323,10 +390,24 @@ public class OverlayManager
                         if (!IsValidTargetWindow(hwnd, title, processName))
                             return;
 
-                        // Handle UWP apps
-                        if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
+                        // Handle UWP apps (ApplicationFrameHost)
+                        if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase) ||
+                            _uwpResolver.IsApplicationFrameHost(processPath))
                         {
-                            processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                            var (actualTitle, actualPath) = _uwpResolver.ResolveUwpWindow(hwnd);
+                            if (!string.IsNullOrEmpty(actualTitle))
+                            {
+                                title = actualTitle;
+                            }
+                            if (!string.IsNullOrEmpty(actualPath))
+                            {
+                                processPath = actualPath;
+                                processName = Path.GetFileNameWithoutExtension(actualPath);
+                            }
+                            else
+                            {
+                                processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                            }
                         }
 
                         var window = new RunningWindow
@@ -340,7 +421,13 @@ public class OverlayManager
 
                         if (_lockManager.IsWindowLocked(window))
                         {
-                            ShowOverlay(window);
+                            // Always install locked thumbnail immediately, even if window is currently minimized!
+                            _thumbnailService.SetLockedThumbnail(HWND.Null, hwnd);
+
+                            if (!PInvoke.IsIconic(hwnd))
+                            {
+                                ShowOverlay(window);
+                            }
                         }
                     }
                 }
@@ -379,10 +466,10 @@ public class OverlayManager
                         // Set unlock timer with expiration
                         _unlockTimers[window.Handle] = DateTime.Now.Add(overlay.UnlockDuration);
                     }
-                }
 
-                // Remove hook DLL from target window
-                _thumbnailService.ClearLockedThumbnailByTarget(targetHwnd);
+                    // Only clear locked thumbnail when the window is actually unlocked!
+                    _thumbnailService.ClearLockedThumbnailByTarget(targetHwnd);
+                }
 
                 _activeOverlays.Remove(window.Handle);
             };

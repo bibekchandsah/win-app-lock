@@ -332,21 +332,25 @@ static LRESULT CALLBACK HookCallWndProc(int nCode, WPARAM wp, LPARAM lp)
     if (nCode >= 0 && lp)
     {
         CWPSTRUCT* cwp = (CWPSTRUCT*)lp;
-        if (cwp->hwnd && IsTarget(cwp->hwnd))
+        if (cwp->hwnd)
         {
-            EnsureSubclassed(cwp->hwnd);
+            HWND target = IsTarget(cwp->hwnd) ? cwp->hwnd : GetAncestor(cwp->hwnd, GA_ROOT);
+            if (target && IsTarget(target))
+            {
+                EnsureSubclassed(target);
 
-            if (cwp->message == WM_DWMSENDICONICTHUMBNAIL_MSG)
-            {
-                int maxW = HIWORD(cwp->lParam);
-                int maxH = LOWORD(cwp->lParam);
-                if (maxW <= 0) maxW = 200;
-                if (maxH <= 0) maxH = 150;
-                SendLockedThumbnail(cwp->hwnd, maxW, maxH);
-            }
-            else if (cwp->message == WM_DWMSENDICONICLIVEPREVIEWBITMAP_MSG)
-            {
-                SendLockedLivePreview(cwp->hwnd);
+                if (cwp->message == WM_DWMSENDICONICTHUMBNAIL_MSG && cwp->hwnd == target)
+                {
+                    int maxW = HIWORD(cwp->lParam);
+                    int maxH = LOWORD(cwp->lParam);
+                    if (maxW <= 0) maxW = 200;
+                    if (maxH <= 0) maxH = 150;
+                    SendLockedThumbnail(target, maxW, maxH);
+                }
+                else if (cwp->message == WM_DWMSENDICONICLIVEPREVIEWBITMAP_MSG && cwp->hwnd == target)
+                {
+                    SendLockedLivePreview(target);
+                }
             }
         }
     }
@@ -358,9 +362,13 @@ static LRESULT CALLBACK HookCbtProc(int nCode, WPARAM wp, LPARAM lp)
     if (nCode >= 0)
     {
         HWND hwnd = (HWND)wp;
-        if (hwnd && IsTarget(hwnd))
+        if (hwnd)
         {
-            EnsureSubclassed(hwnd);
+            HWND target = IsTarget(hwnd) ? hwnd : GetAncestor(hwnd, GA_ROOT);
+            if (target && IsTarget(target))
+            {
+                EnsureSubclassed(target);
+            }
         }
     }
     return CallNextHookEx(NULL, nCode, wp, lp);
