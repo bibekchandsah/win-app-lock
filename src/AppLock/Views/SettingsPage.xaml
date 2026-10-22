@@ -9,38 +9,186 @@
 
     <Grid Margin="24">
         <ScrollViewer>
-            <StackPanel Spacing="16">
+            <StackPanel Spacing="16" MaxWidth="800">
                 <TextBlock Text="Settings" 
                            Style="{ThemeResource TitleTextBlockStyle}"
                            Margin="0,0,0,16"/>
 
                 <!-- General Section -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="General" 
-                                   Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                        <TextBlock Text="Settings will be implemented in Milestone 7" 
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
+                <Expander Header="General" IsExpanded="True" HorizontalAlignment="Stretch">
+                    <Expander.Content>
+                        <StackPanel Spacing="16" Padding="16">
+                            <!-- Language -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Language" FontWeight="SemiBold"/>
+                                <ComboBox x:Name="LanguageComboBox"
+                                          ItemsSource="{x:Bind ViewModel.Languages}"
+                                          SelectedItem="{x:Bind ViewModel.SelectedLanguage, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"
+                                          MinWidth="200"/>
+                            </StackPanel>
+
+                            <!-- Theme -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Theme" FontWeight="SemiBold"/>
+                                <ComboBox x:Name="ThemeComboBox"
+                                          ItemsSource="{x:Bind ViewModel.Themes}"
+                                          SelectedItem="{x:Bind ViewModel.SelectedTheme, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch"
+                                          MinWidth="200"/>
+                            </StackPanel>
+
+                            <!-- Start with Windows -->
+                            <ToggleSwitch Header="Start with Windows"
+                                          IsOn="{x:Bind ViewModel.StartWithWindows, Mode=TwoWay}"
+                                          OnContent="Enabled"
+                                          OffContent="Disabled"/>
+
+                            <!-- Mute Notifications -->
+                            <ToggleSwitch Header="Mute notifications"
+                                          IsOn="{x:Bind ViewModel.MuteNotifications, Mode=TwoWay}"
+                                          OnContent="Muted"
+                                          OffContent="Active"/>
+                        </StackPanel>
+                    </Expander.Content>
+                </Expander>
 
                 <!-- Security Section -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="Security" 
-                                   Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                        <TextBlock Text="Security settings will be implemented in Milestone 7" 
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
+                <Expander Header="Security" IsExpanded="True" HorizontalAlignment="Stretch">
+                    <Expander.Content>
+                        <StackPanel Spacing="16" Padding="16">
+                            <!-- Change Password -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Admin Password" FontWeight="SemiBold"/>
+                                <Button Content="Change password"
+                                        Click="ChangePasswordButton_Click"
+                                        Style="{StaticResource AccentButtonStyle}"/>
+                            </StackPanel>
+
+                            <!-- Security Questions -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Password Recovery" FontWeight="SemiBold"/>
+                                <Button Content="Set security questions"
+                                        Command="{x:Bind ViewModel.ManageSecurityQuestionsCommand}"/>
+                            </StackPanel>
+
+                            <!-- Lockout Duration -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Lockout duration (minutes)" FontWeight="SemiBold"/>
+                                <TextBlock Text="Lock out after too many failed attempts"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <NumberBox x:Name="LockoutDurationBox"
+                                           Value="{x:Bind ViewModel.LockoutDuration, Mode=TwoWay}"
+                                           Minimum="1"
+                                           Maximum="60"
+                                           SpinButtonPlacementMode="Inline"
+                                           MinWidth="200"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+
+                            <!-- Windows Hello -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Windows Hello" FontWeight="SemiBold"/>
+                                <StackPanel Spacing="4">
+                                    <ToggleSwitch Header="Enable Windows Hello unlock"
+                                                  IsOn="{x:Bind ViewModel.WindowsHelloEnabled, Mode=TwoWay}"
+                                                  IsEnabled="{x:Bind ViewModel.WindowsHelloAvailable, Mode=OneWay}"
+                                                  OnContent="Enabled"
+                                                  OffContent="Disabled"/>
+                                    <TextBlock Text="{x:Bind ViewModel.WindowsHelloStatus, Mode=OneWay}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               FontSize="12"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander.Content>
+                </Expander>
+
+                <!-- Auto & Emergency Lock Section -->
+                <Expander Header="Auto &amp; Emergency Lock" IsExpanded="True" HorizontalAlignment="Stretch">
+                    <Expander.Content>
+                        <StackPanel Spacing="16" Padding="16">
+                            <!-- Auto-lock when idle -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Auto-lock when idle (minutes)" FontWeight="SemiBold"/>
+                                <TextBlock Text="Lock the app after no keyboard/mouse activity (0 = disabled)"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <NumberBox x:Name="AutoLockIdleBox"
+                                           Value="{x:Bind ViewModel.AutoLockIdleMinutes, Mode=TwoWay}"
+                                           Minimum="0"
+                                           Maximum="120"
+                                           SpinButtonPlacementMode="Inline"
+                                           MinWidth="200"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+
+                            <!-- Emergency Hotkey -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Emergency Lock Hotkey" FontWeight="SemiBold"/>
+                                <TextBlock Text="Instantly re-lock all protected apps"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <StackPanel Spacing="8">
+                                    <ToggleSwitch Header="Enable emergency hotkey"
+                                                  IsOn="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=TwoWay}"
+                                                  OnContent="Enabled"
+                                                  OffContent="Disabled"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="12,8">
+                                            <TextBlock Text="{x:Bind ViewModel.EmergencyHotkey, Mode=OneWay}"
+                                                       FontFamily="Consolas"/>
+                                        </Border>
+                                        <Button Grid.Column="1"
+                                                Content="Change"
+                                                Click="ChangeHotkeyButton_Click"
+                                                IsEnabled="{x:Bind ViewModel.EmergencyHotkeyEnabled, Mode=OneWay}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Keep lock screen on top -->
+                            <ToggleSwitch Header="Keep lock screen on top"
+                                          IsOn="{x:Bind ViewModel.KeepLockScreenOnTop, Mode=TwoWay}"
+                                          OnContent="Always on top"
+                                          OffContent="Normal"/>
+                        </StackPanel>
+                    </Expander.Content>
+                </Expander>
+
+                <!-- Other Section -->
+                <Expander Header="Other" HorizontalAlignment="Stretch">
+                    <Expander.Content>
+                        <StackPanel Spacing="16" Padding="16">
+                            <!-- Reset all prompts -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Reset Prompts" FontWeight="SemiBold"/>
+                                <Button Content="Reset all prompts"
+                                        Command="{x:Bind ViewModel.ResetAllPromptsCommand}"/>
+                            </StackPanel>
+
+                            <!-- About -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="About" FontWeight="SemiBold"/>
+                                <Button Content="About AppLock"
+                                        Click="AboutButton_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander.Content>
+                </Expander>
             </StackPanel>
         </ScrollViewer>
     </Grid>

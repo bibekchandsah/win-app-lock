@@ -18,6 +18,17 @@
                      PasswordRevealMode="Peek"
                      KeyDown="PasswordBox_KeyDown"/>
 
+        <!-- Windows Hello Button -->
+        <Button x:Name="WindowsHelloButton"
+                Click="WindowsHelloButton_Click"
+                HorizontalAlignment="Stretch"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xEB68;" FontSize="16"/>
+                <TextBlock Text="Use Windows Hello"/>
+            </StackPanel>
+        </Button>
+
         <TextBlock x:Name="ErrorText"
                    Foreground="{ThemeResource SystemErrorTextColor}"
                    Visibility="Collapsed"

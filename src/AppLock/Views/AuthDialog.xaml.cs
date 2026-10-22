@@ -9,16 +9,32 @@ namespace AppLock.Views;
 public sealed partial class AuthDialog : ContentDialog
 {
     private readonly AuthService _authService;
+    private readonly HelloService _helloService;
     public bool IsAuthenticated { get; private set; }
 
     public AuthDialog(AuthService authService)
     {
         _authService = authService;
+        _helloService = ServiceContainer.HelloService;
         InitializeComponent();
         CheckLockout();
+        _ = InitializeWindowsHelloAsync();
         
         // Set focus to password box when loaded
         Loaded += (s, e) => PasswordBox.Focus(FocusState.Programmatic);
+    }
+
+    private async Task InitializeWindowsHelloAsync()
+    {
+        // Check if Windows Hello is enabled in settings and available
+        if (ServiceContainer.Settings.WindowsHelloEnabled)
+        {
+            bool available = await _helloService.IsAvailableAsync();
+            if (available)
+            {
+                WindowsHelloButton.Visibility = Visibility.Visible;
+            }
+        }
     }
 
     private void CheckLockout()
@@ -162,6 +178,33 @@ public sealed partial class AuthDialog : ContentDialog
         catch (Exception ex)
         {
             ErrorText.Text = $"Error: {ex.Message}";
+            ErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            bool verified = await _helloService.RequestVerificationAsync("Verify your identity to unlock AppLock");
+            
+            if (verified)
+            {
+                IsAuthenticated = true;
+                System.Diagnostics.Debug.WriteLine("Windows Hello verification successful");
+                Hide();
+            }
+            else
+            {
+                ErrorText.Text = "Windows Hello verification failed";
+                ErrorText.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorText.Text = $"Windows Hello error: {ex.Message}";
             ErrorText.Visibility = Visibility.Visible;
         }
     }

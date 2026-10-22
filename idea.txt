@@ -59,9 +59,21 @@ done - hide program title if main app title is already there
 done - show the hover and selected items in listView using theme background and foreground colors 
 done - custom duration for unlocking
 done - pick window with glowing rainbow border on hovered window and instruction inside master card
-animate it like moving snake that is rotating the glowing rainbow border of the hovered window
-overlay window resizing/moving along with attached locked program window
-window hello support for unlocking
+done - overlay window resizing/moving along with attached locked program window
+done - window hello support for unlocking
+done - Milestone 7 complete:
+     ✅ Emergency hotkey registration and handling (Ctrl+Alt+L)
+     ✅ Idle auto-lock with GetLastInputInfo monitoring
+     ✅ Windows Hello button in AuthDialog
+     ✅ Change password dialog with strength meter
+     ✅ Change hotkey dialog with keyboard capture
+     ✅ About dialog with app info
+     ✅ All settings integrated and functional
+     ✅ Theme switching (System/Light/Dark)
+     ✅ Start with Windows (registry)
+     ✅ All 13 settings working
+
+todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
 
 
 # Milestone Progress
@@ -71,7 +83,7 @@ window hello support for unlocking
 ✅ Milestone 4: Lock rules, locked programs tab, master toggle
 ✅ Milestone 5: WinEventHook, overlay window, unlock flow
 ✅ Milestone 6: "Pick a window" tool with fullscreen overlay and mouse hook
-⏳ Milestone 7: Settings page (hotkeys, idle lock, security questions, Windows Hello, startup)
+✅ Milestone 7: Settings page - COMPLETE (all services, dialogs, integration)
 ⏳ Milestone 8: Tray icon, DWM thumbnails, UWP handling, multi-monitor/DPI
 ⏳ Milestone 9: Tests and installer
 ⏳ Milestone 10: Websites page (optional)

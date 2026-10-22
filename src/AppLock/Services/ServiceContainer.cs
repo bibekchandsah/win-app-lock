@@ -14,6 +14,10 @@ public static class ServiceContainer
     private static OverlayManager? _overlayManager;
     private static WindowEnumerator? _windowEnumerator;
     private static WindowPicker? _windowPicker;
+    private static HotkeyService? _hotkeyService;
+    private static IdleService? _idleService;
+    private static StartupService? _startupService;
+    private static HelloService? _helloService;
 
     public static SettingsStore SettingsStore
     {
@@ -99,10 +103,60 @@ public static class ServiceContainer
         }
     }
 
+    public static HotkeyService HotkeyService
+    {
+        get
+        {
+            if (_hotkeyService == null)
+            {
+                _hotkeyService = new HotkeyService();
+            }
+            return _hotkeyService;
+        }
+    }
+
+    public static IdleService IdleService
+    {
+        get
+        {
+            if (_idleService == null)
+            {
+                _idleService = new IdleService();
+            }
+            return _idleService;
+        }
+    }
+
+    public static StartupService StartupService
+    {
+        get
+        {
+            if (_startupService == null)
+            {
+                _startupService = new StartupService();
+            }
+            return _startupService;
+        }
+    }
+
+    public static HelloService HelloService
+    {
+        get
+        {
+            if (_helloService == null)
+            {
+                _helloService = new HelloService();
+            }
+            return _helloService;
+        }
+    }
+
     public static void Reset()
     {
         // Stop and dispose services that need cleanup
         _overlayManager?.Dispose();
+        _hotkeyService?.Dispose();
+        _idleService?.Dispose();
         
         _settingsStore = null;
         _settings = null;
@@ -111,5 +165,9 @@ public static class ServiceContainer
         _windowEnumerator = null;
         _overlayManager = null;
         _windowPicker = null;
+        _hotkeyService = null;
+        _idleService = null;
+        _startupService = null;
+        _helloService = null;
     }
 }

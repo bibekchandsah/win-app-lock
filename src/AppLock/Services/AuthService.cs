@@ -129,6 +129,17 @@ public class AuthService
             throw new ArgumentException("New password must be at least 6 characters", nameof(newPassword));
         }
 
+        SetPassword(newPassword);
+    }
+
+    public void SetPassword(string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword))
+            throw new ArgumentException("Password cannot be empty", nameof(newPassword));
+
+        if (newPassword.Length < 6)
+            throw new ArgumentException("Password must be at least 6 characters", nameof(newPassword));
+
         // Generate new salt
         byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
         byte[] hash = HashPassword(newPassword, salt);

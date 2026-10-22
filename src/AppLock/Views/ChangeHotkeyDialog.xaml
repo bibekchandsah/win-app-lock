@@ -1,0 +1,72 @@
+<ContentDialog
+    x:Class="AppLock.Views.ChangeHotkeyDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Change Emergency Hotkey"
+    PrimaryButtonText="Save"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    IsPrimaryButtonEnabled="False"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
+
+    <StackPanel Spacing="16" MinWidth="400">
+        <TextBlock Text="Set a new emergency lock hotkey"
+                   TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <StackPanel Spacing="8">
+            <TextBlock Text="Current Hotkey:" FontWeight="SemiBold"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12,8">
+                <TextBlock x:Name="CurrentHotkeyText" FontFamily="Consolas"/>
+            </Border>
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock Text="New Hotkey:" FontWeight="SemiBold"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12,8"
+                    MinHeight="40">
+                <TextBlock x:Name="NewHotkeyText" 
+                           FontFamily="Consolas"
+                           VerticalAlignment="Center"/>
+            </Border>
+        </StackPanel>
+
+        <Button x:Name="RecordButton"
+                Content="Record Hotkey"
+                Click="RecordButton_Click"
+                HorizontalAlignment="Stretch"
+                Style="{StaticResource AccentButtonStyle}"/>
+
+        <TextBlock x:Name="InstructionText"
+                   Text="Click 'Record Hotkey' to set a new emergency hotkey"
+                   FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   TextWrapping="Wrap"/>
+
+        <!-- Invisible element to capture keyboard input -->
+        <Border x:Name="CaptureElement"
+                Height="0"
+                Width="0"
+                IsTabStop="True"
+                PreviewKeyDown="CaptureElement_PreviewKeyDown"
+                PreviewKeyUp="CaptureElement_PreviewKeyUp"/>
+
+        <InfoBar Severity="Informational"
+                 IsOpen="True"
+                 IsClosable="False"
+                 Message="The hotkey must include at least one modifier key (Ctrl, Alt, Shift, or Win) and one regular key."/>
+
+        <TextBlock x:Name="ErrorText"
+                   Foreground="{ThemeResource SystemErrorTextColor}"
+                   Visibility="Collapsed"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ContentDialog>
