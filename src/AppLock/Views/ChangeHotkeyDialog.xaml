@@ -6,8 +6,17 @@
     PrimaryButtonText="Save"
     CloseButtonText="Cancel"
     DefaultButton="Primary"
+    CornerRadius="8"
     IsPrimaryButtonEnabled="False"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
+
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+        <Style TargetType="Button">
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </ContentDialog.Resources>
 
     <StackPanel Spacing="16" MinWidth="400">
         <TextBlock Text="Set a new emergency lock hotkey"

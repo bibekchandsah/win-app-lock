@@ -118,7 +118,7 @@
                                 <TextBlock Grid.Column="0" Text="Security Questions" VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
                                         Content="Security Questions"
-                                        Command="{x:Bind ViewModel.ManageSecurityQuestionsCommand}"
+                                        Click="SecurityQuestionsButton_Click"
                                         VerticalAlignment="Center"/>
                             </Grid>
 

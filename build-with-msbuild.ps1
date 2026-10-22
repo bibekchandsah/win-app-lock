@@ -13,7 +13,7 @@ if ($vsPath) {
     Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation
 
     Write-Host "Building with MSBuild..." -ForegroundColor Green
-    msbuild src\AppLock\AppLock.csproj /p:Configuration=Release /p:Platform=x64 /t:Restore,Build /v:minimal /nologo
+    msbuild src\AppLock\AppLock.csproj /p:Configuration=Release /p:Platform=x64 /t:Restore,Build /v:minimal /nologo $args
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`nBuild succeeded!" -ForegroundColor Green

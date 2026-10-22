@@ -293,4 +293,36 @@ public sealed partial class LockOverlayWindow : Window
         };
         await dialog.ShowAsync();
     }
+
+    private async void ForgotPasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_authService.HasSecurityQuestion)
+        {
+            ShowError("No security question set. Configure one in Settings.");
+            return;
+        }
+
+        var verifyDialog = new VerifySecurityQuestionDialog(_authService)
+        {
+            XamlRoot = this.Content.XamlRoot
+        };
+        await verifyDialog.ShowAsync();
+
+        if (verifyDialog.IsVerified)
+        {
+            await Task.Delay(150);
+            var resetDialog = new ResetPasswordDialog(_authService)
+            {
+                XamlRoot = this.Content.XamlRoot
+            };
+            await resetDialog.ShowAsync();
+
+            if (resetDialog.PasswordReset)
+            {
+                IsUnlocked = true;
+                UnlockDuration = GetSelectedDuration();
+                Close();
+            }
+        }
+    }
 }

@@ -1,0 +1,58 @@
+<ContentDialog
+    x:Class="AppLock.Views.SetSecurityQuestionDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Security Questions"
+    PrimaryButtonText="OK"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
+
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+        <Style TargetType="Button">
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </ContentDialog.Resources>
+
+    <StackPanel Spacing="16" MinWidth="380">
+        <TextBlock Text="Set security questions to reset your admin password if forgotten."
+                   TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <!-- Preset questions dropdown matching reference -->
+        <ComboBox x:Name="QuestionComboBox"
+                  PlaceholderText="Select a preset question"
+                  HorizontalAlignment="Stretch"
+                  CornerRadius="4"
+                  SelectionChanged="QuestionComboBox_SelectionChanged">
+            <ComboBoxItem Content="What is your mother's maiden name?"/>
+            <ComboBoxItem Content="What was the name of your first pet?"/>
+            <ComboBoxItem Content="What city were you born in?"/>
+            <ComboBoxItem Content="What was the name of your elementary school?"/>
+            <ComboBoxItem Content="What is your favorite book?"/>
+            <ComboBoxItem Content="What is your favorite food?"/>
+            <ComboBoxItem Content="What was the make of your first car?"/>
+            <ComboBoxItem Content="What is your favorite color?"/>
+            <ComboBoxItem Content="Custom question"/>
+        </ComboBox>
+
+        <!-- Custom question input if selected -->
+        <TextBox x:Name="CustomQuestionBox"
+                 PlaceholderText="Enter your custom question"
+                 CornerRadius="4"
+                 Visibility="Collapsed"/>
+
+        <!-- Answer input matching reference -->
+        <TextBox x:Name="AnswerBox"
+                 CornerRadius="4"
+                 PlaceholderText="Enter your answer"/>
+
+        <TextBlock x:Name="ErrorText"
+                   Foreground="{ThemeResource SystemErrorTextColor}"
+                   Visibility="Collapsed"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ContentDialog>

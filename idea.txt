@@ -73,6 +73,8 @@ done - Milestone 7 complete:
      ✅ Start with Windows (registry)
      ✅ All 13 settings working
 done - redesign settings page layout with clean 2-column rows, compact toggle switches, and stretched expanders matching mockup
+done - security question setup & verification in settings page, wired with admin password reset (AuthDialog, ChangePasswordDialog, LockOverlayWindow)
+
 
 todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
 

@@ -25,9 +25,99 @@ public sealed partial class SettingsPage : Page
         await ShowChangeHotkeyDialog();
     }
 
+    private async void SecurityQuestionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowSecurityQuestionsFlow();
+    }
+
     private async void AboutButton_Click(object sender, RoutedEventArgs e)
     {
         ShowAboutDialog();
+    }
+
+    private async Task ShowSecurityQuestionsFlow()
+    {
+        var authService = ServiceContainer.AuthService;
+
+        if (!authService.HasSecurityQuestion)
+        {
+            // First-time setup: open SetSecurityQuestionDialog directly (Screenshot 4 & 5)
+            var setupDialog = new SetSecurityQuestionDialog(authService)
+            {
+                XamlRoot = this.XamlRoot
+            };
+            await setupDialog.ShowAsync();
+
+            if (setupDialog.QuestionSaved)
+            {
+                var successDialog = new ContentDialog
+                {
+                    Title = "Security Questions",
+                    Content = "Security question has been set successfully.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await successDialog.ShowAsync();
+            }
+        }
+        else
+        {
+            // Already configured: prompt verification method (Screenshot 1)
+            var chooseDialog = new ChooseVerificationMethodDialog
+            {
+                XamlRoot = this.XamlRoot
+            };
+            await chooseDialog.ShowAsync();
+            await Task.Delay(150);
+
+            bool verified = false;
+
+            if (chooseDialog.SelectedChoice == VerificationMethodChoice.SecurityQuestion)
+            {
+                // Verify via security question (Screenshot 2)
+                var verifyQDialog = new VerifySecurityQuestionDialog(authService)
+                {
+                    XamlRoot = this.XamlRoot
+                };
+                await verifyQDialog.ShowAsync();
+                await Task.Delay(150);
+                verified = verifyQDialog.IsVerified;
+            }
+            else if (chooseDialog.SelectedChoice == VerificationMethodChoice.AdminPassword)
+            {
+                // Verify via admin password (Screenshot 3)
+                var verifyPassDialog = new VerifyAdminPasswordDialog(authService)
+                {
+                    XamlRoot = this.XamlRoot
+                };
+                await verifyPassDialog.ShowAsync();
+                await Task.Delay(150);
+                verified = verifyPassDialog.IsVerified;
+            }
+
+            if (verified)
+            {
+                // Identity verified! Open SetSecurityQuestionDialog to update (Screenshot 4)
+                var setupDialog = new SetSecurityQuestionDialog(authService)
+                {
+                    XamlRoot = this.XamlRoot
+                };
+                await setupDialog.ShowAsync();
+
+                if (setupDialog.QuestionSaved)
+                {
+                    await Task.Delay(150);
+                    var successDialog = new ContentDialog
+                    {
+                        Title = "Security Questions",
+                        Content = "Security question updated successfully.",
+                        CloseButtonText = "OK",
+                        XamlRoot = this.XamlRoot
+                    };
+                    await successDialog.ShowAsync();
+                }
+            }
+        }
     }
 
     private async Task ShowChangePasswordDialog()

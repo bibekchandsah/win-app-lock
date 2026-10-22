@@ -158,12 +158,10 @@ public sealed partial class MainWindow : Window
             }
             else
             {
-                // Password was wrong or user cancelled - try again
-                System.Diagnostics.Debug.WriteLine("Authentication failed, showing dialog again");
+                // User cancelled the login prompt on startup - close application
+                Application.Current.Exit();
+                return;
             }
-            
-            // Add small delay to prevent rapid re-showing
-            await Task.Delay(100);
         }
     }
 

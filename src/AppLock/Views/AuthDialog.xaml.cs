@@ -1,15 +1,26 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using System.Diagnostics;
 
 namespace AppLock.Views;
 
 public sealed partial class AuthDialog : ContentDialog
 {
+    private enum AuthStep
+    {
+        Password,
+        SecurityQuestion,
+        ResetPassword
+    }
+
     private readonly AuthService _authService;
     private readonly HelloService _helloService;
+    private AuthStep _currentStep = AuthStep.Password;
+
     public bool IsAuthenticated { get; private set; }
 
     public AuthDialog(AuthService authService)
@@ -19,14 +30,12 @@ public sealed partial class AuthDialog : ContentDialog
         InitializeComponent();
         CheckLockout();
         _ = InitializeWindowsHelloAsync();
-        
-        // Set focus to password box when loaded
+
         Loaded += (s, e) => PasswordBox.Focus(FocusState.Programmatic);
     }
 
     private async Task InitializeWindowsHelloAsync()
     {
-        // Check if Windows Hello is enabled in settings and available
         if (ServiceContainer.Settings.WindowsHelloEnabled)
         {
             bool available = await _helloService.IsAvailableAsync();
@@ -54,11 +63,24 @@ public sealed partial class AuthDialog : ContentDialog
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        Debug.WriteLine("PrimaryButtonClick triggered");
-        
-        // Always cancel the default close behavior initially
         args.Cancel = true;
 
+        switch (_currentStep)
+        {
+            case AuthStep.Password:
+                HandlePasswordSubmit();
+                break;
+            case AuthStep.SecurityQuestion:
+                HandleSecurityQuestionSubmit();
+                break;
+            case AuthStep.ResetPassword:
+                HandleResetPasswordSubmit();
+                break;
+        }
+    }
+
+    private void HandlePasswordSubmit()
+    {
         ErrorText.Visibility = Visibility.Collapsed;
 
         try
@@ -70,9 +92,6 @@ public sealed partial class AuthDialog : ContentDialog
             }
 
             var password = PasswordBox.Password;
-            
-            Debug.WriteLine($"Password entered: {!string.IsNullOrWhiteSpace(password)}");
-            
             if (string.IsNullOrWhiteSpace(password))
             {
                 ErrorText.Text = "Please enter your password";
@@ -81,14 +100,10 @@ public sealed partial class AuthDialog : ContentDialog
             }
 
             var isValid = _authService.VerifyPassword(password);
-            Debug.WriteLine($"Password valid: {isValid}");
-            
             if (isValid)
             {
                 IsAuthenticated = true;
                 PasswordBox.Password = string.Empty;
-                Debug.WriteLine("Authentication successful, closing dialog");
-                // Close the dialog manually with success
                 Hide();
             }
             else
@@ -97,11 +112,7 @@ public sealed partial class AuthDialog : ContentDialog
                 ErrorText.Visibility = Visibility.Visible;
                 PasswordBox.Password = string.Empty;
                 PasswordBox.Focus(FocusState.Programmatic);
-
-                // Check if now locked out
                 CheckLockout();
-                
-                // Don't close the dialog, let user retry
             }
         }
         catch (InvalidOperationException ex)
@@ -121,65 +132,179 @@ public sealed partial class AuthDialog : ContentDialog
     {
         if (e.Key == Windows.System.VirtualKey.Enter && IsPrimaryButtonEnabled)
         {
-            // Manually verify password on Enter key
-            VerifyPasswordAndClose();
+            HandlePasswordSubmit();
         }
     }
 
-    private void VerifyPasswordAndClose()
+    private void ForgotPasswordButton_Click(object sender, RoutedEventArgs e)
     {
-        ErrorText.Visibility = Visibility.Collapsed;
+        if (!_authService.HasSecurityQuestion)
+        {
+            ErrorText.Text = "No security question has been set. You can set one in Settings.";
+            ErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        // Switch to Security Question step in-place (no dialog collision!)
+        SwitchToSecurityQuestionView();
+    }
+
+    private void SwitchToSecurityQuestionView()
+    {
+        _currentStep = AuthStep.SecurityQuestion;
+        Title = "Verify Identity";
+        PrimaryButtonText = "Verify";
+        DefaultButton = ContentDialogButton.Primary;
+
+        PasswordPanel.Visibility = Visibility.Collapsed;
+        SecurityQuestionPanel.Visibility = Visibility.Visible;
+        ResetPasswordPanel.Visibility = Visibility.Collapsed;
+
+        SecurityQuestionText.Text = _authService.GetSecurityQuestion();
+        SecurityAnswerBox.Text = string.Empty;
+        QuestionErrorText.Visibility = Visibility.Collapsed;
+
+        SecurityAnswerBox.Focus(FocusState.Programmatic);
+    }
+
+    private void SecurityAnswerBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            HandleSecurityQuestionSubmit();
+        }
+    }
+
+    private void HandleSecurityQuestionSubmit()
+    {
+        QuestionErrorText.Visibility = Visibility.Collapsed;
+        string answer = SecurityAnswerBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            QuestionErrorText.Text = "Please enter your answer.";
+            QuestionErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (_authService.VerifySecurityAnswer(answer))
+        {
+            // Verified! Transition to Reset Password view in-place
+            SwitchToResetPasswordView();
+        }
+        else
+        {
+            QuestionErrorText.Text = "Incorrect answer. Please try again.";
+            QuestionErrorText.Visibility = Visibility.Visible;
+            SecurityAnswerBox.SelectAll();
+            SecurityAnswerBox.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void SwitchToResetPasswordView()
+    {
+        _currentStep = AuthStep.ResetPassword;
+        Title = "Reset Admin Password";
+        PrimaryButtonText = "Reset & Unlock";
+        DefaultButton = ContentDialogButton.Primary;
+
+        PasswordPanel.Visibility = Visibility.Collapsed;
+        SecurityQuestionPanel.Visibility = Visibility.Collapsed;
+        ResetPasswordPanel.Visibility = Visibility.Visible;
+
+        NewPasswordBox.Password = string.Empty;
+        ConfirmPasswordBox.Password = string.Empty;
+        StrengthBar.Value = 0;
+        StrengthText.Text = string.Empty;
+        ResetErrorText.Visibility = Visibility.Collapsed;
+
+        NewPasswordBox.Focus(FocusState.Programmatic);
+    }
+
+    private void NewPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        var password = NewPasswordBox.Password;
+        if (string.IsNullOrEmpty(password))
+        {
+            StrengthBar.Value = 0;
+            StrengthText.Text = string.Empty;
+            return;
+        }
+
+        int strength = 0;
+        if (password.Length >= 6) strength += 20;
+        if (password.Length >= 8) strength += 10;
+        if (password.Length >= 12) strength += 10;
+
+        if (password.Any(char.IsUpper)) strength += 20;
+        if (password.Any(char.IsLower)) strength += 20;
+        if (password.Any(char.IsDigit)) strength += 10;
+        if (password.Any(ch => !char.IsLetterOrDigit(ch))) strength += 10;
+
+        StrengthBar.Value = strength;
+        StrengthText.Text = strength switch
+        {
+            < 40 => "Weak",
+            < 70 => "Medium",
+            _ => "Strong"
+        };
+    }
+
+    private void HandleResetPasswordSubmit()
+    {
+        ResetErrorText.Visibility = Visibility.Collapsed;
+
+        var newPassword = NewPasswordBox.Password;
+        var confirmPassword = ConfirmPasswordBox.Password;
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            ResetErrorText.Text = "Please enter a new password.";
+            ResetErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (newPassword.Length < 6)
+        {
+            ResetErrorText.Text = "Password must be at least 6 characters.";
+            ResetErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (newPassword != confirmPassword)
+        {
+            ResetErrorText.Text = "Passwords do not match.";
+            ResetErrorText.Visibility = Visibility.Visible;
+            return;
+        }
 
         try
         {
-            if (_authService.IsLockedOut)
-            {
-                CheckLockout();
-                return;
-            }
-
-            var password = PasswordBox.Password;
-            
-            Debug.WriteLine($"Password entered: {!string.IsNullOrWhiteSpace(password)}");
-            
-            if (string.IsNullOrWhiteSpace(password))
-            {
-                ErrorText.Text = "Please enter your password";
-                ErrorText.Visibility = Visibility.Visible;
-                return;
-            }
-
-            var isValid = _authService.VerifyPassword(password);
-            Debug.WriteLine($"Password valid: {isValid}");
-            
-            if (isValid)
-            {
-                IsAuthenticated = true;
-                PasswordBox.Password = string.Empty;
-                Hide();
-            }
-            else
-            {
-                ErrorText.Text = "Incorrect password";
-                ErrorText.Visibility = Visibility.Visible;
-                PasswordBox.Password = string.Empty;
-                PasswordBox.Focus(FocusState.Programmatic);
-
-                // Check if now locked out
-                CheckLockout();
-            }
-        }
-        catch (InvalidOperationException ex)
-        {
-            ErrorText.Text = ex.Message;
-            ErrorText.Visibility = Visibility.Visible;
-            CheckLockout();
+            _authService.SetPassword(newPassword);
+            IsAuthenticated = true;
+            Hide();
         }
         catch (Exception ex)
         {
-            ErrorText.Text = $"Error: {ex.Message}";
-            ErrorText.Visibility = Visibility.Visible;
+            ResetErrorText.Text = ex.Message;
+            ResetErrorText.Visibility = Visibility.Visible;
         }
+    }
+
+    private void BackToPassword_Click(object sender, RoutedEventArgs e)
+    {
+        _currentStep = AuthStep.Password;
+        Title = "Verify Admin Password";
+        PrimaryButtonText = "Unlock";
+        DefaultButton = ContentDialogButton.Primary;
+
+        PasswordPanel.Visibility = Visibility.Visible;
+        SecurityQuestionPanel.Visibility = Visibility.Collapsed;
+        ResetPasswordPanel.Visibility = Visibility.Collapsed;
+
+        ErrorText.Visibility = Visibility.Collapsed;
+        PasswordBox.Password = string.Empty;
+        PasswordBox.Focus(FocusState.Programmatic);
     }
 
     private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
@@ -189,11 +314,9 @@ public sealed partial class AuthDialog : ContentDialog
         try
         {
             bool verified = await _helloService.RequestVerificationAsync("Verify your identity to unlock AppLock");
-            
             if (verified)
             {
                 IsAuthenticated = true;
-                System.Diagnostics.Debug.WriteLine("Windows Hello verification successful");
                 Hide();
             }
             else

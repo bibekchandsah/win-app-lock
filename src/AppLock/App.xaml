@@ -9,10 +9,54 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Theme-aware CornerRadius overrides for modern rounded design -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+            <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
+            <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
             
             <!-- App-wide accent color -->
             <Color x:Key="AccentColor">#D9A0E8</Color>
             <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+
+            <!-- Global Control Styles for rounded corners -->
+            <Style TargetType="ContentDialog">
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <Style TargetType="Button">
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+
+            <Style TargetType="PasswordBox">
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+
+            <Style TargetType="TextBox">
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
             
             <!-- Tray Icon -->
             <tb:TaskbarIcon

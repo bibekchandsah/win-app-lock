@@ -6,37 +6,128 @@
     PrimaryButtonText="Unlock"
     CloseButtonText="Cancel"
     DefaultButton="Primary"
+    CornerRadius="8"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
 
-    <StackPanel Spacing="16" MinWidth="300">
-        <TextBlock Text="Enter your admin password to continue"
-                   TextWrapping="Wrap"/>
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+        <Style TargetType="Button">
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </ContentDialog.Resources>
 
-        <PasswordBox x:Name="PasswordBox"
-                     Header="Password"
-                     PlaceholderText="Enter password"
-                     PasswordRevealMode="Peek"
-                     KeyDown="PasswordBox_KeyDown"/>
+    <StackPanel Spacing="16" MinWidth="340">
+        <!-- 1. Password Login View -->
+        <StackPanel x:Name="PasswordPanel" Spacing="16" Visibility="Visible">
+            <TextBlock Text="Enter your admin password to continue"
+                       TextWrapping="Wrap"/>
 
-        <!-- Windows Hello Button -->
-        <Button x:Name="WindowsHelloButton"
-                Click="WindowsHelloButton_Click"
-                HorizontalAlignment="Stretch"
-                Visibility="Collapsed">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <FontIcon Glyph="&#xEB68;" FontSize="16"/>
-                <TextBlock Text="Use Windows Hello"/>
+            <PasswordBox x:Name="PasswordBox"
+                         Header="Password"
+                         PlaceholderText="Enter password"
+                         PasswordRevealMode="Peek"
+                         CornerRadius="4"
+                         KeyDown="PasswordBox_KeyDown"/>
+
+            <!-- Windows Hello Button -->
+            <Button x:Name="WindowsHelloButton"
+                    Click="WindowsHelloButton_Click"
+                    HorizontalAlignment="Stretch"
+                    CornerRadius="4"
+                    Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xEB68;" FontSize="16"/>
+                    <TextBlock Text="Use Windows Hello"/>
+                </StackPanel>
+            </Button>
+
+            <HyperlinkButton x:Name="ForgotPasswordButton"
+                             Content="Forgot password? Reset via security question"
+                             Click="ForgotPasswordButton_Click"
+                             HorizontalAlignment="Center"
+                             FontSize="12"/>
+
+            <TextBlock x:Name="ErrorText"
+                       Foreground="{ThemeResource SystemErrorTextColor}"
+                       Visibility="Collapsed"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock x:Name="LockoutText"
+                       Foreground="{ThemeResource SystemErrorTextColor}"
+                       Visibility="Collapsed"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- 2. Security Question Verification View -->
+        <StackPanel x:Name="SecurityQuestionPanel" Spacing="16" Visibility="Collapsed">
+            <TextBlock Text="Answer your security question to reset password"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock x:Name="SecurityQuestionText"
+                       FontWeight="SemiBold"
+                       FontSize="15"
+                       TextWrapping="Wrap"/>
+
+            <TextBox x:Name="SecurityAnswerBox"
+                     PlaceholderText="Enter your answer"
+                     CornerRadius="4"
+                     KeyDown="SecurityAnswerBox_KeyDown"/>
+
+            <TextBlock x:Name="QuestionErrorText"
+                       Foreground="{ThemeResource SystemErrorTextColor}"
+                       Visibility="Collapsed"
+                       TextWrapping="Wrap"/>
+
+            <HyperlinkButton Content="Back to password login"
+                             Click="BackToPassword_Click"
+                             HorizontalAlignment="Center"
+                             FontSize="12"/>
+        </StackPanel>
+
+        <!-- 3. New Password Reset View -->
+        <StackPanel x:Name="ResetPasswordPanel" Spacing="16" Visibility="Collapsed">
+            <TextBlock Text="Your identity has been verified. Enter a new admin password."
+                       TextWrapping="Wrap"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+            <PasswordBox x:Name="NewPasswordBox"
+                         Header="New Password"
+                         PlaceholderText="Enter new password (min. 6 characters)"
+                         PasswordRevealMode="Peek"
+                         CornerRadius="4"
+                         PasswordChanged="NewPasswordBox_PasswordChanged"/>
+
+            <PasswordBox x:Name="ConfirmPasswordBox"
+                         Header="Confirm New Password"
+                         PlaceholderText="Re-enter new password"
+                         PasswordRevealMode="Peek"
+                         CornerRadius="4"
+                         PasswordChanged="NewPasswordBox_PasswordChanged"/>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Password Strength:" FontSize="12"/>
+                <ProgressBar x:Name="StrengthBar"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             CornerRadius="2"
+                             Height="4"/>
+                <TextBlock x:Name="StrengthText"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
-        </Button>
 
-        <TextBlock x:Name="ErrorText"
-                   Foreground="{ThemeResource SystemErrorTextColor}"
-                   Visibility="Collapsed"
-                   TextWrapping="Wrap"/>
+            <TextBlock x:Name="ResetErrorText"
+                       Foreground="{ThemeResource SystemErrorTextColor}"
+                       Visibility="Collapsed"
+                       TextWrapping="Wrap"/>
 
-        <TextBlock x:Name="LockoutText"
-                   Foreground="{ThemeResource SystemErrorTextColor}"
-                   Visibility="Collapsed"
-                   TextWrapping="Wrap"/>
+            <HyperlinkButton Content="Back to password login"
+                             Click="BackToPassword_Click"
+                             HorizontalAlignment="Center"
+                             FontSize="12"/>
+        </StackPanel>
     </StackPanel>
 </ContentDialog>

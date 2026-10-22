@@ -154,6 +154,50 @@ public class AuthService
         _lockoutUntil = null;
     }
 
+    public bool HasSecurityQuestion =>
+        !string.IsNullOrWhiteSpace(_settings.SecurityQuestion) &&
+        _settings.SecurityAnswerHash != null &&
+        _settings.SecurityAnswerHash.Length > 0;
+
+    public string GetSecurityQuestion() => _settings.SecurityQuestion ?? string.Empty;
+
+    public void SetSecurityQuestion(string question, string answer)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+            throw new ArgumentException("Security question cannot be empty", nameof(question));
+        if (string.IsNullOrWhiteSpace(answer))
+            throw new ArgumentException("Answer cannot be empty", nameof(answer));
+
+        string normalizedAnswer = answer.Trim().ToLowerInvariant();
+
+        byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
+        byte[] hash = HashPassword(normalizedAnswer, salt);
+
+        _settings.SecurityQuestion = question.Trim();
+        _settings.SecurityAnswerHash = hash;
+        _settings.SecurityAnswerSalt = salt;
+
+        _settingsStore.Save(_settings);
+    }
+
+    public bool VerifySecurityAnswer(string answer)
+    {
+        if (!HasSecurityQuestion || string.IsNullOrWhiteSpace(answer))
+            return false;
+
+        string normalizedAnswer = answer.Trim().ToLowerInvariant();
+
+        try
+        {
+            byte[] hash = HashPassword(normalizedAnswer, _settings.SecurityAnswerSalt);
+            return CryptographicOperations.FixedTimeEquals(hash, _settings.SecurityAnswerHash);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private byte[] HashPassword(string password, byte[] salt)
     {
         using var pbkdf2 = new Rfc2898DeriveBytes(

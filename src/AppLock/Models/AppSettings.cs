@@ -9,6 +9,11 @@ public class AppSettings
     public int LockoutDurationMinutes { get; set; } = 10;
     public bool WindowsHelloEnabled { get; set; }
     
+    // Security Questions
+    public string SecurityQuestion { get; set; } = string.Empty;
+    public byte[] SecurityAnswerHash { get; set; } = Array.Empty<byte>();
+    public byte[] SecurityAnswerSalt { get; set; } = Array.Empty<byte>();
+    
     // General
     public string Language { get; set; } = "System default";
     public string Theme { get; set; } = "System default";
