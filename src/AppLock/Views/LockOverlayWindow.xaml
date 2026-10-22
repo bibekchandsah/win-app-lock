@@ -6,14 +6,14 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <!-- Full-window semi-transparent gray overlay — syncs with theme -->
+    <!-- Full-window semi-transparent overlay — syncs with theme -->
     <Grid x:Name="RootGrid"
-          Background="#99202020"
           CornerRadius="10"
           SizeChanged="RootGrid_SizeChanged">
 
         <!-- Card shadow layer (simulated drop shadow) -->
-        <Border HorizontalAlignment="Center"
+        <Border x:Name="CardShadow"
+                HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 CornerRadius="14"
                 MaxWidth="522"
@@ -24,12 +24,10 @@
 
         <!-- Centered card — ScrollViewer handles very small windows -->
         <Border x:Name="CardBorder"
-                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 CornerRadius="12"
                 BorderThickness="1"
-                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                 MaxWidth="520"
                 MaxHeight="600"
                 Padding="32,28">
@@ -44,11 +42,13 @@
                     <StackPanel x:Name="ContentPanel" Spacing="20" MinWidth="280">
 
                     <!-- Lock icon badge -->
-                    <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                    <Border x:Name="LockIconBadge"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
                             CornerRadius="16"
                             Width="64" Height="64"
                             HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE72E;"
+                        <FontIcon x:Name="LockIconGlyph"
+                                  Glyph="&#xE72E;"
                                   FontSize="28"
                                   Foreground="White"
                                   HorizontalAlignment="Center"
@@ -65,7 +65,8 @@
                                    TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    MaxWidth="420"/>
-                        <TextBlock Text="Enter the app password to resume"
+                        <TextBlock x:Name="SubtitleText"
+                                   Text="Enter the app password to resume"
                                    Style="{ThemeResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Center"/>
@@ -106,7 +107,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
+                            <TextBlock x:Name="DurationLabel"
+                                       Grid.Column="0"
                                        Text="Time allowed for this unlock"
                                        Style="{ThemeResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -149,7 +151,7 @@
                                         FontWeight="SemiBold"/>
                                 <Button x:Name="Btn15Min"
                                         Grid.Column="1"
-                                        Content="15 min"
+                                        Content="15 minutes"
                                         Click="DurationButton_Click"
                                         Tag="15"
                                         CornerRadius="20"
@@ -158,7 +160,7 @@
                                         FontSize="12"/>
                                 <Button x:Name="Btn30Min"
                                         Grid.Column="2"
-                                        Content="30 min"
+                                        Content="30 minutes"
                                         Click="DurationButton_Click"
                                         Tag="30"
                                         CornerRadius="20"
@@ -167,7 +169,7 @@
                                         FontSize="12"/>
                                 <Button x:Name="Btn60Min"
                                         Grid.Column="3"
-                                        Content="60 min"
+                                        Content="60 minutes"
                                         Click="DurationButton_Click"
                                         Tag="60"
                                         CornerRadius="20"
@@ -295,6 +297,7 @@
                                 FontSize="14"
                                 FontWeight="SemiBold"/>
                         <Button Grid.Column="1"
+                                x:Name="CancelButton"
                                 Content="Cancel"
                                 Click="CancelButton_Click"
                                 HorizontalAlignment="Stretch"
@@ -317,7 +320,8 @@
                     </Button>
 
                     <!-- Divider -->
-                    <Border Height="1"
+                    <Border x:Name="CardDivider"
+                            Height="1"
                             Background="{ThemeResource ControlStrokeColorDefaultBrush}"
                             Margin="0,0,0,0"/>
 
@@ -326,11 +330,13 @@
                                 HorizontalAlignment="Center"
                                 Spacing="8"
                                 VerticalAlignment="Center">
-                        <TextBlock Text="Emergency lock:"
+                        <TextBlock x:Name="EmergencyLabel"
+                                   Text="Emergency lock:"
                                    Style="{ThemeResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center"/>
-                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                        <Border x:Name="EmergencyHotkeyBorder"
+                                Background="{ThemeResource LayerFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"

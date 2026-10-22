@@ -10,28 +10,40 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Theme-aware CornerRadius overrides for modern rounded design -->
+            <!-- Theme-aware overrides for modern design -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
+                    <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#3D3D3D"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
+                    <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#3D3D3D"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#66000000"/>
+                    <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#E5E5E5"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
             <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
             <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
             <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+            <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
+            <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
+            <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#3D3D3D"/>
             
             <!-- App-wide accent color -->
             <Color x:Key="AccentColor">#D9A0E8</Color>

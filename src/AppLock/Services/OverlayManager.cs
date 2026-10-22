@@ -254,35 +254,45 @@ public class OverlayManager
         if (PInvoke.IsIconic(hwnd))
             return;
 
-        // Set locked thumbnail for taskbar preview
-        _thumbnailService.SetLockedThumbnail(hwnd);
-
-        var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
-        _activeOverlays[window.Handle] = overlay;
-        
-        overlay.Closed += (s, e) =>
+        try
         {
-            if (overlay.IsUnlocked)
+            // Set locked thumbnail for taskbar preview
+            _thumbnailService.SetLockedThumbnail(hwnd);
+
+            var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
+            _activeOverlays[window.Handle] = overlay;
+            
+            overlay.Closed += (s, e) =>
             {
-                if (overlay.UnlockDuration == TimeSpan.Zero)
+                if (overlay.IsUnlocked)
                 {
-                    // No limit - unlock indefinitely until app restart
-                    _indefinitelyUnlocked.Add(window.Handle);
+                    if (overlay.UnlockDuration == TimeSpan.Zero)
+                    {
+                        // No limit - unlock indefinitely until app restart
+                        _indefinitelyUnlocked.Add(window.Handle);
+                    }
+                    else
+                    {
+                        // Set unlock timer with expiration
+                        _unlockTimers[window.Handle] = DateTime.Now.Add(overlay.UnlockDuration);
+                    }
                 }
-                else
-                {
-                    // Set unlock timer with expiration
-                    _unlockTimers[window.Handle] = DateTime.Now.Add(overlay.UnlockDuration);
-                }
-            }
+                
+                // Clear locked thumbnail when overlay is removed
+                _thumbnailService.ClearLockedThumbnail(hwnd);
+                
+                _activeOverlays.Remove(window.Handle);
+            };
             
-            // Clear locked thumbnail when overlay is removed
-            _thumbnailService.ClearLockedThumbnail(hwnd);
-            
-            _activeOverlays.Remove(window.Handle);
-        };
-        
-        overlay.Activate();
+            overlay.Activate();
+
+            // Force correct theme immediately after activate (visual tree is now live)
+            overlay.UpdateTheme(ServiceContainer.CurrentTheme);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error showing overlay for window '{window.WindowTitle}': {ex.Message}");
+        }
     }
 
     private void RemoveOverlay(nint windowHandle)
@@ -310,6 +320,20 @@ public class OverlayManager
             foreach (var overlay in _activeOverlays.Values)
             {
                 overlay.UpdateKeepOnTop(keepOnTop);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Dynamically updates the theme across all active overlays.
+    /// </summary>
+    public void UpdateTheme(Microsoft.UI.Xaml.ElementTheme theme)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            foreach (var overlay in _activeOverlays.Values)
+            {
+                overlay.UpdateTheme(theme);
             }
         });
     }

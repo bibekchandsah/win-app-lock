@@ -3,6 +3,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI;
+using Microsoft.UI;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Dwm;
@@ -51,6 +53,9 @@ public sealed partial class LockOverlayWindow : Window
         // Position over target window
         PositionOverTarget();
 
+        // Apply theme immediately
+        ApplyTheme(ServiceContainer.CurrentTheme);
+
         // Set initial button selection (No limit)
         SelectDurationButton(BtnNoLimit, BtnNoLimitS, 0);
 
@@ -61,6 +66,18 @@ public sealed partial class LockOverlayWindow : Window
         {
             CancelWindowsHello();
         }), handledEventsToo: true);
+
+        // Re-apply theme once the window's visual tree is fully loaded
+        RootGrid.Loaded += (s, e) =>
+        {
+            ApplyTheme(ServiceContainer.CurrentTheme);
+        };
+
+        // Also react to live theme changes
+        RootGrid.ActualThemeChanged += (s, e) =>
+        {
+            ApplyThemeBrushes();
+        };
     }
 
     /// <summary>
@@ -330,10 +347,25 @@ public sealed partial class LockOverlayWindow : Window
 
     private void SetButtonSelected(Button btn, bool selected)
     {
+        if (btn == null) return;
+        bool isLight = IsLightMode();
+
         if (selected)
-            btn.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+        {
+            btn.Background = new SolidColorBrush(Color.FromArgb(255, 138, 43, 226)); // Accent purple
+            btn.Foreground = new SolidColorBrush(Colors.White);
+            btn.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            btn.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+        }
         else
-            btn.Style = (Style)Application.Current.Resources["DefaultButtonStyle"];
+        {
+            btn.Background = new SolidColorBrush(Colors.Transparent);
+            btn.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            btn.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 35, 35, 35))
+                : new SolidColorBrush(Color.FromArgb(255, 220, 220, 220));
+            btn.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
+        }
     }
 
     private void SelectDurationButton(Button normalBtn, Button smallBtn, int minutes)
@@ -412,6 +444,219 @@ public sealed partial class LockOverlayWindow : Window
     {
         _keepOnTop = keepOnTop;
         PositionOverTarget();
+    }
+
+    /// <summary>
+    /// Dynamically updates the theme for this active overlay.
+    /// </summary>
+    public void UpdateTheme(ElementTheme theme)
+    {
+        ApplyTheme(theme);
+    }
+
+    private bool IsLightMode()
+    {
+        var theme = ServiceContainer.CurrentTheme;
+        if (theme == ElementTheme.Light) return true;
+        if (theme == ElementTheme.Dark) return false;
+
+        if (RootGrid != null)
+        {
+            if (RootGrid.RequestedTheme == ElementTheme.Light) return true;
+            if (RootGrid.RequestedTheme == ElementTheme.Dark) return false;
+            if (RootGrid.ActualTheme == ElementTheme.Light) return true;
+            if (RootGrid.ActualTheme == ElementTheme.Dark) return false;
+        }
+
+        try
+        {
+            var uiSettings = new Windows.UI.ViewManagement.UISettings();
+            var bg = uiSettings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background);
+            return bg.R > 128;
+        }
+        catch
+        {
+            return Application.Current.RequestedTheme == ApplicationTheme.Light;
+        }
+    }
+
+    private void ApplyTheme(ElementTheme theme)
+    {
+        if (RootGrid != null)
+        {
+            RootGrid.RequestedTheme = theme;
+        }
+        ApplyThemeBrushes();
+    }
+
+    private void ApplyThemeBrushes()
+    {
+        if (RootGrid == null || CardBorder == null) return;
+
+        bool isLight = IsLightMode();
+
+        // 1. Full-window overlay backdrop scrim (soft frosted light overlay vs dark)
+        RootGrid.Background = isLight
+            ? new SolidColorBrush(Color.FromArgb(160, 238, 238, 238)) // Light translucent frosted scrim
+            : new SolidColorBrush(Color.FromArgb(180, 20, 20, 20));    // Dark translucent scrim
+
+        // 2. Card container (crisp clean white in light mode, dark surface in dark mode)
+        CardBorder.Background = isLight
+            ? new SolidColorBrush(Color.FromArgb(255, 255, 255, 255))
+            : new SolidColorBrush(Color.FromArgb(255, 44, 44, 44));
+
+        CardBorder.BorderBrush = isLight
+            ? new SolidColorBrush(Color.FromArgb(255, 225, 225, 225))
+            : new SolidColorBrush(Color.FromArgb(255, 60, 60, 60));
+
+        CardBorder.CornerRadius = new CornerRadius(16);
+
+        // 3. Simulated drop shadow behind card
+        if (CardShadow != null)
+        {
+            CardShadow.Background = new SolidColorBrush(Colors.Black);
+            CardShadow.Opacity = isLight ? 0.08 : 0.30;
+            CardShadow.CornerRadius = new CornerRadius(18);
+        }
+
+        // 4. Lock icon badge at top
+        if (LockIconBadge != null && LockIconGlyph != null)
+        {
+            if (isLight)
+            {
+                // Soft light blue background with vibrant blue lock glyph (matching Image 1)
+                LockIconBadge.Background = new SolidColorBrush(Color.FromArgb(255, 235, 243, 252)); // #EBF3FC
+                LockIconGlyph.Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));    // #0078D4
+            }
+            else
+            {
+                // Accent purple background with white glyph
+                LockIconBadge.Background = Application.Current.Resources.TryGetValue("AccentBrush", out var ab) && ab is Brush accentBrush
+                    ? accentBrush
+                    : new SolidColorBrush(Color.FromArgb(255, 138, 43, 226));
+                LockIconGlyph.Foreground = new SolidColorBrush(Colors.White);
+            }
+        }
+
+        // 5. Typography
+        if (TitleText != null)
+        {
+            TitleText.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 24, 24, 24))
+                : new SolidColorBrush(Colors.White);
+        }
+
+        if (SubtitleText != null)
+        {
+            SubtitleText.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 96, 96, 96))
+                : new SolidColorBrush(Color.FromArgb(255, 170, 170, 170));
+        }
+
+        // 6. Password box
+        if (PasswordBox != null)
+        {
+            PasswordBox.RequestedTheme = isLight ? ElementTheme.Light : ElementTheme.Dark;
+            PasswordBox.Background = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 250, 250, 250))
+                : new SolidColorBrush(Color.FromArgb(255, 45, 45, 45));
+            PasswordBox.BorderBrush = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 210, 210, 210))
+                : new SolidColorBrush(Color.FromArgb(255, 75, 75, 75));
+            PasswordBox.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 24, 24, 24))
+                : new SolidColorBrush(Colors.White);
+        }
+
+        // 7. Duration label & hint
+        if (DurationLabel != null)
+        {
+            DurationLabel.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 96, 96, 96))
+                : new SolidColorBrush(Color.FromArgb(255, 170, 170, 170));
+        }
+
+        // 8. Duration pill track
+        var trackBg = isLight
+            ? new SolidColorBrush(Color.FromArgb(255, 235, 235, 235)) // #EBEBEB
+            : new SolidColorBrush(Color.FromArgb(255, 36, 36, 36));     // #242424
+        var trackBorder = isLight
+            ? new SolidColorBrush(Color.FromArgb(255, 222, 222, 222))
+            : new SolidColorBrush(Color.FromArgb(255, 55, 55, 55));
+
+        if (DurationGrid != null)
+        {
+            DurationGrid.Background = trackBg;
+            DurationGrid.BorderBrush = trackBorder;
+        }
+        if (DurationGridSmall != null)
+        {
+            DurationGridSmall.Background = trackBg;
+            DurationGridSmall.BorderBrush = trackBorder;
+        }
+
+        // Re-sync duration buttons selection and colors for current theme
+        SyncNormalButtonSelection(_selectedMinutes);
+        SyncSmallButtonSelection(_selectedMinutes);
+
+        // 9. Action buttons
+        if (CancelButton != null)
+        {
+            CancelButton.Background = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 245, 245, 245))
+                : new SolidColorBrush(Color.FromArgb(255, 52, 52, 52));
+            CancelButton.BorderBrush = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 218, 218, 218))
+                : new SolidColorBrush(Color.FromArgb(255, 75, 75, 75));
+            CancelButton.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 24, 24, 24))
+                : new SolidColorBrush(Colors.White);
+        }
+
+        // 10. Windows Hello button
+        if (WindowsHelloButton != null)
+        {
+            WindowsHelloButton.Background = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 245, 245, 245))
+                : new SolidColorBrush(Color.FromArgb(255, 52, 52, 52));
+            WindowsHelloButton.BorderBrush = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 218, 218, 218))
+                : new SolidColorBrush(Color.FromArgb(255, 75, 75, 75));
+            WindowsHelloButton.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 24, 24, 24))
+                : new SolidColorBrush(Colors.White);
+        }
+
+        // 11. Divider
+        if (CardDivider != null)
+        {
+            CardDivider.Background = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 230, 230, 230))
+                : new SolidColorBrush(Color.FromArgb(255, 60, 60, 60));
+        }
+
+        // 12. Emergency lock footer
+        if (EmergencyLabel != null)
+        {
+            EmergencyLabel.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 110, 110, 110))
+                : new SolidColorBrush(Color.FromArgb(255, 160, 160, 160));
+        }
+        if (EmergencyHotkeyBorder != null)
+        {
+            EmergencyHotkeyBorder.Background = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 242, 242, 242))
+                : new SolidColorBrush(Color.FromArgb(255, 45, 45, 45));
+            EmergencyHotkeyBorder.BorderBrush = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 218, 218, 218))
+                : new SolidColorBrush(Color.FromArgb(255, 65, 65, 65));
+        }
+        if (EmergencyHotkeyText != null)
+        {
+            EmergencyHotkeyText.Foreground = isLight
+                ? new SolidColorBrush(Color.FromArgb(255, 30, 30, 30))
+                : new SolidColorBrush(Colors.White);
+        }
     }
 
     private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)

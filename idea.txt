@@ -74,6 +74,7 @@ done - Milestone 7 complete:
      ✅ All 13 settings working
 done - redesign settings page layout with clean 2-column rows, compact toggle switches, and stretched expanders matching mockup
 done - security question setup & verification in settings page, wired with admin password reset (AuthDialog, ChangePasswordDialog, LockOverlayWindow)
+done - sync theme for overlay lockscreen (Light/Dark/System default dynamic syncing with settings and active overlays)
 
 
 todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
@@ -81,6 +82,7 @@ todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
  closing the window app should hide the app to system tray
  show "Locked" image for locked app in taskbar thumbnail and live preview
 done - overlay should be minimised when program window is minimized 
+require admin password or window hello if user exit from tray or from task manager or from hotkey to exit 
 
 
 # Milestone Progress

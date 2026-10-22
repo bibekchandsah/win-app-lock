@@ -8,6 +8,12 @@ public partial class App : Application
 
     public App()
     {
+        this.UnhandledException += (s, e) =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[CRITICAL] Unhandled Exception: {e.Message}");
+            System.Diagnostics.Debug.WriteLine(e.Exception);
+            e.Handled = true;
+        };
         InitializeComponent();
     }
 

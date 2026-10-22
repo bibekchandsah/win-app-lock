@@ -214,6 +214,9 @@ public partial class SettingsViewModel : ObservableObject
                 rootElement.RequestedTheme = requestedTheme;
             }
         }
+
+        // Apply to any active overlay lock screens
+        ServiceContainer.OverlayManager.UpdateTheme(requestedTheme);
     }
 
     private void UpdateIdleMonitoring()
