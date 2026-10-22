@@ -35,6 +35,11 @@ public sealed partial class LockOverlayWindow : Window
 
         TitleText.Text = $"Program \"{windowTitle}\" is already locked.";
 
+        // Set dynamic emergency hotkey label from settings
+        var hotkeyStr = ServiceContainer.Settings.EmergencyHotkey;
+        if (!string.IsNullOrWhiteSpace(hotkeyStr))
+            EmergencyHotkeyText.Text = hotkeyStr;
+
         // Make this window topmost and borderless
         SetupOverlayStyle();
 
@@ -43,6 +48,32 @@ public sealed partial class LockOverlayWindow : Window
 
         // Set initial button selection (No limit)
         SelectDurationButton(BtnNoLimit, BtnNoLimitS, 0);
+
+        // Initialize Windows Hello button visibility asynchronously
+        _ = InitializeWindowsHelloAsync();
+    }
+
+    /// <summary>
+    /// Shows the Windows Hello button only when the setting is enabled AND
+    /// the device has a configured biometric/PIN verifier.
+    /// </summary>
+    private async Task InitializeWindowsHelloAsync()
+    {
+        var settings = ServiceContainer.Settings;
+        if (!settings.WindowsHelloEnabled)
+        {
+            // Setting disabled — keep button collapsed
+            return;
+        }
+
+        bool available = await ServiceContainer.HelloService.IsAvailableAsync();
+        if (available)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                WindowsHelloButton.Visibility = Visibility.Visible;
+            });
+        }
     }
 
     private void SetupOverlayStyle()
@@ -282,16 +313,34 @@ public sealed partial class LockOverlayWindow : Window
 
     private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
     {
-        // Windows Hello auth (future: use UserConsentVerifier)
-        // For now, show "not configured" info
-        var dialog = new ContentDialog
+        WindowsHelloButton.IsEnabled = false;
+        try
         {
-            Title = "Windows Hello",
-            Content = "Windows Hello authentication is not configured yet.",
-            CloseButtonText = "OK",
-            XamlRoot = this.Content.XamlRoot
-        };
-        await dialog.ShowAsync();
+            bool verified = await ServiceContainer.HelloService.RequestVerificationAsync(
+                $"Unlock \"{_windowTitle}\" with Windows Hello");
+
+            if (verified)
+            {
+                IsUnlocked = true;
+                UnlockDuration = GetSelectedDuration();
+                Close();
+            }
+            else
+            {
+                ShowError("Windows Hello verification failed. Try your password.");
+                PasswordBox.Focus(FocusState.Programmatic);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Windows Hello error: {ex.Message}");
+            ShowError("Windows Hello is not available. Use your password.");
+            WindowsHelloButton.Visibility = Visibility.Collapsed;
+        }
+        finally
+        {
+            WindowsHelloButton.IsEnabled = true;
+        }
     }
 
     private async void ForgotPasswordButton_Click(object sender, RoutedEventArgs e)
