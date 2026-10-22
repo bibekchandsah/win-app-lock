@@ -78,8 +78,8 @@ done - sync theme for overlay lockscreen (Light/Dark/System default dynamic sync
 
 
 todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
- tray context menu make it working
- closing the window app should hide the app to system tray
+done - tray context menu make it working
+done - closing the window app should hide the app to system tray
  show "Locked" image for locked app in taskbar thumbnail and live preview
 done - overlay should be minimised when program window is minimized 
 require admin password or window hello if user exit from tray or from task manager or from hotkey to exit 

@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private MicaController? _micaController;
     private Microsoft.UI.Windowing.AppWindow? _appWindow;
     private bool _isExplicitExit = false;
+    private bool _isAuthDialogOpen = false;
     private bool _loginShown = false;
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
@@ -278,58 +279,86 @@ public sealed partial class MainWindow : Window
 
     private async Task HandleProtectionToggleAsync(bool enable)
     {
-        // Show auth dialog
-        var dialog = new AuthDialog(ServiceContainer.AuthService)
-        {
-            Title = enable ? "Enable Protection" : "Disable Protection",
-            XamlRoot = Content?.XamlRoot
-        };
+        if (_isAuthDialogOpen) return;
+        _isAuthDialogOpen = true;
 
-        await dialog.ShowAsync();
-
-        if (dialog.IsAuthenticated)
+        try
         {
-            if (enable)
+            Show();
+            var dialog = new AuthDialog(ServiceContainer.AuthService)
             {
-                ServiceContainer.LockManager.EnableProtection();
-                ServiceContainer.OverlayManager.Start();
-            }
-            else
+                Title = enable ? "Enable Protection" : "Disable Protection",
+                XamlRoot = Content?.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+
+            if (dialog.IsAuthenticated)
             {
-                ServiceContainer.LockManager.DisableProtection();
-                ServiceContainer.OverlayManager.Stop();
+                if (enable)
+                {
+                    ServiceContainer.LockManager.EnableProtection();
+                    ServiceContainer.OverlayManager.Start();
+                }
+                else
+                {
+                    ServiceContainer.LockManager.DisableProtection();
+                    ServiceContainer.OverlayManager.Stop();
+                }
+                
+                // Update tray
+                ServiceContainer.TrayService.UpdateProtectionMenuItems();
+                
+                // Show notification
+                await ShowNotificationAsync(
+                    "Protection " + (enable ? "Enabled" : "Disabled"),
+                    "AppLock protection is now " + (enable ? "active" : "inactive") + "."
+                );
             }
-            
-            // Update tray
-            ServiceContainer.TrayService.UpdateProtectionMenuItems();
-            
-            // Show notification
-            await ShowNotificationAsync(
-                "Protection " + (enable ? "Enabled" : "Disabled"),
-                "AppLock protection is now " + (enable ? "active" : "inactive") + "."
-            );
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during protection toggle: {ex.Message}");
+        }
+        finally
+        {
+            _isAuthDialogOpen = false;
         }
     }
 
     private async Task HandleExitRequestAsync()
     {
-        Show(); // Ensure window is visible so auth dialog can be displayed
-        var dialog = new AuthDialog(ServiceContainer.AuthService)
-        {
-            Title = "Exit AppLock",
-            XamlRoot = Content?.XamlRoot
-        };
+        if (_isAuthDialogOpen) return;
+        _isAuthDialogOpen = true;
 
-        await dialog.ShowAsync();
-
-        if (dialog.IsAuthenticated)
+        try
         {
-            _isExplicitExit = true;
-            // Perform cleanup
-            MainWindow_ActualClose();
-            
-            // Exit app
-            Application.Current.Exit();
+            Show(); // Ensure window is visible so auth dialog can be displayed
+            var dialog = new AuthDialog(ServiceContainer.AuthService)
+            {
+                Title = "Exit AppLock",
+                XamlRoot = Content?.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+
+            if (dialog.IsAuthenticated)
+            {
+                _isExplicitExit = true;
+                // Perform cleanup
+                MainWindow_ActualClose();
+                
+                // Exit app
+                Application.Current.Exit();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during exit request: {ex.Message}");
+        }
+        finally
+        {
+            _isAuthDialogOpen = false;
         }
     }
 
@@ -523,26 +552,8 @@ public sealed partial class MainWindow : Window
             }
             PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
             this.Activate();
-
-            // Force window to foreground even when Explorer owns the foreground thread
-            unsafe
-            {
-                var fgHwnd = PInvoke.GetForegroundWindow();
-                uint foregroundThreadId = PInvoke.GetWindowThreadProcessId(fgHwnd, null);
-                uint currentThreadId = PInvoke.GetCurrentThreadId();
-                if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
-                {
-                    PInvoke.AttachThreadInput(foregroundThreadId, currentThreadId, true);
-                    PInvoke.BringWindowToTop(_hwnd);
-                    PInvoke.SetForegroundWindow(_hwnd);
-                    PInvoke.AttachThreadInput(foregroundThreadId, currentThreadId, false);
-                }
-                else
-                {
-                    PInvoke.BringWindowToTop(_hwnd);
-                    PInvoke.SetForegroundWindow(_hwnd);
-                }
-            }
+            PInvoke.BringWindowToTop(_hwnd);
+            PInvoke.SetForegroundWindow(_hwnd);
 
             System.Diagnostics.Debug.WriteLine("MainWindow restored and brought to foreground");
         });

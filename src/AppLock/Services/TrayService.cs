@@ -82,11 +82,10 @@ public sealed class TrayService : IDisposable
                 if (_exitMenuItem == null && menuFlyout.Items.Count > 6)
                     _exitMenuItem = menuFlyout.Items[6] as MenuFlyoutItem;
                 
-                // Wire up click events & commands (commands fire reliably in detached context flyouts)
+                // Wire up commands exclusively (fires reliably without duplicate events)
                 if (_openMenuItem != null)
                 {
                     _openMenuItem.Click -= OpenMenuItem_Click;
-                    _openMenuItem.Click += OpenMenuItem_Click;
                     _openMenuItem.Command = new RelayCommand(() =>
                     {
                         System.Diagnostics.Debug.WriteLine("Open menu item Command executed!");
@@ -98,7 +97,6 @@ public sealed class TrayService : IDisposable
                 if (_protectionMenuItem != null)
                 {
                     _protectionMenuItem.Click -= ProtectionMenuItem_Click;
-                    _protectionMenuItem.Click += ProtectionMenuItem_Click;
                     _protectionMenuItem.Command = new RelayCommand(() =>
                     {
                         System.Diagnostics.Debug.WriteLine("Protection menu item Command executed!");
@@ -111,7 +109,6 @@ public sealed class TrayService : IDisposable
                 if (_emergencyLockMenuItem != null)
                 {
                     _emergencyLockMenuItem.Click -= EmergencyLockMenuItem_Click;
-                    _emergencyLockMenuItem.Click += EmergencyLockMenuItem_Click;
                     _emergencyLockMenuItem.Command = new RelayCommand(() =>
                     {
                         System.Diagnostics.Debug.WriteLine("Emergency lock menu item Command executed!");
@@ -123,7 +120,6 @@ public sealed class TrayService : IDisposable
                 if (_exitMenuItem != null)
                 {
                     _exitMenuItem.Click -= ExitMenuItem_Click;
-                    _exitMenuItem.Click += ExitMenuItem_Click;
                     _exitMenuItem.Command = new RelayCommand(() =>
                     {
                         System.Diagnostics.Debug.WriteLine("Exit menu item Command executed!");
