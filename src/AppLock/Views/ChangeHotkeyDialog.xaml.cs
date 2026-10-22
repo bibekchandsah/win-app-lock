@@ -1,3 +1,4 @@
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -17,6 +18,21 @@ public sealed partial class ChangeHotkeyDialog : ContentDialog
         InitializeComponent();
         CurrentHotkeyText.Text = currentHotkey;
         NewHotkeyText.Text = "";
+
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)

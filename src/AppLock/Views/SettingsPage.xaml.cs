@@ -198,7 +198,8 @@ public sealed partial class SettingsPage : Page
     {
         var dialog = new AboutDialog
         {
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = this.ActualTheme
         };
 
         await dialog.ShowAsync();
