@@ -100,6 +100,7 @@ static HBITMAP CreateLockedDIBSection(int w, int h, void** ppBits)
     bmi.bmiHeader.biPlanes      = 1;
     bmi.bmiHeader.biBitCount    = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
+    bmi.bmiHeader.biSizeImage   = (DWORD)(w * h * 4);
 
     HDC hdc = GetDC(NULL);
     HBITMAP hbmp = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, ppBits, NULL, 0);
@@ -211,10 +212,15 @@ static HBITMAP RenderLockedImage(int w, int h)
 
 static void SendLockedThumbnail(HWND hwnd, int w, int h)
 {
+    if (w <= 0 || h <= 0) return;
     HBITMAP bmp = RenderLockedImage(w, h);
     if (bmp)
     {
-        DwmSetIconicThumbnail(hwnd, bmp, 0);
+        HRESULT hr = DwmSetIconicThumbnail(hwnd, bmp, 0);
+        if (FAILED(hr))
+        {
+            DwmSetIconicThumbnail(hwnd, bmp, 1);
+        }
         DeleteObject(bmp);
     }
 }
@@ -249,11 +255,12 @@ static LRESULT CALLBACK LockedSubclassProc(
 {
     if (msg == WM_DWMSENDICONICTHUMBNAIL_MSG)
     {
-        int maxW = LOWORD(lp);
-        int maxH = HIWORD(lp);
-        int w = (maxW > 0 && maxW <= 800) ? maxW : 320;
-        int h = (maxH > 0 && maxH <= 600) ? maxH : 200;
-        SendLockedThumbnail(hwnd, w, h);
+        // HIWORD(lParam) = maximum allowed width, LOWORD(lParam) = maximum allowed height
+        int maxW = HIWORD(lp);
+        int maxH = LOWORD(lp);
+        if (maxW <= 0) maxW = 200;
+        if (maxH <= 0) maxH = 150;
+        SendLockedThumbnail(hwnd, maxW, maxH);
         return 0; // Handled
     }
 
@@ -320,11 +327,11 @@ static LRESULT CALLBACK HookCallWndProc(int nCode, WPARAM wp, LPARAM lp)
 
             if (cwp->message == WM_DWMSENDICONICTHUMBNAIL_MSG)
             {
-                int maxW = LOWORD(cwp->lParam);
-                int maxH = HIWORD(cwp->lParam);
-                int w = (maxW > 0 && maxW <= 800) ? maxW : 320;
-                int h = (maxH > 0 && maxH <= 600) ? maxH : 200;
-                SendLockedThumbnail(cwp->hwnd, w, h);
+                int maxW = HIWORD(cwp->lParam);
+                int maxH = LOWORD(cwp->lParam);
+                if (maxW <= 0) maxW = 200;
+                if (maxH <= 0) maxH = 150;
+                SendLockedThumbnail(cwp->hwnd, maxW, maxH);
             }
             else if (cwp->message == WM_DWMSENDICONICLIVEPREVIEWBITMAP_MSG)
             {
