@@ -3,6 +3,8 @@ using AppLock.Views;
 using Microsoft.UI.Dispatching;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
+using Windows.Win32.Graphics.Dwm;
 
 namespace AppLock.Services;
 
@@ -162,6 +164,98 @@ public class OverlayManager
         }
     }
 
+    private static string GetWindowClassName(HWND hwnd)
+    {
+        unsafe
+        {
+            var buffer = new char[256];
+            fixed (char* p = buffer)
+            {
+                int len = PInvoke.GetClassName(hwnd, new Windows.Win32.Foundation.PWSTR(p), buffer.Length);
+                return len > 0 ? new string(buffer, 0, len) : string.Empty;
+            }
+        }
+    }
+
+    private static bool IsValidTargetWindow(HWND hwnd, string title, string processName)
+    {
+        // 1. Skip system popups, flyouts, and context menu titles
+        if (title.Equals("PopupHost", StringComparison.OrdinalIgnoreCase) ||
+            title.StartsWith("PopupHost", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Taskbar", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Windows Shell Experience Host", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Desktop Window", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Cortana", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("Search", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // 2. Class name checks (menus, popups, taskbars, thumbnail previews)
+        string className = GetWindowClassName(hwnd);
+        if (className.Equals("Xaml_WindowedPopupClass", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("TaskListThumbnailWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("TaskListOverlayWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("ToolTips_Class32", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase) ||
+            className == "#32768")
+        {
+            return false;
+        }
+
+        // 3. For explorer.exe specifically: ONLY lock actual File Explorer folder windows (CabinetWClass)
+        if (processName.Equals("explorer", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!className.Equals("CabinetWClass", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        // 4. Skip tool windows (WS_EX_TOOLWINDOW = 0x00000080)
+        int exStyle = (int)PInvoke.GetWindowLong(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        if ((exStyle & 0x00000080) != 0)
+        {
+            return false;
+        }
+
+        // 5. Must be a top-level root window
+        HWND root = PInvoke.GetAncestor(hwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+        if (root.Value != 0 && root != hwnd)
+        {
+            return false;
+        }
+
+        // 6. Skip owned popup windows without WS_EX_APPWINDOW (0x00040000)
+        nint owner = PInvoke.GetWindowLongPtr(hwnd, (WINDOW_LONG_PTR_INDEX)(-8));
+        if (owner != 0 && (exStyle & 0x00040000) == 0)
+        {
+            return false;
+        }
+
+        // 6. Check if cloaked (DWMWA_CLOAKED = 14)
+        int cloaked = 0;
+        unsafe
+        {
+            var hr = PInvoke.DwmGetWindowAttribute(
+                hwnd,
+                (DWMWINDOWATTRIBUTE)14,
+                &cloaked,
+                sizeof(int));
+            if (hr.Succeeded && cloaked != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private void CheckWindow(nint windowHandle)
     {
         if (!_lockManager.IsProtectionEnabled)
@@ -193,6 +287,14 @@ public class OverlayManager
             }
             string title = new string(titleBuffer).TrimEnd('\0');
 
+            if (string.IsNullOrWhiteSpace(title))
+                return;
+
+            // Quick check on title
+            if (title.Equals("PopupHost", StringComparison.OrdinalIgnoreCase) ||
+                title.StartsWith("PopupHost", StringComparison.OrdinalIgnoreCase))
+                return;
+
             // Get process info
             uint processId = 0;
             PInvoke.GetWindowThreadProcessId(hwnd, &processId);
@@ -216,6 +318,10 @@ public class OverlayManager
                     {
                         string processPath = new string(pathBuffer, 0, (int)size);
                         string processName = Path.GetFileNameWithoutExtension(processPath);
+
+                        // Validate window before proceeding
+                        if (!IsValidTargetWindow(hwnd, title, processName))
+                            return;
 
                         // Handle UWP apps
                         if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
@@ -250,8 +356,8 @@ public class OverlayManager
 
         var targetHwnd = new HWND(window.Handle);
 
-        // Do not show overlay if target window is minimized
-        if (PInvoke.IsIconic(targetHwnd))
+        // Do not show overlay if target window is minimized or not a valid top-level window
+        if (PInvoke.IsIconic(targetHwnd) || !IsValidTargetWindow(targetHwnd, window.WindowTitle, window.ProcessName))
             return;
 
         try

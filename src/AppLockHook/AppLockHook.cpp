@@ -125,81 +125,92 @@ static HBITMAP RenderLockedImage(int w, int h)
     FillRect(mdc, &rc, bgBrush);
     DeleteObject(bgBrush);
 
-    // 2. Lock Icon Dimensions
-    int cx = w / 2;
-    int cy = h / 2 - (h > 120 ? 12 : 4);
-    int iconSize = max(16, min(w, h) / 4);
-    int bw = iconSize / 2;
-    int bh = iconSize * 2 / 3;
-    int shR = max(4, bw - 2);
+    // 2. Proportional layout sizing
+    bool isLivePreview = (h > 250);
+    bool showSub = isLivePreview || (h >= 130);
 
-    // 3. Shackle (purple curved arc)
-    HPEN pen = CreatePen(PS_SOLID, max(2, iconSize / 7), RGB(168, 85, 247));
-    HPEN oldPen = (HPEN)SelectObject(mdc, pen);
-    HBRUSH oldBr = (HBRUSH)SelectObject(mdc, GetStockObject(NULL_BRUSH));
+    int badgeSize = isLivePreview ? 80 : max(32, min(h / 3, 52));
+    int badgeR    = isLivePreview ? 20 : max(8, badgeSize / 4);
+    int titleSize = isLivePreview ? 22 : max(11, min(h / 9, 14));
+    int subSize   = isLivePreview ? 13 : max(9, min(h / 14, 11));
+    int gap1      = isLivePreview ? 14 : 6;
+    int gap2      = isLivePreview ? 6 : 3;
 
-    int sx = cx - shR, sy = cy - bh;
-    MoveToEx(mdc, sx, cy, NULL);
-    LineTo(mdc, sx, sy + shR);
-    MoveToEx(mdc, cx + shR, cy, NULL);
-    LineTo(mdc, cx + shR, sy + shR);
-    Arc(mdc, sx, sy - shR, cx + shR + 1, sy + shR + 1, sx, sy + shR, cx + shR, sy + shR);
+    int totalH = badgeSize + gap1 + titleSize + (showSub ? (gap2 + subSize) : 0);
+    int startY = max(4, (h - totalH) / 2);
+    int bx = (w - badgeSize) / 2;
+    int by = startY;
+
+    // 3. Rounded purple accent badge behind icon (matching LockOverlayWindow)
+    HBRUSH badgeBrush = CreateSolidBrush(RGB(138, 43, 226));
+    HPEN badgePen     = CreatePen(PS_SOLID, 1, RGB(168, 85, 247));
+    HPEN oldPen       = (HPEN)SelectObject(mdc, badgePen);
+    HBRUSH oldBr      = (HBRUSH)SelectObject(mdc, badgeBrush);
+
+    RoundRect(mdc, bx, by, bx + badgeSize, by + badgeSize, badgeR * 2, badgeR * 2);
 
     SelectObject(mdc, oldPen);
     SelectObject(mdc, oldBr);
-    DeleteObject(pen);
+    DeleteObject(badgeBrush);
+    DeleteObject(badgePen);
 
-    // 4. Lock Body (solid violet rect)
-    HBRUSH body = CreateSolidBrush(RGB(147, 51, 234));
-    RECT bodyRc = { cx - bw, cy, cx + bw, cy + bh };
-    FillRect(mdc, &bodyRc, body);
-    DeleteObject(body);
+    // 4. Fluent lock icon glyph (\uE72E) in crisp white inside badge
+    int glyphSize = (int)(badgeSize * 0.52f);
+    HFONT hGlyphFont = CreateFontW(
+        -glyphSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe Fluent Icons");
+    if (!hGlyphFont)
+    {
+        hGlyphFont = CreateFontW(
+            -glyphSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+    }
 
-    // 5. Keyhole
-    HBRUSH hole = CreateSolidBrush(RGB(18, 16, 28));
-    int hr = max(2, bw / 4);
-    Ellipse(mdc, cx - hr, cy + bh / 3, cx + hr, cy + bh / 3 + hr * 2);
-    DeleteObject(hole);
-
-    // 6. Text: "Locked"
     SetBkMode(mdc, TRANSPARENT);
-    int fontSize = max(11, min(h / 7, 24));
-    HFONT hFont = CreateFontW(-fontSize, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT oldF = (HFONT)SelectObject(mdc, hGlyphFont);
+    SetTextColor(mdc, RGB(255, 255, 255));
+    WCHAR glyph[2] = { (WCHAR)0xE72E, 0 };
+    RECT glyphRc = { bx, by, bx + badgeSize, by + badgeSize };
+    DrawTextW(mdc, glyph, 1, &glyphRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(mdc, oldF);
+    DeleteObject(hGlyphFont);
+
+    // 5. Title: "Locked"
+    HFONT hTitleFont = CreateFontW(
+        -titleSize, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-    HFONT oldF = (HFONT)SelectObject(mdc, hFont);
-
-    SetTextColor(mdc, RGB(243, 232, 255));
-    RECT textRc = { 4, cy + bh + 6, w - 4, h - 2 };
-    DrawTextW(mdc, L"Locked", -1, &textRc, DT_CENTER | DT_TOP | DT_SINGLELINE);
-
+    oldF = (HFONT)SelectObject(mdc, hTitleFont);
+    SetTextColor(mdc, RGB(245, 240, 255));
+    int textY = by + badgeSize + gap1;
+    RECT titleRc = { 2, textY, w - 2, textY + titleSize + 4 };
+    DrawTextW(mdc, L"Locked", -1, &titleRc, DT_CENTER | DT_TOP | DT_SINGLELINE);
     SelectObject(mdc, oldF);
-    DeleteObject(hFont);
+    DeleteObject(hTitleFont);
 
-    // 7. Subtitle: "Protected by AppLock" (if sufficient height)
-    if (h >= 130)
+    // 6. Subtitle: "Protected by AppLock" (if space permits)
+    if (showSub)
     {
-        int subSize = max(9, h / 14);
-        HFONT hSubF = CreateFontW(-subSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        HFONT hSubFont = CreateFontW(
+            -subSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
-        HFONT oldSF = (HFONT)SelectObject(mdc, hSubF);
-
-        SetTextColor(mdc, RGB(192, 175, 215));
-        RECT subRc = { 4, cy + bh + 8 + fontSize, w - 4, h - 2 };
+        oldF = (HFONT)SelectObject(mdc, hSubFont);
+        SetTextColor(mdc, RGB(180, 165, 210));
+        int subY = textY + titleSize + gap2;
+        RECT subRc = { 2, subY, w - 2, subY + subSize + 4 };
         DrawTextW(mdc, L"Protected by AppLock", -1, &subRc, DT_CENTER | DT_TOP | DT_SINGLELINE);
-
-        SelectObject(mdc, oldSF);
-        DeleteObject(hSubF);
+        SelectObject(mdc, oldF);
+        DeleteObject(hSubFont);
     }
 
     SelectObject(mdc, hOldBmp);
     DeleteDC(mdc);
     ReleaseDC(NULL, hdcScreen);
 
-    // 8. MANDATORY FOR DWM: Set Alpha = 0xFF on every pixel
-    // GDI drawing functions leave the alpha channel as 0x00.
-    // If alpha remains 0x00, DWM treats the bitmap as completely transparent!
+    // 7. MANDATORY FOR DWM: Set Alpha = 0xFF on every pixel
     DWORD* pPixels = (DWORD*)pBits;
     int total = w * h;
     for (int i = 0; i < total; ++i)

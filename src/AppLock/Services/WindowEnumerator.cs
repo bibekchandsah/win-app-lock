@@ -47,6 +47,15 @@ public class WindowEnumerator
                     if (string.IsNullOrWhiteSpace(title))
                         return true;
 
+                    // Skip popup and shell window titles
+                    if (title.Equals("PopupHost", StringComparison.OrdinalIgnoreCase) ||
+                        title.StartsWith("PopupHost", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("Taskbar", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("Windows Shell Experience Host", StringComparison.OrdinalIgnoreCase) ||
+                        title.Equals("Desktop Window", StringComparison.OrdinalIgnoreCase))
+                        return true;
+
                     // Check if cloaked (hidden by Windows, like UWP suspended apps)
                     int cloaked = 0;
                     var hr = PInvoke.DwmGetWindowAttribute(
@@ -95,6 +104,19 @@ public class WindowEnumerator
                                 // Skip AppLock itself
                                 if (processName.Equals("AppLock", StringComparison.OrdinalIgnoreCase))
                                     return true;
+
+                                // For explorer.exe specifically: ONLY enumerate actual File Explorer folder windows (CabinetWClass)
+                                if (processName.Equals("explorer", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var clsBuffer = new char[256];
+                                    fixed (char* pCls = clsBuffer)
+                                    {
+                                        int clsLen = PInvoke.GetClassName(hwnd, new PWSTR(pCls), clsBuffer.Length);
+                                        string clsName = clsLen > 0 ? new string(clsBuffer, 0, clsLen) : string.Empty;
+                                        if (!clsName.Equals("CabinetWClass", StringComparison.OrdinalIgnoreCase))
+                                            return true;
+                                    }
+                                }
 
                                 // Handle UWP apps (ApplicationFrameHost)
                                 if (uwpResolver.IsApplicationFrameHost(processPath))
