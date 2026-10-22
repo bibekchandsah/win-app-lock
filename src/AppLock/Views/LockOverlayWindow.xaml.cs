@@ -117,7 +117,24 @@ public sealed partial class LockOverlayWindow : Window
                 (DWMWINDOWATTRIBUTE)DWMWA_WINDOW_CORNER_PREFERENCE,
                 &cornerPreference,
                 sizeof(uint));
+
+            // Do not show overlay as a separate window in taskbar or Alt+Tab switchers
+            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            if (appWindow != null)
+            {
+                appWindow.IsShownInSwitchers = false;
+            }
         }
+    }
+
+    /// <summary>
+    /// Hides the overlay window when the target window is minimized.
+    /// </summary>
+    public void HideOverlay()
+    {
+        var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
     }
 
     public void PositionOverTarget()
@@ -126,9 +143,10 @@ public sealed partial class LockOverlayWindow : Window
         {
             var targetHwnd = new HWND(_targetWindowHandle);
             
-            // If target window is minimized, don't position or show
+            // If target window is minimized, hide overlay and return
             if (PInvoke.IsIconic(targetHwnd))
             {
+                HideOverlay();
                 return;
             }
 

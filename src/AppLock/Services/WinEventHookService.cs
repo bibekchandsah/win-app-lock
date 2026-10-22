@@ -12,6 +12,7 @@ public class WinEventHookService : IDisposable
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
     private const uint EVENT_OBJECT_DESTROY = 0x8001;
+    private const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
     private const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     
@@ -19,7 +20,7 @@ public class WinEventHookService : IDisposable
     private HWINEVENTHOOK _focusHook;
     private HWINEVENTHOOK _moveHook;
     private HWINEVENTHOOK _destroyHook;
-    private HWINEVENTHOOK _minimizeEndHook;
+    private HWINEVENTHOOK _minimizeHook;
     
     private readonly WINEVENTPROC _eventCallback;
     
@@ -27,6 +28,7 @@ public class WinEventHookService : IDisposable
     public event EventHandler<WindowEventArgs>? WindowFocused;
     public event EventHandler<WindowEventArgs>? WindowMoved;
     public event EventHandler<WindowEventArgs>? WindowDestroyed;
+    public event EventHandler<WindowEventArgs>? WindowMinimized;
     public event EventHandler<WindowEventArgs>? WindowRestored;
 
     public WinEventHookService()
@@ -79,9 +81,9 @@ public class WinEventHookService : IDisposable
             0,
             WINEVENT_OUTOFCONTEXT);
 
-        // Hook for window restored from minimize
-        _minimizeEndHook = PInvoke.SetWinEventHook(
-            EVENT_SYSTEM_MINIMIZEEND,
+        // Hook for window minimized and restored
+        _minimizeHook = PInvoke.SetWinEventHook(
+            EVENT_SYSTEM_MINIMIZESTART,
             EVENT_SYSTEM_MINIMIZEEND,
             HMODULE.Null,
             _eventCallback,
@@ -111,6 +113,9 @@ public class WinEventHookService : IDisposable
             case EVENT_OBJECT_DESTROY:
                 WindowDestroyed?.Invoke(this, args);
                 break;
+            case EVENT_SYSTEM_MINIMIZESTART:
+                WindowMinimized?.Invoke(this, args);
+                break;
             case EVENT_SYSTEM_MINIMIZEEND:
                 WindowRestored?.Invoke(this, args);
                 break;
@@ -127,8 +132,8 @@ public class WinEventHookService : IDisposable
             PInvoke.UnhookWinEvent(_moveHook);
         if (!_destroyHook.IsNull)
             PInvoke.UnhookWinEvent(_destroyHook);
-        if (!_minimizeEndHook.IsNull)
-            PInvoke.UnhookWinEvent(_minimizeEndHook);
+        if (!_minimizeHook.IsNull)
+            PInvoke.UnhookWinEvent(_minimizeHook);
     }
 
     public void Dispose()

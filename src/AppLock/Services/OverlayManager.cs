@@ -47,6 +47,7 @@ public class OverlayManager
         _winEventHook.WindowMoved += OnWindowMoved;
         _winEventHook.WindowDestroyed += OnWindowDestroyed;
         _winEventHook.WindowRestored += OnWindowEvent;
+        _winEventHook.WindowMinimized += OnWindowMinimized;
     }
 
     public void Start()
@@ -111,6 +112,17 @@ public class OverlayManager
             if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
             {
                 overlay.PositionOverTarget();
+            }
+        });
+    }
+
+    private void OnWindowMinimized(object? sender, WindowEventArgs e)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            {
+                overlay.HideOverlay();
             }
         });
     }

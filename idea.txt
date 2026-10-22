@@ -77,10 +77,10 @@ done - security question setup & verification in settings page, wired with admin
 
 
 todo - Milestone 8: tray icon, DWM thumbnails, UWP, multi-monitor
- tray menu make it working
+ tray context menu make it working
  closing the window app should hide the app to system tray
  show "Locked" image for locked app in taskbar thumbnail and live preview
- 
+ emergency lock -> overlay should be minimised when program window is minimized 
 
 
 # Milestone Progress
