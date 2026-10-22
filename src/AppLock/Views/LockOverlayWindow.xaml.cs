@@ -23,6 +23,9 @@ public sealed partial class LockOverlayWindow : Window
     private bool _isSmallLayout;
     // Selected duration in minutes (0 = no limit, -1 = custom)
     private int _selectedMinutes = 0;
+    // Whether the overlay should stay on top of ALL windows (setting: Keep lock screen on top)
+    private bool _keepOnTop;
+    private System.Threading.CancellationTokenSource? _helloCts;
 
     public LockOverlayWindow(nint targetWindowHandle, string windowTitle)
     {
@@ -30,6 +33,7 @@ public sealed partial class LockOverlayWindow : Window
         _windowTitle = windowTitle;
         _authService = ServiceContainer.AuthService;
         _displayHelper = ServiceContainer.DisplayHelper;
+        _keepOnTop = ServiceContainer.Settings.KeepLockScreenOnTop;
 
         InitializeComponent();
 
@@ -92,10 +96,15 @@ public sealed partial class LockOverlayWindow : Window
             style &= ~(WS_CAPTION | WS_THICKFRAME);
             PInvoke.SetWindowLongPtr(handle, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)style);
 
-            // Make it topmost
+            // Z-order: HWND_TOPMOST (-1) if setting is ON, otherwise HWND_TOP (0)
+            // HWND_TOP places it above normal windows but lets other topmost windows cover it.
+            var insertAfter = _keepOnTop
+                ? new HWND((nint)(-1))  // HWND_TOPMOST — above everything
+                : new HWND((nint)(0));  // HWND_TOP — above normal windows only
+
             PInvoke.SetWindowPos(
                 handle,
-                new HWND((nint)(-1)), // HWND_TOPMOST
+                insertAfter,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
         }
@@ -130,10 +139,17 @@ public sealed partial class LockOverlayWindow : Window
             // Ensure minimum size
             width = Math.Max(width, 320);
             height = Math.Max(height, 400);
+
+            // Z-order:
+            //   KeepOnTop ON  → HWND_TOPMOST (-1): overlay stays above everything
+            //   KeepOnTop OFF → just above the target window: other apps can be placed over the overlay
+            var insertAfter = _keepOnTop
+                ? new HWND((nint)(-1))          // HWND_TOPMOST
+                : new HWND(_targetWindowHandle); // just above the target
             
             PInvoke.SetWindowPos(
                 hwnd,
-                new HWND((nint)(-1)), // HWND_TOPMOST
+                insertAfter,
                 rect.left,
                 rect.top,
                 width,
@@ -311,25 +327,54 @@ public sealed partial class LockOverlayWindow : Window
         Close();
     }
 
+    /// <summary>
+    /// Dynamically updates the "keep lock screen on top" setting for this active overlay.
+    /// </summary>
+    public void UpdateKeepOnTop(bool keepOnTop)
+    {
+        _keepOnTop = keepOnTop;
+        PositionOverTarget();
+    }
+
     private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
     {
         WindowsHelloButton.IsEnabled = false;
+        ErrorText.Visibility = Visibility.Collapsed;
+
+        // Switch to the Windows Hello pending panel, keeping the overlay visible so content stays hidden
+        ContentScrollViewer.Visibility = Visibility.Collapsed;
+        HelloActivePanel.Visibility = Visibility.Visible;
+
+        // Temporarily clear topmost flag so the Windows Hello credential prompt can appear in front
+        if (_keepOnTop)
+        {
+            SetTopmost(false);
+        }
+
         try
         {
+            _helloCts = new System.Threading.CancellationTokenSource();
+
             bool verified = await ServiceContainer.HelloService.RequestVerificationAsync(
-                $"Unlock \"{_windowTitle}\" with Windows Hello");
+                $"Unlock \"{_windowTitle}\" with Windows Hello",
+                _helloCts.Token);
 
             if (verified)
             {
                 IsUnlocked = true;
                 UnlockDuration = GetSelectedDuration();
                 Close();
+                return; // Closing overlay
             }
-            else
+
+            if (_helloCts?.IsCancellationRequested != true)
             {
                 ShowError("Windows Hello verification failed. Try your password.");
-                PasswordBox.Focus(FocusState.Programmatic);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by user clicking "Cancel Windows Hello"
         }
         catch (Exception ex)
         {
@@ -339,7 +384,66 @@ public sealed partial class LockOverlayWindow : Window
         }
         finally
         {
+            _helloCts?.Dispose();
+            _helloCts = null;
+
+            // If not unlocked, restore normal overlay view and reposition
+            if (IsUnlocked == false)
+            {
+                HelloActivePanel.Visibility = Visibility.Collapsed;
+                ContentScrollViewer.Visibility = Visibility.Visible;
+
+                if (_keepOnTop)
+                {
+                    SetTopmost(true);
+                }
+                PositionOverTarget();
+                PasswordBox.Focus(FocusState.Programmatic);
+            }
             WindowsHelloButton.IsEnabled = true;
+        }
+    }
+
+    private void HelloCancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _helloCts?.Cancel();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error cancelling Windows Hello: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sets or clears the HWND_TOPMOST flag. Respects _keepOnTop:
+    /// when restoring (topmost=true) we only go TOPMOST if the setting demands it.
+    /// </summary>
+    private void SetTopmost(bool topmost)
+    {
+        try
+        {
+            var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            HWND insertAfter;
+            if (topmost && _keepOnTop)
+                insertAfter = new HWND((nint)(-1)); // HWND_TOPMOST
+            else if (topmost)
+                insertAfter = new HWND((nint)(0));  // HWND_TOP
+            else
+                insertAfter = new HWND((nint)(-2)); // HWND_NOTOPMOST
+
+            PInvoke.SetWindowPos(
+                hwnd,
+                insertAfter,
+                0, 0, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE |
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SetTopmost({topmost}) failed: {ex.Message}");
         }
     }
 

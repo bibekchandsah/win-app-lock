@@ -262,6 +262,20 @@ public class OverlayManager
         _unlockTimers.Remove(windowHandle);
     }
 
+    /// <summary>
+    /// Dynamically updates the "keep lock screen on top" setting across all currently active overlays.
+    /// </summary>
+    public void UpdateKeepOnTop(bool keepOnTop)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            foreach (var overlay in _activeOverlays.Values)
+            {
+                overlay.UpdateKeepOnTop(keepOnTop);
+            }
+        });
+    }
+
     private void CloseAllOverlays()
     {
         foreach (var overlay in _activeOverlays.Values.ToList())

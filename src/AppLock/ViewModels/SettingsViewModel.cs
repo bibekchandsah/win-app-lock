@@ -153,6 +153,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         _settings.KeepLockScreenOnTop = value;
         SaveSettings();
+        ServiceContainer.OverlayManager.UpdateKeepOnTop(value);
     }
 
     [RelayCommand]

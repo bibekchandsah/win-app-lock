@@ -27,21 +27,29 @@ public class HelloService
     }
 
     /// <summary>
+    /// <summary>
     /// Request user verification using Windows Hello
     /// </summary>
     /// <param name="message">Message to display to the user</param>
+    /// <param name="cancellationToken">Optional token to cancel the verification</param>
     /// <returns>True if verification succeeded</returns>
-    public async Task<bool> RequestVerificationAsync(string message = "Verify your identity")
+    public async Task<bool> RequestVerificationAsync(string message = "Verify your identity", System.Threading.CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = await UserConsentVerifier.RequestVerificationAsync(message);
+            var op = UserConsentVerifier.RequestVerificationAsync(message);
+            var result = await op.AsTask(cancellationToken);
             
             bool success = result == UserConsentVerificationResult.Verified;
             
             System.Diagnostics.Debug.WriteLine($"Windows Hello verification: {result}");
             
             return success;
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("Windows Hello verification cancelled.");
+            return false;
         }
         catch (Exception ex)
         {
