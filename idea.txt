@@ -59,6 +59,7 @@ done - hide program title if main app title is already there
 done - show the hover and selected items in listView using theme background and foreground colors 
 done - custom duration for unlocking
 done - pick window with glowing rainbow border on hovered window and instruction inside master card
+animate it like moving snake that is rotating the glowing rainbow border of the hovered window
 overlay window resizing/moving along with attached locked program window
 window hello support for unlocking
 

@@ -20,6 +20,40 @@ public class LockManager
         
         // Restore protection state from settings
         IsProtectionEnabled = settings.IsProtectionEnabled;
+
+        NormalizeRules();
+    }
+
+    private void NormalizeRules()
+    {
+        bool changed = false;
+        foreach (var rule in _settings.LockRules)
+        {
+            if (rule.DisplayName.StartsWith("Picked: ", StringComparison.OrdinalIgnoreCase))
+            {
+                string title = rule.DisplayName.Substring("Picked: ".Length).Trim();
+                if (string.IsNullOrWhiteSpace(rule.ProcessName))
+                {
+                    rule.ProcessName = !string.IsNullOrWhiteSpace(rule.ProcessPath)
+                        ? System.IO.Path.GetFileNameWithoutExtension(rule.ProcessPath)
+                        : title;
+                }
+                rule.DisplayName = $"{rule.ProcessName} - {title}";
+                rule.Type = LockRuleType.ProcessName;
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.ProcessName) && !string.IsNullOrWhiteSpace(rule.ProcessPath))
+            {
+                rule.ProcessName = System.IO.Path.GetFileNameWithoutExtension(rule.ProcessPath);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _settingsStore.Save(_settings);
+        }
     }
 
     public IReadOnlyList<LockRule> GetAllRules()
@@ -67,7 +101,8 @@ public class LockManager
                 if (string.IsNullOrWhiteSpace(rule.ProcessName))
                     return false;
                 return (!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
-                       (!string.IsNullOrEmpty(window.ProcessPath) && window.ProcessPath.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase));
+                       (!string.IsNullOrEmpty(window.ProcessPath) && window.ProcessPath.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
+                       (!string.IsNullOrEmpty(window.ProcessPath) && !string.IsNullOrEmpty(rule.ProcessPath) && window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase));
 
             case LockRuleType.WindowTitle:
                 if (string.IsNullOrWhiteSpace(rule.WindowTitlePattern))
@@ -93,11 +128,18 @@ public class LockManager
                 }
 
             case LockRuleType.PickedWindow:
-                if (string.IsNullOrWhiteSpace(rule.ProcessName))
-                    return false;
-                // For picked windows, match both process and title
-                return (!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) &&
-                       (string.IsNullOrEmpty(rule.WindowTitlePattern) || (!string.IsNullOrEmpty(window.WindowTitle) && window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase)));
+                string proc = !string.IsNullOrWhiteSpace(rule.ProcessName)
+                    ? rule.ProcessName
+                    : (!string.IsNullOrWhiteSpace(rule.ProcessPath) ? System.IO.Path.GetFileNameWithoutExtension(rule.ProcessPath) : string.Empty);
+
+                bool procMatches = !string.IsNullOrWhiteSpace(proc) &&
+                    ((!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(proc, StringComparison.OrdinalIgnoreCase)) ||
+                     (!string.IsNullOrEmpty(window.ProcessPath) && !string.IsNullOrEmpty(rule.ProcessPath) && window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase)));
+
+                bool titleMatches = string.IsNullOrEmpty(rule.WindowTitlePattern) ||
+                    (!string.IsNullOrEmpty(window.WindowTitle) && (window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase) || rule.WindowTitlePattern.Contains(window.WindowTitle, StringComparison.OrdinalIgnoreCase)));
+
+                return procMatches || titleMatches;
 
             default:
                 return false;

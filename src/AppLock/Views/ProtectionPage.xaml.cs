@@ -360,18 +360,41 @@ public sealed partial class ProtectionPage : Page
             
             if (result != null)
             {
-                // Create a lock rule for the picked window
-                var rule = new LockRule
-                {
-                    Id = Guid.NewGuid(),
-                    Type = LockRuleType.PickedWindow,
-                    ProcessPath = result.ProcessPath,
-                    WindowTitlePattern = result.WindowTitle,
-                    DisplayName = $"Picked: {result.WindowTitle}",
-                    CreatedAt = DateTime.Now
-                };
+                // Match against existing running windows to reuse exact process info and icon
+                var matchedWindow = RunningViewModel.Windows.FirstOrDefault(w => w.Handle == (nint)result.Hwnd.Value)
+                    ?? RunningViewModel.Windows.FirstOrDefault(w => !string.IsNullOrEmpty(w.ProcessPath) && w.ProcessPath.Equals(result.ProcessPath, StringComparison.OrdinalIgnoreCase))
+                    ?? RunningViewModel.Windows.FirstOrDefault(w => !string.IsNullOrEmpty(w.WindowTitle) && w.WindowTitle.Equals(result.WindowTitle, StringComparison.OrdinalIgnoreCase));
 
-                _lockManager.AddRule(rule);
+                if (matchedWindow != null)
+                {
+                    RunningViewModel.LockWindowCommand.Execute(matchedWindow);
+                }
+                else
+                {
+                    string processName = System.IO.Path.GetFileNameWithoutExtension(result.ProcessPath);
+                    if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase))
+                    {
+                        processName = result.WindowTitle.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                    }
+
+                    var icon = ServiceContainer.WindowEnumerator.GetIcon(result.ProcessPath, processName);
+                    string displayName = string.IsNullOrWhiteSpace(result.WindowTitle)
+                        ? processName
+                        : $"{processName} - {result.WindowTitle}";
+
+                    var rule = new LockRule
+                    {
+                        Id = Guid.NewGuid(),
+                        Type = LockRuleType.ProcessName,
+                        ProcessName = processName,
+                        ProcessPath = result.ProcessPath,
+                        DisplayName = displayName,
+                        Icon = icon,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _lockManager.AddRule(rule);
+                }
                 
                 // Refresh the lists
                 RunningViewModel.RefreshWindowsCommand.Execute(null);
