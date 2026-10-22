@@ -17,7 +17,24 @@ public sealed partial class VerifyAdminPasswordDialog : ContentDialog
         _authService = authService;
         InitializeComponent();
 
-        Loaded += (s, e) => PasswordBox.Focus(FocusState.Programmatic);
+        ApplyTheme();
+        Loaded += (s, e) =>
+        {
+            ApplyTheme();
+            PasswordBox.Focus(FocusState.Programmatic);
+        };
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

@@ -9,13 +9,6 @@
     CornerRadius="8"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick">
 
-    <ContentDialog.Resources>
-        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
-        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-        <Style TargetType="Button">
-            <Setter Property="CornerRadius" Value="4"/>
-        </Style>
-    </ContentDialog.Resources>
 
     <StackPanel Spacing="16" MinWidth="340">
         <!-- 1. Password Login View -->

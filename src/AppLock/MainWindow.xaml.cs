@@ -35,10 +35,10 @@ public sealed partial class MainWindow : Window
         // Set up Mica backdrop
         SetupMica();
         
-        // Set dark theme
+        // Set theme from user settings
         if (Content is FrameworkElement rootElement)
         {
-            rootElement.RequestedTheme = ElementTheme.Dark;
+            rootElement.RequestedTheme = ServiceContainer.CurrentTheme;
         }
         
         // Initialize services

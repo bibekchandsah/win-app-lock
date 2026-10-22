@@ -16,7 +16,24 @@ public sealed partial class ResetPasswordDialog : ContentDialog
         _authService = authService;
         InitializeComponent();
 
-        Loaded += (s, e) => NewPasswordBox.Focus(FocusState.Programmatic);
+        ApplyTheme();
+        Loaded += (s, e) =>
+        {
+            ApplyTheme();
+            NewPasswordBox.Focus(FocusState.Programmatic);
+        };
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

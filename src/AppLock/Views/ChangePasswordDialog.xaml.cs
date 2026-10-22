@@ -25,7 +25,24 @@ public sealed partial class ChangePasswordDialog : ContentDialog
         _authService = authService;
         InitializeComponent();
         
-        Loaded += (s, e) => CurrentPasswordBox.Focus(FocusState.Programmatic);
+        ApplyTheme();
+        Loaded += (s, e) =>
+        {
+            ApplyTheme();
+            CurrentPasswordBox.Focus(FocusState.Programmatic);
+        };
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

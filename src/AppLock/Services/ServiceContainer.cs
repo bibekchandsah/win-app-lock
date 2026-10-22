@@ -191,6 +191,19 @@ public static class ServiceContainer
         }
     }
 
+    public static Microsoft.UI.Xaml.ElementTheme CurrentTheme
+    {
+        get
+        {
+            return Settings.Theme switch
+            {
+                "Light" => Microsoft.UI.Xaml.ElementTheme.Light,
+                "Dark" => Microsoft.UI.Xaml.ElementTheme.Dark,
+                _ => Microsoft.UI.Xaml.ElementTheme.Default
+            };
+        }
+    }
+
     public static DisplayHelper DisplayHelper
     {
         get

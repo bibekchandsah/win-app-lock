@@ -7,13 +7,6 @@
     DefaultButton="Close"
     CornerRadius="8">
 
-    <ContentDialog.Resources>
-        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
-        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-        <Style TargetType="Button">
-            <Setter Property="CornerRadius" Value="4"/>
-        </Style>
-    </ContentDialog.Resources>
 
     <StackPanel Spacing="20" MinWidth="400" Padding="0,8">
         <!-- App Icon and Name -->

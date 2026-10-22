@@ -12,13 +12,6 @@
     SecondaryButtonClick="ContentDialog_SecondaryButtonClick"
     CloseButtonClick="ContentDialog_CloseButtonClick">
 
-    <ContentDialog.Resources>
-        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
-        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-        <Style TargetType="Button">
-            <Setter Property="CornerRadius" Value="4"/>
-        </Style>
-    </ContentDialog.Resources>
 
     <StackPanel Spacing="8" MinWidth="480">
         <TextBlock Text="Choose verification method"

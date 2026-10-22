@@ -37,26 +37,6 @@
             <Color x:Key="AccentColor">#D9A0E8</Color>
             <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
 
-            <!-- Global Control Styles for rounded corners -->
-            <Style TargetType="ContentDialog">
-                <Setter Property="CornerRadius" Value="8" />
-            </Style>
-
-            <Style TargetType="Button">
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
-
-            <Style TargetType="PasswordBox">
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
-
-            <Style TargetType="TextBox">
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
-
-            <Style TargetType="ComboBox">
-                <Setter Property="CornerRadius" Value="4" />
-            </Style>
             
             <!-- Tray Icon -->
             <tb:TaskbarIcon

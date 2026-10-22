@@ -14,6 +14,8 @@ public sealed partial class SetSecurityQuestionDialog : ContentDialog
     {
         _authService = authService;
         InitializeComponent();
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
 
         // If a question is already set, select it or fill it
         if (_authService.HasSecurityQuestion)
@@ -114,6 +116,18 @@ public sealed partial class SetSecurityQuestionDialog : ContentDialog
         {
             ErrorText.Text = $"Error: {ex.Message}";
             ErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
         }
     }
 }

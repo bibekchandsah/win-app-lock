@@ -16,6 +16,20 @@ public sealed partial class ChooseVerificationMethodDialog : ContentDialog
     public ChooseVerificationMethodDialog()
     {
         InitializeComponent();
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is Microsoft.UI.Xaml.FrameworkElement rootFe && rootFe.ActualTheme != Microsoft.UI.Xaml.ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = AppLock.Services.ServiceContainer.CurrentTheme;
+        }
     }
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

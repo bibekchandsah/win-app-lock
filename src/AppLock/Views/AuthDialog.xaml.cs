@@ -31,7 +31,24 @@ public sealed partial class AuthDialog : ContentDialog
         CheckLockout();
         _ = InitializeWindowsHelloAsync();
 
-        Loaded += (s, e) => PasswordBox.Focus(FocusState.Programmatic);
+        ApplyTheme();
+        Loaded += (s, e) =>
+        {
+            ApplyTheme();
+            PasswordBox.Focus(FocusState.Programmatic);
+        };
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private async Task InitializeWindowsHelloAsync()
