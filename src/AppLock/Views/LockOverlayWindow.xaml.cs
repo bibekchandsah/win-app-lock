@@ -56,6 +56,11 @@ public sealed partial class LockOverlayWindow : Window
 
         // Initialize Windows Hello button visibility asynchronously
         _ = InitializeWindowsHelloAsync();
+
+        HelloCancelButton.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((s, e) =>
+        {
+            CancelWindowsHello();
+        }), handledEventsToo: true);
     }
 
     /// <summary>
@@ -418,10 +423,10 @@ public sealed partial class LockOverlayWindow : Window
         ContentScrollViewer.Visibility = Visibility.Collapsed;
         HelloActivePanel.Visibility = Visibility.Visible;
 
-        // Temporarily clear topmost flag so the Windows Hello credential prompt can appear in front
-        if (_keepOnTop)
+        var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        if (!PInvoke.IsWindowEnabled(hwnd))
         {
-            SetTopmost(false);
+            PInvoke.EnableWindow(hwnd, true);
         }
 
         try
@@ -430,7 +435,8 @@ public sealed partial class LockOverlayWindow : Window
 
             bool verified = await ServiceContainer.HelloService.RequestVerificationAsync(
                 $"Unlock \"{_windowTitle}\" with Windows Hello",
-                _helloCts.Token);
+                _helloCts.Token,
+                hwnd);
 
             if (verified)
             {
@@ -466,10 +472,6 @@ public sealed partial class LockOverlayWindow : Window
                 HelloActivePanel.Visibility = Visibility.Collapsed;
                 ContentScrollViewer.Visibility = Visibility.Visible;
 
-                if (_keepOnTop)
-                {
-                    SetTopmost(true);
-                }
                 PositionOverTarget();
                 PasswordBox.Focus(FocusState.Programmatic);
             }
@@ -479,9 +481,15 @@ public sealed partial class LockOverlayWindow : Window
 
     private void HelloCancelButton_Click(object sender, RoutedEventArgs e)
     {
+        CancelWindowsHello();
+    }
+
+    private void CancelWindowsHello()
+    {
         try
         {
             _helloCts?.Cancel();
+            HelloService.DismissHelloPrompt();
         }
         catch (Exception ex)
         {

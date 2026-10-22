@@ -49,3 +49,6 @@ IsZoomed
 BringWindowToTop
 AttachThreadInput
 GetCurrentThreadId
+PostMessage
+EnableWindow
+IsWindowEnabled

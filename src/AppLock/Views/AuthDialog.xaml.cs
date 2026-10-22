@@ -38,7 +38,16 @@ public sealed partial class AuthDialog : ContentDialog
             ApplyTheme();
             PasswordBox.Focus(FocusState.Programmatic);
         };
-        Closing += (s, e) => _helloCts?.Cancel();
+        Closing += (s, e) =>
+        {
+            _helloCts?.Cancel();
+            HelloService.DismissHelloPrompt();
+        };
+
+        HelloCancelButton.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((s, e) =>
+        {
+            CancelWindowsHello();
+        }), handledEventsToo: true);
     }
 
     private void ApplyTheme()
@@ -338,12 +347,19 @@ public sealed partial class AuthDialog : ContentDialog
         HelloPendingPanel.Visibility = Visibility.Visible;
         IsPrimaryButtonEnabled = false;
 
+        var hostHwnd = MainWindow.Instance?.Hwnd ?? default;
+        if (hostHwnd != default && !Windows.Win32.PInvoke.IsWindowEnabled(hostHwnd))
+        {
+            Windows.Win32.PInvoke.EnableWindow(hostHwnd, true);
+        }
+
         try
         {
             _helloCts = new System.Threading.CancellationTokenSource();
             bool verified = await _helloService.RequestVerificationAsync(
                 "Verify your identity to unlock AppLock",
-                _helloCts.Token);
+                _helloCts.Token,
+                hostHwnd);
 
             if (verified)
             {
@@ -385,9 +401,15 @@ public sealed partial class AuthDialog : ContentDialog
 
     private void HelloCancelButton_Click(object sender, RoutedEventArgs e)
     {
+        CancelWindowsHello();
+    }
+
+    private void CancelWindowsHello()
+    {
         try
         {
             _helloCts?.Cancel();
+            HelloService.DismissHelloPrompt();
         }
         catch (Exception ex)
         {

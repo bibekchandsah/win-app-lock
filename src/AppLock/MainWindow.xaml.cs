@@ -32,8 +32,8 @@ public sealed partial class MainWindow : Window
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
 
-    // Allow SettingsPage to call reregister without needing a reference to MainWindow
     internal static MainWindow? Instance { get; private set; }
+    internal HWND Hwnd => _hwnd;
 
     public MainWindow()
     {
