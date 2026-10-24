@@ -91,6 +91,34 @@ public sealed class ThumbnailService : IDisposable
         }
     }
 
+    public void CleanupDeadTargets()
+    {
+        lock (_lockedTargets)
+        {
+            var dead = new List<nint>();
+            foreach (var tg in _lockedTargets)
+            {
+                if (!PInvoke.IsWindow(new HWND(tg)))
+                {
+                    dead.Add(tg);
+                }
+            }
+
+            foreach (var tg in dead)
+            {
+                _lockedTargets.Remove(tg);
+                try
+                {
+                    if (IsDllAvailable())
+                    {
+                        NativeUninstall(tg);
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+
     // Overload for callers passing overlay HWND (OverlayManager now calls ClearLockedThumbnailByTarget directly)
     public void ClearLockedThumbnail(HWND overlayHwnd)
     {

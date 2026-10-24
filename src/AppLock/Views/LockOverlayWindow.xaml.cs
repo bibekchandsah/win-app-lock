@@ -229,15 +229,10 @@ public sealed partial class LockOverlayWindow : Window
                 height,
                 SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
 
-            if (!_keepOnTop)
-            {
-                // Ensure target window is placed immediately behind the overlay in Z-order
-                PInvoke.SetWindowPos(
-                    targetHwnd,
-                    hwnd,
-                    0, 0, 0, 0,
-                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-            }
+            // Note: We do NOT reposition or z-order the target window itself here.
+            // Calling SetWindowPos on target (even with NOMOVE/NOSIZE) can cause Explorer
+            // and Excel to re-measure/resize themselves unexpectedly.
+            // The overlay being HWND_TOP is sufficient to appear above the target.
 
             // Re-assert foreground / top so keyboard focus goes to overlay PasswordBox
             uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);

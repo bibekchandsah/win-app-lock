@@ -119,15 +119,15 @@ public class WindowEnumerator
                                 }
 
                                 // Handle UWP apps (ApplicationFrameHost)
-                                if (uwpResolver.IsApplicationFrameHost(processPath))
+                                bool isUwp = uwpResolver.IsApplicationFrameHost(processPath);
+                                string originalFramePath = processPath;
+                                if (isUwp)
                                 {
                                     // Resolve to actual UWP app
                                     var (actualTitle, actualPath) = uwpResolver.ResolveUwpWindow(hwnd);
                                     
                                     if (!string.IsNullOrEmpty(actualTitle))
-                                    {
                                         title = actualTitle;
-                                    }
                                     
                                     if (!string.IsNullOrEmpty(actualPath))
                                     {
@@ -136,16 +136,25 @@ public class WindowEnumerator
                                     }
                                     else
                                     {
-                                        // Fallback: extract app name from title
-                                        processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                                        // Try AUMID — more reliable than title-splitting
+                                        var aumid = uwpResolver.GetAppUserModelId(hwnd);
+                                        if (!string.IsNullOrEmpty(aumid))
+                                        {
+                                            processPath = aumid; // ViewModel detects "contains _ and !" as UWP
+                                            var pkgPart = aumid.Split('_')[0];
+                                            processName = pkgPart.Contains('.')
+                                                ? pkgPart.Substring(pkgPart.LastIndexOf('.') + 1)
+                                                : pkgPart;
+                                        }
+                                        else
+                                        {
+                                            // processPath stays as ApplicationFrameHost.exe (ViewModel detects this too)
+                                            // Use window title as processName (best we can do without AUMID)
+                                            processName = !string.IsNullOrEmpty(title) ? title : processName;
+                                        }
                                     }
-                                    
-                                    // Get AUMID for better identification
-                                    var aumid = uwpResolver.GetAppUserModelId(hwnd);
-                                    if (!string.IsNullOrEmpty(aumid))
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"UWP App: {processName} - AUMID: {aumid}");
-                                    }
+
+                                    System.Diagnostics.Debug.WriteLine($"[UWP] 0x{hwnd.Value:X} title='{title}' proc='{processName}' path='{processPath}'");
                                 }
 
                                 var window = new RunningWindow

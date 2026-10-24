@@ -127,26 +127,43 @@ public class LockManager
                 if (string.IsNullOrWhiteSpace(rule.ProcessName))
                     return false;
 
-                // 1. Direct process name or path match
-                if ((!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(window.ProcessPath) && window.ProcessPath.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(window.ProcessPath) && !string.IsNullOrEmpty(rule.ProcessPath) && window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase)))
+                // 1. Exact process name match (most reliable — e.g. "excel", "notepad")
+                if (!string.IsNullOrEmpty(window.ProcessName) &&
+                    window.ProcessName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
 
-                // 2. UWP alias matching (e.g. rule: "CalculatorApp", window: "Calculator" or vice versa)
+                // 2. Exact process path match (most reliable for UWP — e.g. full .exe path)
+                if (!string.IsNullOrEmpty(window.ProcessPath) &&
+                    !string.IsNullOrEmpty(rule.ProcessPath) &&
+                    window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                // 3. UWP: when the resolved UWP process name contains or starts with the rule name
+                //    (e.g., rule: "Calculator", window.ProcessName: "CalculatorApp")
+                //    Only allow this when both names share a common prefix of at least 5 chars
+                //    to avoid false matches like "Calculator" matching "CalendarApp".
+                if (!string.IsNullOrEmpty(window.ProcessName) && !string.IsNullOrEmpty(rule.ProcessName))
+                {
+                    string rn = rule.ProcessName;
+                    string wn = window.ProcessName;
+                    // Only allow prefix matching for clearly related names (e.g., "Calculator"/"CalculatorApp")
+                    if ((wn.StartsWith(rn, StringComparison.OrdinalIgnoreCase) ||
+                         rn.StartsWith(wn, StringComparison.OrdinalIgnoreCase)) &&
+                        Math.Min(rn.Length, wn.Length) >= 5)
+                    {
+                        return true;
+                    }
+                }
+
+                // 4. UWP title match: ONLY when window title exactly equals the rule process name
+                //    (e.g., rule: "Calculator", window.WindowTitle: "Calculator")
+                //    No StartsWith — that was causing false positives across all UWP apps.
                 if (!string.IsNullOrEmpty(window.WindowTitle) &&
-                    (window.WindowTitle.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase) ||
-                     rule.ProcessName.StartsWith(window.WindowTitle, StringComparison.OrdinalIgnoreCase) ||
-                     window.WindowTitle.StartsWith(rule.ProcessName, StringComparison.OrdinalIgnoreCase)))
-                {
-                    return true;
-                }
-
-                if (!string.IsNullOrEmpty(window.ProcessName) && !string.IsNullOrEmpty(rule.ProcessName) &&
-                    (rule.ProcessName.StartsWith(window.ProcessName, StringComparison.OrdinalIgnoreCase) ||
-                     window.ProcessName.StartsWith(rule.ProcessName, StringComparison.OrdinalIgnoreCase)))
+                    window.WindowTitle.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
@@ -181,15 +198,45 @@ public class LockManager
                     ? rule.ProcessName
                     : (!string.IsNullOrWhiteSpace(rule.ProcessPath) ? System.IO.Path.GetFileNameWithoutExtension(rule.ProcessPath) : string.Empty);
 
-                bool procMatches = !string.IsNullOrWhiteSpace(proc) &&
-                    ((!string.IsNullOrEmpty(window.ProcessName) && window.ProcessName.Equals(proc, StringComparison.OrdinalIgnoreCase)) ||
-                     (!string.IsNullOrEmpty(window.ProcessPath) && !string.IsNullOrEmpty(rule.ProcessPath) && window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase)) ||
-                     (!string.IsNullOrEmpty(window.ProcessName) && (proc.StartsWith(window.ProcessName, StringComparison.OrdinalIgnoreCase) || window.ProcessName.StartsWith(proc, StringComparison.OrdinalIgnoreCase))));
+                // For PickedWindow: require process path OR process name match (exact/prefix).
+                // Title alone is NOT sufficient — it would match unrelated apps with same title.
+                bool procMatches = false;
+                if (!string.IsNullOrWhiteSpace(proc))
+                {
+                    // Exact process name
+                    procMatches = (!string.IsNullOrEmpty(window.ProcessName) &&
+                                   window.ProcessName.Equals(proc, StringComparison.OrdinalIgnoreCase));
 
-                bool titleMatches = string.IsNullOrEmpty(rule.WindowTitlePattern) ||
-                    (!string.IsNullOrEmpty(window.WindowTitle) && (window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase) || rule.WindowTitlePattern.Contains(window.WindowTitle, StringComparison.OrdinalIgnoreCase)));
+                    // Exact process path
+                    if (!procMatches && !string.IsNullOrEmpty(window.ProcessPath) && !string.IsNullOrEmpty(rule.ProcessPath))
+                        procMatches = window.ProcessPath.Equals(rule.ProcessPath, StringComparison.OrdinalIgnoreCase);
 
-                return procMatches || (titleMatches && !string.IsNullOrWhiteSpace(rule.WindowTitlePattern));
+                    // UWP prefix match (at least 5 common chars)
+                    if (!procMatches && !string.IsNullOrEmpty(window.ProcessName))
+                    {
+                        string rn = proc;
+                        string wn = window.ProcessName;
+                        if ((wn.StartsWith(rn, StringComparison.OrdinalIgnoreCase) ||
+                             rn.StartsWith(wn, StringComparison.OrdinalIgnoreCase)) &&
+                            Math.Min(rn.Length, wn.Length) >= 5)
+                        {
+                            procMatches = true;
+                        }
+                    }
+                }
+
+                if (!procMatches)
+                    return false;
+
+                // If we have a title pattern, ALSO require it (AND, not OR)
+                if (!string.IsNullOrWhiteSpace(rule.WindowTitlePattern))
+                {
+                    return !string.IsNullOrEmpty(window.WindowTitle) &&
+                           (window.WindowTitle.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase) ||
+                            rule.WindowTitlePattern.Contains(window.WindowTitle, StringComparison.OrdinalIgnoreCase));
+                }
+
+                return true;
 
             default:
                 return false;

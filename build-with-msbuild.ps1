@@ -4,15 +4,16 @@
 if (Get-Process "AppLock" -ErrorAction SilentlyContinue) {
     & taskkill.exe /F /IM "AppLock.exe" 2>$null
     Start-Sleep -Milliseconds 600
-    if (Get-Process "AppLock" -ErrorAction SilentlyContinue) {
-        Write-Host "AppLock is running elevated. Moving locked output files aside for build..." -ForegroundColor Yellow
-        $outDir = "src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0"
-        foreach ($file in @("AppLock.exe", "AppLock.dll", "AppLock.pdb", "AppLockHook.dll")) {
-            $filePath = Join-Path $outDir $file
-            if (Test-Path $filePath) {
-                $tempPath = Join-Path $outDir "$file.old.$([Guid]::NewGuid().ToString('N').Substring(0,8))"
-                Move-Item -Path $filePath -Destination $tempPath -Force -ErrorAction SilentlyContinue
-            }
+}
+
+# Move any locked output files aside so the build can write fresh copies cleanly
+$outDir = "src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0"
+if (Test-Path $outDir) {
+    foreach ($file in @("AppLock.exe", "AppLock.dll", "AppLock.pdb", "AppLockHook.dll")) {
+        $filePath = Join-Path $outDir $file
+        if (Test-Path $filePath) {
+            $tempPath = Join-Path $outDir "$file.old.$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+            Move-Item -Path $filePath -Destination $tempPath -Force -ErrorAction SilentlyContinue
         }
     }
 }

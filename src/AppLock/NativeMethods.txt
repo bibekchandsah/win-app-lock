@@ -55,3 +55,5 @@ IsWindowEnabled
 GetForegroundWindow
 DwmInvalidateIconicBitmaps
 IsWindow
+GetWindowPlacement
+SetWindowPlacement

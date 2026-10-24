@@ -58,7 +58,7 @@
       <HookDllSrc Condition="'$(HookDllSrc)' == '' and Exists('$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll</HookDllSrc>
       <HookDllDst>$(OutputPath)AppLockHook.dll</HookDllDst>
     </PropertyGroup>
-    <Exec Command="cmd.exe /c &quot;if exist &quot;$(HookDllDst)&quot; move /y &quot;$(HookDllDst)&quot; &quot;$(HookDllDst).old&quot; &gt;nul 2&gt;nul&quot;"
+    <Exec Command="powershell -NoProfile -Command &quot;if (Test-Path '$(HookDllDst)') { Move-Item -Path '$(HookDllDst)' -Destination ('$(HookDllDst).old.' + [Guid]::NewGuid().ToString('N').Substring(0,8)) -Force -ErrorAction SilentlyContinue }&quot;"
           Condition="'$(HookDllSrc)' != '' and Exists('$(HookDllDst)')"
           IgnoreExitCode="true" />
     <Copy SourceFiles="$(HookDllSrc)" DestinationFiles="$(HookDllDst)"

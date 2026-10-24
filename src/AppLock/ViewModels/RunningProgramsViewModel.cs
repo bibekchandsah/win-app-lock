@@ -111,16 +111,43 @@ public partial class RunningProgramsViewModel : ObservableObject
                 w.ProcessName.ToLowerInvariant().Contains(query) ||
                 w.WindowTitle.ToLowerInvariant().Contains(query));
 
-        // Group by ProcessName — show ONE representative item per process
+        // Group strategy:
+        //   - UWP apps (ApplicationFrameHost host): each window is a DISTINCT app
+        //     → group key = window HWND (unique per window)
+        //   - Regular desktop apps: group by ProcessName (collapse multiple windows)
+        //     → group key = ProcessName
         var groups = filtered
-            .GroupBy(w => w.ProcessName, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(w =>
+            {
+                // If the raw process is ApplicationFrameHost OR the processName was derived
+                // from an AUMID (contains no path separators and doesn't end in known exe names),
+                // treat each window as its own group using its title as the key.
+                bool isUwp = w.ProcessPath != null &&
+                    (w.ProcessPath.EndsWith("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase) ||
+                     // AUMID stored in ProcessPath looks like "Microsoft.WindowsCalculator_xxx!App"
+                     (w.ProcessPath.Contains('_') && w.ProcessPath.Contains('!')));
+
+                if (isUwp)
+                {
+                    // Use window title as unique key so each UWP app shows separately
+                    return string.IsNullOrWhiteSpace(w.WindowTitle)
+                        ? w.Handle.ToString()
+                        : $"UWP:{w.WindowTitle}";
+                }
+
+                return w.ProcessName ?? w.WindowTitle ?? w.Handle.ToString();
+            }, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key.StartsWith("UWP:", StringComparison.Ordinal)
+                ? g.Key.Substring(4)   // Sort UWP apps by title
+                : g.Key,
+                StringComparer.OrdinalIgnoreCase);
 
         foreach (var group in groups)
         {
             // Pick the best representative: prefer windows with a meaningful title
             var representative = group
                 .OrderByDescending(w => !string.IsNullOrWhiteSpace(w.WindowTitle))
+                .ThenByDescending(w => w.WindowTitle?.Length ?? 0)
                 .First();
 
             int count = group.Count();

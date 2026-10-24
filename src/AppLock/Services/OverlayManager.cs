@@ -24,6 +24,9 @@ public class OverlayManager
     private readonly System.Threading.Timer _relockTimer;
     private readonly UwpWindowResolver _uwpResolver;
     private nint _lastForegroundHwnd = 0;
+    private long _lastToggleTick = 0;
+    // Track last time overlay was shown per target (for toggle detection)
+    private readonly Dictionary<nint, long> _overlayShownTick = new();
 
     public OverlayManager(LockManager lockManager, AuthService authService)
     {
@@ -39,8 +42,8 @@ public class OverlayManager
         // Note: This will be null if not called on UI thread, we'll get it lazily in Start()
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         
-        // Check for relock every 10 seconds
-        _relockTimer = new System.Threading.Timer(CheckRelockTimers, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        // Check for relock and cleanup dead windows every 2 seconds
+        _relockTimer = new System.Threading.Timer(CheckRelockTimers, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
         
         // Subscribe to lock manager events
         _lockManager.ProtectionStateChanged += OnProtectionStateChanged;
@@ -117,17 +120,39 @@ public class OverlayManager
         });
     }
 
+    private static bool IsShellWindow(HWND hwnd)
+    {
+        if (hwnd.IsNull) return false;
+        string cls = GetWindowClassName(hwnd);
+        return cls.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+               cls.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
+               cls.Equals("TaskListThumbnailWnd", StringComparison.OrdinalIgnoreCase) ||
+               cls.Equals("TaskListOverlayWnd", StringComparison.OrdinalIgnoreCase) ||
+               cls.Equals("Xaml_WindowedPopupClass", StringComparison.OrdinalIgnoreCase) ||
+               cls.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void OnWindowFocused(object? sender, WindowEventArgs e)
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
             nint targetHandle = e.WindowHandle;
+            var targetHwnd = new HWND(targetHandle);
+
+            // If focus briefly shifted to Windows Shell / Taskbar / Thumbnail preview,
+            // DO NOT overwrite _lastForegroundHwnd! When clicking the taskbar, Windows
+            // Shell momentarily takes focus to handle the click.
+            if (IsShellWindow(targetHwnd))
+            {
+                return;
+            }
+
             nint previousForeground = _lastForegroundHwnd;
             _lastForegroundHwnd = targetHandle;
 
             if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
             {
-                var targetHwnd = new HWND(targetHandle);
+                // If target is currently minimized, hide overlay and return
                 if (PInvoke.IsIconic(targetHwnd))
                 {
                     overlay.HideOverlay();
@@ -135,20 +160,39 @@ public class OverlayManager
                 }
 
                 nint overlayHwnd = overlay.WindowHandle;
+                long now = Environment.TickCount64;
 
                 // TOGGLE MINIMIZE:
-                // If the overlay for this window was ALREADY visible, and the foreground window immediately
-                // before this event was the overlay window itself, then the user clicked the target
-                // window's taskbar button while already viewing it! In Windows, clicking an active window's
-                // taskbar button means "Minimize".
-                if (overlay.IsOverlayVisible && previousForeground == overlayHwnd)
+                // User clicked the target window's taskbar button while the overlay was already visible.
+                // Criteria:
+                // 1. Overlay is currently visible on screen.
+                // 2. The overlay was shown recently (within 3 seconds — meaning it was already up).
+                // 3. At least 350ms elapsed since last toggle (debounce).
+                // 4. The focus is coming back to the target itself (not from a different app)
+                //    i.e. previousForeground was the overlay OR was a shell window (taskbar stole focus)
+                //    OR was 0 (we just cleared it after a toggle).
+                bool overlayWasFocused = previousForeground == overlayHwnd || previousForeground == 0;
+                bool shellIntercepted = previousForeground != overlayHwnd && previousForeground != 0 &&
+                                        IsShellWindow(new HWND(previousForeground));
+                bool shouldToggle = overlay.IsOverlayVisible &&
+                    (overlayWasFocused || shellIntercepted) &&
+                    _overlayShownTick.TryGetValue(targetHandle, out long shownAt) &&
+                    (now - shownAt > 100) &&    // Overlay was up for at least 100ms (not just shown)
+                    (now - _lastToggleTick > 350);
+
+                if (shouldToggle)
                 {
-                    PInvoke.ShowWindow(targetHwnd, SHOW_WINDOW_CMD.SW_MINIMIZE);
+                    _lastToggleTick = now;
+                    // Save window placement before minimizing to preserve size/position
+                    SaveAndMinimize(targetHwnd);
                     overlay.HideOverlay();
                     _lastForegroundHwnd = 0;
                     return;
                 }
 
+                // User is activating or restoring this window
+                _lastToggleTick = now;
+                _overlayShownTick[targetHandle] = now;
                 overlay.PositionOverTarget();
                 overlay.Activate();
                 _lastForegroundHwnd = overlayHwnd;
@@ -157,6 +201,59 @@ public class OverlayManager
 
             CheckWindow(targetHandle);
         });
+    }
+
+    // Manual P/Invoke for WINDOWPLACEMENT (not generated by CsWin32 in this project config)
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WP_POINT { public int X; public int Y; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WP_RECT { public int Left; public int Top; public int Right; public int Bottom; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct WINDOWPLACEMENT
+    {
+        public uint length;
+        public uint flags;
+        public uint showCmd;
+        public WP_POINT ptMinPosition;
+        public WP_POINT ptMaxPosition;
+        public WP_RECT rcNormalPosition;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetWindowPlacement(nint hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPlacement(nint hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    /// <summary>
+    /// Saves WINDOWPLACEMENT and minimizes. This preserves the window's normal size/position
+    /// so that when the user later restores, it comes back at the right size (fixes Excel/Explorer resize).
+    /// </summary>
+    private static void SaveAndMinimize(HWND targetHwnd)
+    {
+        var wp = new WINDOWPLACEMENT();
+        wp.length = (uint)System.Runtime.InteropServices.Marshal.SizeOf<WINDOWPLACEMENT>();
+
+        if (GetWindowPlacement(targetHwnd, ref wp))
+        {
+            // Snap the normalPosition (restored size) before SW_MINIMIZE changes it
+            var savedNormal = wp.rcNormalPosition;
+
+            // Minimize
+            PInvoke.ShowWindow(targetHwnd, SHOW_WINDOW_CMD.SW_MINIMIZE);
+
+            // Re-read placement (showCmd is now SW_SHOWMINIMIZED) and fix normal bounds
+            if (GetWindowPlacement(targetHwnd, ref wp))
+            {
+                wp.rcNormalPosition = savedNormal;
+                SetWindowPlacement(targetHwnd, ref wp);
+            }
+        }
+        else
+        {
+            // Fallback: plain minimize
+            PInvoke.ShowWindow(targetHwnd, SHOW_WINDOW_CMD.SW_MINIMIZE);
+        }
     }
 
     private void OnWindowRestored(object? sender, WindowEventArgs e)
@@ -168,6 +265,8 @@ public class OverlayManager
                 var targetHwnd = new HWND(e.WindowHandle);
                 if (!PInvoke.IsIconic(targetHwnd))
                 {
+                    long now = Environment.TickCount64;
+                    _lastToggleTick = now;
                     overlay.PositionOverTarget();
                     overlay.Activate();
                     _lastForegroundHwnd = overlay.WindowHandle;
@@ -406,7 +505,19 @@ public class OverlayManager
                             }
                             else
                             {
-                                processName = title.Split(new[] { " - " }, StringSplitOptions.None).FirstOrDefault() ?? processName;
+                                // Could not resolve actual UWP process path.
+                                // Try AUMID as a more reliable identifier (e.g. "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App")
+                                var aumid = _uwpResolver.GetAppUserModelId(hwnd);
+                                if (!string.IsNullOrEmpty(aumid))
+                                {
+                                    // Use AUMID as processPath for matching purposes; extract a human-readable name
+                                    processPath = aumid;
+                                    // Extract package name part: "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App" -> "WindowsCalculator"
+                                    var pkgName = aumid.Split('_')[0]; // "Microsoft.WindowsCalculator"
+                                    var shortName = pkgName.Contains('.') ? pkgName.Substring(pkgName.LastIndexOf('.') + 1) : pkgName;
+                                    processName = shortName; // "WindowsCalculator"
+                                }
+                                // else: keep processName = "ApplicationFrameHost" so it only matches explicit rules for it
                             }
                         }
 
@@ -451,6 +562,7 @@ public class OverlayManager
         {
             var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
             _activeOverlays[window.Handle] = overlay;
+            _overlayShownTick[window.Handle] = Environment.TickCount64;
 
             overlay.Closed += (s, e) =>
             {
@@ -472,6 +584,7 @@ public class OverlayManager
                 }
 
                 _activeOverlays.Remove(window.Handle);
+                _overlayShownTick.Remove(window.Handle);
             };
 
             overlay.Activate();
@@ -491,20 +604,22 @@ public class OverlayManager
 
     private void RemoveOverlay(nint windowHandle)
     {
+        // Unconditionally clear locked thumbnail and detach hooks from target
+        try
+        {
+            _thumbnailService.ClearLockedThumbnailByTarget(new HWND(windowHandle));
+        }
+        catch { }
+
         if (_activeOverlays.TryGetValue(windowHandle, out var overlay))
         {
-            // Remove hook DLL from target window before closing
-            try
-            {
-                _thumbnailService.ClearLockedThumbnailByTarget(new HWND(windowHandle));
-            }
-            catch { }
-
             overlay.Close();
             _activeOverlays.Remove(windowHandle);
         }
 
         _unlockTimers.Remove(windowHandle);
+        _indefinitelyUnlocked.Remove(windowHandle);
+        _overlayShownTick.Remove(windowHandle);
     }
 
     /// <summary>
@@ -548,20 +663,27 @@ public class OverlayManager
 
     private void CheckRelockTimers(object? state)
     {
-        var now = DateTime.Now;
-        var expiredTimers = _unlockTimers.Where(kvp => kvp.Value <= now).Select(kvp => kvp.Key).ToList();
-
-        if (expiredTimers.Any())
+        _dispatcherQueue?.TryEnqueue(() =>
         {
-            _dispatcherQueue?.TryEnqueue(() =>
+            // 1. Clean up dead overlays whose target windows were closed or terminated
+            var deadHandles = _activeOverlays.Keys.Where(h => !PInvoke.IsWindow(new HWND(h))).ToList();
+            foreach (var h in deadHandles)
             {
-                foreach (var windowHandle in expiredTimers)
-                {
-                    _unlockTimers.Remove(windowHandle);
-                    CheckWindow(windowHandle);
-                }
-            });
-        }
+                RemoveOverlay(h);
+            }
+
+            // 2. Clean up any dead hook targets in ThumbnailService
+            _thumbnailService.CleanupDeadTargets();
+
+            // 3. Process expired unlock timers
+            var now = DateTime.Now;
+            var expiredTimers = _unlockTimers.Where(kvp => kvp.Value <= now).Select(kvp => kvp.Key).ToList();
+            foreach (var windowHandle in expiredTimers)
+            {
+                _unlockTimers.Remove(windowHandle);
+                CheckWindow(windowHandle);
+            }
+        });
     }
 
     public void Dispose()
