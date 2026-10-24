@@ -9,7 +9,7 @@ if (Get-Process "AppLock" -ErrorAction SilentlyContinue) {
 # Move any locked output files aside so the build can write fresh copies cleanly
 $outDir = "src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0"
 if (Test-Path $outDir) {
-    foreach ($file in @("AppLock.exe", "AppLock.dll", "AppLock.pdb", "AppLockHook.dll")) {
+    foreach ($file in @("AppLock.exe", "AppLock.dll", "AppLock.pdb", "AppLockHook.dll", "resources.pri")) {
         $filePath = Join-Path $outDir $file
         if (Test-Path $filePath) {
             $tempPath = Join-Path $outDir "$file.old.$([Guid]::NewGuid().ToString('N').Substring(0,8))"

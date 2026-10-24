@@ -36,7 +36,9 @@
 
         <StackPanel Spacing="8">
             <TextBlock Text="New Hotkey:" FontWeight="SemiBold"/>
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            <!-- Recorded hotkey display (shown in record mode) -->
+            <Border x:Name="RecordedHotkeyDisplay"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="4"
@@ -46,19 +48,34 @@
                            FontFamily="Consolas"
                            VerticalAlignment="Center"/>
             </Border>
+            <!-- Manual text input (shown in manual mode) -->
+            <TextBox x:Name="ManualHotkeyBox"
+                     FontFamily="Consolas"
+                     PlaceholderText="e.g. Ctrl+Alt+L or Ctrl+Shift+F10"
+                     Visibility="Collapsed"
+                     TextChanged="ManualHotkeyBox_TextChanged"/>
         </StackPanel>
 
-        <Button x:Name="RecordButton"
-                Content="Record Hotkey"
-                Click="RecordButton_Click"
-                HorizontalAlignment="Stretch"
-                Style="{StaticResource AccentButtonStyle}"/>
+        <!-- Record mode controls -->
+        <StackPanel x:Name="RecordModePanel" Spacing="8">
+            <Button x:Name="RecordButton"
+                    Content="Record Hotkey"
+                    Click="RecordButton_Click"
+                    HorizontalAlignment="Stretch"
+                    Style="{StaticResource AccentButtonStyle}"/>
+            <TextBlock x:Name="InstructionText"
+                       Text="Click 'Record Hotkey' to set a new emergency hotkey"
+                       FontSize="12"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
 
-        <TextBlock x:Name="InstructionText"
-                   Text="Click 'Record Hotkey' to set a new emergency hotkey"
-                   FontSize="12"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   TextWrapping="Wrap"/>
+        <!-- Toggle between modes -->
+        <HyperlinkButton x:Name="ToggleModeButton"
+                         Content="Can't capture Ctrl+Alt combos? Type it manually →"
+                         Click="ToggleModeButton_Click"
+                         HorizontalAlignment="Left"
+                         FontSize="12"/>
 
         <!-- Invisible element to capture keyboard input -->
         <Border x:Name="CaptureElement"
@@ -71,7 +88,7 @@
         <InfoBar Severity="Informational"
                  IsOpen="True"
                  IsClosable="False"
-                 Message="The hotkey must include at least one modifier key (Ctrl, Alt, Shift, or Win) and one regular key."/>
+                 Message="Must include at least one modifier (Ctrl, Alt, Shift, Win) + a key. Ctrl+Alt may conflict with AltGr — use manual entry if needed."/>
 
         <TextBlock x:Name="ErrorText"
                    Foreground="{ThemeResource SystemErrorTextColor}"

@@ -102,9 +102,17 @@ public class OverlayManager
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
-            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            nint targetHandle = e.WindowHandle;
+            var targetHwnd = new HWND(targetHandle);
+            var rootHwnd = PInvoke.GetAncestor(targetHwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+            if (rootHwnd.Value != 0 && _activeOverlays.ContainsKey(rootHwnd.Value))
             {
-                var targetHwnd = new HWND(e.WindowHandle);
+                targetHandle = rootHwnd.Value;
+                targetHwnd = rootHwnd;
+            }
+
+            if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
+            {
                 if (PInvoke.IsIconic(targetHwnd))
                 {
                     overlay.HideOverlay();
@@ -117,7 +125,7 @@ public class OverlayManager
                 return;
             }
 
-            CheckWindow(e.WindowHandle);
+            CheckWindow(targetHandle);
         });
     }
 
@@ -129,8 +137,7 @@ public class OverlayManager
                cls.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
                cls.Equals("TaskListThumbnailWnd", StringComparison.OrdinalIgnoreCase) ||
                cls.Equals("TaskListOverlayWnd", StringComparison.OrdinalIgnoreCase) ||
-               cls.Equals("Xaml_WindowedPopupClass", StringComparison.OrdinalIgnoreCase) ||
-               cls.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase);
+               cls.Equals("Xaml_WindowedPopupClass", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCursorOverTaskbar()
@@ -173,12 +180,18 @@ public class OverlayManager
             nint targetHandle = e.WindowHandle;
             var targetHwnd = new HWND(targetHandle);
 
-            // If focus briefly shifted to Windows Shell / Taskbar / Thumbnail preview,
-            // DO NOT overwrite _lastForegroundHwnd! When clicking the taskbar, Windows
-            // Shell momentarily takes focus to handle the click.
             if (IsShellWindow(targetHwnd))
             {
                 return;
+            }
+
+            // Map any child window (e.g. CoreWindow in UWP, EXCEL7 in Excel, ShellTabWindowClass in Explorer)
+            // to root if the root has an active overlay
+            var rootHwnd = PInvoke.GetAncestor(targetHwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+            if (rootHwnd.Value != 0 && _activeOverlays.ContainsKey(rootHwnd.Value))
+            {
+                targetHandle = rootHwnd.Value;
+                targetHwnd = rootHwnd;
             }
 
             nint previousForeground = _lastForegroundHwnd;
@@ -239,14 +252,22 @@ public class OverlayManager
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
-            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            nint targetHandle = e.WindowHandle;
+            var targetHwnd = new HWND(targetHandle);
+            var rootHwnd = PInvoke.GetAncestor(targetHwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+            if (rootHwnd.Value != 0 && _activeOverlays.ContainsKey(rootHwnd.Value))
             {
-                var targetHwnd = new HWND(e.WindowHandle);
+                targetHandle = rootHwnd.Value;
+                targetHwnd = rootHwnd;
+            }
+
+            if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
+            {
                 if (!PInvoke.IsIconic(targetHwnd))
                 {
                     long now = Environment.TickCount64;
                     _lastToggleTick = now;
-                    _overlayShownTick[e.WindowHandle] = now;
+                    _overlayShownTick[targetHandle] = now;
                     overlay.PositionOverTarget();
                     overlay.Activate();
                     _lastForegroundHwnd = overlay.WindowHandle;
@@ -254,7 +275,7 @@ public class OverlayManager
             }
             else
             {
-                CheckWindow(e.WindowHandle);
+                CheckWindow(targetHandle);
             }
         });
     }
@@ -263,10 +284,18 @@ public class OverlayManager
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
-            // Update overlay position if it exists
-            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            nint targetHandle = e.WindowHandle;
+            var targetHwnd = new HWND(targetHandle);
+            var rootHwnd = PInvoke.GetAncestor(targetHwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+            if (rootHwnd.Value != 0 && _activeOverlays.ContainsKey(rootHwnd.Value))
             {
-                var targetHwnd = new HWND(e.WindowHandle);
+                targetHandle = rootHwnd.Value;
+                targetHwnd = rootHwnd;
+            }
+
+            // Update overlay position if it exists
+            if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
+            {
                 if (PInvoke.IsIconic(targetHwnd))
                 {
                     overlay.HideOverlay();
@@ -282,7 +311,15 @@ public class OverlayManager
     {
         _dispatcherQueue?.TryEnqueue(() =>
         {
-            if (_activeOverlays.TryGetValue(e.WindowHandle, out var overlay))
+            nint targetHandle = e.WindowHandle;
+            var targetHwnd = new HWND(targetHandle);
+            var rootHwnd = PInvoke.GetAncestor(targetHwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+            if (rootHwnd.Value != 0 && _activeOverlays.ContainsKey(rootHwnd.Value))
+            {
+                targetHandle = rootHwnd.Value;
+            }
+
+            if (_activeOverlays.TryGetValue(targetHandle, out var overlay))
             {
                 overlay.HideOverlay();
             }
@@ -634,6 +671,20 @@ public class OverlayManager
             foreach (var overlay in _activeOverlays.Values)
             {
                 overlay.UpdateKeepOnTop(keepOnTop);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Dynamically updates the emergency hotkey across all currently active overlays.
+    /// </summary>
+    public void UpdateEmergencyHotkey(string hotkey, bool enabled)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            foreach (var overlay in _activeOverlays.Values)
+            {
+                overlay.UpdateEmergencyHotkey(hotkey, enabled);
             }
         });
     }

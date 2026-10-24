@@ -563,23 +563,36 @@ BOOL InstallLockedThumbnail(HWND hwnd)
     g_pids   [slot] = pid;
 
     // 1. Install WH_GETMESSAGE hook (catches posted DWM messages) + WH_CBT
+    //    threadId=0 means global (all threads in all processes) — needed when per-thread hook
+    //    fails due to UIPI or AppContainer security boundaries.
     HHOOK hookGet = SetWindowsHookExW(WH_GETMESSAGE, HookGetMsgProc, g_hMod, threadId);
     HHOOK hookCbt = SetWindowsHookExW(WH_CBT,        HookCbtProc,    g_hMod, threadId);
+
+    // Fallback: if per-thread hook failed (UIPI / AppContainer), try global scope
+    if (!hookGet)
+        hookGet = SetWindowsHookExW(WH_GETMESSAGE, HookGetMsgProc, g_hMod, 0);
+    if (!hookCbt)
+        hookCbt = SetWindowsHookExW(WH_CBT, HookCbtProc, g_hMod, 0);
+
     g_hooksGet[slot] = hookGet;
     g_hooksCbt[slot] = hookCbt;
 
-    // 2. Post a harmless message to the target to force Windows to load our hook DLL
+    // 2. Post a harmless message to the target to force Windows to load our hook DLL into the
+    //    target thread's address space. The hook fires on the next message the thread processes.
     PostMessageW(hwnd, WM_NULL, 0, 0);
 
-    // Also send one to trigger CBT and any synchronous paths
+    // Also send synchronously to trigger CBT paths (will return after hook is loaded).
     DWORD_PTR dwResult = 0;
     SendMessageTimeoutW(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_NORMAL, 1000, &dwResult);
 
-    // 3. Invalidate DWM so it requests a fresh thumbnail right away
-    DwmInvalidateIconicBitmaps(hwnd);
-
-    // 4. Fallback: attempt direct DLL injection for non-UWP processes
+    // 3. If DLL injection is available, try direct injection so EnsureSubclassed
+    //    runs immediately inside the target process (sets DWMWA attributes).
     TryInjectDll(pid);
+
+    // 4. Invalidate DWM AFTER giving the hooks/injection time to set up DWMWA attributes.
+    //    We call it here; the 2-second TIMER_ID_REFRESH will keep re-invalidating so even
+    //    if DWM requests the bitmap before EnsureSubclassed finishes, it retries shortly.
+    DwmInvalidateIconicBitmaps(hwnd);
 
     return TRUE;
 }
@@ -624,6 +637,19 @@ void UninstallAllLockedThumbnails()
             UninstallLockedThumbnail(hwnd);
         }
     }
+}
+
+// Called from managed side ~600ms after install to ensure DWMWA attributes are set
+// before asking DWM to re-request the thumbnail.
+extern "C" __declspec(dllexport)
+void InvalidateLockedThumbnail(HWND hwnd)
+{
+    if (!hwnd || !IsWindow(hwnd)) return;
+    if (!IsTarget(hwnd)) return;
+
+    // Ensure subclass is installed (idempotent if already set up)
+    EnsureSubclassed(hwnd);
+    DwmInvalidateIconicBitmaps(hwnd);
 }
 
 // ---------------------------------------------------------------------------

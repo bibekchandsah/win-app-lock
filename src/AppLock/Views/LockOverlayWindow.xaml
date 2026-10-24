@@ -326,7 +326,8 @@
                             Margin="0,0,0,0"/>
 
                     <!-- Footer — centered emergency lock -->
-                    <StackPanel Orientation="Horizontal"
+                    <StackPanel x:Name="EmergencyHotkeyPanel"
+                                Orientation="Horizontal"
                                 HorizontalAlignment="Center"
                                 Spacing="8"
                                 VerticalAlignment="Center">

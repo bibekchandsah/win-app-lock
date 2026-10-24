@@ -66,9 +66,13 @@ public sealed partial class LockOverlayWindow : Window
         TitleText.Text = $"Program \"{windowTitle}\" is already locked.";
 
         // Set dynamic emergency hotkey label from settings
-        var hotkeyStr = ServiceContainer.Settings.EmergencyHotkey;
+        var settings = ServiceContainer.Settings;
+        var hotkeyStr = settings.EmergencyHotkey;
         if (!string.IsNullOrWhiteSpace(hotkeyStr))
             EmergencyHotkeyText.Text = hotkeyStr;
+        EmergencyHotkeyPanel.Visibility = settings.EmergencyHotkeyEnabled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         // Make this window topmost and borderless
         SetupOverlayStyle();
@@ -149,11 +153,23 @@ public sealed partial class LockOverlayWindow : Window
             style &= ~(WS_CAPTION | WS_THICKFRAME);
             PInvoke.SetWindowLongPtr(handle, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)style);
 
-            // Z-order: HWND_TOPMOST (-1) if setting is ON, otherwise HWND_TOP (0)
-            // HWND_TOP places it above normal windows but lets other topmost windows cover it.
+            // Configure extended style and Z-order based on _keepOnTop setting:
+            const int WS_EX_TOPMOST = 0x00000008;
+            var exStyle = (int)PInvoke.GetWindowLongPtr(handle, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+            if (_keepOnTop)
+            {
+                exStyle |= WS_EX_TOPMOST;
+            }
+            else
+            {
+                exStyle &= ~WS_EX_TOPMOST;
+            }
+            PInvoke.SetWindowLongPtr(handle, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)exStyle);
+
+            // Z-order: HWND_TOPMOST (-1) if setting is ON, otherwise HWND_NOTOPMOST (-2)
             var insertAfter = _keepOnTop
                 ? new HWND((nint)(-1))  // HWND_TOPMOST — above everything
-                : new HWND((nint)(0));  // HWND_TOP — above normal windows only
+                : new HWND((nint)(-2)); // HWND_NOTOPMOST — normal window, other apps can cover it
 
             PInvoke.SetWindowPos(
                 handle,
@@ -243,10 +259,10 @@ public sealed partial class LockOverlayWindow : Window
 
             // Z-order:
             //   KeepOnTop ON  → HWND_TOPMOST (-1): overlay stays above everything
-            //   KeepOnTop OFF → HWND_TOP (0): overlay stays at top of normal windows, right over target
+            //   KeepOnTop OFF → HWND_NOTOPMOST (-2): overlay stays with target, normal Z-order
             var insertAfter = _keepOnTop
                 ? new HWND((nint)(-1))          // HWND_TOPMOST
-                : new HWND((nint)(0));           // HWND_TOP (above target)
+                : new HWND((nint)(-2));         // HWND_NOTOPMOST
             
             PInvoke.SetWindowPos(
                 hwnd,
@@ -257,28 +273,48 @@ public sealed partial class LockOverlayWindow : Window
                 height,
                 SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
 
-            // Note: We do NOT reposition or z-order the target window itself here.
-            // Calling SetWindowPos on target (even with NOMOVE/NOSIZE) can cause Explorer
-            // and Excel to re-measure/resize themselves unexpectedly.
-            // The overlay being HWND_TOP is sufficient to appear above the target.
+            if (!_keepOnTop)
+            {
+                // When KeepOnTop is OFF, ensure target window is placed immediately behind the overlay
+                // (except Excel and Explorer where SetWindowPos on target can cause re-layout)
+                string cls = GetWindowClassName(targetHwnd);
+                if (!cls.Equals("CabinetWClass", StringComparison.OrdinalIgnoreCase) &&
+                    !cls.Equals("XLMAIN", StringComparison.OrdinalIgnoreCase))
+                {
+                    PInvoke.SetWindowPos(
+                        targetHwnd,
+                        hwnd,
+                        0, 0, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                }
+            }
 
             // Re-assert foreground / top so keyboard focus goes to overlay PasswordBox
             // (Skip during active drag or resize to prevent stutter)
             if (!_isDraggingWindow && !_isResizingWindow)
             {
-                uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);
-                uint currentThreadId = PInvoke.GetCurrentThreadId();
-                if (targetThreadId != 0 && targetThreadId != currentThreadId)
+                HWND fgHwnd = PInvoke.GetForegroundWindow();
+                bool isTargetOrOverlayActive = fgHwnd == hwnd || fgHwnd == targetHwnd || 
+                                               PInvoke.GetAncestor(fgHwnd, GET_ANCESTOR_FLAGS.GA_ROOT) == targetHwnd;
+
+                // When KeepOnTop is OFF, only take foreground if the target window (or overlay) is active.
+                // Do NOT steal foreground from other apps!
+                if (_keepOnTop || isTargetOrOverlayActive)
                 {
-                    PInvoke.AttachThreadInput(targetThreadId, currentThreadId, true);
-                    PInvoke.BringWindowToTop(hwnd);
-                    PInvoke.SetForegroundWindow(hwnd);
-                    PInvoke.AttachThreadInput(targetThreadId, currentThreadId, false);
-                }
-                else
-                {
-                    PInvoke.BringWindowToTop(hwnd);
-                    PInvoke.SetForegroundWindow(hwnd);
+                    uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);
+                    uint currentThreadId = PInvoke.GetCurrentThreadId();
+                    if (targetThreadId != 0 && targetThreadId != currentThreadId)
+                    {
+                        PInvoke.AttachThreadInput(targetThreadId, currentThreadId, true);
+                        PInvoke.BringWindowToTop(hwnd);
+                        PInvoke.SetForegroundWindow(hwnd);
+                        PInvoke.AttachThreadInput(targetThreadId, currentThreadId, false);
+                    }
+                    else
+                    {
+                        PInvoke.BringWindowToTop(hwnd);
+                        PInvoke.SetForegroundWindow(hwnd);
+                    }
                 }
             }
         }
@@ -474,7 +510,53 @@ public sealed partial class LockOverlayWindow : Window
     public void UpdateKeepOnTop(bool keepOnTop)
     {
         _keepOnTop = keepOnTop;
+        var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        unsafe
+        {
+            const int WS_EX_TOPMOST = 0x00000008;
+            var exStyle = (int)PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+            if (_keepOnTop)
+                exStyle |= WS_EX_TOPMOST;
+            else
+                exStyle &= ~WS_EX_TOPMOST;
+            PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)exStyle);
+
+            var insertAfter = _keepOnTop
+                ? new HWND((nint)(-1))  // HWND_TOPMOST
+                : new HWND((nint)(-2)); // HWND_NOTOPMOST
+
+            PInvoke.SetWindowPos(
+                hwnd,
+                insertAfter,
+                0, 0, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+        }
         PositionOverTarget();
+    }
+
+    /// <summary>
+    /// Dynamically updates the emergency hotkey text and visibility for this active overlay.
+    /// </summary>
+    public void UpdateEmergencyHotkey(string hotkey, bool enabled)
+    {
+        if (!string.IsNullOrWhiteSpace(hotkey))
+            EmergencyHotkeyText.Text = hotkey;
+        EmergencyHotkeyPanel.Visibility = enabled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private static string GetWindowClassName(HWND hwnd)
+    {
+        unsafe
+        {
+            var buffer = new char[256];
+            fixed (char* p = buffer)
+            {
+                int len = PInvoke.GetClassName(hwnd, new Windows.Win32.Foundation.PWSTR(p), buffer.Length);
+                return len > 0 ? new string(p, 0, len) : string.Empty;
+            }
+        }
     }
 
     /// <summary>

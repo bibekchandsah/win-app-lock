@@ -9,6 +9,7 @@ namespace AppLock.Views;
 public sealed partial class ChangeHotkeyDialog : ContentDialog
 {
     private bool _isRecording = false;
+    private bool _isManualMode = false;
     private readonly HashSet<VirtualKey> _pressedKeys = new();
     public string? NewHotkey { get; private set; }
     public bool HotkeyChanged { get; private set; }
@@ -37,6 +38,8 @@ public sealed partial class ChangeHotkeyDialog : ContentDialog
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isManualMode) return; // ignore in manual mode
+
         if (!_isRecording)
         {
             StartRecording();
@@ -45,6 +48,58 @@ public sealed partial class ChangeHotkeyDialog : ContentDialog
         {
             StopRecording();
         }
+    }
+
+    private void ToggleModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isManualMode = !_isManualMode;
+
+        if (_isManualMode)
+        {
+            // Switch to manual text entry mode
+            if (_isRecording) StopRecording();
+            RecordedHotkeyDisplay.Visibility = Visibility.Collapsed;
+            ManualHotkeyBox.Visibility = Visibility.Visible;
+            RecordModePanel.Visibility = Visibility.Collapsed;
+            ToggleModeButton.Content = "← Switch back to key recording";
+            // Pre-fill with current recorded value if any
+            if (!string.IsNullOrEmpty(NewHotkeyText.Text) && NewHotkeyText.Text != "Recording...")
+                ManualHotkeyBox.Text = NewHotkeyText.Text;
+            ManualHotkeyBox.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            // Switch back to record mode
+            RecordedHotkeyDisplay.Visibility = Visibility.Visible;
+            ManualHotkeyBox.Visibility = Visibility.Collapsed;
+            RecordModePanel.Visibility = Visibility.Visible;
+            ToggleModeButton.Content = "Can't capture Ctrl+Alt combos? Type it manually →";
+        }
+    }
+
+    private void ManualHotkeyBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var text = ManualHotkeyBox.Text?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            IsPrimaryButtonEnabled = false;
+            return;
+        }
+
+        // Validate: must contain a modifier and a key that we can parse
+        bool hasModifier = text.Contains("Ctrl", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("Control", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("Alt", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("Shift", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("Win", StringComparison.OrdinalIgnoreCase);
+        var (_, key) = AppLock.Services.HotkeyService.ParseHotkey(text);
+        bool hasKey = key != 0;
+
+        IsPrimaryButtonEnabled = hasModifier && hasKey;
+        ErrorText.Visibility = (hasModifier && !hasKey && text.Length > 2)
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasKey && text.Length > 2)
+            ErrorText.Text = "Key not recognized. Use format: Ctrl+Alt+L, Ctrl+Shift+F5, etc.";
     }
 
     private void StartRecording()
@@ -156,23 +211,45 @@ public sealed partial class ChangeHotkeyDialog : ContentDialog
     {
         args.Cancel = true;
 
-        if (string.IsNullOrEmpty(NewHotkeyText.Text) || NewHotkeyText.Text == "Recording..." || NewHotkeyText.Text == "No keys captured")
+        string hotkeyText;
+
+        if (_isManualMode)
         {
-            ErrorText.Text = "Please record a valid hotkey";
+            hotkeyText = ManualHotkeyBox.Text?.Trim() ?? string.Empty;
+        }
+        else
+        {
+            hotkeyText = NewHotkeyText.Text;
+        }
+
+        if (string.IsNullOrEmpty(hotkeyText) || hotkeyText == "Recording..." || hotkeyText == "No keys captured")
+        {
+            ErrorText.Text = "Please record or type a valid hotkey.";
             ErrorText.Visibility = Visibility.Visible;
             return;
         }
 
         // Validate hotkey has at least one modifier
-        if (!NewHotkeyText.Text.Contains("Ctrl") && !NewHotkeyText.Text.Contains("Alt") && 
-            !NewHotkeyText.Text.Contains("Shift") && !NewHotkeyText.Text.Contains("Win"))
+        if (!hotkeyText.Contains("Ctrl", StringComparison.OrdinalIgnoreCase) &&
+            !hotkeyText.Contains("Alt", StringComparison.OrdinalIgnoreCase) &&
+            !hotkeyText.Contains("Shift", StringComparison.OrdinalIgnoreCase) &&
+            !hotkeyText.Contains("Win", StringComparison.OrdinalIgnoreCase))
         {
-            ErrorText.Text = "Hotkey must include at least one modifier key (Ctrl, Alt, Shift, or Win)";
+            ErrorText.Text = "Hotkey must include at least one modifier key (Ctrl, Alt, Shift, or Win).";
             ErrorText.Visibility = Visibility.Visible;
             return;
         }
 
-        NewHotkey = NewHotkeyText.Text;
+        // Validate we can parse a non-zero key code
+        var (_, key) = AppLock.Services.HotkeyService.ParseHotkey(hotkeyText);
+        if (key == 0)
+        {
+            ErrorText.Text = "Could not parse the key. Use format: Ctrl+Alt+L or Ctrl+Shift+F5.";
+            ErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        NewHotkey = hotkeyText;
         HotkeyChanged = true;
         Hide();
     }

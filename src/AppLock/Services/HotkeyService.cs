@@ -53,7 +53,9 @@ public class HotkeyService : IDisposable
 
         int hotkeyId = _nextHotkeyId++;
 
-        bool success = PInvoke.RegisterHotKey(_messageWindowHwnd, hotkeyId, modifiers, key);
+        // MOD_NOREPEAT (0x4000) prevents auto-repeat WM_HOTKEY messages when the key is held down.
+        const HOT_KEY_MODIFIERS MOD_NOREPEAT = (HOT_KEY_MODIFIERS)0x4000;
+        bool success = PInvoke.RegisterHotKey(_messageWindowHwnd, hotkeyId, modifiers | MOD_NOREPEAT, key);
 
         if (success)
         {
@@ -63,7 +65,10 @@ public class HotkeyService : IDisposable
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to register hotkey: {modifiers}+{key}");
+            int err = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+            System.Diagnostics.Debug.WriteLine(
+                $"Failed to register hotkey: {modifiers}+{key} (Win32 error {err}" +
+                $"{(err == 1409 ? " - already registered by another app or AltGr conflict" : string.Empty)})");
             return -1;
         }
     }

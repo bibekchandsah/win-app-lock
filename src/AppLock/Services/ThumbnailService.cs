@@ -35,6 +35,10 @@ public sealed class ThumbnailService : IDisposable
         CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeUninstallAll();
 
+    [DllImport("AppLockHook.dll", EntryPoint = "InvalidateLockedThumbnail",
+        CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeInvalidate(nint hwnd);
+
     // Active locked targets
     private readonly HashSet<nint> _lockedTargets = new();
     private static bool? _dllAvailable;
@@ -57,6 +61,14 @@ public sealed class ThumbnailService : IDisposable
                     {
                         _lockedTargets.Add(tg);
                         System.Diagnostics.Debug.WriteLine($"[ThumbnailService] Locked thumbnail installed for 0x{tg:X}");
+
+                        // Schedule a re-invalidation after 600ms to ensure EnsureSubclassed
+                        // has had time to run inside the target process and set
+                        // DWMWA_FORCE_ICONIC_REPRESENTATION before DWM requests the bitmap.
+                        _ = Task.Delay(600).ContinueWith(_ =>
+                        {
+                            try { if (IsDllAvailable()) NativeInvalidate(tg); } catch { }
+                        }, TaskScheduler.Default);
                     }
                     else
                     {

@@ -147,6 +147,16 @@ public partial class SettingsViewModel : ObservableObject
     {
         _settings.EmergencyHotkeyEnabled = value;
         SaveSettings();
+        MainWindow.Instance?.ReregisterEmergencyHotkey();
+        ServiceContainer.OverlayManager.UpdateEmergencyHotkey(_settings.EmergencyHotkey, value);
+    }
+
+    partial void OnEmergencyHotkeyChanged(string value)
+    {
+        _settings.EmergencyHotkey = value;
+        SaveSettings();
+        MainWindow.Instance?.ReregisterEmergencyHotkey();
+        ServiceContainer.OverlayManager.UpdateEmergencyHotkey(value, _settings.EmergencyHotkeyEnabled);
     }
 
     partial void OnKeepLockScreenOnTopChanged(bool value)

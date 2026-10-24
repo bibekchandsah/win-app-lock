@@ -386,10 +386,14 @@ public sealed partial class MainWindow : Window
                 if (_emergencyHotkeyId > 0)
                 {
                     System.Diagnostics.Debug.WriteLine($"Emergency hotkey registered: {settings.EmergencyHotkey}");
+                    // Show badge in overlay (registration succeeded)
+                    ServiceContainer.OverlayManager.UpdateEmergencyHotkey(settings.EmergencyHotkey, true);
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"Failed to register emergency hotkey: {settings.EmergencyHotkey}");
+                    // Hide badge — hotkey is non-functional (common: Ctrl+Alt = AltGr conflict on non-US keyboards)
+                    ServiceContainer.OverlayManager.UpdateEmergencyHotkey(settings.EmergencyHotkey, false);
                 }
             }
             catch (Exception ex)
@@ -434,7 +438,7 @@ public sealed partial class MainWindow : Window
     {
         System.Diagnostics.Debug.WriteLine("Emergency lock hotkey pressed!");
         
-        DispatcherQueue.TryEnqueue(async () =>
+        DispatcherQueue.TryEnqueue(() =>
         {
             // Stop all overlays
             ServiceContainer.OverlayManager.Stop();
@@ -445,9 +449,6 @@ public sealed partial class MainWindow : Window
             
             // Restart overlay manager
             ServiceContainer.OverlayManager.Start();
-            
-            // Show notification
-            await ShowNotificationAsync("Emergency Lock", "All protected apps have been re-locked.");
         });
     }
 
