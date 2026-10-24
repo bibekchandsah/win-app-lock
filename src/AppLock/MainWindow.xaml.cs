@@ -213,6 +213,12 @@ public sealed partial class MainWindow : Window
 
         // Initialize and wire up tray service
         InitializeTrayService();
+
+        // Safety net: restore all DWM thumbnails even on unexpected process exit
+        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        {
+            try { ServiceContainer.ThumbnailService.Dispose(); } catch { }
+        };
     }
 
     private void InstallWndProcSubclass()
@@ -538,6 +544,11 @@ public sealed partial class MainWindow : Window
         }
         ServiceContainer.IdleService.StopMonitoring();
         ServiceContainer.OverlayManager.Stop();
+
+        // CRITICAL: Restore all locked thumbnails before exiting.
+        // Without this, the "Locked" DWM bitmap persists in target apps after AppLock exits.
+        ServiceContainer.ThumbnailService.Dispose();
+
         ServiceContainer.TrayService.Dispose();
         Instance = null;
     }

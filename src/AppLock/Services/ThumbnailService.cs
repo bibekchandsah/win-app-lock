@@ -31,6 +31,10 @@ public sealed class ThumbnailService : IDisposable
         CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeUninstall(nint hwnd);
 
+    [DllImport("AppLockHook.dll", EntryPoint = "UninstallAllLockedThumbnails",
+        CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeUninstallAll();
+
     // Active locked targets
     private readonly HashSet<nint> _lockedTargets = new();
     private static bool? _dllAvailable;
@@ -180,6 +184,15 @@ public sealed class ThumbnailService : IDisposable
                 catch { }
             }
             _lockedTargets.Clear();
+
+            try
+            {
+                if (IsDllAvailable())
+                {
+                    NativeUninstallAll();
+                }
+            }
+            catch { }
         }
     }
 }

@@ -48,6 +48,7 @@ public class OverlayManager
         // Subscribe to lock manager events
         _lockManager.ProtectionStateChanged += OnProtectionStateChanged;
         _lockManager.RuleAdded += (s, e) => CheckAllWindows();
+        _lockManager.RuleRemoved += (s, e) => OnRuleRemoved();
         
         // Subscribe to window events
         _winEventHook.WindowShown += OnWindowEvent;
@@ -422,62 +423,36 @@ public class OverlayManager
         return true;
     }
 
-    private void CheckWindow(nint windowHandle)
+    private RunningWindow? GetRunningWindow(HWND hwnd)
     {
-        if (!_lockManager.IsProtectionEnabled)
-            return;
+        if (!PInvoke.IsWindow(hwnd)) return null;
 
-        // Check if window is indefinitely unlocked
-        if (_indefinitelyUnlocked.Contains(windowHandle))
-            return;
-
-        // Check if unlock timer is active
-        if (_unlockTimers.ContainsKey(windowHandle))
-            return;
-
-        // Get window info
         unsafe
         {
-            var hwnd = new HWND(windowHandle);
-            if (!PInvoke.IsWindowVisible(hwnd) || PInvoke.IsIconic(hwnd))
-                return;
-
             int titleLength = PInvoke.GetWindowTextLength(hwnd);
-            if (titleLength == 0)
-                return;
-
-            var titleBuffer = new char[titleLength + 1];
+            var titleBuffer = new char[Math.Max(titleLength + 1, 256)];
             fixed (char* pTitle = titleBuffer)
             {
                 PInvoke.GetWindowText(hwnd, new Windows.Win32.Foundation.PWSTR(pTitle), titleBuffer.Length);
             }
             string title = new string(titleBuffer).TrimEnd('\0');
 
-            if (string.IsNullOrWhiteSpace(title))
-                return;
-
-            // Quick check on title
-            if (title.Equals("PopupHost", StringComparison.OrdinalIgnoreCase) ||
-                title.StartsWith("PopupHost", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            // Get process info
             uint processId = 0;
             PInvoke.GetWindowThreadProcessId(hwnd, &processId);
+            if (processId == 0) return null;
 
             var hProcess = PInvoke.OpenProcess_SafeHandle(
                 Windows.Win32.System.Threading.PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
                 false,
                 processId);
 
-            if (hProcess.IsInvalid)
-                return;
+            if (hProcess.IsInvalid) return null;
 
             using (hProcess)
             {
                 var pathBuffer = new char[260];
                 uint size = (uint)pathBuffer.Length;
-                
+
                 fixed (char* pPath = pathBuffer)
                 {
                     if (PInvoke.QueryFullProcessImageName(hProcess, 0, new Windows.Win32.Foundation.PWSTR(pPath), ref size))
@@ -485,19 +460,11 @@ public class OverlayManager
                         string processPath = new string(pathBuffer, 0, (int)size);
                         string processName = Path.GetFileNameWithoutExtension(processPath);
 
-                        // Validate window before proceeding
-                        if (!IsValidTargetWindow(hwnd, title, processName))
-                            return;
-
-                        // Handle UWP apps (ApplicationFrameHost)
                         if (processName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase) ||
                             _uwpResolver.IsApplicationFrameHost(processPath))
                         {
                             var (actualTitle, actualPath) = _uwpResolver.ResolveUwpWindow(hwnd);
-                            if (!string.IsNullOrEmpty(actualTitle))
-                            {
-                                title = actualTitle;
-                            }
+                            if (!string.IsNullOrEmpty(actualTitle)) title = actualTitle;
                             if (!string.IsNullOrEmpty(actualPath))
                             {
                                 processPath = actualPath;
@@ -505,43 +472,99 @@ public class OverlayManager
                             }
                             else
                             {
-                                // Could not resolve actual UWP process path.
-                                // Try AUMID as a more reliable identifier (e.g. "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App")
                                 var aumid = _uwpResolver.GetAppUserModelId(hwnd);
                                 if (!string.IsNullOrEmpty(aumid))
                                 {
-                                    // Use AUMID as processPath for matching purposes; extract a human-readable name
                                     processPath = aumid;
-                                    // Extract package name part: "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App" -> "WindowsCalculator"
-                                    var pkgName = aumid.Split('_')[0]; // "Microsoft.WindowsCalculator"
+                                    var pkgName = aumid.Split('_')[0];
                                     var shortName = pkgName.Contains('.') ? pkgName.Substring(pkgName.LastIndexOf('.') + 1) : pkgName;
-                                    processName = shortName; // "WindowsCalculator"
+                                    processName = shortName;
                                 }
-                                // else: keep processName = "ApplicationFrameHost" so it only matches explicit rules for it
                             }
                         }
 
-                        var window = new RunningWindow
+                        return new RunningWindow
                         {
-                            Handle = windowHandle,
+                            Handle = hwnd.Value,
                             WindowTitle = title,
                             ProcessName = processName,
                             ProcessPath = processPath,
                             ProcessId = (int)processId
                         };
-
-                        if (_lockManager.IsWindowLocked(window))
-                        {
-                            // Always install locked thumbnail immediately, even if window is currently minimized!
-                            _thumbnailService.SetLockedThumbnail(HWND.Null, hwnd);
-
-                            if (!PInvoke.IsIconic(hwnd))
-                            {
-                                ShowOverlay(window);
-                            }
-                        }
                     }
                 }
+            }
+        }
+        return null;
+    }
+
+    private void OnRuleRemoved()
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            var activeHandles = _activeOverlays.Keys.ToList();
+            foreach (var handle in activeHandles)
+            {
+                var hwnd = new HWND(handle);
+                var window = GetRunningWindow(hwnd);
+                if (window == null || !_lockManager.IsWindowLocked(window))
+                {
+                    RemoveOverlay(handle);
+                }
+            }
+        });
+    }
+
+    private void CheckWindow(nint windowHandle)
+    {
+        if (!_lockManager.IsProtectionEnabled)
+            return;
+
+        var hwnd = new HWND(windowHandle);
+        if (!PInvoke.IsWindow(hwnd))
+        {
+            if (_activeOverlays.ContainsKey(windowHandle))
+            {
+                RemoveOverlay(windowHandle);
+            }
+            return;
+        }
+
+        var window = GetRunningWindow(hwnd);
+        if (window == null)
+            return;
+
+        if (!IsValidTargetWindow(hwnd, window.WindowTitle, window.ProcessName))
+            return;
+
+        if (_lockManager.IsWindowLocked(window))
+        {
+            // Check if window is indefinitely unlocked
+            if (_indefinitelyUnlocked.Contains(windowHandle))
+                return;
+
+            // Check if unlock timer is active
+            if (_unlockTimers.ContainsKey(windowHandle))
+                return;
+
+            // Always install locked thumbnail immediately, even if window is currently minimized!
+            _thumbnailService.SetLockedThumbnail(HWND.Null, hwnd);
+
+            if (!PInvoke.IsIconic(hwnd) && PInvoke.IsWindowVisible(hwnd))
+            {
+                ShowOverlay(window);
+            }
+        }
+        else
+        {
+            // Window is no longer locked (or was unlocked by removing rule)
+            if (_activeOverlays.ContainsKey(windowHandle))
+            {
+                RemoveOverlay(windowHandle);
+            }
+            else
+            {
+                _thumbnailService.ClearLockedThumbnailByTarget(hwnd);
             }
         }
     }
@@ -652,13 +675,27 @@ public class OverlayManager
 
     private void CloseAllOverlays()
     {
+        foreach (var handle in _activeOverlays.Keys.ToList())
+        {
+            try
+            {
+                _thumbnailService.ClearLockedThumbnailByTarget(new HWND(handle));
+            }
+            catch { }
+        }
+
         foreach (var overlay in _activeOverlays.Values.ToList())
         {
-            overlay.Close();
+            try
+            {
+                overlay.Close();
+            }
+            catch { }
         }
         _activeOverlays.Clear();
         _unlockTimers.Clear();
         _indefinitelyUnlocked.Clear();
+        _overlayShownTick.Clear();
     }
 
     private void CheckRelockTimers(object? state)

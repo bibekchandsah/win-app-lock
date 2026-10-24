@@ -18,6 +18,7 @@
  * Exported functions:
  *   BOOL InstallLockedThumbnail(HWND hwnd);
  *   void UninstallLockedThumbnail(HWND hwnd);
+ *   void UninstallAllLockedThumbnails();
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -42,10 +43,11 @@
 // Shared data segment (shared across all processes loading this DLL)
 // ---------------------------------------------------------------------------
 #pragma data_seg(".shared")
-volatile HWND  g_targets [MAX_TARGETS] = {};
-volatile HHOOK g_hooksGet[MAX_TARGETS] = {}; // WH_GETMESSAGE hooks (primary)
-volatile HHOOK g_hooksCbt[MAX_TARGETS] = {}; // WH_CBT hooks (subclass trigger)
-volatile DWORD g_pids    [MAX_TARGETS] = {};
+volatile HWND  g_targets   [MAX_TARGETS] = {};
+volatile HHOOK g_hooksGet  [MAX_TARGETS] = {}; // WH_GETMESSAGE hooks (primary)
+volatile HHOOK g_hooksCbt  [MAX_TARGETS] = {}; // WH_CBT hooks (subclass trigger)
+volatile DWORD g_pids      [MAX_TARGETS] = {};
+volatile DWORD g_appLockPid = 0;              // AppLock.exe main PID for dead-process detection
 #pragma data_seg()
 #pragma comment(linker, "/section:.shared,rws")
 
@@ -59,6 +61,30 @@ static WCHAR g_dllPath[MAX_PATH] = { 0 };
 // Forward declarations
 static LRESULT CALLBACK LockedSubclassProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 static void EnsureSubclassed(HWND hwnd);
+static void RestoreWindowDwmState(HWND hwnd);
+
+// ---------------------------------------------------------------------------
+// Liveness check for AppLock.exe
+// ---------------------------------------------------------------------------
+static bool IsAppLockAlive()
+{
+    DWORD pid = g_appLockPid;
+    if (pid == 0) return true; // Not set yet or in AppLock process itself
+
+    // If we ARE the AppLock process, we are alive
+    if (GetCurrentProcessId() == pid) return true;
+
+    HANDLE hProc = OpenProcess(SYNCHRONIZE, FALSE, pid);
+    if (!hProc)
+    {
+        // Process does not exist (terminated or killed)
+        return false;
+    }
+
+    DWORD waitRes = WaitForSingleObject(hProc, 0);
+    CloseHandle(hProc);
+    return (waitRes != WAIT_OBJECT_0);
+}
 
 // ---------------------------------------------------------------------------
 // Target table helpers
@@ -282,14 +308,55 @@ static void SendLockedLivePreview(HWND hwnd)
 }
 
 // ---------------------------------------------------------------------------
+// Restore normal DWM state on target window
+// ---------------------------------------------------------------------------
+static void RestoreWindowDwmState(HWND hwnd)
+{
+    if (!hwnd || !IsWindow(hwnd)) return;
+
+    KillTimer(hwnd, TIMER_ID_REFRESH);
+
+    BOOL val = FALSE;
+    DwmSetWindowAttribute(hwnd, DWMWA_FORCE_ICONIC_REPRESENTATION, &val, sizeof(BOOL));
+    DwmSetWindowAttribute(hwnd, DWMWA_HAS_ICONIC_BITMAP,           &val, sizeof(BOOL));
+    DwmInvalidateIconicBitmaps(hwnd);
+
+    RemoveWindowSubclass(hwnd, LockedSubclassProc, SUBCLASS_ID_VAL);
+
+    // Force frame and visual tree refresh so DWM immediately re-renders the live preview
+    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+    RedrawWindow(hwnd, NULL, NULL,
+        RDW_INVALIDATE | RDW_UPDATENOW | RDW_FRAME | RDW_ALLCHILDREN);
+}
+
+// ---------------------------------------------------------------------------
 // Subclass procedure (executes inside target process)
 // ---------------------------------------------------------------------------
 static LRESULT CALLBACK LockedSubclassProc(
     HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
     UINT_PTR uId, DWORD_PTR dwRef)
 {
+    // If AppLock terminated, restore normal window state immediately
+    if (!IsAppLockAlive())
+    {
+        RestoreWindowDwmState(hwnd);
+        int slot = FindSlot(hwnd);
+        if (slot >= 0)
+        {
+            g_targets[slot] = NULL;
+            g_pids   [slot] = 0;
+        }
+        return DefSubclassProc(hwnd, msg, wp, lp);
+    }
+
     if (msg == WM_DWMSENDICONICTHUMBNAIL_MSG)
     {
+        if (!IsTarget(hwnd))
+        {
+            RestoreWindowDwmState(hwnd);
+            return DefSubclassProc(hwnd, msg, wp, lp);
+        }
         int maxW = HIWORD(lp);
         int maxH = LOWORD(lp);
         if (maxW <= 0) maxW = 200;
@@ -300,51 +367,43 @@ static LRESULT CALLBACK LockedSubclassProc(
 
     if (msg == WM_DWMSENDICONICLIVEPREVIEWBITMAP_MSG)
     {
+        if (!IsTarget(hwnd))
+        {
+            RestoreWindowDwmState(hwnd);
+            return DefSubclassProc(hwnd, msg, wp, lp);
+        }
         SendLockedLivePreview(hwnd);
         return 0;
     }
 
     if (msg == WM_TIMER && wp == TIMER_ID_REFRESH)
     {
-        // Periodically re-invalidate to keep DWM requesting fresh thumbnails
-        if (IsTarget(hwnd))
+        if (IsTarget(hwnd) && IsAppLockAlive())
         {
             DwmInvalidateIconicBitmaps(hwnd);
         }
         else
         {
-            KillTimer(hwnd, TIMER_ID_REFRESH);
+            RestoreWindowDwmState(hwnd);
         }
         return 0;
     }
 
     if (msg == g_wmUnlockTarget)
     {
-        KillTimer(hwnd, TIMER_ID_REFRESH);
-        BOOL val = FALSE;
-        DwmSetWindowAttribute(hwnd, DWMWA_FORCE_ICONIC_REPRESENTATION, &val, sizeof(BOOL));
-        DwmSetWindowAttribute(hwnd, DWMWA_HAS_ICONIC_BITMAP,           &val, sizeof(BOOL));
-        DwmInvalidateIconicBitmaps(hwnd);
-        RemoveWindowSubclass(hwnd, LockedSubclassProc, uId);
+        RestoreWindowDwmState(hwnd);
         return 0;
     }
 
     if (msg == WM_DESTROY || msg == WM_NCDESTROY)
     {
-        KillTimer(hwnd, TIMER_ID_REFRESH);
-        BOOL val = FALSE;
-        DwmSetWindowAttribute(hwnd, DWMWA_FORCE_ICONIC_REPRESENTATION, &val, sizeof(BOOL));
-        DwmSetWindowAttribute(hwnd, DWMWA_HAS_ICONIC_BITMAP,           &val, sizeof(BOOL));
-        DwmInvalidateIconicBitmaps(hwnd);
-
+        RestoreWindowDwmState(hwnd);
         int slot = FindSlot(hwnd);
         if (slot >= 0)
         {
             g_targets[slot] = NULL;
             g_pids   [slot] = 0;
         }
-
-        RemoveWindowSubclass(hwnd, LockedSubclassProc, uId);
     }
 
     return DefSubclassProc(hwnd, msg, wp, lp);
@@ -357,6 +416,26 @@ static void EnsureSubclassed(HWND hwnd)
 {
     if (!hwnd || !IsWindow(hwnd)) return;
     if (!IsTarget(hwnd)) return;
+    if (!IsAppLockAlive())
+    {
+        RestoreWindowDwmState(hwnd);
+        return;
+    }
+
+    // Allow unlock message through UIPI filter if running across integrity boundaries
+    if (g_wmUnlockTarget != 0)
+    {
+        typedef BOOL (WINAPI *pfnChangeFilter)(HWND, UINT, DWORD, PCHANGEFILTERSTRUCT);
+        HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+        if (hUser32)
+        {
+            pfnChangeFilter pChange = (pfnChangeFilter)GetProcAddress(hUser32, "ChangeWindowMessageFilterEx");
+            if (pChange)
+            {
+                pChange(hwnd, g_wmUnlockTarget, 1 /* MSGFLT_ALLOW */, NULL);
+            }
+        }
+    }
 
     DWORD_PTR dwRef = 0;
     if (GetWindowSubclass(hwnd, LockedSubclassProc, SUBCLASS_ID_VAL, &dwRef))
@@ -383,8 +462,6 @@ static void EnsureSubclassed(HWND hwnd)
 // ---------------------------------------------------------------------------
 
 // WH_GETMESSAGE — fires for BOTH sent AND posted messages (critical for DWM!)
-// DWM posts WM_DWMSENDICONICTHUMBNAIL and WM_DWMSENDICONICLIVEPREVIEWBITMAP,
-// so WH_CALLWNDPROC (sent-only) was silently missing them.
 static LRESULT CALLBACK HookGetMsgProc(int nCode, WPARAM wp, LPARAM lp)
 {
     if (nCode >= 0 && lp)
@@ -395,11 +472,28 @@ static LRESULT CALLBACK HookGetMsgProc(int nCode, WPARAM wp, LPARAM lp)
             HWND target = IsTarget(msg->hwnd) ? msg->hwnd : GetAncestor(msg->hwnd, GA_ROOT);
             if (target && IsTarget(target))
             {
+                if (!IsAppLockAlive())
+                {
+                    RestoreWindowDwmState(target);
+                    int slot = FindSlot(target);
+                    if (slot >= 0)
+                    {
+                        g_targets[slot] = NULL;
+                        g_pids   [slot] = 0;
+                    }
+                    return CallNextHookEx(NULL, nCode, wp, lp);
+                }
+
+                if (msg->message == g_wmUnlockTarget)
+                {
+                    RestoreWindowDwmState(target);
+                    msg->message = WM_NULL;
+                    return 0;
+                }
+
                 // Ensure subclass is installed every time we see a message from this window
                 EnsureSubclassed(target);
 
-                // Handle DWM thumbnail requests directly in the hook as well
-                // (belt-and-suspenders: subclass also handles these, but hook catches posted msgs)
                 if (msg->message == WM_DWMSENDICONICTHUMBNAIL_MSG && msg->hwnd == target)
                 {
                     int maxW = HIWORD(msg->lParam);
@@ -407,8 +501,6 @@ static LRESULT CALLBACK HookGetMsgProc(int nCode, WPARAM wp, LPARAM lp)
                     if (maxW <= 0) maxW = 200;
                     if (maxH <= 0) maxH = 150;
                     SendLockedThumbnail(target, maxW, maxH);
-
-                    // Mark message as handled so the default wndproc doesn't clear our bitmap
                     msg->message = WM_NULL;
                 }
                 else if (msg->message == WM_DWMSENDICONICLIVEPREVIEWBITMAP_MSG && msg->hwnd == target)
@@ -433,7 +525,20 @@ static LRESULT CALLBACK HookCbtProc(int nCode, WPARAM wp, LPARAM lp)
             HWND target = IsTarget(hwnd) ? hwnd : GetAncestor(hwnd, GA_ROOT);
             if (target && IsTarget(target))
             {
-                EnsureSubclassed(target);
+                if (!IsAppLockAlive())
+                {
+                    RestoreWindowDwmState(target);
+                    int slot = FindSlot(target);
+                    if (slot >= 0)
+                    {
+                        g_targets[slot] = NULL;
+                        g_pids   [slot] = 0;
+                    }
+                }
+                else
+                {
+                    EnsureSubclassed(target);
+                }
             }
         }
     }
@@ -471,7 +576,6 @@ static void TryInjectDll(DWORD pid)
                 }
             }
         }
-        // Note: do NOT free pRemoteMem — LoadLibraryW runs asynchronously
     }
     CloseHandle(hProc);
 }
@@ -492,6 +596,8 @@ BOOL InstallLockedThumbnail(HWND hwnd)
     DWORD threadId = GetWindowThreadProcessId(hwnd, &pid);
     if (!threadId) return FALSE;
 
+    g_appLockPid = GetCurrentProcessId();
+
     g_targets[slot] = hwnd;
     g_pids   [slot] = pid;
 
@@ -502,8 +608,6 @@ BOOL InstallLockedThumbnail(HWND hwnd)
     g_hooksCbt[slot] = hookCbt;
 
     // 2. Post a harmless message to the target to force Windows to load our hook DLL
-    // into the target process and call HookGetMsgProc/EnsureSubclassed immediately.
-    // We use PostMessage (not Send) because the hook triggers on the GetMessage pump.
     PostMessageW(hwnd, WM_NULL, 0, 0);
 
     // Also send one to trigger CBT and any synchronous paths
@@ -525,26 +629,40 @@ void UninstallLockedThumbnail(HWND hwnd)
     int slot = FindSlot(hwnd);
     if (slot < 0) return;
 
+    HHOOK hGet = (HHOOK)g_hooksGet[slot];
+    HHOOK hCbt = (HHOOK)g_hooksCbt[slot];
+
+    // Clear target from shared table FIRST so hook callback won't re-subclass
+    g_targets[slot] = NULL;
+    g_pids   [slot] = 0;
+    g_hooksGet[slot] = NULL;
+    g_hooksCbt[slot] = NULL;
+
     // Tell subclass to restore normal DWM thumbnail
     if (hwnd && IsWindow(hwnd))
     {
-        SendMessageW(hwnd, g_wmUnlockTarget, 0, 0);
+        DWORD_PTR dwResult = 0;
+        SendMessageTimeoutW(hwnd, g_wmUnlockTarget, 0, 0, SMTO_ABORTIFHUNG | SMTO_NORMAL, 500, &dwResult);
+        PostMessageW(hwnd, g_wmUnlockTarget, 0, 0);
+        PostMessageW(hwnd, WM_NULL, 0, 0); // flush queue
     }
 
     // Unhook
-    if (g_hooksGet[slot])
-    {
-        UnhookWindowsHookEx((HHOOK)g_hooksGet[slot]);
-        g_hooksGet[slot] = NULL;
-    }
-    if (g_hooksCbt[slot])
-    {
-        UnhookWindowsHookEx((HHOOK)g_hooksCbt[slot]);
-        g_hooksCbt[slot] = NULL;
-    }
+    if (hGet) UnhookWindowsHookEx(hGet);
+    if (hCbt) UnhookWindowsHookEx(hCbt);
+}
 
-    g_targets[slot] = NULL;
-    g_pids   [slot] = 0;
+extern "C" __declspec(dllexport)
+void UninstallAllLockedThumbnails()
+{
+    for (int i = 0; i < MAX_TARGETS; ++i)
+    {
+        HWND hwnd = (HWND)g_targets[i];
+        if (hwnd)
+        {
+            UninstallLockedThumbnail(hwnd);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -560,9 +678,8 @@ BOOL WINAPI DllMain(HMODULE hMod, DWORD reason, LPVOID)
 
         g_wmUnlockTarget = RegisterWindowMessageW(L"AppLock_UnlockTarget_Msg");
 
-        // When DLL is loaded into a new process (via hook injection),
-        // immediately subclass any target windows belonging to this process.
         DWORD myPid = GetCurrentProcessId();
+        // If loaded into target process, subclass any of our targets in this process
         for (int i = 0; i < MAX_TARGETS; ++i)
         {
             HWND target = (HWND)g_targets[i];
@@ -573,6 +690,27 @@ BOOL WINAPI DllMain(HMODULE hMod, DWORD reason, LPVOID)
                 if (targetPid == myPid)
                 {
                     EnsureSubclassed(target);
+                }
+            }
+        }
+    }
+    else if (reason == DLL_PROCESS_DETACH)
+    {
+        DWORD myPid = GetCurrentProcessId();
+        // If detaching from a target process, restore normal DWM thumbnail on all windows
+        if (myPid != g_appLockPid)
+        {
+            for (int i = 0; i < MAX_TARGETS; ++i)
+            {
+                HWND target = (HWND)g_targets[i];
+                if (target && IsWindow(target))
+                {
+                    DWORD targetPid = 0;
+                    GetWindowThreadProcessId(target, &targetPid);
+                    if (targetPid == myPid)
+                    {
+                        RestoreWindowDwmState(target);
+                    }
                 }
             }
         }

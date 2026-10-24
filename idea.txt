@@ -105,12 +105,12 @@ issue
 -> fixed - when applock is opened and try to open the locked app then it get's closed
 -> fixed - locked thumbnail not working for UWP apps and can say for many system apps like calculator, explorer, settings, clock
 -> fixed - applicationFromHost is merging into single program and shows x3 though window title name is different (calculator, settings, clock, photos) initially it shows clock -> times for window name and process name
--> system app UWP don't show locked thumbnail it shows blank window
 -> resizing program overlay triggering minimize of program window and toggling don't work
--> when program is removed from locked program that is unlocked program user still has to enter password to unlock
--> for some app toggling in taskbar isn't working
+-> fixed - when program is removed from locked program that is unlocked program user still has to enter password to unlock
 -> keep lock screen on top off not working on UWP apps
 -> auto refresh running program when new window is detected
 -> when emergency lock is enabled then after specific time period main window don't get's locked as it shows dialog box of emergency lock is enabled
+-> for some app toggling in taskbar isn't working
 -> toggling isn't working as smooth as it should be
--> after the applock.exe is terminated or exit still it shows locked thumbnail in taskbar live preview for those app which is locked before the termination of applock.exe if the locked app is unlocked using password or window hello it's shows live preview instead of locked thumbnail (need to work on this)
+-> fixed - after the applock.exe is terminated or exit or unlocked it still shows locked thumbnail in taskbar live preview for those app which is locked before the termination of applock.exe and if the locked app is unlocked using password or window hello then only it's shows live preview instead of locked thumbnail
+-> optional - system app UWP don't show locked thumbnail it shows blank window
