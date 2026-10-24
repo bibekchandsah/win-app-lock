@@ -32,6 +32,27 @@ public sealed partial class LockOverlayWindow : Window
     private bool _keepOnTop;
     private System.Threading.CancellationTokenSource? _helloCts;
 
+    // Window drag and resize state
+    [Flags]
+    private enum ResizeEdge { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
+    private const int IDC_ARROW = 32512;
+    private const int IDC_SIZENWSE = 32642;
+    private const int IDC_SIZENESW = 32643;
+    private const int IDC_SIZEWE = 32644;
+    private const int IDC_SIZENS = 32645;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint LoadCursor(nint hInstance, int lpCursorName);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint SetCursor(nint hCursor);
+
+    private bool _isDraggingWindow;
+    private bool _isResizingWindow;
+    private ResizeEdge _activeResizeEdge;
+    private System.Drawing.Point _dragStartCursor;
+    private RECT _targetStartRect;
+
     public LockOverlayWindow(nint targetWindowHandle, string windowTitle)
     {
         _targetWindowHandle = targetWindowHandle;
@@ -80,6 +101,13 @@ public sealed partial class LockOverlayWindow : Window
         {
             ApplyThemeBrushes();
         };
+
+        // Wire window drag and resize events
+        RootGrid.PointerPressed += RootGrid_PointerPressed;
+        RootGrid.PointerMoved += RootGrid_PointerMoved;
+        RootGrid.PointerReleased += RootGrid_PointerReleased;
+        RootGrid.PointerCanceled += RootGrid_PointerCanceled;
+        RootGrid.PointerExited += RootGrid_PointerExited;
     }
 
     /// <summary>
@@ -196,9 +224,9 @@ public sealed partial class LockOverlayWindow : Window
             var width = rect.right - rect.left;
             var height = rect.bottom - rect.top;
             
-            // Ensure minimum size
-            width = Math.Max(width, 320);
-            height = Math.Max(height, 400);
+            // Ensure minimum size (allows small windows like Notepad/Notes ~280x200 to resize properly)
+            width = Math.Max(width, 280);
+            height = Math.Max(height, 200);
 
             // Windows 11 rounded corners:
             // If target is maximized, square corners (DWMWCP_DONOTROUND); otherwise round corners (DWMWCP_ROUND)
@@ -235,19 +263,23 @@ public sealed partial class LockOverlayWindow : Window
             // The overlay being HWND_TOP is sufficient to appear above the target.
 
             // Re-assert foreground / top so keyboard focus goes to overlay PasswordBox
-            uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);
-            uint currentThreadId = PInvoke.GetCurrentThreadId();
-            if (targetThreadId != 0 && targetThreadId != currentThreadId)
+            // (Skip during active drag or resize to prevent stutter)
+            if (!_isDraggingWindow && !_isResizingWindow)
             {
-                PInvoke.AttachThreadInput(targetThreadId, currentThreadId, true);
-                PInvoke.BringWindowToTop(hwnd);
-                PInvoke.SetForegroundWindow(hwnd);
-                PInvoke.AttachThreadInput(targetThreadId, currentThreadId, false);
-            }
-            else
-            {
-                PInvoke.BringWindowToTop(hwnd);
-                PInvoke.SetForegroundWindow(hwnd);
+                uint targetThreadId = PInvoke.GetWindowThreadProcessId(targetHwnd, null);
+                uint currentThreadId = PInvoke.GetCurrentThreadId();
+                if (targetThreadId != 0 && targetThreadId != currentThreadId)
+                {
+                    PInvoke.AttachThreadInput(targetThreadId, currentThreadId, true);
+                    PInvoke.BringWindowToTop(hwnd);
+                    PInvoke.SetForegroundWindow(hwnd);
+                    PInvoke.AttachThreadInput(targetThreadId, currentThreadId, false);
+                }
+                else
+                {
+                    PInvoke.BringWindowToTop(hwnd);
+                    PInvoke.SetForegroundWindow(hwnd);
+                }
             }
         }
     }
@@ -802,5 +834,258 @@ public sealed partial class LockOverlayWindow : Window
                 Close();
             }
         }
+    }
+
+    // --- Overlay Drag Implementation (moves both target window and overlay together) ---
+
+    // --- Overlay Drag and Resize Implementation (moves & resizes target and overlay together) ---
+
+    private ResizeEdge GetResizeEdge(Windows.Foundation.Point pt)
+    {
+        var targetHwnd = new HWND(_targetWindowHandle);
+        if (PInvoke.IsZoomed(targetHwnd)) return ResizeEdge.None;
+
+        const double b = 10.0; // 10-pixel resize hit zone for smooth mouse grabbing
+        ResizeEdge edge = ResizeEdge.None;
+
+        if (pt.X <= b) edge |= ResizeEdge.Left;
+        else if (pt.X >= RootGrid.ActualWidth - b) edge |= ResizeEdge.Right;
+
+        if (pt.Y <= b) edge |= ResizeEdge.Top;
+        else if (pt.Y >= RootGrid.ActualHeight - b) edge |= ResizeEdge.Bottom;
+
+        return edge;
+    }
+
+    private void UpdateCursor(ResizeEdge edge)
+    {
+        nint cursor = edge switch
+        {
+            ResizeEdge.Left | ResizeEdge.Top => LoadCursor(0, IDC_SIZENWSE),
+            ResizeEdge.Right | ResizeEdge.Bottom => LoadCursor(0, IDC_SIZENWSE),
+            ResizeEdge.Right | ResizeEdge.Top => LoadCursor(0, IDC_SIZENESW),
+            ResizeEdge.Left | ResizeEdge.Bottom => LoadCursor(0, IDC_SIZENESW),
+            ResizeEdge.Left => LoadCursor(0, IDC_SIZEWE),
+            ResizeEdge.Right => LoadCursor(0, IDC_SIZEWE),
+            ResizeEdge.Top => LoadCursor(0, IDC_SIZENS),
+            ResizeEdge.Bottom => LoadCursor(0, IDC_SIZENS),
+            _ => LoadCursor(0, IDC_ARROW)
+        };
+        if (cursor != 0)
+        {
+            SetCursor(cursor);
+        }
+    }
+
+    private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var pt = e.GetCurrentPoint(RootGrid);
+        if (!pt.Properties.IsLeftButtonPressed) return;
+
+        var targetHwnd = new HWND(_targetWindowHandle);
+        if (PInvoke.IsZoomed(targetHwnd))
+        {
+            return; // Do not resize or drag maximized window
+        }
+
+        var edge = GetResizeEdge(pt.Position);
+        if (edge != ResizeEdge.None)
+        {
+            // Start resizing!
+            RECT rc = default;
+            if (PInvoke.GetWindowRect(targetHwnd, out rc) && PInvoke.GetCursorPos(out var cursorPt))
+            {
+                _dragStartCursor = cursorPt;
+                _targetStartRect = rc;
+                _activeResizeEdge = edge;
+                _isResizingWindow = true;
+                RootGrid.CapturePointer(e.Pointer);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (IsInteractiveControl(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
+        {
+            RECT rc = default;
+            if (PInvoke.GetWindowRect(targetHwnd, out rc) && PInvoke.GetCursorPos(out var cursorPt))
+            {
+                _dragStartCursor = cursorPt;
+                _targetStartRect = rc;
+                _isDraggingWindow = true;
+                RootGrid.CapturePointer(e.Pointer);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isResizingWindow)
+        {
+            UpdateCursor(_activeResizeEdge);
+            if (PInvoke.GetCursorPos(out var cursorPt))
+            {
+                int dx = cursorPt.X - _dragStartCursor.X;
+                int dy = cursorPt.Y - _dragStartCursor.Y;
+
+                int origW = _targetStartRect.right - _targetStartRect.left;
+                int origH = _targetStartRect.bottom - _targetStartRect.top;
+
+                int newX = _targetStartRect.left;
+                int newY = _targetStartRect.top;
+                int newW = origW;
+                int newH = origH;
+
+                if (_activeResizeEdge.HasFlag(ResizeEdge.Right))
+                {
+                    newW = Math.Max(320, origW + dx);
+                }
+                else if (_activeResizeEdge.HasFlag(ResizeEdge.Left))
+                {
+                    int targetW = origW - dx;
+                    if (targetW >= 320)
+                    {
+                        newX = _targetStartRect.left + dx;
+                        newW = targetW;
+                    }
+                    else
+                    {
+                        newX = _targetStartRect.right - 320;
+                        newW = 320;
+                    }
+                }
+
+                if (_activeResizeEdge.HasFlag(ResizeEdge.Bottom))
+                {
+                    newH = Math.Max(240, origH + dy);
+                }
+                else if (_activeResizeEdge.HasFlag(ResizeEdge.Top))
+                {
+                    int targetH = origH - dy;
+                    if (targetH >= 240)
+                    {
+                        newY = _targetStartRect.top + dy;
+                        newH = targetH;
+                    }
+                    else
+                    {
+                        newY = _targetStartRect.bottom - 240;
+                        newH = 240;
+                    }
+                }
+
+                var targetHwnd = new HWND(_targetWindowHandle);
+                PInvoke.SetWindowPos(
+                    targetHwnd,
+                    HWND.Null,
+                    newX,
+                    newY,
+                    newW,
+                    newH,
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+
+                PositionOverTarget();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (_isDraggingWindow)
+        {
+            if (PInvoke.GetCursorPos(out var cursorPt))
+            {
+                int dx = cursorPt.X - _dragStartCursor.X;
+                int dy = cursorPt.Y - _dragStartCursor.Y;
+
+                var targetHwnd = new HWND(_targetWindowHandle);
+                int newX = _targetStartRect.left + dx;
+                int newY = _targetStartRect.top + dy;
+
+                PInvoke.SetWindowPos(
+                    targetHwnd,
+                    HWND.Null,
+                    newX,
+                    newY,
+                    0,
+                    0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+
+                PositionOverTarget();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        // Hover cursor check
+        var pt = e.GetCurrentPoint(RootGrid);
+        var edge = GetResizeEdge(pt.Position);
+        if (edge != ResizeEdge.None)
+        {
+            UpdateCursor(edge);
+        }
+        else
+        {
+            UpdateCursor(ResizeEdge.None);
+        }
+    }
+
+    private void RootGrid_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isResizingWindow || _isDraggingWindow)
+        {
+            _isResizingWindow = false;
+            _isDraggingWindow = false;
+            _activeResizeEdge = ResizeEdge.None;
+            RootGrid.ReleasePointerCapture(e.Pointer);
+            UpdateCursor(ResizeEdge.None);
+            e.Handled = true;
+
+            var hwnd = new HWND(WinRT.Interop.WindowNative.GetWindowHandle(this));
+            PInvoke.BringWindowToTop(hwnd);
+            PInvoke.SetForegroundWindow(hwnd);
+        }
+    }
+
+    private void RootGrid_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isResizingWindow || _isDraggingWindow)
+        {
+            _isResizingWindow = false;
+            _isDraggingWindow = false;
+            _activeResizeEdge = ResizeEdge.None;
+            RootGrid.ReleasePointerCapture(e.Pointer);
+            UpdateCursor(ResizeEdge.None);
+        }
+    }
+
+    private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isResizingWindow && !_isDraggingWindow)
+        {
+            UpdateCursor(ResizeEdge.None);
+        }
+    }
+
+    private static bool IsInteractiveControl(DependencyObject? element)
+    {
+        while (element != null)
+        {
+            if (element is Button ||
+                element is PasswordBox ||
+                element is TextBox ||
+                element is HyperlinkButton ||
+                element is Microsoft.UI.Xaml.Controls.Primitives.ScrollBar ||
+                element is ComboBox)
+            {
+                return true;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
     }
 }

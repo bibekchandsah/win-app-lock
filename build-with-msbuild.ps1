@@ -28,6 +28,7 @@ if ($vsPath) {
     msbuild AppLock.sln /p:Configuration=Release /p:Platform=x64 /t:Restore,Build /v:minimal /nologo $args
 
     if ($LASTEXITCODE -eq 0) {
+        & icacls.exe "$outDir\AppLockHook.dll" /grant "*S-1-15-2-1:(RX)" 2>$null | Out-Null
         Write-Host "`nBuild succeeded!" -ForegroundColor Green
         Write-Host "`nTo run the app, execute:" -ForegroundColor Cyan
         Write-Host ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -ForegroundColor Yellow

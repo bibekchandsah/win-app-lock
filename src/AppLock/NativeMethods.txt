@@ -57,3 +57,4 @@ DwmInvalidateIconicBitmaps
 IsWindow
 GetWindowPlacement
 SetWindowPlacement
+GetCursorPos

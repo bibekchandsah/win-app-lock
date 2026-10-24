@@ -105,12 +105,15 @@ issue
 -> fixed - when applock is opened and try to open the locked app then it get's closed
 -> fixed - locked thumbnail not working for UWP apps and can say for many system apps like calculator, explorer, settings, clock
 -> fixed - applicationFromHost is merging into single program and shows x3 though window title name is different (calculator, settings, clock, photos) initially it shows clock -> times for window name and process name
--> resizing program overlay triggering minimize of program window and toggling don't work
 -> fixed - when program is removed from locked program that is unlocked program user still has to enter password to unlock
--> keep lock screen on top off not working on UWP apps
--> auto refresh running program when new window is detected
--> when emergency lock is enabled then after specific time period main window don't get's locked as it shows dialog box of emergency lock is enabled
--> for some app toggling in taskbar isn't working
--> toggling isn't working as smooth as it should be
 -> fixed - after the applock.exe is terminated or exit or unlocked it still shows locked thumbnail in taskbar live preview for those app which is locked before the termination of applock.exe and if the locked app is unlocked using password or window hello then only it's shows live preview instead of locked thumbnail
+-> partial - resizing program overlay in some apps like excel, explorer, notes is triggering minimize of program window and toggling don't work from taskbar that is when user double click the program icon in taskbar to open/maximize the program it don't open/maximize because it's already open
+-> fixed - let user move the overlay window around in running program, as they are moving the locked program window
+-> auto refresh running program when new window is detected
+-> keep lock screen on/off top off not working on UWP apps and any other apps
+-> when emergency lock is enabled then after specific time period main window don't get's locked as it shows dialog box of emergency lock is enabled
+-> toggling isn't working as smooth as it should be
 -> optional - system app UWP don't show locked thumbnail it shows blank window
+-> emergency lock hotkey not working (ctrl + alt + L)
+-> hotkey not reflecting in overlay screenlock
+-> 

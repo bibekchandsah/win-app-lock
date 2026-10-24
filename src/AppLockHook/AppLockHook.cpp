@@ -64,20 +64,24 @@ static void EnsureSubclassed(HWND hwnd);
 static void RestoreWindowDwmState(HWND hwnd);
 
 // ---------------------------------------------------------------------------
-// Liveness check for AppLock.exe
+// Liveness check for AppLock.exe (only called on timer)
 // ---------------------------------------------------------------------------
 static bool IsAppLockAlive()
 {
     DWORD pid = g_appLockPid;
     if (pid == 0) return true; // Not set yet or in AppLock process itself
-
-    // If we ARE the AppLock process, we are alive
     if (GetCurrentProcessId() == pid) return true;
 
-    HANDLE hProc = OpenProcess(SYNCHRONIZE, FALSE, pid);
+    HANDLE hProc = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (!hProc)
     {
-        // Process does not exist (terminated or killed)
+        DWORD err = GetLastError();
+        // ERROR_ACCESS_DENIED means the process exists and is running, but security policy prevents opening a handle
+        if (err == ERROR_ACCESS_DENIED)
+        {
+            return true;
+        }
+        // Only if the PID does not exist is it truly dead
         return false;
     }
 
@@ -337,19 +341,6 @@ static LRESULT CALLBACK LockedSubclassProc(
     HWND hwnd, UINT msg, WPARAM wp, LPARAM lp,
     UINT_PTR uId, DWORD_PTR dwRef)
 {
-    // If AppLock terminated, restore normal window state immediately
-    if (!IsAppLockAlive())
-    {
-        RestoreWindowDwmState(hwnd);
-        int slot = FindSlot(hwnd);
-        if (slot >= 0)
-        {
-            g_targets[slot] = NULL;
-            g_pids   [slot] = 0;
-        }
-        return DefSubclassProc(hwnd, msg, wp, lp);
-    }
-
     if (msg == WM_DWMSENDICONICTHUMBNAIL_MSG)
     {
         if (!IsTarget(hwnd))
@@ -416,11 +407,6 @@ static void EnsureSubclassed(HWND hwnd)
 {
     if (!hwnd || !IsWindow(hwnd)) return;
     if (!IsTarget(hwnd)) return;
-    if (!IsAppLockAlive())
-    {
-        RestoreWindowDwmState(hwnd);
-        return;
-    }
 
     // Allow unlock message through UIPI filter if running across integrity boundaries
     if (g_wmUnlockTarget != 0)
@@ -472,18 +458,6 @@ static LRESULT CALLBACK HookGetMsgProc(int nCode, WPARAM wp, LPARAM lp)
             HWND target = IsTarget(msg->hwnd) ? msg->hwnd : GetAncestor(msg->hwnd, GA_ROOT);
             if (target && IsTarget(target))
             {
-                if (!IsAppLockAlive())
-                {
-                    RestoreWindowDwmState(target);
-                    int slot = FindSlot(target);
-                    if (slot >= 0)
-                    {
-                        g_targets[slot] = NULL;
-                        g_pids   [slot] = 0;
-                    }
-                    return CallNextHookEx(NULL, nCode, wp, lp);
-                }
-
                 if (msg->message == g_wmUnlockTarget)
                 {
                     RestoreWindowDwmState(target);
@@ -525,20 +499,7 @@ static LRESULT CALLBACK HookCbtProc(int nCode, WPARAM wp, LPARAM lp)
             HWND target = IsTarget(hwnd) ? hwnd : GetAncestor(hwnd, GA_ROOT);
             if (target && IsTarget(target))
             {
-                if (!IsAppLockAlive())
-                {
-                    RestoreWindowDwmState(target);
-                    int slot = FindSlot(target);
-                    if (slot >= 0)
-                    {
-                        g_targets[slot] = NULL;
-                        g_pids   [slot] = 0;
-                    }
-                }
-                else
-                {
-                    EnsureSubclassed(target);
-                }
+                EnsureSubclassed(target);
             }
         }
     }
@@ -690,27 +651,6 @@ BOOL WINAPI DllMain(HMODULE hMod, DWORD reason, LPVOID)
                 if (targetPid == myPid)
                 {
                     EnsureSubclassed(target);
-                }
-            }
-        }
-    }
-    else if (reason == DLL_PROCESS_DETACH)
-    {
-        DWORD myPid = GetCurrentProcessId();
-        // If detaching from a target process, restore normal DWM thumbnail on all windows
-        if (myPid != g_appLockPid)
-        {
-            for (int i = 0; i < MAX_TARGETS; ++i)
-            {
-                HWND target = (HWND)g_targets[i];
-                if (target && IsWindow(target))
-                {
-                    DWORD targetPid = 0;
-                    GetWindowThreadProcessId(target, &targetPid);
-                    if (targetPid == myPid)
-                    {
-                        RestoreWindowDwmState(target);
-                    }
                 }
             }
         }
