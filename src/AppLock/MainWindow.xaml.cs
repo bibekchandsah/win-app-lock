@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     private bool _isExplicitExit = false;
     private bool _isAuthDialogOpen = false;
     private bool _loginShown = false;
+    private bool _isMainAuthenticated = false;
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
@@ -88,6 +89,19 @@ public sealed partial class MainWindow : Window
         }
         else
         {
+            // CRITICAL: Immediately lock all protected apps on app launch,
+            // regardless of whether the user has entered the password for MainWindow yet!
+            if (ServiceContainer.Settings.IsProtectionEnabled)
+            {
+                System.Diagnostics.Debug.WriteLine("App startup: Starting OverlayManager immediately to lock protected apps...");
+                ServiceContainer.OverlayManager.Start();
+            }
+
+            // Hide navigation rail while login prompt is pending
+            NavRail.Visibility = Visibility.Collapsed;
+            Grid.SetColumn(ContentFrame, 0);
+            ContentFrame.SetValue(Grid.ColumnSpanProperty, 2);
+
             // Show login immediately after loading completes
             ContentFrame.Loaded += async (s, e) =>
             {
@@ -265,6 +279,8 @@ public sealed partial class MainWindow : Window
 
     public void OnFirstRunComplete()
     {
+        _isMainAuthenticated = true;
+
         // Restore navigation rail
         Grid.SetColumn(ContentFrame, 1);
         ContentFrame.ClearValue(Grid.ColumnSpanProperty);
@@ -272,75 +288,80 @@ public sealed partial class MainWindow : Window
         
         // Navigate to protection page
         ContentFrame.Navigate(typeof(ProtectionPage));
+
+        // Start overlay manager if protection is enabled
+        if (ServiceContainer.Settings.IsProtectionEnabled)
+        {
+            ServiceContainer.OverlayManager.Start();
+        }
     }
 
     private async Task ShowLogin()
     {
-        int attemptCount = 0;
-        while (true)
+        if (_isMainAuthenticated) return;
+        if (_isAuthDialogOpen) return;
+        _isAuthDialogOpen = true;
+
+        try
         {
-            attemptCount++;
-            System.Diagnostics.Debug.WriteLine($"Login attempt #{attemptCount}");
-            
-            var dialog = new AuthDialog(ServiceContainer.AuthService)
+            while (!_isMainAuthenticated)
             {
-                XamlRoot = ContentFrame.XamlRoot
-            };
-
-            await dialog.ShowAsync();
-            
-            System.Diagnostics.Debug.WriteLine($"IsAuthenticated: {dialog.IsAuthenticated}");
-
-            // Check IsAuthenticated - this is set to true only when password is correct
-            if (dialog.IsAuthenticated)
-            {
-                System.Diagnostics.Debug.WriteLine("Authentication successful, navigating to ProtectionPage");
-                
-                try
+                var dialog = new AuthDialog(ServiceContainer.AuthService)
                 {
-                    ContentFrame.Navigate(typeof(ProtectionPage));
+                    XamlRoot = ContentFrame.XamlRoot ?? Content?.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+                
+                System.Diagnostics.Debug.WriteLine($"IsAuthenticated: {dialog.IsAuthenticated}");
+
+                // Check IsAuthenticated - this is set to true only when password is correct
+                if (dialog.IsAuthenticated)
+                {
+                    _isMainAuthenticated = true;
+                    System.Diagnostics.Debug.WriteLine("Authentication successful, navigating to ProtectionPage");
+
+                    // Restore navigation rail
+                    Grid.SetColumn(ContentFrame, 1);
+                    ContentFrame.ClearValue(Grid.ColumnSpanProperty);
+                    NavRail.Visibility = Visibility.Visible;
                     
-                    // Start overlay manager if protection is enabled
-                    if (ServiceContainer.Settings.IsProtectionEnabled)
+                    try
                     {
-                        System.Diagnostics.Debug.WriteLine("Starting OverlayManager...");
-                        ServiceContainer.OverlayManager.Start();
-                        System.Diagnostics.Debug.WriteLine("OverlayManager started successfully");
+                        ContentFrame.Navigate(typeof(ProtectionPage));
+                        
+                        // Start overlay manager if protection is enabled
+                        if (ServiceContainer.Settings.IsProtectionEnabled)
+                        {
+                            ServiceContainer.OverlayManager.Start();
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"ERROR during initialization: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
-                    
-                    // Show error to user
-                    var errorDialog = new ContentDialog
+                    catch (Exception ex)
                     {
-                        Title = "Initialization Error",
-                        Content = $"Failed to start AppLock:\n{ex.Message}",
-                        CloseButtonText = "OK",
-                        XamlRoot = ContentFrame.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                        System.Diagnostics.Debug.WriteLine($"ERROR during initialization: {ex.Message}");
+                    }
                     
-                    // Exit app
-                    Application.Current.Exit();
-                    return;
+                    break;
                 }
-                
-                break;
+                else
+                {
+                    // User cancelled the login prompt on startup - minimize to tray instead of exiting,
+                    // so protected apps REMAIN strictly locked and guarded!
+                    Hide();
+                    _loginShown = false;
+                    break;
+                }
             }
-            else
-            {
-                // User cancelled the login prompt on startup - close application
-                Application.Current.Exit();
-                return;
-            }
+        }
+        finally
+        {
+            _isAuthDialogOpen = false;
         }
     }
 
     private void ProtectionNavButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_isMainAuthenticated) return;
         if (ContentFrame.CurrentSourcePageType != typeof(ProtectionPage))
         {
             ContentFrame.Navigate(typeof(ProtectionPage));
@@ -349,6 +370,7 @@ public sealed partial class MainWindow : Window
 
     private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_isMainAuthenticated) return;
         if (ContentFrame.CurrentSourcePageType != typeof(SettingsPage))
         {
             ContentFrame.Navigate(typeof(SettingsPage));
@@ -625,6 +647,7 @@ public sealed partial class MainWindow : Window
     private void IdleService_IdleTimeReached(object? sender, EventArgs e)
     {
         System.Diagnostics.Debug.WriteLine("Idle time reached - locking app");
+        _isMainAuthenticated = false;
         
         DispatcherQueue.TryEnqueue(async () =>
         {
@@ -731,7 +754,7 @@ public sealed partial class MainWindow : Window
 
     public void Show()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
             if (_appWindow != null)
             {
@@ -743,6 +766,11 @@ public sealed partial class MainWindow : Window
             PInvoke.SetForegroundWindow(_hwnd);
 
             System.Diagnostics.Debug.WriteLine("MainWindow restored and brought to foreground");
+
+            if (!_isMainAuthenticated && !_isAuthDialogOpen)
+            {
+                await ShowLogin();
+            }
         });
     }
 

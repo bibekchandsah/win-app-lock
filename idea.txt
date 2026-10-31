@@ -122,13 +122,13 @@ issue
 -> fixed - app icon in window title bar with theme sync and also show icon in taskbar app icon 
 -> fixed - active page in navigation view not visually highlighted
 -> fixed - prevent task kill so that unauthorized user can't kill the app from task manger or right click and end the task, require password to kill the app through task manager or end task from right click context menu
--> auto focus the input box in the overlay so that user can enter password 
--> instant lock/unlock overlay screenlock and taskbar thumbnail preview 
--> repo link:- https://github.com/bibekchandsah/win-app-lock, developer link:- https://www.bibekchandsah.com.np/
--> notification support
--> language support
+-> fixed - lock all the apps when app is launched though user haven't entered password 
+-> fixed - auto focus the input box in the overlay so that user can enter password 
+-> repo link:- https://github.com/bibekchandsah/win-app-lock, developer link:- https://www.bibekchandsah.com.np/, contributers:- https://github.com/bibekchandsah/win-app-lock/graphs/contributors, project inspiration:- https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US
+-> feedback:- show developer to contribute in it to make it more better with lots of feature and it was inspired by this program "https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US" 
 -> start with window off warning in main window
 -> collapsable/non collapsable support
--> feedback:- show developer to contribute in it to make it more better with lots of feature and it was inspired by this program "https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US" 
+-> notification support
+-> language support
 -> when the app get's closed still locked overlay shown in taskbar thumbnail for locked Window
--> lock all the apps when app is launched though user haven't entered password 
+-> instant lock/unlock overlay screenlock and taskbar thumbnail preview 

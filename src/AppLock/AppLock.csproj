@@ -71,7 +71,7 @@
   </Target>
 
   <Target Name="CopyAppLockGuardExe" AfterTargets="Build">
-    <Copy SourceFiles="$(OutputPath)AppLock.exe" DestinationFiles="$(OutputPath)AppLockGuard.exe" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(OutputPath)AppLock.exe" DestinationFiles="$(OutputPath)AppLockGuard.exe" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Message Text="Copied AppLockGuard.exe" Importance="high" />
   </Target>
 

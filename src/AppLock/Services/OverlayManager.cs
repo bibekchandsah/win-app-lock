@@ -240,6 +240,7 @@ public class OverlayManager
                 _overlayShownTick[targetHandle] = now;
                 overlay.PositionOverTarget();
                 overlay.Activate();
+                overlay.FocusPasswordInput();
                 _lastForegroundHwnd = overlayHwnd;
                 return;
             }
@@ -270,6 +271,7 @@ public class OverlayManager
                     _overlayShownTick[targetHandle] = now;
                     overlay.PositionOverTarget();
                     overlay.Activate();
+                    overlay.FocusPasswordInput();
                     _lastForegroundHwnd = overlay.WindowHandle;
                 }
             }
@@ -627,6 +629,7 @@ public class OverlayManager
             };
 
             overlay.Activate();
+            overlay.FocusPasswordInput();
 
             // Force correct theme immediately after activate (visual tree is now live)
             overlay.UpdateTheme(ServiceContainer.CurrentTheme);

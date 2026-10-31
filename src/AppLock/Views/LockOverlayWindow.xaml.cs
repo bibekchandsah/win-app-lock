@@ -94,10 +94,25 @@ public sealed partial class LockOverlayWindow : Window
             CancelWindowsHello();
         }), handledEventsToo: true);
 
+        // Auto focus the password input box
+        PasswordBox.Loaded += (s, e) =>
+        {
+            PasswordBox.Focus(FocusState.Programmatic);
+        };
+
+        this.Activated += (s, e) =>
+        {
+            if (e.WindowActivationState != WindowActivationState.Deactivated && HelloActivePanel.Visibility != Visibility.Visible)
+            {
+                PasswordBox.Focus(FocusState.Programmatic);
+            }
+        };
+
         // Re-apply theme once the window's visual tree is fully loaded
         RootGrid.Loaded += (s, e) =>
         {
             ApplyTheme(ServiceContainer.CurrentTheme);
+            PasswordBox.Focus(FocusState.Programmatic);
         };
 
         // Also react to live theme changes
@@ -112,6 +127,20 @@ public sealed partial class LockOverlayWindow : Window
         RootGrid.PointerReleased += RootGrid_PointerReleased;
         RootGrid.PointerCanceled += RootGrid_PointerCanceled;
         RootGrid.PointerExited += RootGrid_PointerExited;
+    }
+
+    /// <summary>
+    /// Auto focus the password input box so the user can enter password immediately.
+    /// </summary>
+    public void FocusPasswordInput()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (HelloActivePanel.Visibility != Visibility.Visible)
+            {
+                PasswordBox.Focus(FocusState.Programmatic);
+            }
+        });
     }
 
     /// <summary>

@@ -136,6 +136,21 @@ public static class ProcessProtectionService
             int myPid = Environment.ProcessId;
             InitializeAuthorizedExitEvent(myPid);
 
+            // Listen for developer / build shutdown signal
+            var devShutdownThread = new Thread(() =>
+            {
+                try
+                {
+                    using var devShutdown = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\AppLock_DevShutdown");
+                    devShutdown.WaitOne();
+                    SignalAuthorizedExit();
+                    UnprotectCurrentProcess();
+                    Environment.Exit(0);
+                }
+                catch { }
+            }) { IsBackground = true, Name = "AppLockDevShutdown" };
+            devShutdownThread.Start();
+
             var baseDir = AppContext.BaseDirectory;
             var mainExePath = Path.Combine(baseDir, MainExeName);
             var guardExePath = Path.Combine(baseDir, GuardExeName);
@@ -204,6 +219,20 @@ public static class ProcessProtectionService
         {
             // Protect watchdog itself from task kill
             ProtectCurrentProcess();
+
+            // Listen for developer / build shutdown signal
+            var devShutdownThread = new Thread(() =>
+            {
+                try
+                {
+                    using var devShutdown = new EventWaitHandle(false, EventResetMode.ManualReset, "Local\\AppLock_DevShutdown");
+                    devShutdown.WaitOne();
+                    UnprotectCurrentProcess();
+                    Environment.Exit(0);
+                }
+                catch { }
+            }) { IsBackground = true, Name = "WatchdogDevShutdown" };
+            devShutdownThread.Start();
 
             Process? parentProcess = null;
             try
