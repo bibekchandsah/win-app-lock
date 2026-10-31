@@ -8,76 +8,148 @@
     Title="AppLock">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="48"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- Left Navigation Rail -->
-        <Grid Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- Top Navigation Items -->
-            <StackPanel Grid.Row="0" Spacing="4" Margin="0,8,0,0">
-                <Button x:Name="ProtectionNavButton" 
-                        Width="40" Height="40" 
-                        Margin="4,0"
-                        Click="ProtectionNavButton_Click"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTipService.ToolTip="Protection">
-                    <FontIcon Glyph="&#xE72E;" FontSize="16"/>
-                </Button>
-                
-                <Button x:Name="RulesNavButton" 
-                        Width="40" Height="40" 
-                        Margin="4,0"
-                        IsEnabled="False"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTipService.ToolTip="Rules/Profiles (Coming Soon)">
-                    <FontIcon Glyph="&#xE90F;" FontSize="16"/>
-                </Button>
-                
-                <Button x:Name="WebsitesNavButton" 
-                        Width="40" Height="40" 
-                        Margin="4,0"
-                        IsEnabled="False"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTipService.ToolTip="Websites (Phase 2)">
-                    <FontIcon Glyph="&#xE774;" FontSize="16"/>
-                </Button>
-            </StackPanel>
-
-            <!-- Bottom Navigation Items -->
-            <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
-                <Button x:Name="FeedbackNavButton" 
-                        Width="40" Height="40" 
-                        Margin="4,0"
-                        IsEnabled="False"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTipService.ToolTip="Feedback">
-                    <FontIcon Glyph="&#xED15;" FontSize="16"/>
-                </Button>
-                
-                <Button x:Name="SettingsNavButton" 
-                        Width="40" Height="40" 
-                        Margin="4,0"
-                        Click="SettingsNavButton_Click"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTipService.ToolTip="Settings">
-                    <FontIcon Glyph="&#xE713;" FontSize="16"/>
-                </Button>
+        <!-- Custom Title Bar with App Icon and Theme Sync -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="40" Background="Transparent">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0" Spacing="10">
+                <Image x:Name="AppTitleIcon" 
+                       Source="ms-appx:///icons/32x32.png" 
+                       Width="18" Height="18" 
+                       VerticalAlignment="Center"/>
+                <TextBlock x:Name="AppTitleText" 
+                           Text="AppLock" 
+                           FontSize="12" 
+                           FontWeight="Normal"
+                           VerticalAlignment="Center" 
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
         </Grid>
 
-        <!-- Main Content Area -->
-        <Frame x:Name="ContentFrame" Grid.Column="1" />
+        <!-- Main Body (Navigation Rail + Content) -->
+        <Grid x:Name="MainBodyGrid" Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="48"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Navigation Rail -->
+            <Grid x:Name="NavRail" Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Top Navigation Items -->
+                <StackPanel Grid.Row="0" Spacing="4" Margin="0,8,0,0">
+                    <Button x:Name="ProtectionNavButton" 
+                            Width="40" Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            Click="ProtectionNavButton_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Protection">
+                        <Grid Width="40" Height="40">
+                            <Border x:Name="ProtectionNavBackground"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="ProtectionNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentBrush}"
+                                    Visibility="Collapsed"/>
+                            <FontIcon x:Name="ProtectionNavIcon" 
+                                      Glyph="&#xE72E;" 
+                                      FontSize="16"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+                    </Button>
+                    
+                    <Button x:Name="RulesNavButton" 
+                            Width="40" Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            IsEnabled="False"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Rules/Profiles (Coming Soon)">
+                        <FontIcon Glyph="&#xE90F;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Button>
+                    
+                    <Button x:Name="WebsitesNavButton" 
+                            Width="40" Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            IsEnabled="False"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Websites (Phase 2)">
+                        <FontIcon Glyph="&#xE774;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Bottom Navigation Items -->
+                <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+                    <Button x:Name="FeedbackNavButton" 
+                            Width="40" Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            IsEnabled="False"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Feedback">
+                        <FontIcon Glyph="&#xED15;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Button>
+                    
+                    <Button x:Name="SettingsNavButton" 
+                            Width="40" Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            Click="SettingsNavButton_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ToolTipService.ToolTip="Settings">
+                        <Grid Width="40" Height="40">
+                            <Border x:Name="SettingsNavBackground"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="SettingsNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentBrush}"
+                                    Visibility="Collapsed"/>
+                            <FontIcon x:Name="SettingsNavIcon" 
+                                      Glyph="&#xE713;" 
+                                      FontSize="16"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Main Content Area -->
+            <Frame x:Name="ContentFrame" Grid.Column="1" />
+        </Grid>
     </Grid>
 </Window>

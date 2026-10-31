@@ -50,6 +50,7 @@ BringWindowToTop
 AttachThreadInput
 GetCurrentThreadId
 PostMessage
+SendMessage
 EnableWindow
 IsWindowEnabled
 GetForegroundWindow

@@ -16,7 +16,7 @@
     <AppxPackage>false</AppxPackage>
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
     <AppxBundle>Never</AppxBundle>
-    <EnablePreviewMsixTooling>false</EnablePreviewMsixTooling>
+    <ApplicationIcon>icons\icon.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 

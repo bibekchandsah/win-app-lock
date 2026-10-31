@@ -227,6 +227,9 @@ public partial class SettingsViewModel : ObservableObject
 
         // Apply to any active overlay lock screens
         ServiceContainer.OverlayManager.UpdateTheme(requestedTheme);
+
+        // Sync title bar theme
+        MainWindow.Instance?.UpdateTitleBarTheme();
     }
 
     private void UpdateIdleMonitoring()

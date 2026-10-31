@@ -6,6 +6,7 @@ using AppLock.Views;
 using AppLock.Services;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.UI.WindowsAndMessaging;
 using WinRT.Interop;
 using System.Runtime.InteropServices;
@@ -35,6 +36,7 @@ public sealed partial class MainWindow : Window
     private bool _loginShown = false;
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
+    private System.Drawing.Icon? _windowIcon;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
@@ -54,14 +56,27 @@ public sealed partial class MainWindow : Window
         _appWindow.Resize(new Windows.Graphics.SizeInt32(1000, 700));
         _appWindow.Closing += AppWindow_Closing;
         
+        // Configure custom title bar and window/taskbar icons
+        SetupTitleBar();
+        SetAppIcon();
+
+        // Wire navigation selection tracking
+        ContentFrame.Navigated += ContentFrame_Navigated;
+
         // Set up Mica backdrop
         SetupMica();
         
-        // Set theme from user settings
+        // Set theme from user settings and keep title bar & nav in sync
         if (Content is FrameworkElement rootElement)
         {
             rootElement.RequestedTheme = ServiceContainer.CurrentTheme;
+            rootElement.ActualThemeChanged += (s, e) =>
+            {
+                UpdateTitleBarTheme();
+                UpdateNavSelection(ContentFrame.CurrentSourcePageType);
+            };
         }
+        UpdateTitleBarTheme();
         
         // Initialize services
         InitializeServices();
@@ -82,6 +97,142 @@ public sealed partial class MainWindow : Window
                     await ShowLogin();
                 }
             };
+        }
+    }
+
+    private void SetupTitleBar()
+    {
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+
+        try
+        {
+            var iconPngPath = System.IO.Path.Combine(AppContext.BaseDirectory, "icons", "32x32.png");
+            if (System.IO.File.Exists(iconPngPath))
+            {
+                AppTitleIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(iconPngPath));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load title icon bitmap: {ex.Message}");
+        }
+
+        UpdateTitleBarTheme();
+    }
+
+    private void SetAppIcon()
+    {
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "icons", "icon.ico");
+            if (System.IO.File.Exists(iconPath))
+            {
+                _appWindow?.SetIcon(iconPath);
+
+                _windowIcon = new System.Drawing.Icon(iconPath);
+                var hIcon = _windowIcon.Handle;
+                if (hIcon != IntPtr.Zero)
+                {
+                    const uint WM_SETICON = 0x0080;
+                    PInvoke.SendMessage(_hwnd, WM_SETICON, (WPARAM)(nuint)1 /* ICON_BIG */, (LPARAM)hIcon);
+                    PInvoke.SendMessage(_hwnd, WM_SETICON, (WPARAM)(nuint)0 /* ICON_SMALL */, (LPARAM)hIcon);
+                }
+                System.Diagnostics.Debug.WriteLine($"Window and taskbar icon loaded from: {iconPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to set window icon: {ex.Message}");
+        }
+    }
+
+    public void UpdateTitleBarTheme()
+    {
+        bool isDark = false;
+        if (Content is FrameworkElement rootElement)
+        {
+            if (rootElement.RequestedTheme == ElementTheme.Default)
+            {
+                isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
+            }
+            else
+            {
+                isDark = rootElement.RequestedTheme == ElementTheme.Dark;
+            }
+        }
+        else
+        {
+            isDark = ServiceContainer.CurrentTheme == ElementTheme.Dark;
+        }
+
+        // 1. Sync DWM Immersive Dark Mode for Win32 frame/borders
+        unsafe
+        {
+            const uint DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+            int useDarkMode = isDark ? 1 : 0;
+            PInvoke.DwmSetWindowAttribute(_hwnd, (DWMWINDOWATTRIBUTE)DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(int));
+        }
+
+        // 2. Sync AppWindowTitleBar caption button colors
+        if (_appWindow?.TitleBar != null)
+        {
+            _appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+            _appWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            _appWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+
+            if (isDark)
+            {
+                _appWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+                _appWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+                _appWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 255, 255, 255);
+                _appWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+                _appWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 255, 255, 255);
+                _appWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
+            }
+            else
+            {
+                _appWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+                _appWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+                _appWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 0, 0, 0);
+                _appWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+                _appWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 0, 0, 0);
+                _appWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
+            }
+        }
+    }
+
+    private void ContentFrame_Navigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        UpdateNavSelection(e.SourcePageType);
+    }
+
+    private void UpdateNavSelection(Type? pageType)
+    {
+        bool isProtection = pageType == typeof(ProtectionPage);
+        bool isSettings = pageType == typeof(SettingsPage);
+
+        var accentBrush = Application.Current.Resources.TryGetValue("AccentBrush", out var ab) ? ab as Brush : null;
+        var secondaryBrush = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var sb) ? sb as Brush : null;
+
+        if (ProtectionNavBackground != null && ProtectionNavIndicator != null && ProtectionNavIcon != null)
+        {
+            ProtectionNavBackground.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
+            ProtectionNavIndicator.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
+            if (accentBrush != null && secondaryBrush != null)
+            {
+                ProtectionNavIcon.Foreground = isProtection ? accentBrush : secondaryBrush;
+            }
+        }
+
+        if (SettingsNavBackground != null && SettingsNavIndicator != null && SettingsNavIcon != null)
+        {
+            SettingsNavBackground.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
+            SettingsNavIndicator.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
+            if (accentBrush != null && secondaryBrush != null)
+            {
+                SettingsNavIcon.Foreground = isSettings ? accentBrush : secondaryBrush;
+            }
         }
     }
 
@@ -107,13 +258,17 @@ public sealed partial class MainWindow : Window
         ContentFrame.Content = firstRunPage;
         
         // Hide navigation rail during first run
+        NavRail.Visibility = Visibility.Collapsed;
+        Grid.SetColumn(ContentFrame, 0);
         ContentFrame.SetValue(Grid.ColumnSpanProperty, 2);
     }
 
     public void OnFirstRunComplete()
     {
         // Restore navigation rail
+        Grid.SetColumn(ContentFrame, 1);
         ContentFrame.ClearValue(Grid.ColumnSpanProperty);
+        NavRail.Visibility = Visibility.Visible;
         
         // Navigate to protection page
         ContentFrame.Navigate(typeof(ProtectionPage));
@@ -186,12 +341,18 @@ public sealed partial class MainWindow : Window
 
     private void ProtectionNavButton_Click(object sender, RoutedEventArgs e)
     {
-        ContentFrame.Navigate(typeof(ProtectionPage));
+        if (ContentFrame.CurrentSourcePageType != typeof(ProtectionPage))
+        {
+            ContentFrame.Navigate(typeof(ProtectionPage));
+        }
     }
 
     private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
     {
-        ContentFrame.Navigate(typeof(SettingsPage));
+        if (ContentFrame.CurrentSourcePageType != typeof(SettingsPage))
+        {
+            ContentFrame.Navigate(typeof(SettingsPage));
+        }
     }
 
     private void InitializeServices()
@@ -551,6 +712,8 @@ public sealed partial class MainWindow : Window
         ServiceContainer.ThumbnailService.Dispose();
 
         ServiceContainer.TrayService.Dispose();
+        _windowIcon?.Dispose();
+        _windowIcon = null;
         Instance = null;
     }
 
