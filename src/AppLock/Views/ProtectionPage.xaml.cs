@@ -380,12 +380,11 @@ public sealed partial class ProtectionPage : Page
                 try
                 {
                     RunningViewModel.LockWindowCommand.Execute(window);
-                    string targetName = !string.IsNullOrWhiteSpace(window.WindowTitle)
-                        ? $"{window.ProcessName} ({window.WindowTitle})"
+                    string title = !string.IsNullOrWhiteSpace(window.WindowTitle)
+                        ? window.WindowTitle
                         : window.ProcessName;
-                    ServiceContainer.NotificationService.ShowSuccess(
-                        "App Locked",
-                        $"\"{targetName}\" has been locked.");
+                    string message = $"({window.ProcessName}) has been locked.";
+                    ServiceContainer.NotificationService.ShowSuccess(title, message);
                 }
                 catch (Exception ex)
                 {
@@ -404,9 +403,11 @@ public sealed partial class ProtectionPage : Page
             try
             {
                 LockedViewModel.UnlockProgramCommand.Execute(rule);
-                ServiceContainer.NotificationService.ShowSuccess(
-                    "App Unlocked",
-                    $"\"{rule.DisplayName}\" has been unlocked and removed from protected list.");
+                string title = !string.IsNullOrWhiteSpace(rule.DisplayName)
+                    ? rule.DisplayName
+                    : rule.ProcessName;
+                string message = $"({rule.ProcessName}) has been unlocked.";
+                ServiceContainer.NotificationService.ShowSuccess(title, message);
             }
             catch (Exception ex)
             {
@@ -539,13 +540,13 @@ public sealed partial class ProtectionPage : Page
                 RunningViewModel.RefreshWindowsCommand.Execute(null);
                 LockedViewModel.RefreshLockedCommand.Execute(null);
                 
-                string windowName = !string.IsNullOrWhiteSpace(result.WindowTitle)
+                string title = !string.IsNullOrWhiteSpace(result.WindowTitle)
                     ? result.WindowTitle
                     : System.IO.Path.GetFileNameWithoutExtension(result.ProcessPath);
+                string procName = System.IO.Path.GetFileName(result.ProcessPath);
+                string msg = $"({procName}) has been locked.";
 
-                ServiceContainer.NotificationService.ShowSuccess(
-                    "Window Locked",
-                    $"Successfully locked \"{windowName}\".");
+                ServiceContainer.NotificationService.ShowSuccess(title, msg);
             }
             else
             {

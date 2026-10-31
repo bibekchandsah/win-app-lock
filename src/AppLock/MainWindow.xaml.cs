@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
     private System.Drawing.Icon? _windowIcon;
     private bool _isNavPaneExpanded = false;
     private DispatcherTimer? _toastTimer;
+    private Windows.UI.ViewManagement.UISettings? _uiSettings;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
@@ -63,6 +64,24 @@ public sealed partial class MainWindow : Window
         SetupTitleBar();
         SetAppIcon();
 
+        // Listen for Windows system accent color changes
+        try
+        {
+            _uiSettings = new Windows.UI.ViewManagement.UISettings();
+            _uiSettings.ColorValuesChanged += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    SyncAppAccentColor();
+                    UpdateTitleBarTheme();
+                    UpdateNavSelection(ContentFrame.CurrentSourcePageType);
+                    UpdateToastTheme();
+                });
+            };
+        }
+        catch { }
+        SyncAppAccentColor();
+
         // Initialize in-app toast notification service host
         InitializeInAppToast();
 
@@ -80,9 +99,11 @@ public sealed partial class MainWindow : Window
             {
                 UpdateTitleBarTheme();
                 UpdateNavSelection(ContentFrame.CurrentSourcePageType);
+                UpdateToastTheme();
             };
         }
         UpdateTitleBarTheme();
+        UpdateToastTheme();
         
         // Initialize collapsible navigation pane from settings
         SetNavPaneExpanded(ServiceContainer.Settings.IsNavPaneExpanded, saveSetting: false);
@@ -176,23 +197,31 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public bool IsDarkMode
+    {
+        get
+        {
+            if (Content is FrameworkElement rootElement)
+            {
+                if (rootElement.RequestedTheme == ElementTheme.Default)
+                {
+                    return Application.Current.RequestedTheme == ApplicationTheme.Dark;
+                }
+                return rootElement.RequestedTheme == ElementTheme.Dark;
+            }
+            return ServiceContainer.CurrentTheme == ElementTheme.Dark;
+        }
+    }
+
     public void UpdateTitleBarTheme()
     {
-        bool isDark = false;
-        if (Content is FrameworkElement rootElement)
+        bool isDark = IsDarkMode;
+
+        if (AppTitleText != null)
         {
-            if (rootElement.RequestedTheme == ElementTheme.Default)
-            {
-                isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
-            }
-            else
-            {
-                isDark = rootElement.RequestedTheme == ElementTheme.Dark;
-            }
-        }
-        else
-        {
-            isDark = ServiceContainer.CurrentTheme == ElementTheme.Dark;
+            AppTitleText.Foreground = isDark
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 50, 50, 50));
         }
 
         // 1. Sync DWM Immersive Dark Mode for Win32 frame/borders
@@ -231,9 +260,38 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public void UpdateNavTheme()
+    {
+        UpdateNavSelection(ContentFrame.CurrentSourcePageType);
+    }
+
     private void ContentFrame_Navigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         UpdateNavSelection(e.SourcePageType);
+    }
+
+    public static Windows.UI.Color GetWindowAccentColor()
+    {
+        try
+        {
+            var uiSettings = new Windows.UI.ViewManagement.UISettings();
+            return uiSettings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Accent);
+        }
+        catch
+        {
+            return Windows.UI.Color.FromArgb(255, 0, 120, 212);
+        }
+    }
+
+    public static void SyncAppAccentColor()
+    {
+        try
+        {
+            var accentColor = GetWindowAccentColor();
+            Application.Current.Resources["AccentColor"] = accentColor;
+            Application.Current.Resources["AccentBrush"] = new SolidColorBrush(accentColor);
+        }
+        catch { }
     }
 
     private void UpdateNavSelection(Type? pageType)
@@ -242,51 +300,126 @@ public sealed partial class MainWindow : Window
         bool isFeedback = pageType == typeof(FeedbackPage);
         bool isSettings = pageType == typeof(SettingsPage);
 
-        var accentBrush = (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var afb) ? afb as Brush : null)
-            ?? (Application.Current.Resources.TryGetValue("AccentBrush", out var ab) ? ab as Brush : null);
-        var secondaryBrush = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var sb) ? sb as Brush : null;
+        bool isDark = IsDarkMode;
+        var windowAccentColor = GetWindowAccentColor();
 
-        if (ProtectionNavBackground != null && ProtectionNavIndicator != null && ProtectionNavIcon != null)
-        {
-            ProtectionNavBackground.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
-            ProtectionNavIndicator.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
-            if (accentBrush != null)
-            {
-                ProtectionNavIndicator.Background = accentBrush;
-            }
-            if (accentBrush != null && secondaryBrush != null)
-            {
-                ProtectionNavIcon.Foreground = isProtection ? accentBrush : secondaryBrush;
-            }
-        }
+        // Active accent: Exact Windows accent color
+        var activeAccentBrush = new SolidColorBrush(windowAccentColor);
 
-        if (FeedbackNavBackground != null && FeedbackNavIndicator != null && FeedbackNavIcon != null)
-        {
-            FeedbackNavBackground.Visibility = isFeedback ? Visibility.Visible : Visibility.Collapsed;
-            FeedbackNavIndicator.Visibility = isFeedback ? Visibility.Visible : Visibility.Collapsed;
-            if (accentBrush != null)
-            {
-                FeedbackNavIndicator.Background = accentBrush;
-            }
-            if (accentBrush != null && secondaryBrush != null)
-            {
-                FeedbackNavIcon.Foreground = isFeedback ? accentBrush : secondaryBrush;
-            }
-        }
+        // Active pill background: Subtle Fluent tint of the exact Windows accent color
+        var activeBgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(
+            isDark ? (byte)42 : (byte)26,
+            windowAccentColor.R,
+            windowAccentColor.G,
+            windowAccentColor.B));
 
-        if (SettingsNavBackground != null && SettingsNavIndicator != null && SettingsNavIcon != null)
+        // Inactive icon: Crisp fluent secondary gray (#C5FFFFFF in dark, #3C3C3C in light mode - completely visible!)
+        var inactiveIconBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(197, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(220, 60, 60, 60));
+
+        // Active text
+        var activeTextBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 25, 25, 25));
+
+        // Inactive text
+        var inactiveTextBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(200, 80, 80, 80));
+
+        // Disabled items
+        var disabledBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 120, 120, 120));
+
+        UpdateNavItem(isProtection, ProtectionNavBackground, ProtectionNavIndicator, ProtectionNavIcon, ProtectionNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        UpdateNavItem(isFeedback, FeedbackNavBackground, FeedbackNavIndicator, FeedbackNavIcon, FeedbackNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        UpdateNavItem(isSettings, SettingsNavBackground, SettingsNavIndicator, SettingsNavIcon, SettingsNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        // Update toggle button and disabled nav items
+        if (NavTogglePaneIcon != null) NavTogglePaneIcon.Foreground = inactiveIconBrush;
+        if (RulesNavIcon != null) RulesNavIcon.Foreground = disabledBrush;
+        if (RulesNavLabel != null) RulesNavLabel.Foreground = disabledBrush;
+        if (WebsitesNavIcon != null) WebsitesNavIcon.Foreground = disabledBrush;
+        if (WebsitesNavLabel != null) WebsitesNavLabel.Foreground = disabledBrush;
+    }
+
+    private void UpdateNavItem(
+        bool isSelected,
+        Border? background,
+        Border? indicator,
+        FontIcon? icon,
+        TextBlock? label,
+        Brush activeBg,
+        Brush activeAccent,
+        Brush inactiveIcon,
+        Brush activeText,
+        Brush inactiveText)
+    {
+        if (background != null)
         {
-            SettingsNavBackground.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
-            SettingsNavIndicator.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
-            if (accentBrush != null)
-            {
-                SettingsNavIndicator.Background = accentBrush;
-            }
-            if (accentBrush != null && secondaryBrush != null)
-            {
-                SettingsNavIcon.Foreground = isSettings ? accentBrush : secondaryBrush;
-            }
+            background.Background = activeBg;
+            background.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
         }
+        if (indicator != null)
+        {
+            indicator.Background = activeAccent;
+            indicator.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (icon != null)
+        {
+            icon.Foreground = isSelected ? activeAccent : inactiveIcon;
+        }
+        if (label != null)
+        {
+            label.Foreground = isSelected ? activeText : inactiveText;
+            label.FontWeight = isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+        }
+    }
+
+    public void UpdateToastTheme()
+    {
+        if (InAppToastCard == null) return;
+
+        bool isDark = IsDarkMode;
+        InAppToastCard.RequestedTheme = isDark ? ElementTheme.Dark : ElementTheme.Light;
+
+        var bgBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 36, 36, 36))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255));
+
+        var borderBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 65, 65, 65))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 215, 215, 215));
+
+        // Use exact Windows accent color for the notification vertical line
+        var windowAccentColor = GetWindowAccentColor();
+        var accentBrush = new SolidColorBrush(windowAccentColor);
+
+        var titleBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 24, 24, 24));
+
+        var msgBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(220, 210, 210, 210))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(220, 80, 80, 80));
+
+        var closeBrush = isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(200, 180, 180, 180))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(200, 100, 100, 100));
+
+        InAppToastCard.Background = bgBrush;
+        InAppToastCard.BorderBrush = borderBrush;
+        if (ToastAccentBar != null) ToastAccentBar.Background = accentBrush;
+        if (ToastTitleText != null) ToastTitleText.Foreground = titleBrush;
+        if (ToastMessageText != null) ToastMessageText.Foreground = msgBrush;
+        if (ToastCloseIcon != null) ToastCloseIcon.Foreground = closeBrush;
     }
 
     private void SetupMica()
@@ -717,7 +850,7 @@ public sealed partial class MainWindow : Window
         _toastTimer.Tick += (s, e) =>
         {
             _toastTimer.Stop();
-            InAppToastBar.IsOpen = false;
+            InAppToastCard.Visibility = Visibility.Collapsed;
         };
 
         ServiceContainer.NotificationService.NotificationTriggered += (s, notification) =>
@@ -727,26 +860,32 @@ public sealed partial class MainWindow : Window
                 ShowToastNotification(notification);
             });
         };
+
+        ServiceContainer.NotificationService.NotificationDismissRequested += (s, e) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _toastTimer?.Stop();
+                InAppToastCard.Visibility = Visibility.Collapsed;
+            });
+        };
     }
 
     private void ShowToastNotification(AppNotification notification)
     {
+        if (ServiceContainer.Settings.MuteNotifications)
+            return;
+
         _toastTimer?.Stop();
 
-        InAppToastBar.Severity = notification.Severity switch
-        {
-            NotificationSeverity.Success => InfoBarSeverity.Success,
-            NotificationSeverity.Error => InfoBarSeverity.Error,
-            NotificationSeverity.Warning => InfoBarSeverity.Warning,
-            _ => InfoBarSeverity.Informational
-        };
+        UpdateToastTheme();
 
-        InAppToastBar.Title = notification.Title;
-        InAppToastBar.Message = notification.Message;
+        ToastTitleText.Text = notification.Title;
+        ToastMessageText.Text = notification.Message;
 
         // Reset and trigger smooth reveal
-        InAppToastBar.IsOpen = false;
-        InAppToastBar.IsOpen = true;
+        InAppToastCard.Visibility = Visibility.Collapsed;
+        InAppToastCard.Visibility = Visibility.Visible;
 
         if (_toastTimer != null && notification.Duration > TimeSpan.Zero)
         {
@@ -755,9 +894,10 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void InAppToastBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+    private void ToastCloseButton_Click(object sender, RoutedEventArgs e)
     {
         _toastTimer?.Stop();
+        InAppToastCard.Visibility = Visibility.Collapsed;
     }
 
     private void StartIdleMonitoring()

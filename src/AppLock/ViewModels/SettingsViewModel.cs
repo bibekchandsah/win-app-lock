@@ -136,6 +136,17 @@ public partial class SettingsViewModel : ObservableObject
     {
         _settings.MuteNotifications = value;
         SaveSettings();
+
+        if (value)
+        {
+            ServiceContainer.NotificationService.DismissCurrent();
+        }
+        else
+        {
+            ServiceContainer.NotificationService.ShowInfo(
+                "Notifications Unmuted",
+                "In-app notifications are now enabled.");
+        }
     }
 
     partial void OnLockoutDurationChanged(int value)
@@ -242,8 +253,10 @@ public partial class SettingsViewModel : ObservableObject
         // Apply to any active overlay lock screens
         ServiceContainer.OverlayManager.UpdateTheme(requestedTheme);
 
-        // Sync title bar theme
+        // Sync title bar, navigation, and toast theme
         MainWindow.Instance?.UpdateTitleBarTheme();
+        MainWindow.Instance?.UpdateNavTheme();
+        MainWindow.Instance?.UpdateToastTheme();
     }
 
     private void UpdateIdleMonitoring()

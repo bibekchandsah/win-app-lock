@@ -56,7 +56,7 @@
                         BorderThickness="0"
                         HorizontalAlignment="Left"
                         ToolTipService.ToolTip="Toggle navigation pane">
-                    <FontIcon Glyph="&#xE700;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <FontIcon x:Name="NavTogglePaneIcon" Glyph="&#xE700;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 </Button>
 
                 <!-- Top Navigation Items -->
@@ -126,7 +126,8 @@
                                 <ColumnDefinition Width="40"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <FontIcon Glyph="&#xE90F;" 
+                            <FontIcon x:Name="RulesNavIcon"
+                                      Glyph="&#xE90F;" 
                                       Grid.Column="0"
                                       FontSize="16" 
                                       HorizontalAlignment="Center"
@@ -161,7 +162,8 @@
                                 <ColumnDefinition Width="40"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <FontIcon Glyph="&#xE774;" 
+                            <FontIcon x:Name="WebsitesNavIcon"
+                                      Glyph="&#xE774;" 
                                       Grid.Column="0"
                                       FontSize="16" 
                                       HorizontalAlignment="Center"
@@ -287,19 +289,68 @@
             <Frame x:Name="ContentFrame" Grid.Column="1" />
         </Grid>
 
-        <!-- In-App Toast Notification Host -->
-        <Border Grid.Row="1"
+        <!-- In-App Toast Notification Host (Matches Professional Fluent Style) -->
+        <Border x:Name="InAppToastCard"
+                Grid.Row="1"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 Margin="0,0,24,24"
                 Canvas.ZIndex="9999"
-                IsHitTestVisible="True">
-            <InfoBar x:Name="InAppToastBar"
-                     IsOpen="False"
-                     IsClosable="True"
-                     MaxWidth="440"
-                     CornerRadius="8"
-                     Closed="InAppToastBar_Closed" />
+                Visibility="Collapsed"
+                Background="{ThemeResource ToastBackgroundBrush}"
+                BorderBrush="{ThemeResource ToastBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="14,12"
+                MinWidth="280"
+                MaxWidth="500">
+            <Border.Transitions>
+                <TransitionCollection>
+                    <EntranceThemeTransition FromVerticalOffset="20"/>
+                </TransitionCollection>
+            </Border.Transitions>
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Vertical Line using Window Accent Color -->
+                <Border x:Name="ToastAccentBar"
+                        Grid.Column="0"
+                        Width="3.5"
+                        CornerRadius="2"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        VerticalAlignment="Stretch"
+                        Margin="0,2,0,2"/>
+
+                <!-- Content: Title and Message -->
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock x:Name="ToastTitleText"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <TextBlock x:Name="ToastMessageText"
+                               FontSize="12"
+                               TextWrapping="WrapWholeWords"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <!-- Close 'x' Button -->
+                <Button x:Name="ToastCloseButton"
+                        Grid.Column="2"
+                        Click="ToastCloseButton_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        CornerRadius="4"
+                        ToolTipService.ToolTip="Close">
+                    <FontIcon x:Name="ToastCloseIcon" Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </Window>

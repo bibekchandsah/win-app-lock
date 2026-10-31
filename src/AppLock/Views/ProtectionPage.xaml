@@ -121,11 +121,15 @@
                  SelectionChanged="MainTabView_SelectionChanged"
                  CanDragTabs="False"
                  CanReorderTabs="False"
+                 IsAddTabButtonVisible="False"
                  TabWidthMode="Equal">
             
             <!-- Running Programs Tab -->
             <TabView.TabItems>
                 <TabViewItem x:Name="RunningProgramsTab" Header="Running programs" IsClosable="False">
+                    <TabViewItem.IconSource>
+                        <FontIconSource Glyph="&#xE71D;"/>
+                    </TabViewItem.IconSource>
                     <Grid Padding="16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -308,6 +312,9 @@
 
                 <!-- Locked Programs Tab -->
                 <TabViewItem x:Name="LockedProgramsTab" Header="Locked programs" IsClosable="False">
+                    <TabViewItem.IconSource>
+                        <FontIconSource Glyph="&#xE785;"/>
+                    </TabViewItem.IconSource>
                     <Grid Padding="16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>

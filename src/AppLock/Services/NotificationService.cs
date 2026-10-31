@@ -23,9 +23,13 @@ public class AppNotification
 public class NotificationService
 {
     public event EventHandler<AppNotification>? NotificationTriggered;
+    public event EventHandler? NotificationDismissRequested;
 
     public void Show(string title, string message, NotificationSeverity severity, TimeSpan? duration = null)
     {
+        if (ServiceContainer.Settings.MuteNotifications)
+            return;
+
         var notification = new AppNotification
         {
             Title = title,
@@ -35,6 +39,11 @@ public class NotificationService
         };
 
         NotificationTriggered?.Invoke(this, notification);
+    }
+
+    public void DismissCurrent()
+    {
+        NotificationDismissRequested?.Invoke(this, EventArgs.Empty);
     }
 
     public void ShowSuccess(string title, string message, TimeSpan? duration = null)
