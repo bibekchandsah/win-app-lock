@@ -226,13 +226,18 @@ public sealed partial class MainWindow : Window
         bool isProtection = pageType == typeof(ProtectionPage);
         bool isSettings = pageType == typeof(SettingsPage);
 
-        var accentBrush = Application.Current.Resources.TryGetValue("AccentBrush", out var ab) ? ab as Brush : null;
+        var accentBrush = (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var afb) ? afb as Brush : null)
+            ?? (Application.Current.Resources.TryGetValue("AccentBrush", out var ab) ? ab as Brush : null);
         var secondaryBrush = Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var sb) ? sb as Brush : null;
 
         if (ProtectionNavBackground != null && ProtectionNavIndicator != null && ProtectionNavIcon != null)
         {
             ProtectionNavBackground.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
             ProtectionNavIndicator.Visibility = isProtection ? Visibility.Visible : Visibility.Collapsed;
+            if (accentBrush != null)
+            {
+                ProtectionNavIndicator.Background = accentBrush;
+            }
             if (accentBrush != null && secondaryBrush != null)
             {
                 ProtectionNavIcon.Foreground = isProtection ? accentBrush : secondaryBrush;
@@ -243,6 +248,10 @@ public sealed partial class MainWindow : Window
         {
             SettingsNavBackground.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
             SettingsNavIndicator.Visibility = isSettings ? Visibility.Visible : Visibility.Collapsed;
+            if (accentBrush != null)
+            {
+                SettingsNavIndicator.Background = accentBrush;
+            }
             if (accentBrush != null && secondaryBrush != null)
             {
                 SettingsNavIcon.Foreground = isSettings ? accentBrush : secondaryBrush;

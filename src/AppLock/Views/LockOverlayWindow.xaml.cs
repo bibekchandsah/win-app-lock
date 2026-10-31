@@ -441,6 +441,15 @@ public sealed partial class LockOverlayWindow : Window
         SetButtonSelected(BtnCustomS,  selectedMinutes == -1);
     }
 
+    private Brush GetSystemAccentBrush()
+    {
+        if (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var afb) && afb is Brush b)
+            return b;
+        if (Application.Current.Resources.TryGetValue("AccentBrush", out var ab) && ab is Brush abBrush)
+            return abBrush;
+        return new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
+    }
+
     private void SetButtonSelected(Button btn, bool selected)
     {
         if (btn == null) return;
@@ -448,7 +457,7 @@ public sealed partial class LockOverlayWindow : Window
 
         if (selected)
         {
-            btn.Background = new SolidColorBrush(Color.FromArgb(255, 138, 43, 226)); // Accent purple
+            btn.Background = GetSystemAccentBrush();
             btn.Foreground = new SolidColorBrush(Colors.White);
             btn.BorderBrush = new SolidColorBrush(Colors.Transparent);
             btn.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
@@ -661,23 +670,11 @@ public sealed partial class LockOverlayWindow : Window
             CardShadow.CornerRadius = new CornerRadius(18);
         }
 
-        // 4. Lock icon badge at top
+        // 4. Lock icon badge at top (Window accent color)
         if (LockIconBadge != null && LockIconGlyph != null)
         {
-            if (isLight)
-            {
-                // Soft light blue background with vibrant blue lock glyph (matching Image 1)
-                LockIconBadge.Background = new SolidColorBrush(Color.FromArgb(255, 235, 243, 252)); // #EBF3FC
-                LockIconGlyph.Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));    // #0078D4
-            }
-            else
-            {
-                // Accent purple background with white glyph
-                LockIconBadge.Background = Application.Current.Resources.TryGetValue("AccentBrush", out var ab) && ab is Brush accentBrush
-                    ? accentBrush
-                    : new SolidColorBrush(Color.FromArgb(255, 138, 43, 226));
-                LockIconGlyph.Foreground = new SolidColorBrush(Colors.White);
-            }
+            LockIconBadge.Background = GetSystemAccentBrush();
+            LockIconGlyph.Foreground = new SolidColorBrush(Colors.White);
         }
 
         // 5. Typography

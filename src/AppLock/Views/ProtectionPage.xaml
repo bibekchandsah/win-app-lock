@@ -20,11 +20,30 @@
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- Autostart Warning Banner (Matches Reference Warning Exactly) -->
+        <InfoBar x:Name="AutostartWarningBar"
+                 Grid.Row="0"
+                 Severity="Warning"
+                 IsOpen="False"
+                 IsClosable="False"
+                 Title="Autostart is off"
+                 Message="AppLock will not start automatically. The locked apps can be opened without a password until you launch AppLock."
+                 Margin="0,0,0,16"
+                 CornerRadius="8">
+            <InfoBar.ActionButton>
+                <Button Content="Enable now"
+                        Click="EnableAutostartButton_Click"
+                        CornerRadius="4"
+                        Padding="14,6"/>
+            </InfoBar.ActionButton>
+        </InfoBar>
+
         <!-- Status Card -->
-        <Border Grid.Row="0" 
+        <Border Grid.Row="1" 
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
@@ -96,7 +115,7 @@
         </Border>
 
         <!-- Tabs -->
-        <TabView Grid.Row="1" 
+        <TabView Grid.Row="2" 
                  x:Name="MainTabView"
                  SelectionChanged="MainTabView_SelectionChanged"
                  CanDragTabs="False"

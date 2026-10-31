@@ -65,7 +65,7 @@
                                     VerticalAlignment="Center"
                                     Margin="1,0,0,0"
                                     CornerRadius="1.5"
-                                    Background="{ThemeResource AccentBrush}"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     Visibility="Collapsed"/>
                             <FontIcon x:Name="ProtectionNavIcon" 
                                       Glyph="&#xE72E;" 
@@ -135,7 +135,7 @@
                                     VerticalAlignment="Center"
                                     Margin="1,0,0,0"
                                     CornerRadius="1.5"
-                                    Background="{ThemeResource AccentBrush}"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     Visibility="Collapsed"/>
                             <FontIcon x:Name="SettingsNavIcon" 
                                       Glyph="&#xE713;" 

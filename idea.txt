@@ -124,9 +124,10 @@ issue
 -> fixed - prevent task kill so that unauthorized user can't kill the app from task manger or right click and end the task, require password to kill the app through task manager or end task from right click context menu
 -> fixed - lock all the apps when app is launched though user haven't entered password 
 -> fixed - auto focus the input box in the overlay so that user can enter password 
+-> fixed - start with window off warning in main window
+-> fixed - make the navigation active pill color same as window accent color as it's applied in button and other components and add overlay screen lock icon background color, time allowed selected pill background color
 -> repo link:- https://github.com/bibekchandsah/win-app-lock, developer link:- https://www.bibekchandsah.com.np/, contributers:- https://github.com/bibekchandsah/win-app-lock/graphs/contributors, project inspiration:- https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US
 -> feedback:- show developer to contribute in it to make it more better with lots of feature and it was inspired by this program "https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US" 
--> start with window off warning in main window
 -> collapsable/non collapsable support
 -> notification support
 -> language support

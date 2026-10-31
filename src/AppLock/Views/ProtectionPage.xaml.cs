@@ -152,6 +152,44 @@ public sealed partial class ProtectionPage : Page
         
         UpdateStatusUI();
         UpdateRefreshIcon();
+        CheckAutostartWarning();
+
+        Loaded += (s, e) => CheckAutostartWarning();
+    }
+
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        CheckAutostartWarning();
+    }
+
+    private void CheckAutostartWarning()
+    {
+        try
+        {
+            bool isStartup = ServiceContainer.StartupService.IsStartupEnabled();
+            AutostartWarningBar.IsOpen = !isStartup;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error checking autostart warning: {ex.Message}");
+        }
+    }
+
+    private void EnableAutostartButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            bool success = ServiceContainer.StartupService.SetStartupEnabled(true);
+            if (success)
+            {
+                AutostartWarningBar.IsOpen = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error enabling autostart: {ex.Message}");
+        }
     }
 
     private void RunningViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
