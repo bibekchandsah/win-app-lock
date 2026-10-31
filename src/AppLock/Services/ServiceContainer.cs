@@ -24,6 +24,19 @@ public static class ServiceContainer
     private static DisplayHelper? _displayHelper;
     private static WindowEventMonitor? _windowEventMonitor;
     private static LocalizationService? _localizationService;
+    private static NotificationService? _notificationService;
+
+    public static NotificationService NotificationService
+    {
+        get
+        {
+            if (_notificationService == null)
+            {
+                _notificationService = new NotificationService();
+            }
+            return _notificationService;
+        }
+    }
 
     public static LocalizationService LocalizationService
     {
@@ -268,5 +281,7 @@ public static class ServiceContainer
         _uwpWindowResolver = null;
         _displayHelper = null;
         _windowEventMonitor = null;
+        _localizationService = null;
+        _notificationService = null;
     }
 }

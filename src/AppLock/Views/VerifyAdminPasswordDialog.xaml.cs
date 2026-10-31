@@ -76,12 +76,14 @@ public sealed partial class VerifyAdminPasswordDialog : ContentDialog
                 ErrorText.Visibility = Visibility.Visible;
                 PasswordBox.SelectAll();
                 PasswordBox.Focus(FocusState.Programmatic);
+                ServiceContainer.NotificationService.ShowError("Verification Failed", "Incorrect admin password.");
             }
         }
         catch (Exception ex)
         {
             ErrorText.Text = ex.Message;
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError("Verification Error", ex.Message);
         }
     }
 }

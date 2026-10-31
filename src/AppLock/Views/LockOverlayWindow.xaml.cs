@@ -506,6 +506,9 @@ public sealed partial class LockOverlayWindow : Window
         {
             IsUnlocked = true;
             UnlockDuration = GetSelectedDuration();
+            ServiceContainer.NotificationService.ShowSuccess(
+                "App Unlocked",
+                $"Successfully unlocked \"{_windowTitle}\".");
             Close();
         }
         else
@@ -513,6 +516,9 @@ public sealed partial class LockOverlayWindow : Window
             ShowError("Incorrect password. Please try again.");
             PasswordBox.Password = string.Empty;
             PasswordBox.Focus(FocusState.Programmatic);
+            ServiceContainer.NotificationService.ShowError(
+                "Unlock Failed",
+                $"Incorrect password entered for \"{_windowTitle}\".");
         }
     }
 
@@ -827,6 +833,9 @@ public sealed partial class LockOverlayWindow : Window
             {
                 IsUnlocked = true;
                 UnlockDuration = GetSelectedDuration();
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "App Unlocked",
+                    $"Successfully unlocked \"{_windowTitle}\" with Windows Hello.");
                 Close();
                 return; // Closing overlay
             }
@@ -834,6 +843,9 @@ public sealed partial class LockOverlayWindow : Window
             if (_helloCts?.IsCancellationRequested != true)
             {
                 ShowError("Windows Hello verification failed. Try your password.");
+                ServiceContainer.NotificationService.ShowError(
+                    "Unlock Failed",
+                    $"Windows Hello verification failed for \"{_windowTitle}\".");
             }
         }
         catch (OperationCanceledException)
@@ -940,6 +952,9 @@ public sealed partial class LockOverlayWindow : Window
             {
                 IsUnlocked = true;
                 UnlockDuration = GetSelectedDuration();
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "App Unlocked",
+                    $"Successfully unlocked \"{_windowTitle}\" via password reset.");
                 Close();
             }
         }

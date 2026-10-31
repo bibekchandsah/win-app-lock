@@ -39,6 +39,7 @@ public sealed partial class MainWindow : Window
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
     private bool _isNavPaneExpanded = false;
+    private DispatcherTimer? _toastTimer;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
@@ -61,6 +62,9 @@ public sealed partial class MainWindow : Window
         // Configure custom title bar and window/taskbar icons
         SetupTitleBar();
         SetAppIcon();
+
+        // Initialize in-app toast notification service host
+        InitializeInAppToast();
 
         // Wire navigation selection tracking
         ContentFrame.Navigated += ContentFrame_Navigated;
@@ -696,12 +700,64 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Re-register the emergency hotkey after a change in Settings.
     /// Called by SettingsPage after saving the new hotkey string.
+    /// Returns true if registered successfully, false otherwise.
     /// </summary>
-    internal void ReregisterEmergencyHotkey()
+    internal bool ReregisterEmergencyHotkey()
     {
         UnregisterEmergencyHotkey();
         RegisterEmergencyHotkey();
-        System.Diagnostics.Debug.WriteLine($"Emergency hotkey re-registered: {ServiceContainer.Settings.EmergencyHotkey}");
+        bool success = _emergencyHotkeyId > 0;
+        System.Diagnostics.Debug.WriteLine($"Emergency hotkey re-registered (success={success}): {ServiceContainer.Settings.EmergencyHotkey}");
+        return success;
+    }
+
+    private void InitializeInAppToast()
+    {
+        _toastTimer = new DispatcherTimer();
+        _toastTimer.Tick += (s, e) =>
+        {
+            _toastTimer.Stop();
+            InAppToastBar.IsOpen = false;
+        };
+
+        ServiceContainer.NotificationService.NotificationTriggered += (s, notification) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ShowToastNotification(notification);
+            });
+        };
+    }
+
+    private void ShowToastNotification(AppNotification notification)
+    {
+        _toastTimer?.Stop();
+
+        InAppToastBar.Severity = notification.Severity switch
+        {
+            NotificationSeverity.Success => InfoBarSeverity.Success,
+            NotificationSeverity.Error => InfoBarSeverity.Error,
+            NotificationSeverity.Warning => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational
+        };
+
+        InAppToastBar.Title = notification.Title;
+        InAppToastBar.Message = notification.Message;
+
+        // Reset and trigger smooth reveal
+        InAppToastBar.IsOpen = false;
+        InAppToastBar.IsOpen = true;
+
+        if (_toastTimer != null && notification.Duration > TimeSpan.Zero)
+        {
+            _toastTimer.Interval = notification.Duration;
+            _toastTimer.Start();
+        }
+    }
+
+    private void InAppToastBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        _toastTimer?.Stop();
     }
 
     private void StartIdleMonitoring()

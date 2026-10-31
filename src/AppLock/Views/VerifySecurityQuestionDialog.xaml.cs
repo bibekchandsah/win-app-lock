@@ -74,6 +74,7 @@ public sealed partial class VerifySecurityQuestionDialog : ContentDialog
             ErrorText.Visibility = Visibility.Visible;
             AnswerBox.SelectAll();
             AnswerBox.Focus(FocusState.Programmatic);
+            ServiceContainer.NotificationService.ShowError("Verification Failed", "Incorrect answer to security question.");
         }
     }
 }

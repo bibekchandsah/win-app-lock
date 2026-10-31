@@ -318,11 +318,17 @@ public sealed partial class ProtectionPage : Page
                 {
                     _lockManager.EnableProtection();
                     ServiceContainer.OverlayManager.Start();
+                    ServiceContainer.NotificationService.ShowSuccess(
+                        "Protection Enabled",
+                        "Master protection is now active. All locked apps are protected.");
                 }
                 else
                 {
                     _lockManager.DisableProtection();
                     ServiceContainer.OverlayManager.Stop();
+                    ServiceContainer.NotificationService.ShowSuccess(
+                        "Protection Disabled",
+                        "Master protection is now inactive.");
                 }
             }
             else
@@ -337,6 +343,9 @@ public sealed partial class ProtectionPage : Page
                 {
                     _isUpdatingUI = false;
                 }
+                ServiceContainer.NotificationService.ShowError(
+                    "Action Cancelled",
+                    "Password verification was not completed. Master protection remains unchanged.");
             }
         }
         catch (Exception ex)
@@ -351,6 +360,9 @@ public sealed partial class ProtectionPage : Page
             {
                 _isUpdatingUI = false;
             }
+            ServiceContainer.NotificationService.ShowError(
+                "Protection Toggle Failed",
+                $"An error occurred: {ex.Message}");
         }
     }
 
@@ -365,7 +377,22 @@ public sealed partial class ProtectionPage : Page
         {
             if (!window.IsLocked)
             {
-                RunningViewModel.LockWindowCommand.Execute(window);
+                try
+                {
+                    RunningViewModel.LockWindowCommand.Execute(window);
+                    string targetName = !string.IsNullOrWhiteSpace(window.WindowTitle)
+                        ? $"{window.ProcessName} ({window.WindowTitle})"
+                        : window.ProcessName;
+                    ServiceContainer.NotificationService.ShowSuccess(
+                        "App Locked",
+                        $"\"{targetName}\" has been locked.");
+                }
+                catch (Exception ex)
+                {
+                    ServiceContainer.NotificationService.ShowError(
+                        "Lock Failed",
+                        $"Failed to lock \"{window.ProcessName}\": {ex.Message}");
+                }
             }
         }
     }
@@ -374,7 +401,19 @@ public sealed partial class ProtectionPage : Page
     {
         if (sender is Button button && button.Tag is LockRule rule)
         {
-            LockedViewModel.UnlockProgramCommand.Execute(rule);
+            try
+            {
+                LockedViewModel.UnlockProgramCommand.Execute(rule);
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "App Unlocked",
+                    $"\"{rule.DisplayName}\" has been unlocked and removed from protected list.");
+            }
+            catch (Exception ex)
+            {
+                ServiceContainer.NotificationService.ShowError(
+                    "Unlock Failed",
+                    $"Failed to unlock \"{rule.DisplayName}\": {ex.Message}");
+            }
         }
     }
 
@@ -500,35 +539,27 @@ public sealed partial class ProtectionPage : Page
                 RunningViewModel.RefreshWindowsCommand.Execute(null);
                 LockedViewModel.RefreshLockedCommand.Execute(null);
                 
-                // Show confirmation
-                var infoBar = new InfoBar
-                {
-                    Title = "Window Locked",
-                    Message = $"Successfully locked: {result.WindowTitle}",
-                    Severity = InfoBarSeverity.Success,
-                    IsOpen = true
-                };
-                
-                // Find the root grid to add the InfoBar
-                if (Content is Grid rootGrid)
-                {
-                    rootGrid.Children.Insert(0, infoBar);
-                    
-                    // Auto-close after 3 seconds
-                    var timer = new System.Threading.Timer(_ =>
-                    {
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            infoBar.IsOpen = false;
-                            rootGrid.Children.Remove(infoBar);
-                        });
-                    }, null, 3000, System.Threading.Timeout.Infinite);
-                }
+                string windowName = !string.IsNullOrWhiteSpace(result.WindowTitle)
+                    ? result.WindowTitle
+                    : System.IO.Path.GetFileNameWithoutExtension(result.ProcessPath);
+
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "Window Locked",
+                    $"Successfully locked \"{windowName}\".");
+            }
+            else
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "Selection Cancelled",
+                    "Window selection was cancelled.");
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Pick window failed: {ex.Message}");
+            ServiceContainer.NotificationService.ShowError(
+                "Lock Failed",
+                $"Failed to pick window: {ex.Message}");
         }
         finally
         {

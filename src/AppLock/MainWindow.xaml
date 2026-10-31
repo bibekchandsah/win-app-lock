@@ -286,5 +286,20 @@
             <!-- Main Content Area -->
             <Frame x:Name="ContentFrame" Grid.Column="1" />
         </Grid>
+
+        <!-- In-App Toast Notification Host -->
+        <Border Grid.Row="1"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,24,24"
+                Canvas.ZIndex="9999"
+                IsHitTestVisible="True">
+            <InfoBar x:Name="InAppToastBar"
+                     IsOpen="False"
+                     IsClosable="True"
+                     MaxWidth="440"
+                     CornerRadius="8"
+                     Closed="InAppToastBar_Closed" />
+        </Border>
     </Grid>
 </Window>

@@ -97,14 +97,15 @@ public sealed partial class SettingsPage : Page
 
             if (setupDialog.QuestionSaved)
             {
-                var successDialog = new ContentDialog
-                {
-                    Title = "Security Questions",
-                    Content = "Security question has been set successfully.",
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
-                await successDialog.ShowAsync();
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "Security Question Saved",
+                    "Security question has been set successfully.");
+            }
+            else
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "Security Question Cancelled",
+                    "Security question setup was cancelled.");
             }
         }
         else
@@ -153,16 +154,28 @@ public sealed partial class SettingsPage : Page
 
                 if (setupDialog.QuestionSaved)
                 {
-                    await Task.Delay(150);
-                    var successDialog = new ContentDialog
-                    {
-                        Title = "Security Questions",
-                        Content = "Security question updated successfully.",
-                        CloseButtonText = "OK",
-                        XamlRoot = this.XamlRoot
-                    };
-                    await successDialog.ShowAsync();
+                    ServiceContainer.NotificationService.ShowSuccess(
+                        "Security Question Updated",
+                        "Security question updated successfully.");
                 }
+                else
+                {
+                    ServiceContainer.NotificationService.ShowWarning(
+                        "Security Question Cancelled",
+                        "Security question update was cancelled.");
+                }
+            }
+            else if (chooseDialog.SelectedChoice != VerificationMethodChoice.Cancel)
+            {
+                ServiceContainer.NotificationService.ShowError(
+                    "Verification Failed",
+                    "Identity verification failed. Cannot change security question.");
+            }
+            else
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "Verification Cancelled",
+                    "Security question verification was cancelled.");
             }
         }
     }
@@ -178,15 +191,9 @@ public sealed partial class SettingsPage : Page
 
         if (dialog.PasswordChanged)
         {
-            // Show success message
-            var successDialog = new ContentDialog
-            {
-                Title = "Password Changed",
-                Content = "Your admin password has been changed successfully.",
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
-            await successDialog.ShowAsync();
+            ServiceContainer.NotificationService.ShowSuccess(
+                "Password Changed",
+                "Your admin password has been changed successfully.");
         }
     }
 
@@ -212,32 +219,37 @@ public sealed partial class SettingsPage : Page
             // Update ViewModel
             ViewModel.EmergencyHotkey = dialog.NewHotkey;
 
-            // Re-register hotkey in MainWindow (need to access main window)
-            ReregisterEmergencyHotkey(oldHotkey, dialog.NewHotkey);
+            // Re-register hotkey in MainWindow
+            bool registered = ReregisterEmergencyHotkey(oldHotkey, dialog.NewHotkey);
 
-            // Show success message
-            var successDialog = new ContentDialog
+            if (registered)
             {
-                Title = "Hotkey Changed",
-                Content = $"Emergency lock hotkey changed to: {dialog.NewHotkey}",
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
-            await successDialog.ShowAsync();
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "Hotkey Changed",
+                    $"Emergency lock hotkey changed to: {dialog.NewHotkey}");
+            }
+            else
+            {
+                ServiceContainer.NotificationService.ShowError(
+                    "Hotkey Registration Failed",
+                    $"Failed to register emergency hotkey: {dialog.NewHotkey}. The shortcut may be in use by another application.");
+            }
         }
     }
 
-    private void ReregisterEmergencyHotkey(string oldHotkey, string newHotkey)
+    private bool ReregisterEmergencyHotkey(string oldHotkey, string newHotkey)
     {
         try
         {
             // Delegate to MainWindow which owns the hotkey registration state
-            MainWindow.Instance?.ReregisterEmergencyHotkey();
-            System.Diagnostics.Debug.WriteLine($"Hotkey changed from {oldHotkey} to {newHotkey}");
+            bool registered = MainWindow.Instance?.ReregisterEmergencyHotkey() ?? false;
+            System.Diagnostics.Debug.WriteLine($"Hotkey changed from {oldHotkey} to {newHotkey} (registered={registered})");
+            return registered;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error re-registering hotkey: {ex.Message}");
+            return false;
         }
     }
 

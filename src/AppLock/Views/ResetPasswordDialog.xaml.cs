@@ -55,6 +55,7 @@ public sealed partial class ResetPasswordDialog : ContentDialog
         {
             ErrorText.Text = "Password must be at least 6 characters.";
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError("Password Reset Failed", "Password must be at least 6 characters.");
             return;
         }
 
@@ -62,6 +63,7 @@ public sealed partial class ResetPasswordDialog : ContentDialog
         {
             ErrorText.Text = "Passwords do not match.";
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError("Password Reset Failed", "Passwords do not match.");
             return;
         }
 
@@ -69,12 +71,14 @@ public sealed partial class ResetPasswordDialog : ContentDialog
         {
             _authService.SetPassword(newPassword);
             PasswordReset = true;
+            ServiceContainer.NotificationService.ShowSuccess("Password Reset", "Admin password has been reset successfully.");
             Hide();
         }
         catch (Exception ex)
         {
             ErrorText.Text = ex.Message;
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError("Password Reset Failed", ex.Message);
         }
     }
 

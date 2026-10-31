@@ -132,17 +132,17 @@ issue
 -> fixed - feedback:- show developer to contribute in it to make it more better with lots of feature and it was inspired by this program "https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US" 
 -> fixed - collapsable/non collapsable navigation view support
 -> fixed - multi language support from setting page
-supporting 10 languages:
-English (en)
-Spanish (es - Español)
-French (fr - Français)
-German (de - Deutsch)
-Italian (it - Italiano)
-Portuguese (pt - Português)
-Chinese (zh - 中文简体)
-Japanese (ja - 日本語)
-Nepali (ne - नेपाली)
-Hindi (hi - हिन्दी)
-Plus System default which auto-detects the Windows display language.
--> in app notification support for success and failed action (lock, unlock, password change, security question change, hotkey change)
+     supporting 10 languages:
+     English (en)
+     Spanish (es - Español)
+     French (fr - Français)
+     German (de - Deutsch)
+     Italian (it - Italiano)
+     Portuguese (pt - Português)
+     Chinese (zh - 中文简体)
+     Japanese (ja - 日本語)
+     Nepali (ne - नेपाली)
+     Hindi (hi - हिन्दी)
+     Plus System default which auto-detects the Windows display language.
+-> implemented - in app notification support for success and failed action (lock, unlock, password change, security question change, hotkey change) - fixed (Implemented centralized NotificationService and non-blocking InfoBar toast overlay in MainWindow, providing instant visual feedback with auto-dismiss timers and severity styling for app lock, window picking, app unlock, password change, security question updates, and emergency hotkey registration)
 -> allow user to set custom password for individual app 

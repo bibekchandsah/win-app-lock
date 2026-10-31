@@ -91,6 +91,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
             {
                 ErrorText.Text = "New password must be at least 6 characters";
                 ErrorText.Visibility = Visibility.Visible;
+                ServiceContainer.NotificationService.ShowError(
+                    "Password Change Failed",
+                    "New password must be at least 6 characters.");
                 return;
             }
 
@@ -98,6 +101,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
             {
                 ErrorText.Text = "New passwords do not match";
                 ErrorText.Visibility = Visibility.Visible;
+                ServiceContainer.NotificationService.ShowError(
+                    "Password Change Failed",
+                    "New passwords do not match.");
                 return;
             }
 
@@ -105,6 +111,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
             {
                 ErrorText.Text = "Current password is incorrect";
                 ErrorText.Visibility = Visibility.Visible;
+                ServiceContainer.NotificationService.ShowError(
+                    "Password Change Failed",
+                    "Current password is incorrect.");
                 return;
             }
 
@@ -116,6 +125,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
         {
             ErrorText.Text = $"Error: {ex.Message}";
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError(
+                "Password Change Failed",
+                $"Error: {ex.Message}");
         }
     }
 
@@ -139,6 +151,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
             {
                 ErrorText.Text = "New password must be at least 6 characters";
                 ErrorText.Visibility = Visibility.Visible;
+                ServiceContainer.NotificationService.ShowError(
+                    "Password Reset Failed",
+                    "New password must be at least 6 characters.");
                 return;
             }
 
@@ -146,6 +161,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
             {
                 ErrorText.Text = "New passwords do not match";
                 ErrorText.Visibility = Visibility.Visible;
+                ServiceContainer.NotificationService.ShowError(
+                    "Password Reset Failed",
+                    "New passwords do not match.");
                 return;
             }
 
@@ -157,6 +175,9 @@ public sealed partial class ChangePasswordDialog : ContentDialog
         {
             ErrorText.Text = $"Error: {ex.Message}";
             ErrorText.Visibility = Visibility.Visible;
+            ServiceContainer.NotificationService.ShowError(
+                "Password Reset Failed",
+                $"Error: {ex.Message}");
         }
     }
 
