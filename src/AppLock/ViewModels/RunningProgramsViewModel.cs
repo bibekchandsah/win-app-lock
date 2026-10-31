@@ -4,6 +4,8 @@ using AppLock.Models;
 using AppLock.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Windows.Win32;
+using Windows.Win32.Foundation;
 
 namespace AppLock.ViewModels;
 
@@ -45,7 +47,10 @@ public partial class RunningProgramsViewModel : ObservableObject
         _lockManager.RuleRemoved += (s, e) => UpdateLockStates();
         _lockManager.ProtectionStateChanged += (s, e) => UpdateLockStates();
         
-        // Subscribe to window events for auto-refresh
+        // Fast-path: title changes update only the affected window in-place (no re-enum)
+        _windowEventMonitor.TitleChanged += OnTitleChanged;
+        
+        // Structural changes (new/closed windows) trigger a full re-enumeration
         _windowEventMonitor.WindowsChanged += OnWindowsChanged;
         
         FilteredWindows.CollectionChanged += (s, e) => RunningCount = FilteredWindows.Count;
@@ -80,21 +85,75 @@ public partial class RunningProgramsViewModel : ObservableObject
 
     private void OnWindowsChanged(object? sender, EventArgs e)
     {
-        if (_dispatcherQueue == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[Auto-refresh] ERROR: No dispatcher queue captured");
-            return;
-        }
+        if (_dispatcherQueue == null) return;
 
-        // Refresh on UI thread
         _dispatcherQueue.TryEnqueue(() =>
         {
-            if (AutoRefreshEnabled && !IsLoading)
+            // Always refresh on structural changes — don't gate on IsLoading
+            // (a concurrent manual refresh will just update the same data twice, which is harmless)
+            if (AutoRefreshEnabled)
             {
-                System.Diagnostics.Debug.WriteLine("[Auto-refresh] Refreshing window list...");
+                System.Diagnostics.Debug.WriteLine("[Auto-refresh] Structural change — refreshing window list");
                 RefreshWindows();
             }
         });
+    }
+
+    /// <summary>
+    /// Handles a targeted title-change notification. Reads the new title directly
+    /// from Win32 and updates the matching window in-place — no full re-enumeration.
+    /// </summary>
+    private void OnTitleChanged(object? sender, WindowTitleChangedEventArgs e)
+    {
+        if (_dispatcherQueue == null || !AutoRefreshEnabled) return;
+
+        // Read the new title on a background thread (avoids blocking the WinEvent callback)
+        string newTitle = GetWindowTitle(e.WindowHandle);
+        if (string.IsNullOrWhiteSpace(newTitle)) return;
+
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            // Try exact handle match first
+            var match = Windows.FirstOrDefault(w => w.Handle == e.WindowHandle);
+            if (match != null)
+            {
+                if (!string.Equals(match.WindowTitle, newTitle, StringComparison.Ordinal))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[TitleChanged] 0x{e.WindowHandle:X}: '{match.WindowTitle}' -> '{newTitle}'");
+                    match.WindowTitle = newTitle;
+                    // Re-run filter so the displayed title and grouping stay correct
+                    FilterWindows();
+                }
+                return;
+            }
+
+            // Handle not in list yet — could be a newly visible window; trigger full refresh
+            System.Diagnostics.Debug.WriteLine(
+                $"[TitleChanged] 0x{e.WindowHandle:X} not in list — scheduling full refresh");
+            RefreshWindows();
+        });
+    }
+
+    /// <summary>Reads a window title directly from Win32 without enumerating all windows.</summary>
+    private static string GetWindowTitle(nint hwnd)
+    {
+        try
+        {
+            unsafe
+            {
+                var h = new HWND(hwnd);
+                int len = PInvoke.GetWindowTextLength(h);
+                if (len <= 0) return string.Empty;
+                var buf = new char[len + 1];
+                fixed (char* p = buf)
+                {
+                    PInvoke.GetWindowText(h, new PWSTR(p), buf.Length);
+                }
+                return new string(buf).TrimEnd('\0');
+            }
+        }
+        catch { return string.Empty; }
     }
 
     [RelayCommand]

@@ -42,6 +42,7 @@ Remove-Item -Recurse -Force "src\AppLock\bin","src\AppLock\obj" -ErrorAction Sil
 
 # Rebuild
 .\build-with-msbuild.ps1
+powershell -ExecutionPolicy Bypass -File "build-with-msbuild.ps1" 2>&1
 
 # run App
 .\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe
@@ -114,10 +115,10 @@ issue
 -> fixed - emergency lock hotkey not working (Ctrl + Alt + L), user is unable to set hot key ctrl+alt+L
 -> fixed - hotkey reflecting in overlay screenlock
 -> fixed - when emergency lock is enabled then after specific time period main window don't get's locked as it shows dialog box of emergency lock is enabled
--> auto refresh running program when new window is detected
--> toggling isn't working as smooth as it should be
--> optional - system app UWP don't show locked thumbnail it shows blank window
--> show the security question on 
+-> fixed - auto refresh running program when new window is detected and when tab/title changes detected
+-> partial toggling isn't working as smooth as it should be
+-> partial - optional - system app UWP don't show locked thumbnail it shows blank window
+-> show the security question during setting password for first time 
 -> app icon in window title bar with theme sync and also show icon in taskbar app icon 
 -> active page in navigation view not visually highlighted
 -> 

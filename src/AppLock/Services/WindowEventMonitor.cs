@@ -8,6 +8,12 @@ namespace AppLock.Services;
 /// <summary>
 /// Monitors system-wide window events (creation, destruction, title changes)
 /// and notifies subscribers when windows change.
+///
+/// Two event channels:
+///   TitleChanged   — fires immediately (no debounce) with the specific HWND whose
+///                    title changed. Callers do a cheap in-place title update.
+///   WindowsChanged — fires after a short debounce for structural changes (new window,
+///                    closed window, show/hide). Callers do a full re-enumeration.
 /// </summary>
 public class WindowEventMonitor : IDisposable
 {
@@ -16,31 +22,36 @@ public class WindowEventMonitor : IDisposable
     private bool _isMonitoring;
 
     /// <summary>
-    /// Fired when a new window is created, destroyed, shown, or its title changes.
+    /// Fired immediately when a top-level window's title changes.
+    /// EventArgs carry the HWND that changed — use it for an O(1) in-place update.
+    /// </summary>
+    public event EventHandler<WindowTitleChangedEventArgs>? TitleChanged;
+
+    /// <summary>
+    /// Fired (debounced) when windows are created, destroyed, shown, or hidden.
     /// </summary>
     public event EventHandler? WindowsChanged;
 
     private readonly object _lock = new();
     private System.Threading.Timer? _debounceTimer;
-    private DateTime _lastEventTime = DateTime.MinValue;
-    private const int DEBOUNCE_MS = 1500; // Wait 1.5 seconds after last event before notifying
+    private DateTime _lastStructuralEventTime = DateTime.MinValue;
+    private const int DEBOUNCE_MS = 750; // Structural change debounce (was 1500ms)
 
     // Windows Event Constants
-    private const uint EVENT_OBJECT_CREATE = 0x8000;
-    private const uint EVENT_OBJECT_DESTROY = 0x8001;
-    private const uint EVENT_OBJECT_SHOW = 0x8002;
-    private const uint EVENT_OBJECT_HIDE = 0x8003;
+    private const uint EVENT_OBJECT_CREATE     = 0x8000;
+    private const uint EVENT_OBJECT_DESTROY    = 0x8001;
+    private const uint EVENT_OBJECT_SHOW       = 0x8002;
+    private const uint EVENT_OBJECT_HIDE       = 0x8003;
     private const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
-    
+    private const int  OBJID_WINDOW            = 0;
+
     // Hook Flags
-    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    private const uint WINEVENT_OUTOFCONTEXT   = 0x0000;
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     public bool IsMonitoring => _isMonitoring;
 
-    /// <summary>
-    /// Start monitoring window events system-wide.
-    /// </summary>
+    /// <summary>Start monitoring window events system-wide.</summary>
     public void Start()
     {
         lock (_lock)
@@ -48,31 +59,27 @@ public class WindowEventMonitor : IDisposable
             if (_isMonitoring)
                 return;
 
-            // Keep delegate alive
             _eventDelegate = WinEventCallback;
 
             unsafe
             {
-                // Monitor window creation, destruction, show/hide, and title changes
+                // Single hook spanning all events we care about
                 _eventHook = PInvoke.SetWinEventHook(
-                    EVENT_OBJECT_CREATE,                    // Min event
-                    EVENT_OBJECT_NAMECHANGE,                // Max event (covers create, destroy, show, hide, namechange)
+                    EVENT_OBJECT_CREATE,      // Min: window created
+                    EVENT_OBJECT_NAMECHANGE,  // Max: covers create, destroy, show, hide, namechange
                     HMODULE.Null,
                     _eventDelegate,
-                    0,                                       // All processes
-                    0,                                       // All threads
-                    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-                );
+                    0,    // All processes
+                    0,    // All threads
+                    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
             }
 
             _isMonitoring = !_eventHook.IsNull;
-            System.Diagnostics.Debug.WriteLine($"WindowEventMonitor started: {_isMonitoring}");
+            System.Diagnostics.Debug.WriteLine($"[WindowEventMonitor] Started: {_isMonitoring}");
         }
     }
 
-    /// <summary>
-    /// Stop monitoring window events.
-    /// </summary>
+    /// <summary>Stop monitoring window events.</summary>
     public void Stop()
     {
         lock (_lock)
@@ -86,13 +93,12 @@ public class WindowEventMonitor : IDisposable
                 _eventHook = default;
             }
 
-            // Dispose debounce timer
             _debounceTimer?.Dispose();
             _debounceTimer = null;
 
             _isMonitoring = false;
             _eventDelegate = null;
-            System.Diagnostics.Debug.WriteLine("WindowEventMonitor stopped");
+            System.Diagnostics.Debug.WriteLine("[WindowEventMonitor] Stopped");
         }
     }
 
@@ -105,75 +111,68 @@ public class WindowEventMonitor : IDisposable
         uint idEventThread,
         uint dwmsEventTime)
     {
-        // Only process window-level events (not child controls)
-        const int OBJID_WINDOW = 0;
-        if (idObject != OBJID_WINDOW)
+        // Only care about window-object events (not child controls, menus, etc.)
+        if (idObject != OBJID_WINDOW || hwnd.IsNull)
             return;
 
-        // Filter relevant events
-        bool isRelevant = eventType switch
+        switch (eventType)
         {
-            EVENT_OBJECT_CREATE => true,       // Window created
-            EVENT_OBJECT_DESTROY => true,      // Window destroyed
-            EVENT_OBJECT_SHOW => true,         // Window shown
-            EVENT_OBJECT_HIDE => true,         // Window hidden
-            EVENT_OBJECT_NAMECHANGE => true,   // Window title changed
-            _ => false
-        };
+            case EVENT_OBJECT_NAMECHANGE:
+                // Title changed on a specific window — fire immediately with no debounce.
+                // This is a targeted fast-path so the UI title updates without any delay.
+                System.Diagnostics.Debug.WriteLine(
+                    $"[WindowEventMonitor] NAMECHANGE 0x{hwnd.Value:X} — firing TitleChanged immediately");
 
-        if (!isRelevant)
-            return;
+                Task.Run(() =>
+                {
+                    try { TitleChanged?.Invoke(this, new WindowTitleChangedEventArgs((nint)hwnd.Value)); }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[WindowEventMonitor] TitleChanged error: {ex.Message}");
+                    }
+                });
+                break;
 
-        // Debounce: Reset timer on each event, only fire after events stop coming
+            case EVENT_OBJECT_CREATE:
+            case EVENT_OBJECT_DESTROY:
+            case EVENT_OBJECT_SHOW:
+            case EVENT_OBJECT_HIDE:
+                // Structural changes — debounce and fire WindowsChanged for full re-enum
+                ScheduleStructuralRefresh();
+                break;
+        }
+    }
+
+    private void ScheduleStructuralRefresh()
+    {
         lock (_lock)
         {
-            _lastEventTime = DateTime.UtcNow;
-            
-            // Dispose existing timer if any
+            _lastStructuralEventTime = DateTime.UtcNow;
+
             _debounceTimer?.Dispose();
-            
-            // Create new timer that fires after DEBOUNCE_MS of inactivity
             _debounceTimer = new System.Threading.Timer(_ =>
             {
                 lock (_lock)
                 {
-                    // Only fire if enough time has passed since last event
-                    var timeSinceLastEvent = (DateTime.UtcNow - _lastEventTime).TotalMilliseconds;
-                    if (timeSinceLastEvent >= DEBOUNCE_MS - 50) // 50ms tolerance
+                    var elapsed = (DateTime.UtcNow - _lastStructuralEventTime).TotalMilliseconds;
+                    if (elapsed >= DEBOUNCE_MS - 50) // 50ms tolerance
                     {
-                        System.Diagnostics.Debug.WriteLine($"[WindowEventMonitor] Debounced notification triggered after {timeSinceLastEvent:F0}ms idle");
-                        
-                        // Notify subscribers on background thread
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[WindowEventMonitor] Structural debounce fired after {elapsed:F0}ms idle");
                         Task.Run(() =>
                         {
-                            try
-                            {
-                                WindowsChanged?.Invoke(this, EventArgs.Empty);
-                            }
+                            try { WindowsChanged?.Invoke(this, EventArgs.Empty); }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Error in WindowsChanged handler: {ex.Message}");
+                                System.Diagnostics.Debug.WriteLine(
+                                    $"[WindowEventMonitor] WindowsChanged error: {ex.Message}");
                             }
                         });
                     }
                 }
             }, null, DEBOUNCE_MS, System.Threading.Timeout.Infinite);
         }
-
-        System.Diagnostics.Debug.WriteLine($"[WindowEventMonitor] Event: {GetEventName(eventType)} HWND=0x{hwnd.Value:X} (debounce timer reset)");
-    }
-
-    private static string GetEventName(uint eventType)
-    {
-        return eventType switch
-        {
-            EVENT_OBJECT_CREATE => "CREATE",
-            EVENT_OBJECT_DESTROY => "DESTROY",
-            EVENT_OBJECT_SHOW => "SHOW",
-            EVENT_OBJECT_HIDE => "HIDE",
-            EVENT_OBJECT_NAMECHANGE => "NAMECHANGE",
-            _ => $"0x{eventType:X}"
-        };
     }
 
     public void Dispose()
@@ -182,8 +181,14 @@ public class WindowEventMonitor : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~WindowEventMonitor()
-    {
-        Stop();
-    }
+    ~WindowEventMonitor() => Stop();
+}
+
+/// <summary>Event args for targeted window-title changes.</summary>
+public sealed class WindowTitleChangedEventArgs : EventArgs
+{
+    /// <summary>Handle of the top-level window whose title changed.</summary>
+    public nint WindowHandle { get; }
+
+    public WindowTitleChangedEventArgs(nint hwnd) => WindowHandle = hwnd;
 }

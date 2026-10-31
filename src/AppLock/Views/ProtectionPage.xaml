@@ -227,7 +227,7 @@
                                                     <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                             CornerRadius="6"
                                                             Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
-                                                        <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
+                                                        <TextBlock Text="{x:Bind ProcessName, Mode=OneWay, Converter={StaticResource FirstLetterConverter}}"
                                                                    FontSize="16"
                                                                    FontWeight="SemiBold"
                                                                    HorizontalAlignment="Center"
@@ -244,7 +244,7 @@
 
                                                 <!-- Info -->
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{x:Bind WindowTitle}" 
+                                                    <TextBlock Text="{x:Bind WindowTitle, Mode=OneWay}" 
                                                                FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis"/>
                                                     <TextBlock Text="{x:Bind ProcessDisplayName, Mode=OneWay}" 
@@ -354,7 +354,7 @@
                                                             HorizontalAlignment="Left"
                                                             VerticalAlignment="Top"
                                                             Visibility="{x:Bind Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
-                                                        <TextBlock Text="{x:Bind ProcessName, Converter={StaticResource FirstLetterConverter}}"
+                                                        <TextBlock Text="{x:Bind ProcessName, Mode=OneWay, Converter={StaticResource FirstLetterConverter}}"
                                                                    FontSize="16"
                                                                    FontWeight="SemiBold"
                                                                    HorizontalAlignment="Center"
