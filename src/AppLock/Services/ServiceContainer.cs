@@ -22,6 +22,7 @@ public static class ServiceContainer
     private static ThumbnailService? _thumbnailService;
     private static UwpWindowResolver? _uwpWindowResolver;
     private static DisplayHelper? _displayHelper;
+    private static WindowEventMonitor? _windowEventMonitor;
 
     public static SettingsStore SettingsStore
     {
@@ -216,6 +217,18 @@ public static class ServiceContainer
         }
     }
 
+    public static WindowEventMonitor WindowEventMonitor
+    {
+        get
+        {
+            if (_windowEventMonitor == null)
+            {
+                _windowEventMonitor = new WindowEventMonitor();
+            }
+            return _windowEventMonitor;
+        }
+    }
+
     public static void Reset()
     {
         // Stop and dispose services that need cleanup
@@ -224,6 +237,7 @@ public static class ServiceContainer
         _idleService?.Dispose();
         _trayService?.Dispose();
         _thumbnailService?.Dispose();
+        _windowEventMonitor?.Dispose();
         
         _settingsStore = null;
         _settings = null;
@@ -240,5 +254,6 @@ public static class ServiceContainer
         _thumbnailService = null;
         _uwpWindowResolver = null;
         _displayHelper = null;
+        _windowEventMonitor = null;
     }
 }

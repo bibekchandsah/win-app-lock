@@ -11,6 +11,8 @@ public partial class RunningProgramsViewModel : ObservableObject
 {
     private readonly WindowEnumerator _windowEnumerator;
     private readonly LockManager _lockManager;
+    private readonly WindowEventMonitor _windowEventMonitor;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
     [ObservableProperty]
     private ObservableCollection<RunningWindow> _windows = new();
@@ -27,23 +29,72 @@ public partial class RunningProgramsViewModel : ObservableObject
     [ObservableProperty]
     private int _runningCount;
 
+    [ObservableProperty]
+    private bool _autoRefreshEnabled = true;
+
     public RunningProgramsViewModel(LockManager lockManager)
     {
         _windowEnumerator = ServiceContainer.WindowEnumerator;
         _lockManager = lockManager;
+        _windowEventMonitor = ServiceContainer.WindowEventMonitor;
+        
+        // Capture dispatcher queue at construction time (on UI thread)
+        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         
         _lockManager.RuleAdded += (s, e) => UpdateLockStates();
         _lockManager.RuleRemoved += (s, e) => UpdateLockStates();
         _lockManager.ProtectionStateChanged += (s, e) => UpdateLockStates();
         
+        // Subscribe to window events for auto-refresh
+        _windowEventMonitor.WindowsChanged += OnWindowsChanged;
+        
         FilteredWindows.CollectionChanged += (s, e) => RunningCount = FilteredWindows.Count;
         
         RefreshWindows();
+        
+        // Start monitoring if auto-refresh is enabled
+        if (_autoRefreshEnabled)
+        {
+            _windowEventMonitor.Start();
+        }
     }
 
     partial void OnSearchTextChanged(string value)
     {
         FilterWindows();
+    }
+
+    partial void OnAutoRefreshEnabledChanged(bool value)
+    {
+        if (value)
+        {
+            _windowEventMonitor.Start();
+            System.Diagnostics.Debug.WriteLine("Auto-refresh enabled");
+        }
+        else
+        {
+            _windowEventMonitor.Stop();
+            System.Diagnostics.Debug.WriteLine("Auto-refresh disabled");
+        }
+    }
+
+    private void OnWindowsChanged(object? sender, EventArgs e)
+    {
+        if (_dispatcherQueue == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[Auto-refresh] ERROR: No dispatcher queue captured");
+            return;
+        }
+
+        // Refresh on UI thread
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (AutoRefreshEnabled && !IsLoading)
+            {
+                System.Diagnostics.Debug.WriteLine("[Auto-refresh] Refreshing window list...");
+                RefreshWindows();
+            }
+        });
     }
 
     [RelayCommand]
@@ -53,19 +104,64 @@ public partial class RunningProgramsViewModel : ObservableObject
 
         try
         {
-            var windows = _windowEnumerator.EnumerateWindows();
+            var currentWindows = _windowEnumerator.EnumerateWindows();
             
-            Windows.Clear();
-            foreach (var window in windows)
+            // Create a lookup of current windows by handle
+            var currentByHandle = currentWindows.ToDictionary(w => w.Handle);
+            
+            // Track which existing windows we've seen
+            var seenHandles = new HashSet<nint>();
+
+            // 1. Update existing windows or remove if they're gone
+            for (int i = Windows.Count - 1; i >= 0; i--)
             {
-                window.IsLocked = _lockManager.IsWindowLocked(window);
-                Windows.Add(window);
+                var existingWindow = Windows[i];
                 
-                // Load icon asynchronously
-                _ = LoadIconAsync(window);
+                if (currentByHandle.TryGetValue(existingWindow.Handle, out var currentWindow))
+                {
+                    // Window still exists - update its properties
+                    seenHandles.Add(existingWindow.Handle);
+                    
+                    // ALWAYS update properties - don't skip if they appear the same
+                    // (comparison might miss subtle changes or timing issues)
+                    existingWindow.WindowTitle = currentWindow.WindowTitle;
+                    existingWindow.ProcessName = currentWindow.ProcessName;
+                    
+                    // Update path and process ID too
+                    existingWindow.ProcessPath = currentWindow.ProcessPath;
+                    existingWindow.ProcessId = currentWindow.ProcessId;
+                    
+                    // Update icon if it changed
+                    if (currentWindow.Icon != null && currentWindow.Icon != existingWindow.Icon)
+                    {
+                        existingWindow.Icon = currentWindow.Icon;
+                    }
+                    
+                    existingWindow.IsLocked = _lockManager.IsWindowLocked(existingWindow);
+                }
+                else
+                {
+                    // Window no longer exists - remove it
+                    Windows.RemoveAt(i);
+                }
+            }
+
+            // 2. Add new windows that we haven't seen
+            foreach (var currentWindow in currentWindows)
+            {
+                if (!seenHandles.Contains(currentWindow.Handle))
+                {
+                    currentWindow.IsLocked = _lockManager.IsWindowLocked(currentWindow);
+                    Windows.Add(currentWindow);
+                    
+                    // Load icon asynchronously
+                    _ = LoadIconAsync(currentWindow);
+                }
             }
 
             FilterWindows();
+            
+            System.Diagnostics.Debug.WriteLine($"[RefreshWindows] Updated {seenHandles.Count} windows, added {currentWindows.Count - seenHandles.Count} new windows, total: {Windows.Count}");
         }
         finally
         {
@@ -100,8 +196,6 @@ public partial class RunningProgramsViewModel : ObservableObject
 
     private void FilterWindows()
     {
-        FilteredWindows.Clear();
-
         var query = SearchText?.Trim().ToLowerInvariant() ?? string.Empty;
 
         // Filter first
@@ -111,25 +205,16 @@ public partial class RunningProgramsViewModel : ObservableObject
                 w.ProcessName.ToLowerInvariant().Contains(query) ||
                 w.WindowTitle.ToLowerInvariant().Contains(query));
 
-        // Group strategy:
-        //   - UWP apps (ApplicationFrameHost host): each window is a DISTINCT app
-        //     → group key = window HWND (unique per window)
-        //   - Regular desktop apps: group by ProcessName (collapse multiple windows)
-        //     → group key = ProcessName
+        // Group strategy
         var groups = filtered
             .GroupBy(w =>
             {
-                // If the raw process is ApplicationFrameHost OR the processName was derived
-                // from an AUMID (contains no path separators and doesn't end in known exe names),
-                // treat each window as its own group using its title as the key.
                 bool isUwp = w.ProcessPath != null &&
                     (w.ProcessPath.EndsWith("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase) ||
-                     // AUMID stored in ProcessPath looks like "Microsoft.WindowsCalculator_xxx!App"
                      (w.ProcessPath.Contains('_') && w.ProcessPath.Contains('!')));
 
                 if (isUwp)
                 {
-                    // Use window title as unique key so each UWP app shows separately
                     return string.IsNullOrWhiteSpace(w.WindowTitle)
                         ? w.Handle.ToString()
                         : $"UWP:{w.WindowTitle}";
@@ -138,25 +223,73 @@ public partial class RunningProgramsViewModel : ObservableObject
                 return w.ProcessName ?? w.WindowTitle ?? w.Handle.ToString();
             }, StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key.StartsWith("UWP:", StringComparison.Ordinal)
-                ? g.Key.Substring(4)   // Sort UWP apps by title
+                ? g.Key.Substring(4)
                 : g.Key,
-                StringComparer.OrdinalIgnoreCase);
+                StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
+        // Build list of representatives
+        var newItems = new List<RunningWindow>();
         foreach (var group in groups)
         {
-            // Pick the best representative: prefer windows with a meaningful title
             var representative = group
                 .OrderByDescending(w => !string.IsNullOrWhiteSpace(w.WindowTitle))
                 .ThenByDescending(w => w.WindowTitle?.Length ?? 0)
                 .First();
 
-            int count = group.Count();
-            representative.WindowCount = count;
-
-            // Mark locked if ANY window in this process group is locked
+            representative.WindowCount = group.Count();
             representative.IsLocked = group.Any(w => w.IsLocked);
+            newItems.Add(representative);
+        }
 
-            FilteredWindows.Add(representative);
+        // Update FilteredWindows in-place to minimize UI changes
+        // Remove items that are no longer in the new list
+        for (int i = FilteredWindows.Count - 1; i >= 0; i--)
+        {
+            var existing = FilteredWindows[i];
+            if (!newItems.Any(n => n.Handle == existing.Handle))
+            {
+                FilteredWindows.RemoveAt(i);
+            }
+        }
+
+        // Add new items or move existing ones
+        for (int i = 0; i < newItems.Count; i++)
+        {
+            var newItem = newItems[i];
+            
+            // Find existing item in FilteredWindows
+            int existingIndex = -1;
+            for (int j = 0; j < FilteredWindows.Count; j++)
+            {
+                if (FilteredWindows[j].Handle == newItem.Handle)
+                {
+                    existingIndex = j;
+                    break;
+                }
+            }
+
+            if (existingIndex >= 0)
+            {
+                // Item exists - move to correct position if needed
+                if (existingIndex != i)
+                {
+                    FilteredWindows.Move(existingIndex, i);
+                }
+                // The object reference is the same, properties already updated
+            }
+            else
+            {
+                // New item - insert at correct position
+                if (i < FilteredWindows.Count)
+                {
+                    FilteredWindows.Insert(i, newItem);
+                }
+                else
+                {
+                    FilteredWindows.Add(newItem);
+                }
+            }
         }
     }
 

@@ -146,7 +146,29 @@ public sealed partial class ProtectionPage : Page
         InitializeComponent();
         
         _lockManager.ProtectionStateChanged += OnProtectionStateChanged;
+        
+        // Subscribe to auto-refresh changes to update icon
+        RunningViewModel.PropertyChanged += RunningViewModel_PropertyChanged;
+        
         UpdateStatusUI();
+        UpdateRefreshIcon();
+    }
+
+    private void RunningViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RunningViewModel.AutoRefreshEnabled))
+        {
+            UpdateRefreshIcon();
+        }
+    }
+
+    private void UpdateRefreshIcon()
+    {
+        // Change icon based on auto-refresh state
+        if (RefreshIcon != null)
+        {
+            RefreshIcon.Glyph = RunningViewModel.AutoRefreshEnabled ? "\uE895" : "\uE72C";
+        }
     }
 
     private void OnProtectionStateChanged(object? sender, bool isEnabled)
@@ -334,6 +356,16 @@ public sealed partial class ProtectionPage : Page
     private void CancelPickButton_Click(object sender, RoutedEventArgs e)
     {
         _windowPicker.CancelPick();
+    }
+
+    private void RefreshButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
+    {
+        RunningViewModel.RefreshWindowsCommand.Execute(null);
+    }
+
+    private void RefreshNowMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        RunningViewModel.RefreshWindowsCommand.Execute(null);
     }
 
     private async void PickWindowButton_Click(object sender, RoutedEventArgs e)

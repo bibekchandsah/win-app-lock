@@ -6,11 +6,21 @@ namespace AppLock.Models;
 public partial class RunningWindow : ObservableObject
 {
     public nint Handle { get; set; }
-    public string WindowTitle { get; set; } = string.Empty;
-    public string ProcessName { get; set; } = string.Empty;
-    public string ProcessPath { get; set; } = string.Empty;
-    public int ProcessId { get; set; }
-    public BitmapImage? Icon { get; set; }
+    
+    [ObservableProperty]
+    private string _windowTitle = string.Empty;
+    
+    [ObservableProperty]
+    private string _processName = string.Empty;
+    
+    [ObservableProperty]
+    private string _processPath = string.Empty;
+    
+    [ObservableProperty]
+    private int _processId;
+    
+    [ObservableProperty]
+    private BitmapImage? _icon;
 
     /// <summary>
     /// How many windows share this same process name.
@@ -30,6 +40,11 @@ public partial class RunningWindow : ObservableObject
         WindowCount > 1 ? $"{ProcessName} (x{WindowCount})" : ProcessName;
 
     partial void OnWindowCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(ProcessDisplayName));
+    }
+
+    partial void OnProcessNameChanged(string value)
     {
         OnPropertyChanged(nameof(ProcessDisplayName));
     }

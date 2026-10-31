@@ -118,3 +118,6 @@ issue
 -> toggling isn't working as smooth as it should be
 -> optional - system app UWP don't show locked thumbnail it shows blank window
 -> show the security question on 
+-> app icon in window title bar with theme sync and also show icon in taskbar app icon 
+-> active page in navigation view not visually highlighted
+-> 
