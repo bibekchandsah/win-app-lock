@@ -154,13 +154,43 @@ public sealed partial class ProtectionPage : Page
         UpdateRefreshIcon();
         CheckAutostartWarning();
 
-        Loaded += (s, e) => CheckAutostartWarning();
+        ServiceContainer.LocalizationService.LanguageChanged += LocalizationService_LanguageChanged;
+        Loaded += (s, e) =>
+        {
+            CheckAutostartWarning();
+            ApplyLocalization();
+        };
+        Unloaded += (s, e) => ServiceContainer.LocalizationService.LanguageChanged -= LocalizationService_LanguageChanged;
+        ApplyLocalization();
+    }
+
+    private void LocalizationService_LanguageChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() => ApplyLocalization());
+    }
+
+    private void ApplyLocalization()
+    {
+        var loc = ServiceContainer.LocalizationService;
+        if (AutostartWarningBar != null)
+        {
+            AutostartWarningBar.Title = loc["AutostartWarningTitle"];
+            AutostartWarningBar.Message = loc["AutostartWarningMessage"];
+        }
+        if (EnableAutostartButton != null) EnableAutostartButton.Content = loc["AutostartWarningAction"];
+        if (SearchBox != null) SearchBox.PlaceholderText = loc["Search"];
+        if (LockedSearchBox != null) LockedSearchBox.PlaceholderText = loc["Search"];
+        if (RunningProgramsTab != null) RunningProgramsTab.Header = loc["RunningApps"];
+        if (LockedProgramsTab != null) LockedProgramsTab.Header = loc["ProtectedApps"];
+        if (CancelPickButton != null) CancelPickButton.Content = loc["Cancel"];
+        UpdateStatusUI();
     }
 
     protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         CheckAutostartWarning();
+        ApplyLocalization();
     }
 
     private void CheckAutostartWarning()
@@ -225,17 +255,17 @@ public sealed partial class ProtectionPage : Page
             {
                 StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                     Microsoft.UI.Colors.LimeGreen);
-                StatusText.Text = "AppLock protection is active";
+                StatusText.Text = ServiceContainer.LocalizationService["MasterProtection"] + " - " + ServiceContainer.LocalizationService["Active"];
                 if (StatusSubText != null)
-                    StatusSubText.Text = "AppLock is protecting your apps.";
+                    StatusSubText.Text = ServiceContainer.LocalizationService["MasterProtectionDesc"];
             }
             else
             {
                 StatusDot.Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                     Microsoft.UI.Colors.Gray);
-                StatusText.Text = "AppLock protection is ready (currently OFF)";
+                StatusText.Text = ServiceContainer.LocalizationService["MasterProtection"] + " - " + ServiceContainer.LocalizationService["Inactive"];
                 if (StatusSubText != null)
-                    StatusSubText.Text = "Turn on protection to enforce locked windows.";
+                    StatusSubText.Text = ServiceContainer.LocalizationService["MasterProtectionDesc"];
             }
         }
         finally

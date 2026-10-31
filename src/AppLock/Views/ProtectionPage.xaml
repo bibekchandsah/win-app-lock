@@ -35,7 +35,8 @@
                  Margin="0,0,0,16"
                  CornerRadius="8">
             <InfoBar.ActionButton>
-                <Button Content="Enable now"
+                <Button x:Name="EnableAutostartButton"
+                        Content="Enable now"
                         Click="EnableAutostartButton_Click"
                         CornerRadius="4"
                         Padding="14,6"/>
@@ -124,7 +125,7 @@
             
             <!-- Running Programs Tab -->
             <TabView.TabItems>
-                <TabViewItem Header="Running programs" IsClosable="False">
+                <TabViewItem x:Name="RunningProgramsTab" Header="Running programs" IsClosable="False">
                     <Grid Padding="16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -306,7 +307,7 @@
                 </TabViewItem>
 
                 <!-- Locked Programs Tab -->
-                <TabViewItem Header="Locked programs" IsClosable="False">
+                <TabViewItem x:Name="LockedProgramsTab" Header="Locked programs" IsClosable="False">
                     <Grid Padding="16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>

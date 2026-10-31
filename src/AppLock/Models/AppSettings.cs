@@ -19,6 +19,7 @@ public class AppSettings
     public string Theme { get; set; } = "System default";
     public bool StartWithWindows { get; set; }
     public bool MuteNotifications { get; set; }
+    public bool IsNavPaneExpanded { get; set; } = false;
     
     // Auto & Emergency Lock
     public int AutoLockIdleMinutes { get; set; }

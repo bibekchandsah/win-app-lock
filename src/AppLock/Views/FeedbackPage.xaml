@@ -13,9 +13,11 @@
                 
                 <!-- Page Header -->
                 <StackPanel Spacing="4" Margin="0,0,0,4">
-                    <TextBlock Text="Feedback &amp; Community" 
+                    <TextBlock x:Name="PageTitle"
+                               Text="Feedback &amp; Community" 
                                Style="{ThemeResource TitleTextBlockStyle}"/>
-                    <TextBlock Text="Contribute to AppLock, share ideas, report issues, and discover project roots"
+                    <TextBlock x:Name="PageSubtitle"
+                               Text="Contribute to AppLock, share ideas, report issues, and discover project roots"
                                Style="{ThemeResource BodyTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 </StackPanel>
@@ -48,15 +50,18 @@
                             </Border>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Contribute &amp; Make It Better"
+                                <TextBlock x:Name="TxtContributeTitle"
+                                           Text="Contribute &amp; Make It Better"
                                            Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                                <TextBlock Text="Join in building the most powerful and seamless app locker for Windows"
+                                <TextBlock x:Name="TxtContributeSubtitle"
+                                           Text="Join in building the most powerful and seamless app locker for Windows"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Content description -->
-                        <TextBlock Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
+                        <TextBlock x:Name="TxtContributeDesc"
+                                   Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}">
                             Show developer to contribute in it to make it more better with lots of features!
                             Whether you want to contribute code, design new capabilities, improve security hooks, or report bugs, your involvement helps shape AppLock.
@@ -68,21 +73,21 @@
                                     Click="ContributeGitHub_Click">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE71B;" FontSize="14"/>
-                                    <TextBlock Text="Contribute on GitHub"/>
+                                    <TextBlock x:Name="BtnContributeText" Text="Contribute on GitHub"/>
                                 </StackPanel>
                             </Button>
 
                             <Button Click="ViewContributors_Click">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE716;" FontSize="14"/>
-                                    <TextBlock Text="View Contributors"/>
+                                    <TextBlock x:Name="BtnContributorsText" Text="View Contributors"/>
                                 </StackPanel>
                             </Button>
 
                             <Button Click="ReportIssue_Click">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE90A;" FontSize="14"/>
-                                    <TextBlock Text="Feedback &amp; Issues"/>
+                                    <TextBlock x:Name="BtnReportIssueText" Text="Feedback &amp; Issues"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -117,15 +122,18 @@
                             </Border>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Project Inspiration"
+                                <TextBlock x:Name="TxtInspirationTitle"
+                                           Text="Project Inspiration"
                                            Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                                <TextBlock Text="App Lock on Microsoft Store"
+                                <TextBlock x:Name="TxtInspirationSubtitle"
+                                           Text="App Lock on Microsoft Store"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Content description -->
-                        <TextBlock Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
+                        <TextBlock x:Name="TxtInspirationDesc"
+                                   Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}">
                             This program was inspired by App Lock for Windows available on the Microsoft Store:
                             https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&amp;gl=US.
@@ -137,7 +145,7 @@
                             <Button Click="ViewInspirationStore_Click">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE719;" FontSize="14"/>
-                                    <TextBlock Text="View Inspired Program in Store"/>
+                                    <TextBlock x:Name="BtnInspirationText" Text="View Inspired Program in Store"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -165,9 +173,11 @@
                         </Border>
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="Developer Profile"
+                            <TextBlock x:Name="TxtDeveloperTitle"
+                                       Text="Developer Profile"
                                        Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                            <TextBlock Text="Created with passion by Bibek Chand Sah"
+                            <TextBlock x:Name="TxtDeveloperSubtitle"
+                                       Text="Created with passion by Bibek Chand Sah"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </StackPanel>
 
@@ -176,7 +186,7 @@
                                 Click="DeveloperWebsite_Click">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon Glyph="&#xE774;" FontSize="14"/>
-                                <TextBlock Text="Visit Website"/>
+                                <TextBlock x:Name="BtnWebsiteText" Text="Visit Website"/>
                             </StackPanel>
                         </Button>
                     </Grid>

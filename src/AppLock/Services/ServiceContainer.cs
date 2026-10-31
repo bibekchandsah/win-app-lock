@@ -23,6 +23,19 @@ public static class ServiceContainer
     private static UwpWindowResolver? _uwpWindowResolver;
     private static DisplayHelper? _displayHelper;
     private static WindowEventMonitor? _windowEventMonitor;
+    private static LocalizationService? _localizationService;
+
+    public static LocalizationService LocalizationService
+    {
+        get
+        {
+            if (_localizationService == null)
+            {
+                _localizationService = new LocalizationService(Settings.Language);
+            }
+            return _localizationService;
+        }
+    }
 
     public static SettingsStore SettingsStore
     {

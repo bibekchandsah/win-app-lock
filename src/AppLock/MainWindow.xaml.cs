@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
     private int _emergencyHotkeyId = -1;
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
+    private bool _isNavPaneExpanded = false;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
@@ -79,6 +80,16 @@ public sealed partial class MainWindow : Window
         }
         UpdateTitleBarTheme();
         
+        // Initialize collapsible navigation pane from settings
+        SetNavPaneExpanded(ServiceContainer.Settings.IsNavPaneExpanded, saveSetting: false);
+
+        // Wire localization
+        ServiceContainer.LocalizationService.LanguageChanged += (s, e) =>
+        {
+            DispatcherQueue.TryEnqueue(() => ApplyLocalization());
+        };
+        ApplyLocalization();
+
         // Initialize services
         InitializeServices();
         
@@ -408,6 +419,51 @@ public sealed partial class MainWindow : Window
         {
             ContentFrame.Navigate(typeof(SettingsPage));
         }
+    }
+
+    private void NavTogglePaneButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetNavPaneExpanded(!_isNavPaneExpanded, saveSetting: true);
+    }
+
+    public void SetNavPaneExpanded(bool expanded, bool saveSetting = true)
+    {
+        _isNavPaneExpanded = expanded;
+        if (NavPaneColumn != null)
+        {
+            NavPaneColumn.Width = expanded ? new GridLength(210) : new GridLength(48);
+        }
+
+        var labelVis = expanded ? Visibility.Visible : Visibility.Collapsed;
+        if (ProtectionNavLabel != null) ProtectionNavLabel.Visibility = labelVis;
+        if (RulesNavLabel != null) RulesNavLabel.Visibility = labelVis;
+        if (WebsitesNavLabel != null) WebsitesNavLabel.Visibility = labelVis;
+        if (FeedbackNavLabel != null) FeedbackNavLabel.Visibility = labelVis;
+        if (SettingsNavLabel != null) SettingsNavLabel.Visibility = labelVis;
+
+        if (saveSetting && ServiceContainer.Settings != null)
+        {
+            ServiceContainer.Settings.IsNavPaneExpanded = expanded;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
+    }
+
+    public void ApplyLocalization()
+    {
+        var loc = ServiceContainer.LocalizationService;
+        if (AppTitleText != null) AppTitleText.Text = loc["AppTitle"];
+        if (ProtectionNavLabel != null) ProtectionNavLabel.Text = loc["NavProtection"];
+        if (RulesNavLabel != null) RulesNavLabel.Text = loc["NavRules"];
+        if (WebsitesNavLabel != null) WebsitesNavLabel.Text = loc["NavWebsites"];
+        if (FeedbackNavLabel != null) FeedbackNavLabel.Text = loc["NavFeedback"];
+        if (SettingsNavLabel != null) SettingsNavLabel.Text = loc["NavSettings"];
+
+        if (ProtectionNavButton != null) ToolTipService.SetToolTip(ProtectionNavButton, loc["NavProtection"]);
+        if (RulesNavButton != null) ToolTipService.SetToolTip(RulesNavButton, loc["NavRules"]);
+        if (WebsitesNavButton != null) ToolTipService.SetToolTip(WebsitesNavButton, loc["NavWebsites"]);
+        if (FeedbackNavButton != null) ToolTipService.SetToolTip(FeedbackNavButton, loc["NavFeedback"]);
+        if (SettingsNavButton != null) ToolTipService.SetToolTip(SettingsNavButton, loc["NavSettings"]);
+        if (NavTogglePaneButton != null) ToolTipService.SetToolTip(NavTogglePaneButton, loc["NavToggle"]);
     }
 
     private void InitializeServices()

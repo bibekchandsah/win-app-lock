@@ -32,29 +32,47 @@
         <!-- Main Body (Navigation Rail + Content) -->
         <Grid x:Name="MainBodyGrid" Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="48"/>
+                <ColumnDefinition x:Name="NavPaneColumn" Width="48"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Left Navigation Rail -->
             <Grid x:Name="NavRail" Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
+                <!-- Top: Hamburger Toggle Pane Button -->
+                <Button x:Name="NavTogglePaneButton"
+                        Grid.Row="0"
+                        Width="40" Height="40"
+                        Margin="4,6,4,2"
+                        Padding="0"
+                        CornerRadius="6"
+                        Click="NavTogglePaneButton_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        HorizontalAlignment="Left"
+                        ToolTipService.ToolTip="Toggle navigation pane">
+                    <FontIcon Glyph="&#xE700;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </Button>
+
                 <!-- Top Navigation Items -->
-                <StackPanel Grid.Row="0" Spacing="4" Margin="0,8,0,0">
+                <StackPanel Grid.Row="1" Spacing="4" Margin="0,4,0,0">
                     <Button x:Name="ProtectionNavButton" 
-                            Width="40" Height="40" 
+                            Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
                             Click="ProtectionNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
                             ToolTipService.ToolTip="Protection">
-                        <Grid Width="40" Height="40">
+                        <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="ProtectionNavBackground"
                                     CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -67,52 +85,116 @@
                                     CornerRadius="1.5"
                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     Visibility="Collapsed"/>
-                            <FontIcon x:Name="ProtectionNavIcon" 
-                                      Glyph="&#xE72E;" 
-                                      FontSize="16"
-                                      HorizontalAlignment="Center" 
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="ProtectionNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xE72E;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="ProtectionNavLabel"
+                                           Grid.Column="1"
+                                           Text="Protection"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </Button>
                     
                     <Button x:Name="RulesNavButton" 
-                            Width="40" Height="40" 
+                            Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
                             IsEnabled="False"
                             Background="Transparent"
                             BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
                             ToolTipService.ToolTip="Rules/Profiles (Coming Soon)">
-                        <FontIcon Glyph="&#xE90F;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Grid Height="40" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE90F;" 
+                                      Grid.Column="0"
+                                      FontSize="16" 
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock x:Name="RulesNavLabel"
+                                       Grid.Column="1"
+                                       Text="Rules (Coming Soon)"
+                                       FontSize="13"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,12,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Visibility="Collapsed"/>
+                        </Grid>
                     </Button>
                     
                     <Button x:Name="WebsitesNavButton" 
-                            Width="40" Height="40" 
+                            Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
                             IsEnabled="False"
                             Background="Transparent"
                             BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
                             ToolTipService.ToolTip="Websites (Phase 2)">
-                        <FontIcon Glyph="&#xE774;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Grid Height="40" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE774;" 
+                                      Grid.Column="0"
+                                      FontSize="16" 
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock x:Name="WebsitesNavLabel"
+                                       Grid.Column="1"
+                                       Text="Websites (Phase 2)"
+                                       FontSize="13"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,12,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Visibility="Collapsed"/>
+                        </Grid>
                     </Button>
                 </StackPanel>
 
                 <!-- Bottom Navigation Items -->
-                <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,8">
+                <StackPanel Grid.Row="2" Spacing="4" Margin="0,0,0,8">
                     <Button x:Name="FeedbackNavButton" 
-                            Width="40" Height="40" 
+                            Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
                             Click="FeedbackNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
                             ToolTipService.ToolTip="Feedback &amp; Community">
-                        <Grid Width="40" Height="40">
+                        <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="FeedbackNavBackground"
                                     CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -125,25 +207,43 @@
                                     CornerRadius="1.5"
                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     Visibility="Collapsed"/>
-                            <FontIcon x:Name="FeedbackNavIcon" 
-                                      Glyph="&#xED15;" 
-                                      FontSize="16"
-                                      HorizontalAlignment="Center" 
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="FeedbackNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xED15;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="FeedbackNavLabel"
+                                           Grid.Column="1"
+                                           Text="Feedback &amp; Community"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </Button>
                     
                     <Button x:Name="SettingsNavButton" 
-                            Width="40" Height="40" 
+                            Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
                             Click="SettingsNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
                             ToolTipService.ToolTip="Settings">
-                        <Grid Width="40" Height="40">
+                        <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="SettingsNavBackground"
                                     CornerRadius="6"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
@@ -156,12 +256,28 @@
                                     CornerRadius="1.5"
                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                     Visibility="Collapsed"/>
-                            <FontIcon x:Name="SettingsNavIcon" 
-                                      Glyph="&#xE713;" 
-                                      FontSize="16"
-                                      HorizontalAlignment="Center" 
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="SettingsNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xE713;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="SettingsNavLabel"
+                                           Grid.Column="1"
+                                           Text="Settings"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </Button>
                 </StackPanel>

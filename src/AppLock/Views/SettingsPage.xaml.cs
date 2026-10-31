@@ -13,6 +13,53 @@ public sealed partial class SettingsPage : Page
     {
         ViewModel = new SettingsViewModel();
         InitializeComponent();
+
+        ServiceContainer.LocalizationService.LanguageChanged += LocalizationService_LanguageChanged;
+        Loaded += (s, e) => ApplyLocalization();
+        Unloaded += (s, e) => ServiceContainer.LocalizationService.LanguageChanged -= LocalizationService_LanguageChanged;
+        ApplyLocalization();
+    }
+
+    private void LocalizationService_LanguageChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() => ApplyLocalization());
+    }
+
+    private void ApplyLocalization()
+    {
+        var loc = ServiceContainer.LocalizationService;
+        if (PageTitle != null) PageTitle.Text = loc["SettingsTitle"];
+        if (ExpanderGeneral != null) ExpanderGeneral.Header = loc["SectionGeneral"];
+        if (TxtLanguage != null) TxtLanguage.Text = loc["Language"];
+        if (TxtTheme != null) TxtTheme.Text = loc["Theme"];
+        if (TxtStartWithWindows != null) TxtStartWithWindows.Text = loc["StartWithWindows"];
+        if (TxtMuteNotifications != null) TxtMuteNotifications.Text = loc["MuteNotifications"];
+        if (TxtMuteNotificationsDesc != null) TxtMuteNotificationsDesc.Text = loc["MuteNotificationsDesc"];
+        if (TxtNavPane != null) TxtNavPane.Text = loc["NavigationPane"];
+        if (TxtNavPaneDesc != null) TxtNavPaneDesc.Text = loc["NavigationPaneDesc"];
+
+        if (ExpanderSecurity != null) ExpanderSecurity.Header = loc["SectionSecurity"];
+        if (TxtAdminPassword != null) TxtAdminPassword.Text = loc["ChangePassword"];
+        if (BtnChangePassword != null) BtnChangePassword.Content = loc["ChangePassword"];
+        if (TxtSecurityQuestions != null) TxtSecurityQuestions.Text = loc["SecurityQuestions"];
+        if (BtnSecurityQuestions != null) BtnSecurityQuestions.Content = loc["SecurityQuestions"];
+        if (TxtLockoutDuration != null) TxtLockoutDuration.Text = loc["LockoutDuration"];
+        if (TxtLockoutDurationDesc != null) TxtLockoutDurationDesc.Text = loc["LockoutDurationDesc"];
+        if (TxtWindowsHello != null) TxtWindowsHello.Text = loc["WindowsHello"];
+        if (TxtWindowsHelloDesc != null) TxtWindowsHelloDesc.Text = loc["WindowsHelloDesc"];
+
+        if (ExpanderAutoLock != null) ExpanderAutoLock.Header = loc["SectionAdvanced"];
+        if (TxtAutoLockIdle != null) TxtAutoLockIdle.Text = loc["AutoLockIdle"];
+        if (TxtAutoLockIdleDesc != null) TxtAutoLockIdleDesc.Text = loc["AutoLockIdleDesc"];
+        if (TxtEmergencyHotkey != null) TxtEmergencyHotkey.Text = loc["EmergencyHotkey"];
+        if (TxtEmergencyHotkeyDesc != null) TxtEmergencyHotkeyDesc.Text = loc["EmergencyHotkeyDesc"];
+        if (TxtKeepOnTop != null) TxtKeepOnTop.Text = loc["KeepOnTop"];
+        if (TxtKeepOnTopDesc != null) TxtKeepOnTopDesc.Text = loc["KeepOnTopDesc"];
+
+        if (ExpanderAbout != null) ExpanderAbout.Header = loc["SectionAbout"];
+        if (TxtAbout != null) TxtAbout.Text = loc["AboutAppLock"];
+        if (TxtAboutDesc != null) TxtAboutDesc.Text = loc["AboutAppLockDesc"];
+        if (BtnAbout != null) BtnAbout.Content = loc["AboutAppLock"];
     }
 
     private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)

@@ -1,3 +1,4 @@
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Diagnostics;
@@ -15,6 +16,38 @@ public sealed partial class FeedbackPage : Page
     public FeedbackPage()
     {
         InitializeComponent();
+
+        ServiceContainer.LocalizationService.LanguageChanged += LocalizationService_LanguageChanged;
+        Loaded += (s, e) => ApplyLocalization();
+        Unloaded += (s, e) => ServiceContainer.LocalizationService.LanguageChanged -= LocalizationService_LanguageChanged;
+        ApplyLocalization();
+    }
+
+    private void LocalizationService_LanguageChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() => ApplyLocalization());
+    }
+
+    private void ApplyLocalization()
+    {
+        var loc = ServiceContainer.LocalizationService;
+        if (PageTitle != null) PageTitle.Text = loc["FeedbackTitle"];
+        if (PageSubtitle != null) PageSubtitle.Text = loc["FeedbackSubtitle"];
+        if (TxtContributeTitle != null) TxtContributeTitle.Text = loc["ContributeCardTitle"];
+        if (TxtContributeSubtitle != null) TxtContributeSubtitle.Text = loc["ContributeCardSubtitle"];
+        if (TxtContributeDesc != null) TxtContributeDesc.Text = loc["ContributeCardDesc"];
+        if (BtnContributeText != null) BtnContributeText.Text = loc["BtnContribute"];
+        if (BtnContributorsText != null) BtnContributorsText.Text = loc["BtnContributors"];
+        if (BtnReportIssueText != null) BtnReportIssueText.Text = loc["BtnFeedbackIssues"];
+
+        if (TxtInspirationTitle != null) TxtInspirationTitle.Text = loc["InspirationCardTitle"];
+        if (TxtInspirationSubtitle != null) TxtInspirationSubtitle.Text = loc["InspirationCardSubtitle"];
+        if (TxtInspirationDesc != null) TxtInspirationDesc.Text = loc["InspirationCardDesc"];
+        if (BtnInspirationText != null) BtnInspirationText.Text = loc["BtnViewInspiration"];
+
+        if (TxtDeveloperTitle != null) TxtDeveloperTitle.Text = loc["DeveloperCardTitle"];
+        if (TxtDeveloperSubtitle != null) TxtDeveloperSubtitle.Text = loc["DeveloperCardSubtitle"];
+        if (BtnWebsiteText != null) BtnWebsiteText.Text = loc["BtnVisitWebsite"];
     }
 
     private async void OpenUrl(string url)

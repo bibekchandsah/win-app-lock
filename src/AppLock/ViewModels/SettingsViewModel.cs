@@ -49,6 +49,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _keepLockScreenOnTop;
 
+    [ObservableProperty]
+    private bool _isNavPaneExpanded;
+
     public ObservableCollection<string> Languages { get; } = new()
     {
         "System default",
@@ -59,7 +62,9 @@ public partial class SettingsViewModel : ObservableObject
         "Italian",
         "Portuguese",
         "Chinese",
-        "Japanese"
+        "Japanese",
+        "Nepali",
+        "Hindi"
     };
 
     public ObservableCollection<string> Themes { get; } = new()
@@ -86,6 +91,7 @@ public partial class SettingsViewModel : ObservableObject
         SelectedTheme = _settings.Theme;
         StartWithWindows = _startupService.IsStartupEnabled();
         MuteNotifications = _settings.MuteNotifications;
+        IsNavPaneExpanded = _settings.IsNavPaneExpanded;
         LockoutDuration = _settings.LockoutDurationMinutes;
         WindowsHelloEnabled = _settings.WindowsHelloEnabled;
         AutoLockIdleMinutes = _settings.AutoLockIdleMinutes;
@@ -104,6 +110,14 @@ public partial class SettingsViewModel : ObservableObject
     {
         _settings.Language = value;
         SaveSettings();
+        ServiceContainer.LocalizationService.SetLanguage(value);
+    }
+
+    partial void OnIsNavPaneExpandedChanged(bool value)
+    {
+        _settings.IsNavPaneExpanded = value;
+        SaveSettings();
+        MainWindow.Instance?.SetNavPaneExpanded(value);
     }
 
     partial void OnSelectedThemeChanged(string value)

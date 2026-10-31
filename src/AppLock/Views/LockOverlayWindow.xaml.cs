@@ -63,7 +63,8 @@ public sealed partial class LockOverlayWindow : Window
 
         InitializeComponent();
 
-        TitleText.Text = $"Program \"{windowTitle}\" is already locked.";
+        ApplyLocalization();
+        ServiceContainer.LocalizationService.LanguageChanged += (s, e) => DispatcherQueue.TryEnqueue(() => ApplyLocalization());
 
         // Set dynamic emergency hotkey label from settings
         var settings = ServiceContainer.Settings;
@@ -1195,5 +1196,15 @@ public sealed partial class LockOverlayWindow : Window
             element = VisualTreeHelper.GetParent(element);
         }
         return false;
+    }
+
+    private void ApplyLocalization()
+    {
+        var loc = ServiceContainer.LocalizationService;
+        if (TitleText != null) TitleText.Text = $"{loc["AppLocked"]}: \"{_windowTitle}\"";
+        if (SubtitleText != null) SubtitleText.Text = loc["EnterPassword"];
+        if (PasswordBox != null) PasswordBox.PlaceholderText = loc["EnterPassword"];
+        if (UnlockButton != null) UnlockButton.Content = loc["BtnUnlock"];
+        if (CancelButton != null) CancelButton.Content = loc["Cancel"];
     }
 }

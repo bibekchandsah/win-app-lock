@@ -18,6 +18,9 @@ public sealed partial class AboutDialog : ContentDialog
         InitializeComponent();
         LoadVersionInfo();
 
+        Title = ServiceContainer.LocalizationService["AboutAppLock"];
+        CloseButtonText = ServiceContainer.LocalizationService["Close"];
+
         ApplyTheme();
         Loaded += (s, e) => ApplyTheme();
     }
