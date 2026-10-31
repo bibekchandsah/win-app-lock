@@ -19,6 +19,10 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Apply process tamper protection & launch independent watchdog
+        AppLock.Services.ProcessProtectionService.ProtectCurrentProcess();
+        AppLock.Services.ProcessProtectionService.StartWatchdog();
+
         _mainWindow = new MainWindow();
         _mainWindow.Activate();
     }

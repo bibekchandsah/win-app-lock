@@ -18,6 +18,7 @@
     <AppxBundle>Never</AppxBundle>
     <ApplicationIcon>icons\icon.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
   <!-- Disable PRI generation for unpackaged apps -->
@@ -67,6 +68,11 @@
              Condition="'$(HookDllSrc)' != ''" />
     <Warning Text="AppLockHook.dll not found — thumbnail injection will be disabled"
              Condition="'$(HookDllSrc)' == ''" />
+  </Target>
+
+  <Target Name="CopyAppLockGuardExe" AfterTargets="Build">
+    <Copy SourceFiles="$(OutputPath)AppLock.exe" DestinationFiles="$(OutputPath)AppLockGuard.exe" SkipUnchangedFiles="false" />
+    <Message Text="Copied AppLockGuard.exe" Importance="high" />
   </Target>
 
 </Project>

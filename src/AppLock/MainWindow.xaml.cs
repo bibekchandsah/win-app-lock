@@ -394,8 +394,7 @@ public sealed partial class MainWindow : Window
     {
         if (uMsg == WM_CLOSE && !_isExplicitExit)
         {
-            Hide();
-            System.Diagnostics.Debug.WriteLine("WM_CLOSE intercepted -> Minimized to system tray");
+            DispatcherQueue.TryEnqueue(async () => await HandleCloseRequestAsync());
             return 0; // Prevent Win32 window destruction
         }
 
@@ -493,7 +492,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task HandleExitRequestAsync()
+    private async Task HandleCloseRequestAsync()
     {
         if (_isAuthDialogOpen) return;
         _isAuthDialogOpen = true;
@@ -504,6 +503,8 @@ public sealed partial class MainWindow : Window
             var dialog = new AuthDialog(ServiceContainer.AuthService)
             {
                 Title = "Exit AppLock",
+                PrimaryButtonText = "Exit AppLock",
+                CloseButtonText = "Minimize to Tray",
                 XamlRoot = Content?.XamlRoot
             };
 
@@ -512,21 +513,29 @@ public sealed partial class MainWindow : Window
             if (dialog.IsAuthenticated)
             {
                 _isExplicitExit = true;
-                // Perform cleanup
                 MainWindow_ActualClose();
-                
-                // Exit app
                 Application.Current.Exit();
+            }
+            else
+            {
+                // User cancelled or chose to minimize to tray
+                Hide();
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error during exit request: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error during close request: {ex.Message}");
+            Hide();
         }
         finally
         {
             _isAuthDialogOpen = false;
         }
+    }
+
+    private async Task HandleExitRequestAsync()
+    {
+        await HandleCloseRequestAsync();
     }
 
     private void RegisterEmergencyHotkey()
@@ -687,15 +696,18 @@ public sealed partial class MainWindow : Window
     {
         if (!_isExplicitExit)
         {
-            // Cancel close and hide to system tray
+            // Cancel close and prompt for exit password or minimize to tray
             args.Cancel = true;
-            Hide();
-            System.Diagnostics.Debug.WriteLine("Window minimized to system tray (AppWindow.Closing)");
+            DispatcherQueue.TryEnqueue(async () => await HandleCloseRequestAsync());
         }
     }
     
     private void MainWindow_ActualClose()
     {
+        // Signal authorized exit to watchdog and restore process DACL
+        AppLock.Services.ProcessProtectionService.SignalAuthorizedExit();
+        AppLock.Services.ProcessProtectionService.UnprotectCurrentProcess();
+
         // Actual cleanup when exiting app
         UnregisterEmergencyHotkey();
         // Remove WndProc subclass
