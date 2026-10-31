@@ -8,6 +8,11 @@ namespace AppLock.Views;
 
 public sealed partial class AboutDialog : ContentDialog
 {
+    private const string RepoUrl = "https://github.com/bibekchandsah/win-app-lock";
+    private const string DeveloperUrl = "https://www.bibekchandsah.com.np/";
+    private const string ContributorsUrl = "https://github.com/bibekchandsah/win-app-lock/graphs/contributors";
+    private const string InspirationUrl = "https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&gl=US";
+
     public AboutDialog()
     {
         InitializeComponent();
@@ -43,15 +48,35 @@ public sealed partial class AboutDialog : ContentDialog
         }
     }
 
-    private async void GitHubButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    private async void OpenUrl(string url)
     {
         try
         {
-            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/yourusername/applock"));
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore if can't open browser
+            Debug.WriteLine($"Failed to open URL '{url}': {ex.Message}");
         }
+    }
+
+    private void RepoLink_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(RepoUrl);
+    }
+
+    private void DeveloperLink_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(DeveloperUrl);
+    }
+
+    private void ContributorsLink_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(ContributorsUrl);
+    }
+
+    private void InspirationLink_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(InspirationUrl);
     }
 }

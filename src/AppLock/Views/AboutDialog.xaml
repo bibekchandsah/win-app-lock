@@ -7,78 +7,147 @@
     DefaultButton="Close"
     CornerRadius="8">
 
-
-    <StackPanel Spacing="20" MinWidth="400" Padding="0,8">
-        <!-- App Icon and Name -->
-        <StackPanel HorizontalAlignment="Center" Spacing="12">
-            <Border Width="80" Height="80"
-                    Background="{ThemeResource AccentFillColorDefaultBrush}"
-                    CornerRadius="16">
-                <FontIcon Glyph="&#xE72E;" FontSize="48" Foreground="White"/>
-            </Border>
-            
-            <TextBlock Text="AppLock"
-                       Style="{StaticResource TitleTextBlockStyle}"
-                       HorizontalAlignment="Center"/>
-            
-            <TextBlock x:Name="VersionText"
-                       Text="Version 1.0.0"
-                       HorizontalAlignment="Center"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-        </StackPanel>
-
-        <!-- Description -->
-        <TextBlock TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   TextAlignment="Center"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-            A Windows desktop app that locks selected applications and windows behind a password or Windows Hello.
-        </TextBlock>
-
-        <!-- Links -->
-        <StackPanel Spacing="8">
-            <HyperlinkButton Content="GitHub Repository"
-                             Click="GitHubButton_Click"
-                             HorizontalAlignment="Center"/>
-            
-            <HyperlinkButton Content="Documentation"
-                             HorizontalAlignment="Center"
-                             IsEnabled="False"/>
-        </StackPanel>
-
-        <!-- Copyright -->
-        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16">
-            <StackPanel Spacing="8">
-                <TextBlock Text="© 2024 AppLock"
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
+        <StackPanel Spacing="16" MinWidth="440" Padding="0,4,8,8">
+            <!-- App Icon and Name -->
+            <StackPanel HorizontalAlignment="Center" Spacing="8">
+                <Border Width="72" Height="72"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        CornerRadius="16">
+                    <FontIcon Glyph="&#xE72E;" FontSize="40" Foreground="White"/>
+                </Border>
+                
+                <TextBlock Text="AppLock"
+                           Style="{StaticResource TitleTextBlockStyle}"
+                           HorizontalAlignment="Center"/>
+                
+                <TextBlock x:Name="VersionText"
+                           Text="Version 1.0.0"
                            HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Description -->
+            <TextBlock TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                A Windows desktop app that locks selected applications and windows behind a password or Windows Hello.
+            </TextBlock>
+
+            <!-- Project & Community Links Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16,12">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Project &amp; Community"
+                               FontWeight="SemiBold"
+                               FontSize="13"/>
+
+                    <!-- Repo Link -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE71B;" FontSize="16" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="GitHub Repository" FontSize="13" FontWeight="Medium"/>
+                            <TextBlock Text="bibekchandsah/win-app-lock" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                        <HyperlinkButton Grid.Column="2" Content="View" Click="RepoLink_Click" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <MenuFlyoutSeparator Margin="-8,0"/>
+
+                    <!-- Developer Link -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE77B;" FontSize="16" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Developer" FontSize="13" FontWeight="Medium"/>
+                            <TextBlock Text="Bibek Chand Sah (bibekchandsah.com.np)" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                        <HyperlinkButton Grid.Column="2" Content="Website" Click="DeveloperLink_Click" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <MenuFlyoutSeparator Margin="-8,0"/>
+
+                    <!-- Contributors Link -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE716;" FontSize="16" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Contributors" FontSize="13" FontWeight="Medium"/>
+                            <TextBlock Text="View all project contributors" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                        <HyperlinkButton Grid.Column="2" Content="View" Click="ContributorsLink_Click" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <MenuFlyoutSeparator Margin="-8,0"/>
+
+                    <!-- Project Inspiration Link -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE719;" FontSize="16" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Project Inspiration" FontSize="13" FontWeight="Medium"/>
+                            <TextBlock Text="App Lock (Microsoft Store)" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                        <HyperlinkButton Grid.Column="2" Content="Store Link" Click="InspirationLink_Click" VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Copyright -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="© 2026 AppLock"
+                               HorizontalAlignment="Center"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    
+                    <TextBlock Text="Licensed under MIT License"
+                               HorizontalAlignment="Center"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Credits -->
+            <StackPanel Spacing="4" Margin="4,0,0,0">
+                <TextBlock Text="Built with:"
+                           FontWeight="SemiBold"
+                           FontSize="12"/>
+                <TextBlock Text="• WinUI 3 / Windows App SDK"
                            FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                
-                <TextBlock Text="Licensed under MIT License"
-                           HorizontalAlignment="Center"
+                <TextBlock Text="• Community Toolkit MVVM"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="• CsWin32 for native interop"
                            FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
-        </Border>
-
-        <!-- Credits -->
-        <StackPanel Spacing="4">
-            <TextBlock Text="Built with:"
-                       FontWeight="SemiBold"
-                       FontSize="12"/>
-            <TextBlock Text="• WinUI 3 / Windows App SDK"
-                       FontSize="12"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-            <TextBlock Text="• Community Toolkit MVVM"
-                       FontSize="12"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-            <TextBlock Text="• CsWin32 for native interop"
-                       FontSize="12"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
-    </StackPanel>
+    </ScrollViewer>
 </ContentDialog>

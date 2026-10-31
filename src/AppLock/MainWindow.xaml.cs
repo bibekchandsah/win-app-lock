@@ -224,6 +224,7 @@ public sealed partial class MainWindow : Window
     private void UpdateNavSelection(Type? pageType)
     {
         bool isProtection = pageType == typeof(ProtectionPage);
+        bool isFeedback = pageType == typeof(FeedbackPage);
         bool isSettings = pageType == typeof(SettingsPage);
 
         var accentBrush = (Application.Current.Resources.TryGetValue("AccentFillColorDefaultBrush", out var afb) ? afb as Brush : null)
@@ -241,6 +242,20 @@ public sealed partial class MainWindow : Window
             if (accentBrush != null && secondaryBrush != null)
             {
                 ProtectionNavIcon.Foreground = isProtection ? accentBrush : secondaryBrush;
+            }
+        }
+
+        if (FeedbackNavBackground != null && FeedbackNavIndicator != null && FeedbackNavIcon != null)
+        {
+            FeedbackNavBackground.Visibility = isFeedback ? Visibility.Visible : Visibility.Collapsed;
+            FeedbackNavIndicator.Visibility = isFeedback ? Visibility.Visible : Visibility.Collapsed;
+            if (accentBrush != null)
+            {
+                FeedbackNavIndicator.Background = accentBrush;
+            }
+            if (accentBrush != null && secondaryBrush != null)
+            {
+                FeedbackNavIcon.Foreground = isFeedback ? accentBrush : secondaryBrush;
             }
         }
 
@@ -374,6 +389,15 @@ public sealed partial class MainWindow : Window
         if (ContentFrame.CurrentSourcePageType != typeof(ProtectionPage))
         {
             ContentFrame.Navigate(typeof(ProtectionPage));
+        }
+    }
+
+    private void FeedbackNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isMainAuthenticated) return;
+        if (ContentFrame.CurrentSourcePageType != typeof(FeedbackPage))
+        {
+            ContentFrame.Navigate(typeof(FeedbackPage));
         }
     }
 

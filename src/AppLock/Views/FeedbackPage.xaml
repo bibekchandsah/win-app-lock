@@ -1,0 +1,188 @@
+<Page
+    x:Class="AppLock.Views.FeedbackPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <Grid Margin="24">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="20" MaxWidth="800" HorizontalAlignment="Left">
+                
+                <!-- Page Header -->
+                <StackPanel Spacing="4" Margin="0,0,0,4">
+                    <TextBlock Text="Feedback &amp; Community" 
+                               Style="{ThemeResource TitleTextBlockStyle}"/>
+                    <TextBlock Text="Contribute to AppLock, share ideas, report issues, and discover project roots"
+                               Style="{ThemeResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <!-- 1. Hero Card: Contribute to AppLock -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <Grid RowSpacing="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header with Icon -->
+                        <Grid Grid.Row="0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Width="48" Height="48"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    CornerRadius="10"
+                                    VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE790;" FontSize="24" Foreground="White"/>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Contribute &amp; Make It Better"
+                                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                                <TextBlock Text="Join in building the most powerful and seamless app locker for Windows"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Content description -->
+                        <TextBlock Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}">
+                            Show developer to contribute in it to make it more better with lots of features!
+                            Whether you want to contribute code, design new capabilities, improve security hooks, or report bugs, your involvement helps shape AppLock.
+                        </TextBlock>
+
+                        <!-- Actions -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
+                            <Button Style="{ThemeResource AccentButtonStyle}"
+                                    Click="ContributeGitHub_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE71B;" FontSize="14"/>
+                                    <TextBlock Text="Contribute on GitHub"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Click="ViewContributors_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE716;" FontSize="14"/>
+                                    <TextBlock Text="View Contributors"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Click="ReportIssue_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE90A;" FontSize="14"/>
+                                    <TextBlock Text="Feedback &amp; Issues"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 2. Project Inspiration Card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <Grid RowSpacing="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header with Icon -->
+                        <Grid Grid.Row="0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Width="48" Height="48"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="10"
+                                    VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE719;" FontSize="24" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="Project Inspiration"
+                                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                                <TextBlock Text="App Lock on Microsoft Store"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Content description -->
+                        <TextBlock Grid.Row="1" TextWrapping="Wrap" LineHeight="20"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}">
+                            This program was inspired by App Lock for Windows available on the Microsoft Store:
+                            https://apps.microsoft.com/detail/9pg38sth0tks?hl=en-US&amp;gl=US.
+                            AppLock expands on that foundation with native WinUI 3 Fluent Design, Mica backdrop, DWM live preview thumbnail protection, process guardian watchdogs, and customizable unlock options.
+                        </TextBlock>
+
+                        <!-- Action -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
+                            <Button Click="ViewInspirationStore_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE719;" FontSize="14"/>
+                                    <TextBlock Text="View Inspired Program in Store"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 3. Developer Card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Width="48" Height="48"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="10"
+                                VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE77B;" FontSize="24" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="Developer Profile"
+                                       Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                            <TextBlock Text="Created with passion by Bibek Chand Sah"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2" 
+                                VerticalAlignment="Center"
+                                Click="DeveloperWebsite_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE774;" FontSize="14"/>
+                                <TextBlock Text="Visit Website"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

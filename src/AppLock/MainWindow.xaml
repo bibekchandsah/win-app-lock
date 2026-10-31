@@ -108,11 +108,30 @@
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="6"
-                            IsEnabled="False"
+                            Click="FeedbackNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
-                            ToolTipService.ToolTip="Feedback">
-                        <FontIcon Glyph="&#xED15;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            ToolTipService.ToolTip="Feedback &amp; Community">
+                        <Grid Width="40" Height="40">
+                            <Border x:Name="FeedbackNavBackground"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="FeedbackNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                            <FontIcon x:Name="FeedbackNavIcon" 
+                                      Glyph="&#xED15;" 
+                                      FontSize="16"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
                     </Button>
                     
                     <Button x:Name="SettingsNavButton" 
