@@ -118,7 +118,9 @@ issue
 -> fixed - auto refresh running program when new window is detected and when tab/title changes detected
 -> partial toggling isn't working as smooth as it should be
 -> partial - optional - system app UWP don't show locked thumbnail it shows blank window
--> show the security question during setting password for first time 
+-> fixed - show the security question during setting password for first time 
 -> fixed - app icon in window title bar with theme sync and also show icon in taskbar app icon 
 -> fixed - active page in navigation view not visually highlighted
--> 
+-> auto focus the input box in the overlay so that user can enter password 
+-> prevent task kill so that unauthorized user can't kill the app from task manger or right click and end the task 
+

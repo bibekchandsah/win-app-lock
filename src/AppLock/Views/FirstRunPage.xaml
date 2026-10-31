@@ -7,72 +7,116 @@
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" 
-                    MaxWidth="400" 
-                    VerticalAlignment="Center" 
-                    HorizontalAlignment="Center"
-                    Spacing="24">
-            
-            <!-- Welcome Header -->
-            <StackPanel Spacing="8">
-                <TextBlock Text="Welcome to AppLock" 
-                           Style="{ThemeResource TitleLargeTextBlockStyle}"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Text="Set up your admin password to get started" 
-                           Style="{ThemeResource BodyTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           HorizontalAlignment="Center"
-                           TextWrapping="Wrap"
-                           TextAlignment="Center"/>
-            </StackPanel>
-
-            <!-- Password Setup Card -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="24">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="Create Admin Password" 
-                               Style="{ThemeResource SubtitleTextBlockStyle}"/>
-
-                    <PasswordBox x:Name="PasswordBox"
-                                 Header="Password (minimum 6 characters)"
-                                 PlaceholderText="Enter password"
-                                 PasswordChanged="PasswordBox_PasswordChanged"/>
-
-                    <PasswordBox x:Name="ConfirmPasswordBox"
-                                 Header="Confirm Password"
-                                 PlaceholderText="Re-enter password"
-                                 PasswordChanged="PasswordBox_PasswordChanged"/>
-
-                    <TextBlock x:Name="ErrorText"
-                               Foreground="{ThemeResource SystemErrorTextColor}"
-                               Visibility="Collapsed"
-                               TextWrapping="Wrap"/>
-
-                    <Button x:Name="SetupButton"
-                            Content="Continue"
-                            Style="{ThemeResource AccentButtonStyle}"
-                            HorizontalAlignment="Stretch"
-                            IsEnabled="False"
-                            Click="SetupButton_Click"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="16,32">
+            <StackPanel MaxWidth="440" 
+                        VerticalAlignment="Center" 
+                        HorizontalAlignment="Center"
+                        Spacing="20">
+                
+                <!-- Welcome Header -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Welcome to AppLock" 
+                               Style="{ThemeResource TitleLargeTextBlockStyle}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Set up your admin password and security question to get started" 
+                               Style="{ThemeResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"/>
                 </StackPanel>
-            </Border>
 
-            <!-- Info -->
-            <TextBlock Text="Your password will be securely hashed and stored locally. It cannot be recovered if forgotten."
-                       Style="{ThemeResource CaptionTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       Margin="0,8,0,0"/>
-        </StackPanel>
-    </Grid>
+                <!-- Setup Card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="Admin Credentials" 
+                                   Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+                        <!-- Password -->
+                        <PasswordBox x:Name="PasswordBox"
+                                     Header="Password (minimum 6 characters)"
+                                     PlaceholderText="Enter password"
+                                     PasswordChanged="InputFields_Changed"/>
+
+                        <!-- Confirm Password -->
+                        <PasswordBox x:Name="ConfirmPasswordBox"
+                                     Header="Confirm Password"
+                                     PlaceholderText="Re-enter password"
+                                     PasswordChanged="InputFields_Changed"/>
+
+                        <!-- Divider / Section Header -->
+                        <MenuFlyoutSeparator Margin="0,4"/>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Security Question" 
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Used to recover access if you forget your password" 
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Preset Questions Dropdown -->
+                        <ComboBox x:Name="QuestionComboBox"
+                                  Header="Choose a Question"
+                                  PlaceholderText="Select a preset question"
+                                  HorizontalAlignment="Stretch"
+                                  CornerRadius="4"
+                                  SelectionChanged="QuestionComboBox_SelectionChanged">
+                            <ComboBoxItem Content="What is your mother's maiden name?"/>
+                            <ComboBoxItem Content="What was the name of your first pet?"/>
+                            <ComboBoxItem Content="What city were you born in?"/>
+                            <ComboBoxItem Content="What was the name of your elementary school?"/>
+                            <ComboBoxItem Content="What is your favorite book?"/>
+                            <ComboBoxItem Content="What is your favorite food?"/>
+                            <ComboBoxItem Content="What was the make of your first car?"/>
+                            <ComboBoxItem Content="What is your favorite color?"/>
+                            <ComboBoxItem Content="Custom question"/>
+                        </ComboBox>
+
+                        <!-- Custom Question Input -->
+                        <TextBox x:Name="CustomQuestionBox"
+                                 Header="Custom Question"
+                                 PlaceholderText="Enter your custom question"
+                                 CornerRadius="4"
+                                 Visibility="Collapsed"
+                                 TextChanged="InputFields_Changed"/>
+
+                        <!-- Answer Input -->
+                        <TextBox x:Name="AnswerBox"
+                                 Header="Answer"
+                                 PlaceholderText="Enter your answer"
+                                 CornerRadius="4"
+                                 TextChanged="InputFields_Changed"/>
+
+                        <!-- Error Message -->
+                        <TextBlock x:Name="ErrorText"
+                                   Foreground="{ThemeResource SystemErrorTextColor}"
+                                   Visibility="Collapsed"
+                                   TextWrapping="Wrap"/>
+
+                        <!-- Submit Button -->
+                        <Button x:Name="SetupButton"
+                                Content="Continue"
+                                Style="{ThemeResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                IsEnabled="False"
+                                Click="SetupButton_Click"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Info -->
+                <TextBlock Text="Your password and security answer are securely hashed with PBKDF2 and stored locally. You can use your security question to reset your password if forgotten."
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
 </Page>

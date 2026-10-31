@@ -15,30 +15,78 @@ public sealed partial class FirstRunPage : Page
         InitializeComponent();
     }
 
-    private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    private void QuestionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (QuestionComboBox.SelectedItem is ComboBoxItem selectedItem)
+        {
+            string text = selectedItem.Content?.ToString() ?? string.Empty;
+            if (string.Equals(text, "Custom question", StringComparison.OrdinalIgnoreCase))
+            {
+                CustomQuestionBox.Visibility = Visibility.Visible;
+                CustomQuestionBox.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                CustomQuestionBox.Visibility = Visibility.Collapsed;
+            }
+        }
+        ValidateInputs();
+    }
+
+    private void InputFields_Changed(object sender, RoutedEventArgs e)
+    {
+        ValidateInputs();
+    }
+
+    private void ValidateInputs()
     {
         ErrorText.Visibility = Visibility.Collapsed;
 
         var password = PasswordBox.Password;
         var confirmPassword = ConfirmPasswordBox.Password;
 
-        // Enable button only if both fields match and password is valid
-        SetupButton.IsEnabled = !string.IsNullOrEmpty(password) &&
-                                 !string.IsNullOrEmpty(confirmPassword) &&
-                                 password == confirmPassword &&
-                                 password.Length >= 6;
+        // Check password length
+        if (!string.IsNullOrEmpty(password) && password.Length < 6)
+        {
+            ErrorText.Text = "Password must be at least 6 characters";
+            ErrorText.Visibility = Visibility.Visible;
+            SetupButton.IsEnabled = false;
+            return;
+        }
 
-        // Show error if passwords don't match (but only if confirm has content)
+        // Check password matching
         if (!string.IsNullOrEmpty(confirmPassword) && password != confirmPassword)
         {
             ErrorText.Text = "Passwords do not match";
             ErrorText.Visibility = Visibility.Visible;
+            SetupButton.IsEnabled = false;
+            return;
         }
-        else if (!string.IsNullOrEmpty(password) && password.Length < 6)
+
+        bool hasValidPassword = !string.IsNullOrEmpty(password) &&
+                                !string.IsNullOrEmpty(confirmPassword) &&
+                                password == confirmPassword &&
+                                password.Length >= 6;
+
+        // Check security question
+        bool hasValidQuestion = false;
+        if (QuestionComboBox.SelectedItem is ComboBoxItem item)
         {
-            ErrorText.Text = "Password must be at least 6 characters";
-            ErrorText.Visibility = Visibility.Visible;
+            string qText = item.Content?.ToString() ?? string.Empty;
+            if (string.Equals(qText, "Custom question", StringComparison.OrdinalIgnoreCase))
+            {
+                hasValidQuestion = !string.IsNullOrWhiteSpace(CustomQuestionBox.Text);
+            }
+            else
+            {
+                hasValidQuestion = !string.IsNullOrWhiteSpace(qText);
+            }
         }
+
+        // Check answer
+        bool hasValidAnswer = !string.IsNullOrWhiteSpace(AnswerBox.Text);
+
+        SetupButton.IsEnabled = hasValidPassword && hasValidQuestion && hasValidAnswer;
     }
 
     private void SetupButton_Click(object sender, RoutedEventArgs e)
@@ -49,11 +97,62 @@ public sealed partial class FirstRunPage : Page
             ErrorText.Visibility = Visibility.Collapsed;
 
             var password = PasswordBox.Password;
-            _authService.SetupPassword(password);
+            if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
+            {
+                ErrorText.Text = "Password must be at least 6 characters";
+                ErrorText.Visibility = Visibility.Visible;
+                SetupButton.IsEnabled = true;
+                return;
+            }
 
-            // Clear password boxes
+            if (password != ConfirmPasswordBox.Password)
+            {
+                ErrorText.Text = "Passwords do not match";
+                ErrorText.Visibility = Visibility.Visible;
+                SetupButton.IsEnabled = true;
+                return;
+            }
+
+            string question = string.Empty;
+            if (QuestionComboBox.SelectedItem is ComboBoxItem selectedItem)
+            {
+                string selectedText = selectedItem.Content?.ToString() ?? string.Empty;
+                if (string.Equals(selectedText, "Custom question", StringComparison.OrdinalIgnoreCase))
+                {
+                    question = CustomQuestionBox.Text.Trim();
+                }
+                else
+                {
+                    question = selectedText;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                ErrorText.Text = "Please select or enter a security question";
+                ErrorText.Visibility = Visibility.Visible;
+                SetupButton.IsEnabled = true;
+                return;
+            }
+
+            string answer = AnswerBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(answer))
+            {
+                ErrorText.Text = "Please provide an answer to the security question";
+                ErrorText.Visibility = Visibility.Visible;
+                SetupButton.IsEnabled = true;
+                return;
+            }
+
+            // Save password and security question
+            _authService.SetupPassword(password);
+            _authService.SetSecurityQuestion(question, answer);
+
+            // Clear inputs
             PasswordBox.Password = string.Empty;
             ConfirmPasswordBox.Password = string.Empty;
+            AnswerBox.Text = string.Empty;
+            CustomQuestionBox.Text = string.Empty;
 
             // Notify completion
             FirstRunCompleted?.Invoke(this, EventArgs.Empty);
