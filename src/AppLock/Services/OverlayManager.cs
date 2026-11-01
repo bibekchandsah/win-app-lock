@@ -766,6 +766,30 @@ public class OverlayManager
         });
     }
 
+    /// <summary>
+    /// Fast check: is this specific HWND currently in an unlocked session?
+    /// </summary>
+    public bool IsHwndUnlocked(nint hwnd)
+        => _indefinitelyUnlocked.Contains(hwnd) || _unlockTimers.ContainsKey(hwnd);
+
+    /// <summary>
+    /// Returns true if any window matching <paramref name="rule"/> is currently unlocked
+    /// (either via timed session or indefinitely). Used by SelfDisciplineService quota tracking.
+    /// </summary>
+    public bool IsRuleCurrentlyUnlocked(AppLock.Models.LockRule rule)
+    {
+        var windows = _windowEnumerator.EnumerateWindows();
+        foreach (var window in windows)
+        {
+            if (!_lockManager.IsWindowLockedByRule(rule, window))
+                continue;
+            nint h = window.Handle;
+            if (_indefinitelyUnlocked.Contains(h) || _unlockTimers.ContainsKey(h))
+                return true;
+        }
+        return false;
+    }
+
     public void Dispose()
     {
         _relockTimer?.Dispose();

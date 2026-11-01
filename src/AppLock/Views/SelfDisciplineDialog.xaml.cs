@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AppLock.Models;
 using AppLock.Services;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -35,6 +36,20 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
 
         LoadSettingsIntoUI();
         SelectTab(_lastUsedTabIndex);
+
+        // Live ring update while dialog is open
+        QuotaTracker.QuotaUpdated += OnQuotaUpdated;
+        Closed += (_, _) => QuotaTracker.QuotaUpdated -= OnQuotaUpdated;
+    }
+
+    private void OnQuotaUpdated(LockRule updatedRule)
+    {
+        if (updatedRule.Id != _rule.Id) return;
+        // Copy the latest counter into our working copy so the ring reflects real usage
+        _settingsCopy.UsedSecondsToday = updatedRule.SelfDiscipline.UsedSecondsToday;
+
+        // Must update UI on the dispatcher thread
+        DispatcherQueue.TryEnqueue(UpdateProgressRing);
     }
 
     private void LoadSettingsIntoUI()

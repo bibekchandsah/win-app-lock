@@ -1,14 +1,15 @@
 using System;
 using AppLock.Models;
 using Microsoft.UI.Dispatching;
+using Windows.Win32;
 
 namespace AppLock.Services;
 
 /// <summary>
-/// Single 1-second timer that coordinates self-discipline enforcement per LockRule:
-///   - Step 3: Idle relock
-///   - Step 4: Quota tracking (added in Step 4)
-///   - Step 5: Schedule evaluation (added in Step 5)
+/// Single 1-second timer coordinating self-discipline enforcement per LockRule:
+///   Step 3: Idle relock
+///   Step 4: Quota tracking + flush
+///   Step 5: Schedule evaluation (added in Step 5)
 /// </summary>
 public class SelfDisciplineService : IDisposable
 {
@@ -17,6 +18,8 @@ public class SelfDisciplineService : IDisposable
     private readonly SettingsStore _settingsStore;
     private readonly AppSettings _settings;
     private readonly DispatcherQueue _dispatcherQueue;
+
+    private readonly QuotaTracker _quotaTracker;
 
     private System.Threading.Timer? _tickTimer;
     private bool _disposed;
@@ -34,6 +37,8 @@ public class SelfDisciplineService : IDisposable
         _settings = settings;
         _dispatcherQueue = dispatcherQueue;
 
+        _quotaTracker = new QuotaTracker(lockManager, overlayManager, settingsStore, settings, SystemClock.Instance);
+
         // When a rule is unlocked via the overlay, reset its idle-relock flag
         _overlayManager.RuleUnlocked += (_, rule) => rule.IdleRelockPending = false;
     }
@@ -41,7 +46,6 @@ public class SelfDisciplineService : IDisposable
     public void Start()
     {
         _tickTimer?.Dispose();
-        // 1-second tick, starting after 1 second
         _tickTimer = new System.Threading.Timer(OnTick, null,
             TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(1));
@@ -60,17 +64,19 @@ public class SelfDisciplineService : IDisposable
 
         try
         {
-            double idleMinutes = IdleService.GetIdleTimeMinutes();
+            double idleSeconds = IdleService.GetIdleTimeMinutes() * 60.0;
+            nint foregroundHwnd = (nint)PInvoke.GetForegroundWindow().Value;
 
             foreach (var rule in _lockManager.GetAllRules())
             {
                 var sd = rule.SelfDiscipline;
 
                 // --- Step 3: Idle Relock ---
-                EvaluateIdleRelock(rule, sd, idleMinutes);
-
-                // Steps 4 & 5 will be inserted here later
+                EvaluateIdleRelock(rule, sd, idleSeconds / 60.0);
             }
+
+            // --- Step 4: Quota tracking ---
+            _quotaTracker.OnTick(idleSeconds, foregroundHwnd);
         }
         catch (Exception ex)
         {
@@ -82,11 +88,6 @@ public class SelfDisciplineService : IDisposable
     {
         if (!sd.IdleRelockEnabled) return;
         if (idleMinutes < sd.IdleRelockMinutes) return;
-
-        // Only relock if the app is currently unlocked (i.e. has an active unlock session).
-        // We check this by asking OverlayManager to ForceLock — it will only show the
-        // overlay if the window is in the unlocked timer or indefinitely-unlocked set.
-        // To avoid noisy repeated calls, we track a per-rule "relocked due to idle" flag.
         if (rule.IdleRelockPending) return;
 
         rule.IdleRelockPending = true;
@@ -97,10 +98,14 @@ public class SelfDisciplineService : IDisposable
         });
     }
 
+    /// <summary>Flush quota counters to disk immediately (call on exit).</summary>
+    public void Flush() => _quotaTracker.Flush();
+
     public void Dispose()
     {
+        if (_disposed) return;
         _disposed = true;
         Stop();
+        _quotaTracker.Flush(); // persist counters on exit
     }
 }
-

@@ -259,7 +259,7 @@ public static class ServiceContainer
     public static void Reset()
     {
         // Stop and dispose services that need cleanup
-        _selfDisciplineService?.Dispose();
+        _selfDisciplineService?.Dispose(); // flushes quota on exit
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();
         _idleService?.Dispose();
