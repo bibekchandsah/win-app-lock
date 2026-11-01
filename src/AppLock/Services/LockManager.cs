@@ -119,6 +119,20 @@ public class LockManager
         return false;
     }
 
+    /// <summary>
+    /// Returns true if the specific <paramref name="rule"/> matches <paramref name="window"/>.
+    /// Used by OverlayManager to identify which rule triggered the lock.
+    /// </summary>
+    public bool IsWindowLockedByRule(LockRule rule, RunningWindow window)
+        => RuleMatches(rule, window);
+
+    /// <summary>
+    /// Returns the first LockRule that matches <paramref name="window"/>, or null if not locked.
+    /// Used to look up per-app password state for the running programs list.
+    /// </summary>
+    public LockRule? GetMatchingRule(RunningWindow window)
+        => _settings.LockRules.FirstOrDefault(r => RuleMatches(r, window));
+
     private bool RuleMatches(LockRule rule, RunningWindow window)
     {
         switch (rule.Type)

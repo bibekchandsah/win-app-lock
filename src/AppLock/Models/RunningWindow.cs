@@ -32,6 +32,9 @@ public partial class RunningWindow : ObservableObject
     [ObservableProperty]
     private bool _isLocked;
 
+    [ObservableProperty]
+    private bool _hasCustomPassword;
+
     /// <summary>
     /// Display name for the process, appending "(xN)" when multiple windows share the same process.
     /// Example: "chrome (x3)" or just "chrome".

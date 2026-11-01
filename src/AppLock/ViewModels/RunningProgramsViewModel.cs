@@ -197,6 +197,8 @@ public partial class RunningProgramsViewModel : ObservableObject
                     }
                     
                     existingWindow.IsLocked = _lockManager.IsWindowLocked(existingWindow);
+                    existingWindow.HasCustomPassword =
+                        _lockManager.GetMatchingRule(existingWindow)?.HasCustomPassword ?? false;
                 }
                 else
                 {
@@ -211,6 +213,8 @@ public partial class RunningProgramsViewModel : ObservableObject
                 if (!seenHandles.Contains(currentWindow.Handle))
                 {
                     currentWindow.IsLocked = _lockManager.IsWindowLocked(currentWindow);
+                    currentWindow.HasCustomPassword =
+                        _lockManager.GetMatchingRule(currentWindow)?.HasCustomPassword ?? false;
                     Windows.Add(currentWindow);
                     
                     // Load icon asynchronously
@@ -251,6 +255,7 @@ public partial class RunningProgramsViewModel : ObservableObject
 
         _lockManager.AddRule(rule);
         window.IsLocked = true;
+        window.HasCustomPassword = false; // new rule — no custom password yet
     }
 
     private void FilterWindows()
@@ -298,6 +303,7 @@ public partial class RunningProgramsViewModel : ObservableObject
 
             representative.WindowCount = group.Count();
             representative.IsLocked = group.Any(w => w.IsLocked);
+            representative.HasCustomPassword = group.Any(w => w.HasCustomPassword);
             newItems.Add(representative);
         }
 
@@ -352,11 +358,14 @@ public partial class RunningProgramsViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
     private void UpdateLockStates()
     {
         foreach (var window in Windows)
         {
             window.IsLocked = _lockManager.IsWindowLocked(window);
+            window.HasCustomPassword =
+                _lockManager.GetMatchingRule(window)?.HasCustomPassword ?? false;
         }
         // Re-run filter so representative lock states are recalculated
         FilterWindows();

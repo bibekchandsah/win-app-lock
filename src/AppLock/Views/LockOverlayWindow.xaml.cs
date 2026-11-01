@@ -1,3 +1,4 @@
+using AppLock.Models;
 using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -18,6 +19,7 @@ public sealed partial class LockOverlayWindow : Window
     private readonly string _windowTitle;
     private readonly AuthService _authService;
     private readonly DisplayHelper _displayHelper;
+    private readonly LockRule? _lockRule; // null = use admin password only
 
     public bool IsUnlocked { get; private set; }
     public TimeSpan UnlockDuration { get; private set; }
@@ -53,10 +55,11 @@ public sealed partial class LockOverlayWindow : Window
     private System.Drawing.Point _dragStartCursor;
     private RECT _targetStartRect;
 
-    public LockOverlayWindow(nint targetWindowHandle, string windowTitle)
+    public LockOverlayWindow(nint targetWindowHandle, string windowTitle, LockRule? lockRule = null)
     {
         _targetWindowHandle = targetWindowHandle;
         _windowTitle = windowTitle;
+        _lockRule = lockRule;
         _authService = ServiceContainer.AuthService;
         _displayHelper = ServiceContainer.DisplayHelper;
         _keepOnTop = ServiceContainer.Settings.KeepLockScreenOnTop;
@@ -502,7 +505,9 @@ public sealed partial class LockOverlayWindow : Window
             return;
         }
 
-        if (_authService.VerifyPassword(password))
+        bool verified = _authService.VerifyAppOrAdminPassword(_lockRule, password);
+
+        if (verified)
         {
             IsUnlocked = true;
             UnlockDuration = GetSelectedDuration();

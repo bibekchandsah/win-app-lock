@@ -57,9 +57,9 @@ public class LockGlyphConverter : IValueConverter
     {
         if (value is bool isLocked && isLocked)
         {
-            return "\uE785"; // Padlock (Locked)
+            return "\uE72E"; // Padlock (Locked)
         }
-        return "\uE72E"; // Lock (Unlocked)
+        return "\uE785"; // Lock (Unlocked)
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
@@ -123,6 +123,30 @@ public class NullToVisibilityConverter : IValueConverter
     }
 }
 
+// Converts bool to Visibility
+public class BoolToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        bool invert = parameter is string p && p.Equals("Invert", StringComparison.OrdinalIgnoreCase);
+        bool b = value is bool bv && bv;
+        return (b ^ invert) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
+}
+
+// Converts bool HasCustomPassword → "Set custom password" / "Change custom password"
+public class CustomPasswordMenuTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => (value is bool b && b) ? "Change custom password" : "Set custom password";
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
+}
+
 public sealed partial class ProtectionPage : Page
 {
     public RunningProgramsViewModel RunningViewModel { get; }
@@ -132,6 +156,8 @@ public sealed partial class ProtectionPage : Page
     private readonly AuthService _authService;
     private readonly WindowPicker _windowPicker;
     private bool _isUpdatingUI;
+    // Tracks which RunningWindow opened the running-tab flyout most recently.
+    private RunningWindow? _runningMenuContext;
 
     public ProtectionPage()
     {
@@ -371,9 +397,9 @@ public sealed partial class ProtectionPage : Page
         // Handle tab changes if needed
     }
 
-    private void LockButton_Click(object sender, RoutedEventArgs e)
+    private void LockButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
     {
-        if (sender is Button button && button.Tag is RunningWindow window)
+        if (sender.Tag is RunningWindow window)
         {
             if (!window.IsLocked)
             {
@@ -396,9 +422,141 @@ public sealed partial class ProtectionPage : Page
         }
     }
 
-    private void UnlockButton_Click(object sender, RoutedEventArgs e)
+    // --- Running Programs tab flyout context tracking ---
+
+    /// <summary>Finds the LockRule that matches a running window, or null if not locked.</summary>
+    private LockRule? FindLockRuleForWindow(RunningWindow window)
+        => _lockManager.GetMatchingRule(window);
+
+    private void RunningMenuFlyout_Opening(object sender, object e)
     {
-        if (sender is Button button && button.Tag is LockRule rule)
+        if (sender is not MenuFlyout flyout) return;
+
+        // Grab RunningWindow from the SplitButton that owns this flyout
+        _runningMenuContext = (flyout.Target as SplitButton)?.Tag as RunningWindow;
+
+        if (_runningMenuContext == null) return;
+
+        var rule = FindLockRuleForWindow(_runningMenuContext);
+        bool isLocked = _runningMenuContext.IsLocked || rule != null;
+        bool hasCustomPassword = rule?.HasCustomPassword ?? false;
+
+        // Keep model in sync
+        _runningMenuContext.HasCustomPassword = hasCustomPassword;
+
+        // Update Unlock item — disabled when the app isn't locked
+        if (flyout.Items.Count > 0 && flyout.Items[0] is MenuFlyoutItem unlockItem)
+            unlockItem.IsEnabled = isLocked;
+
+        // Update Set/Change password text and enabled state
+        if (flyout.Items.Count > 2 && flyout.Items[2] is MenuFlyoutItem pwItem)
+        {
+            pwItem.IsEnabled = isLocked;
+            pwItem.Text = hasCustomPassword
+                ? "Change custom password"
+                : "Set custom password";
+        }
+
+        // Update Remove custom password item — only enabled if app is locked AND has custom password
+        if (flyout.Items.Count > 3 && flyout.Items[3] is MenuFlyoutItem removeItem)
+        {
+            removeItem.IsEnabled = isLocked && hasCustomPassword;
+        }
+    }
+
+    private void LockedMenuFlyout_Opening(object sender, object e)
+    {
+        if (sender is not MenuFlyout flyout) return;
+        var rule = (flyout.Target as SplitButton)?.Tag as LockRule;
+        if (rule == null) return;
+
+        bool hasCustomPassword = rule.HasCustomPassword;
+        if (flyout.Items.Count > 0 && flyout.Items[0] is MenuFlyoutItem pwItem)
+        {
+            pwItem.Text = hasCustomPassword
+                ? "Change custom password"
+                : "Set custom password";
+        }
+        if (flyout.Items.Count > 1 && flyout.Items[1] is MenuFlyoutItem removeItem)
+        {
+            removeItem.IsEnabled = hasCustomPassword;
+        }
+    }
+
+    private void RunningUnlockMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var window = _runningMenuContext;
+        if (window == null) return;
+
+        var rule = FindLockRuleForWindow(window);
+        if (rule == null)
+        {
+            ServiceContainer.NotificationService.ShowWarning(
+                "Not Locked",
+                $"{window.ProcessName} is not currently locked.");
+            return;
+        }
+
+        try
+        {
+            LockedViewModel.UnlockProgramCommand.Execute(rule);
+            string title = !string.IsNullOrWhiteSpace(window.WindowTitle)
+                ? window.WindowTitle
+                : window.ProcessName;
+            ServiceContainer.NotificationService.ShowSuccess(title,
+                $"({window.ProcessName}) has been unlocked.");
+            RunningViewModel.RefreshWindowsCommand.Execute(null);
+        }
+        catch (Exception ex)
+        {
+            ServiceContainer.NotificationService.ShowError(
+                "Unlock Failed",
+                $"Failed to unlock \"{window.ProcessName}\": {ex.Message}");
+        }
+    }
+
+    private async void RunningSetAppPasswordMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var window = _runningMenuContext;
+        if (window == null) return;
+
+        var rule = FindLockRuleForWindow(window);
+        if (rule == null)
+        {
+            ServiceContainer.NotificationService.ShowWarning(
+                "Not Locked",
+                $"Lock \"{window.ProcessName}\" first before setting a custom password.");
+            return;
+        }
+        await ShowSetAppPasswordDialogAsync(rule);
+    }
+
+    private async void RunningRemoveAppPasswordMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var window = _runningMenuContext;
+        if (window == null) return;
+
+        var rule = FindLockRuleForWindow(window);
+        if (rule == null)
+        {
+            ServiceContainer.NotificationService.ShowWarning(
+                "Not Locked",
+                $"\"{window.ProcessName}\" is not currently locked.");
+            return;
+        }
+        if (!rule.HasCustomPassword)
+        {
+            ServiceContainer.NotificationService.ShowWarning(
+                "No Custom Password",
+                $"\"{window.ProcessName}\" is already using the admin password.");
+            return;
+        }
+        await ShowRemoveAppPasswordDialogAsync(rule);
+    }
+
+    private void UnlockButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
+    {
+        if (sender.Tag is LockRule rule)
         {
             try
             {
@@ -415,6 +573,201 @@ public sealed partial class ProtectionPage : Page
                     "Unlock Failed",
                     $"Failed to unlock \"{rule.DisplayName}\": {ex.Message}");
             }
+        }
+    }
+
+    private async void SetAppPasswordMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem item && item.Tag is LockRule rule)
+        {
+            await ShowSetAppPasswordDialogAsync(rule);
+        }
+    }
+
+    private async void RemoveAppPasswordMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem item && item.Tag is LockRule rule)
+        {
+            if (!rule.HasCustomPassword)
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "No Custom Password",
+                    $"{rule.DisplayName} is using the admin password.");
+                return;
+            }
+            await ShowRemoveAppPasswordDialogAsync(rule);
+        }
+    }
+
+    private async Task ShowSetAppPasswordDialogAsync(LockRule rule)
+    {
+        var xamlRoot = this.XamlRoot;
+        if (xamlRoot == null) return;
+
+        // Build dialog content
+        var newPwBox = new PasswordBox
+        {
+            PlaceholderText = "New app password (min. 4 characters)",
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        var confirmPwBox = new PasswordBox
+        {
+            PlaceholderText = "Confirm new app password",
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        var errorText = new TextBlock
+        {
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.OrangeRed),
+            FontSize = 12,
+            Visibility = Visibility.Collapsed,
+            TextWrapping = TextWrapping.Wrap
+        };
+        var hintText = new TextBlock
+        {
+            Text = rule.HasCustomPassword
+                ? $"Update the custom password for \"{rule.DisplayName}\"."
+                : $"Set a custom password for \"{rule.DisplayName}\". Leave blank on the lock screen and this password will be used instead of the admin password.",
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        var panel = new StackPanel { Spacing = 0 };
+        panel.Children.Add(hintText);
+        panel.Children.Add(newPwBox);
+        panel.Children.Add(confirmPwBox);
+        panel.Children.Add(errorText);
+
+        var dialog = new ContentDialog
+        {
+            Title = rule.HasCustomPassword ? "Change App Password" : "Set App Password",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            SecondaryButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = xamlRoot
+        };
+
+        // Validate on Save
+        bool saved = false;
+        dialog.PrimaryButtonClick += (d, args) =>
+        {
+            args.Cancel = true; // keep open until valid
+            string pw = newPwBox.Password;
+            string confirm = confirmPwBox.Password;
+
+            if (string.IsNullOrWhiteSpace(pw))
+            {
+                errorText.Text = "Password cannot be empty.";
+                errorText.Visibility = Visibility.Visible;
+                return;
+            }
+            if (pw.Length < 4)
+            {
+                errorText.Text = "Password must be at least 4 characters.";
+                errorText.Visibility = Visibility.Visible;
+                return;
+            }
+            if (pw != confirm)
+            {
+                errorText.Text = "Passwords do not match.";
+                errorText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            try
+            {
+                ServiceContainer.AuthService.SetAppPassword(rule, pw);
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                saved = true;
+                args.Cancel = false;
+            }
+            catch (Exception ex)
+            {
+                errorText.Text = ex.Message;
+                errorText.Visibility = Visibility.Visible;
+            }
+        };
+
+        await dialog.ShowAsync();
+
+        if (saved)
+        {
+            // Notify the UI about the property change
+            rule.NotifyCustomPasswordChanged();
+            LockedViewModel.RefreshLockedCommand.Execute(null);
+            RunningViewModel.UpdateLockStatesCommand?.Execute(null);
+            ServiceContainer.NotificationService.ShowSuccess(
+                "App Password Set",
+                $"Custom password saved for \"{rule.DisplayName}\".");
+        }
+    }
+
+    private async Task ShowRemoveAppPasswordDialogAsync(LockRule rule)
+    {
+        var xamlRoot = this.XamlRoot;
+        if (xamlRoot == null) return;
+
+        // Confirm with admin password before removing
+        var pwBox = new PasswordBox
+        {
+            PlaceholderText = "Enter admin password to confirm",
+            Margin = new Thickness(0, 8, 0, 4)
+        };
+        var errorText = new TextBlock
+        {
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.OrangeRed),
+            FontSize = 12,
+            Visibility = Visibility.Collapsed
+        };
+        var panel = new StackPanel { Spacing = 0 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Remove the custom password from \"{rule.DisplayName}\"? " +
+                   "It will revert to the admin password. Confirm with your admin password.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+        panel.Children.Add(pwBox);
+        panel.Children.Add(errorText);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Remove App Password",
+            Content = panel,
+            PrimaryButtonText = "Remove",
+            SecondaryButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Secondary,
+            XamlRoot = xamlRoot
+        };
+
+        bool removed = false;
+        dialog.PrimaryButtonClick += (d, args) =>
+        {
+            args.Cancel = true;
+            if (!ServiceContainer.AuthService.VerifyPassword(pwBox.Password))
+            {
+                errorText.Text = "Incorrect admin password.";
+                errorText.Visibility = Visibility.Visible;
+                return;
+            }
+            AuthService.RemoveAppPassword(rule);
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            removed = true;
+            args.Cancel = false;
+        };
+
+        await dialog.ShowAsync();
+
+        if (removed)
+        {
+            rule.NotifyCustomPasswordChanged();
+            LockedViewModel.RefreshLockedCommand.Execute(null);
+            RunningViewModel.UpdateLockStatesCommand?.Execute(null);
+            ServiceContainer.NotificationService.ShowSuccess(
+                "App Password Removed",
+                $"\"{rule.DisplayName}\" will now use the admin password.");
         }
     }
 

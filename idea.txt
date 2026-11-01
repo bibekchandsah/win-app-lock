@@ -52,6 +52,13 @@ Remove-Item "$env:APPDATA\AppLock\settings.json" -ErrorAction SilentlyContinue
 
 
 
+Distribute / Create Installer
+ - Portable distribution: You can compress the entire publish\x64 folder into a .zip file and send it.
+ - Single Setup.exe installer: Install Inno Setup (winget install JRSoftware.InnoSetup) and compile [installer.iss] to generate a single AppLock-Setup-v1.0.0.exe.
+ - D:\programming exercise\winUI\win app lock\publish\x64\AppLock.exe
+
+
+
 
 done - running & locked program count
 done - lock icon in locked program tab in program icon
@@ -145,4 +152,4 @@ issue
      Hindi (hi - हिन्दी)
      Plus System default which auto-detects the Windows display language.
 -> implemented - in app notification support for success and failed action (lock, unlock, password change, security question change, hotkey change) - fixed (Implemented centralized NotificationService and non-blocking InfoBar toast overlay in MainWindow, providing instant visual feedback with auto-dismiss timers and severity styling for app lock, window picking, app unlock, password change, security question updates, and emergency hotkey registration)
--> allow user to set custom password for individual app 
+-> implemented - allow user to set custom password for individual app if they want otherwise admin password will be default locked password.

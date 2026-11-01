@@ -154,6 +154,71 @@ public class AuthService
         _lockoutUntil = null;
     }
 
+    // -------------------------------------------------------------------------
+    // Per-app custom password helpers
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Sets (or replaces) a custom password for a specific lock rule.
+    /// The hash+salt are stored directly on the <paramref name="rule"/> object.
+    /// Caller is responsible for persisting the settings afterward.
+    /// </summary>
+    public void SetAppPassword(LockRule rule, string password)
+    {
+        if (rule == null) throw new ArgumentNullException(nameof(rule));
+        if (string.IsNullOrWhiteSpace(password))
+            throw new ArgumentException("Password cannot be empty", nameof(password));
+        if (password.Length < 4)
+            throw new ArgumentException("App password must be at least 4 characters", nameof(password));
+
+        byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
+        byte[] hash = HashPassword(password, salt);
+        rule.CustomPasswordHash = hash;
+        rule.CustomPasswordSalt = salt;
+    }
+
+    /// <summary>
+    /// Clears the custom password from a lock rule, reverting to the admin password.
+    /// </summary>
+    public static void RemoveAppPassword(LockRule rule)
+    {
+        if (rule == null) return;
+        rule.CustomPasswordHash = Array.Empty<byte>();
+        rule.CustomPasswordSalt = Array.Empty<byte>();
+    }
+
+    /// <summary>
+    /// Verifies <paramref name="password"/> against the rule's custom password only.
+    /// Returns false if no custom password is set.
+    /// </summary>
+    public bool VerifyAppPassword(LockRule rule, string password)
+    {
+        if (rule == null || !rule.HasCustomPassword) return false;
+        if (string.IsNullOrWhiteSpace(password)) return false;
+
+        try
+        {
+            byte[] hash = HashPassword(password, rule.CustomPasswordSalt);
+            return CryptographicOperations.FixedTimeEquals(hash, rule.CustomPasswordHash);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Verifies <paramref name="password"/> against the rule's custom password when one is set,
+    /// otherwise falls back to the global admin password.
+    /// </summary>
+    public bool VerifyAppOrAdminPassword(LockRule? rule, string password)
+    {
+        if (rule != null && rule.HasCustomPassword)
+            return VerifyAppPassword(rule, password);
+
+        return VerifyPassword(password);
+    }
+
     public bool HasSecurityQuestion =>
         !string.IsNullOrWhiteSpace(_settings.SecurityQuestion) &&
         _settings.SecurityAnswerHash != null &&

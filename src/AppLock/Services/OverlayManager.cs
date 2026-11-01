@@ -601,7 +601,11 @@ public class OverlayManager
 
         try
         {
-            var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle);
+            // Find the lock rule that matches this window (for custom password support)
+            var matchingRule = _lockManager.GetAllRules()
+                .FirstOrDefault(r => _lockManager.IsWindowLockedByRule(r, window));
+
+            var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle, matchingRule);
             _activeOverlays[window.Handle] = overlay;
             _overlayShownTick[window.Handle] = Environment.TickCount64;
 
