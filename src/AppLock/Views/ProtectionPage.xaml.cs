@@ -462,6 +462,11 @@ public sealed partial class ProtectionPage : Page
         {
             removeItem.IsEnabled = isLocked && hasCustomPassword;
         }
+
+        if (flyout.Items.Count > 5 && flyout.Items[5] is MenuFlyoutItem selfDiscItem)
+        {
+            selfDiscItem.IsEnabled = true;
+        }
     }
 
     private void LockedMenuFlyout_Opening(object sender, object e)
@@ -480,6 +485,10 @@ public sealed partial class ProtectionPage : Page
         if (flyout.Items.Count > 1 && flyout.Items[1] is MenuFlyoutItem removeItem)
         {
             removeItem.IsEnabled = hasCustomPassword;
+        }
+        if (flyout.Items.Count > 3 && flyout.Items[3] is MenuFlyoutItem lockedSelfDiscItem)
+        {
+            lockedSelfDiscItem.IsEnabled = true;
         }
     }
 
@@ -606,6 +615,53 @@ public sealed partial class ProtectionPage : Page
             }
             await ShowRemoveAppPasswordDialogAsync(rule);
         }
+    }
+
+    private async void SelfDisciplineMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem item && item.Tag is LockRule rule)
+        {
+            await ShowSelfDisciplineDialogAsync(rule);
+        }
+    }
+
+    private async void RunningSelfDisciplineMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var window = _runningMenuContext;
+        if (window == null) return;
+
+        var rule = FindLockRuleForWindow(window);
+        if (rule == null)
+        {
+            rule = new LockRule
+            {
+                Type = LockRuleType.ProcessName,
+                ProcessName = window.ProcessName,
+                ProcessPath = window.ProcessPath,
+                DisplayName = !string.IsNullOrWhiteSpace(window.WindowTitle)
+                    ? $"{window.ProcessName} - {window.WindowTitle}"
+                    : window.ProcessName,
+                Icon = window.Icon
+            };
+            ServiceContainer.LockManager.AddRule(rule);
+            window.IsLocked = true;
+            RunningViewModel.RefreshWindowsCommand.Execute(null);
+        }
+
+        await ShowSelfDisciplineDialogAsync(rule);
+    }
+
+    private async Task ShowSelfDisciplineDialogAsync(LockRule rule)
+    {
+        var xamlRoot = this.XamlRoot;
+        if (xamlRoot == null) return;
+
+        var dialog = new SelfDisciplineDialog(rule)
+        {
+            XamlRoot = xamlRoot
+        };
+
+        await dialog.ShowAsync();
     }
 
     private async Task ShowSetAppPasswordDialogAsync(LockRule rule, RunningWindow? newWindowContext = null)

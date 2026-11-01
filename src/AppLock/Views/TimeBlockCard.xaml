@@ -1,0 +1,86 @@
+<UserControl
+    x:Class="AppLock.Views.TimeBlockCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!-- Day Toggle Circle Button Style -->
+        <Style x:Key="DayCircleToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#4A4A4E"/>
+            <Setter Property="Background" Value="#2C2C2E"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14,12">
+        <StackPanel Spacing="12">
+            <!-- Top Row: Time Pickers and Delete Button -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Start time - End time -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <ComboBox x:Name="StartHourCombo" MinWidth="58" MaxDropDownHeight="200" SelectionChanged="TimeCombo_SelectionChanged"/>
+                    <TextBlock Text=":" VerticalAlignment="Center" FontWeight="SemiBold" Margin="1,0"/>
+                    <ComboBox x:Name="StartMinuteCombo" MinWidth="58" MaxDropDownHeight="200" SelectionChanged="TimeCombo_SelectionChanged"/>
+
+                    <TextBlock Text="–" VerticalAlignment="Center" FontWeight="Bold" Margin="6,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                    <ComboBox x:Name="EndHourCombo" MinWidth="58" MaxDropDownHeight="200" SelectionChanged="TimeCombo_SelectionChanged"/>
+                    <TextBlock Text=":" VerticalAlignment="Center" FontWeight="SemiBold" Margin="1,0"/>
+                    <ComboBox x:Name="EndMinuteCombo" MinWidth="58" MaxDropDownHeight="200" SelectionChanged="TimeCombo_SelectionChanged"/>
+                </StackPanel>
+
+                <!-- Delete Trash Button -->
+                <Button Grid.Column="1"
+                        x:Name="DeleteButton"
+                        Click="DeleteButton_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="8,6"
+                        VerticalAlignment="Center"
+                        ToolTipService.ToolTip="Delete time block">
+                    <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#FF453A"/>
+                </Button>
+            </Grid>
+
+            <!-- Bottom Row: 7 Circular Day Toggles (Mon–Sun) -->
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                <ToggleButton x:Name="DayBtn0" Content="M" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Monday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn1" Content="T" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Tuesday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn2" Content="W" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Wednesday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn3" Content="T" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Thursday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn4" Content="F" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Friday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn5" Content="S" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Saturday" Click="DayButton_Click"/>
+                <ToggleButton x:Name="DayBtn6" Content="S" Style="{StaticResource DayCircleToggleStyle}" ToolTipService.ToolTip="Sunday" Click="DayButton_Click"/>
+            </StackPanel>
+
+            <!-- Inline validation error for this block -->
+            <TextBlock x:Name="BlockErrorText"
+                       Foreground="#FF453A"
+                       FontSize="11"
+                       HorizontalAlignment="Center"
+                       Visibility="Collapsed"/>
+        </StackPanel>
+    </Border>
+</UserControl>
+
