@@ -623,6 +623,10 @@ public sealed partial class MainWindow : Window
         // Initialize and wire up tray service
         InitializeTrayService();
 
+        // Start Self-Discipline service (idle relock, quota, schedule)
+        var sdService = ServiceContainer.GetOrCreateSelfDisciplineService(DispatcherQueue);
+        sdService.Start();
+
         // Safety net: restore all DWM thumbnails even on unexpected process exit
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {

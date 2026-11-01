@@ -25,6 +25,7 @@ public static class ServiceContainer
     private static WindowEventMonitor? _windowEventMonitor;
     private static LocalizationService? _localizationService;
     private static NotificationService? _notificationService;
+    private static SelfDisciplineService? _selfDisciplineService;
 
     public static NotificationService NotificationService
     {
@@ -258,6 +259,7 @@ public static class ServiceContainer
     public static void Reset()
     {
         // Stop and dispose services that need cleanup
+        _selfDisciplineService?.Dispose();
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();
         _idleService?.Dispose();
@@ -283,5 +285,17 @@ public static class ServiceContainer
         _windowEventMonitor = null;
         _localizationService = null;
         _notificationService = null;
+        _selfDisciplineService = null;
     }
+
+    public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_selfDisciplineService == null)
+        {
+            _selfDisciplineService = new SelfDisciplineService(LockManager, OverlayManager, SettingsStore, Settings, dispatcherQueue);
+        }
+        return _selfDisciplineService;
+    }
+
+    public static SelfDisciplineService? SelfDisciplineService => _selfDisciplineService;
 }

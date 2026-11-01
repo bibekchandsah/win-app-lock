@@ -59,6 +59,8 @@ public class OverlayManager
         _winEventHook.WindowMinimized += OnWindowMinimized;
     }
 
+    public event EventHandler<LockRule>? RuleUnlocked;
+
     public void Start()
     {
         // Ensure we have dispatcher queue (must be called on UI thread)
@@ -626,6 +628,10 @@ public class OverlayManager
 
                     // Only clear locked thumbnail when the window is actually unlocked!
                     _thumbnailService.ClearLockedThumbnailByTarget(targetHwnd);
+
+                    // Notify subscribers (e.g. SelfDisciplineService) that this rule was unlocked
+                    if (matchingRule != null)
+                        RuleUnlocked?.Invoke(this, matchingRule);
                 }
 
                 _activeOverlays.Remove(window.Handle);
@@ -765,5 +771,44 @@ public class OverlayManager
         _relockTimer?.Dispose();
         _winEventHook?.Dispose();
         CloseAllOverlays();
+    }
+
+    /// <summary>
+    /// Force-relocks all windows currently matching <paramref name="rule"/>, cancelling
+    /// any active unlock timers so the overlay reappears immediately.
+    /// Called by SelfDisciplineService for Quota / Schedule / Idle reasons.
+    /// </summary>
+    public void ForceLock(LockRule rule, LockReason reason)
+    {
+        if (!_lockManager.IsProtectionEnabled)
+            return;
+
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            // Find all open windows that match this rule
+            var windows = _windowEnumerator.EnumerateWindows();
+            foreach (var window in windows)
+            {
+                if (!_lockManager.IsWindowLockedByRule(rule, window))
+                    continue;
+
+                nint handle = window.Handle;
+
+                // Remove from unlock exemptions so CheckWindow will show overlay
+                _unlockTimers.Remove(handle);
+                _indefinitelyUnlocked.Remove(handle);
+
+                // Close any existing overlay so it can be re-shown
+                if (_activeOverlays.TryGetValue(handle, out var existing))
+                {
+                    existing.Close();
+                    _activeOverlays.Remove(handle);
+                    _overlayShownTick.Remove(handle);
+                }
+
+                // Re-check: this will call ShowOverlay if window is visible
+                CheckWindow(handle);
+            }
+        });
     }
 }

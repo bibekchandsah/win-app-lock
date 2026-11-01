@@ -92,4 +92,11 @@ public class LockRule : ObservableObject
 
     [System.Text.Json.Serialization.JsonIgnore]
     public Microsoft.UI.Xaml.Media.Imaging.BitmapImage? Icon { get; set; }
+
+    /// <summary>
+    /// Transient flag set by SelfDisciplineService when this rule is idle-relocked.
+    /// Cleared when the app is unlocked again. Not persisted.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IdleRelockPending { get; set; }
 }
