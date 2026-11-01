@@ -77,7 +77,7 @@ public sealed partial class SettingsPage : Page
         await ShowSecurityQuestionsFlow();
     }
 
-    private async void AboutButton_Click(object sender, RoutedEventArgs e)
+    private void AboutButton_Click(object sender, RoutedEventArgs e)
     {
         ShowAboutDialog();
     }

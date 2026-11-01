@@ -24,6 +24,59 @@ public class LockRule : ObservableObject
     public byte[] CustomPasswordHash { get; set; } = Array.Empty<byte>();
     public byte[] CustomPasswordSalt { get; set; } = Array.Empty<byte>();
 
+    // Self-Discipline settings (quota, schedules, idle relock)
+    private SelfDisciplineSettings _selfDiscipline = new();
+    public SelfDisciplineSettings SelfDiscipline
+    {
+        get => _selfDiscipline ??= new();
+        set => _selfDiscipline = value ?? new();
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasActiveSelfDiscipline =>
+        SelfDiscipline != null && (
+            SelfDiscipline.QuotaEnabled ||
+            (SelfDiscipline.TimeBlocks != null && SelfDiscipline.TimeBlocks.Count > 0) ||
+            SelfDiscipline.IdleRelockEnabled
+        );
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string SelfDisciplineSummary
+    {
+        get
+        {
+            if (SelfDiscipline == null || !HasActiveSelfDiscipline)
+                return string.Empty;
+
+            var parts = new List<string>();
+            if (SelfDiscipline.QuotaEnabled)
+            {
+                parts.Add($"{SelfDiscipline.DailyLimitMinutes} min/day");
+            }
+            if (SelfDiscipline.TimeBlocks != null && SelfDiscipline.TimeBlocks.Count > 0)
+            {
+                int count = SelfDiscipline.TimeBlocks.Count;
+                parts.Add($"{count} time block{(count > 1 ? "s" : "")}");
+            }
+            if (SelfDiscipline.IdleRelockEnabled)
+            {
+                parts.Add($"idle {SelfDiscipline.IdleRelockMinutes} min");
+            }
+
+            return string.Join(", ", parts);
+        }
+    }
+
+    /// <summary>
+    /// Call this after modifying SelfDiscipline settings to update the UI.
+    /// </summary>
+    public void NotifySelfDisciplineChanged()
+    {
+        OnPropertyChanged(nameof(SelfDiscipline));
+        OnPropertyChanged(nameof(HasActiveSelfDiscipline));
+        OnPropertyChanged(nameof(SelfDisciplineSummary));
+    }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasCustomPassword =>
         CustomPasswordHash != null && CustomPasswordHash.Length > 0 &&

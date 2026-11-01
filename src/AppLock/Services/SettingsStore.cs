@@ -37,12 +37,85 @@ public class SettingsStore
             var json = File.ReadAllText(SettingsFilePath);
             var settings = JsonSerializer.Deserialize<AppSettings>(json);
             
-            return settings ?? new AppSettings { IsFirstRun = true };
+            if (settings != null)
+            {
+                bool hadSelfDisciplineInJson = json.Contains("\"SelfDiscipline\"");
+                MigrateSettings(settings, !hadSelfDisciplineInJson);
+                return settings;
+            }
+
+            return new AppSettings { IsFirstRun = true };
         }
         catch (Exception ex)
         {
             LogError("Failed to load settings", ex);
             return new AppSettings { IsFirstRun = true };
+        }
+    }
+
+    private void MigrateSettings(AppSettings settings, bool forceSave = false)
+    {
+        if (settings.LockRules == null)
+        {
+            settings.LockRules = new List<LockRule>();
+            return;
+        }
+
+        bool modified = forceSave;
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        foreach (var rule in settings.LockRules)
+        {
+            if (rule.SelfDiscipline == null)
+            {
+                rule.SelfDiscipline = new SelfDisciplineSettings();
+                modified = true;
+            }
+
+            if (rule.SelfDiscipline.TimeBlocks == null)
+            {
+                rule.SelfDiscipline.TimeBlocks = new List<TimeBlock>();
+                modified = true;
+            }
+
+            if (rule.SelfDiscipline.QuotaDate == default)
+            {
+                rule.SelfDiscipline.QuotaDate = today;
+                modified = true;
+            }
+
+            if (rule.SelfDiscipline.DailyLimitMinutes <= 0)
+            {
+                rule.SelfDiscipline.DailyLimitMinutes = 60;
+                modified = true;
+            }
+
+            if (rule.SelfDiscipline.IdleRelockMinutes <= 0)
+            {
+                rule.SelfDiscipline.IdleRelockMinutes = 15;
+                modified = true;
+            }
+
+            foreach (var block in rule.SelfDiscipline.TimeBlocks)
+            {
+                if (block.Days == null || block.Days.Length != 7)
+                {
+                    block.Days = new bool[] { true, true, true, true, true, true, true };
+                    modified = true;
+                }
+            }
+        }
+
+        if (modified)
+        {
+            try
+            {
+                Save(settings);
+            }
+            catch (Exception ex)
+            {
+                LogError("Failed to save migrated settings", ex);
+            }
         }
     }
 

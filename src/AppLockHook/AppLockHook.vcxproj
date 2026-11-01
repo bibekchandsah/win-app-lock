@@ -18,18 +18,39 @@
     <RootNamespace>AppLockHook</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <Keyword>Win32Proj</Keyword>
+    <VCTargetsPath Condition="'$(VCTargetsPath)' == '' and Exists('C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.Cpp.Default.props')">C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\</VCTargetsPath>
   </PropertyGroup>
 
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <TargetPath>$(MSBuildThisFileDirectory)..\..\x64\$(Configuration)\AppLockHook.dll</TargetPath>
+    <TargetExt>.dll</TargetExt>
+    <ResolveNuGetPackages>false</ResolveNuGetPackages>
+  </PropertyGroup>
+
+  <Target Name="Restore" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+  <Target Name="_IsProjectRestoreSupported" Returns="@(_RestoreGraphProjectEntry)" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+  <Target Name="Build" Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <Message Text="Skipping native AppLockHook build under dotnet CLI (MSBuildRuntimeType=Core)." Importance="high" />
+  </Target>
+  <Target Name="Clean" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+  <Target Name="Rebuild" Condition="'$(MSBuildRuntimeType)' == 'Core'" DependsOnTargets="Clean;Build" />
+  <Target Name="GetTargetPathWithTargetPlatformMoniker" Returns="@(TargetPathWithTargetPlatformMoniker)" Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildThisFileDirectory)..\..\x64\$(Configuration)\AppLockHook.dll" />
+    </ItemGroup>
+  </Target>
+  <Target Name="GetNativeManifest" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64' and '$(MSBuildRuntimeType)' != 'Core'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64' and '$(MSBuildRuntimeType)' != 'Core'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
@@ -37,7 +58,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
 
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
 
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="Shared" />
@@ -96,7 +117,7 @@
     <ClCompile Include="AppLockHook.cpp" />
   </ItemGroup>
 
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
   <ImportGroup Label="ExtensionTargets" />
 
 </Project>
