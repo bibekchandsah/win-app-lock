@@ -88,3 +88,5 @@ $RECYCLE.BIN/
 
 # AppLock specific
 dist/
+
+publish/

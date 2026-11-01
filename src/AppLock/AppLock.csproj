@@ -12,6 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
     <EnableMsixTooling>false</EnableMsixTooling>
     <AppxPackage>false</AppxPackage>
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>

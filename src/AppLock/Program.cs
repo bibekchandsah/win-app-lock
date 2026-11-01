@@ -13,8 +13,7 @@ public static class Program
     [STAThread]
     static void Main(string[] args)
     {
-        // 1. If running as Watchdog, execute pure headless monitoring loop!
-        // No WinUI 3 XAML runtime needed, fast startup, lightweight and unkillable.
+        // 1. If running as Watchdog, execute pure headless monitoring loop
         if (args.Length > 1 && args[0] == "--watchdog" && int.TryParse(args[1], out int parentPid))
         {
             ProcessProtectionService.RunWatchdog(parentPid);
