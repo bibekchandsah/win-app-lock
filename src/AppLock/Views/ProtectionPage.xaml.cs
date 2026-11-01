@@ -451,8 +451,8 @@ public sealed partial class ProtectionPage : Page
         // Update Set/Change password text and enabled state
         if (flyout.Items.Count > 2 && flyout.Items[2] is MenuFlyoutItem pwItem)
         {
-            pwItem.IsEnabled = isLocked;
-            pwItem.Text = hasCustomPassword
+            pwItem.IsEnabled = true; // Always enabled so user can directly set custom password without locking first
+            pwItem.Text = (isLocked && hasCustomPassword)
                 ? "Change custom password"
                 : "Set custom password";
         }
@@ -523,9 +523,18 @@ public sealed partial class ProtectionPage : Page
         var rule = FindLockRuleForWindow(window);
         if (rule == null)
         {
-            ServiceContainer.NotificationService.ShowWarning(
-                "Not Locked",
-                $"Lock \"{window.ProcessName}\" first before setting a custom password.");
+            // App is not locked yet - create new rule and allow setting custom password directly
+            rule = new LockRule
+            {
+                Type = LockRuleType.ProcessName,
+                ProcessName = window.ProcessName,
+                ProcessPath = window.ProcessPath,
+                DisplayName = !string.IsNullOrWhiteSpace(window.WindowTitle)
+                    ? "{window.ProcessName} - {window.WindowTitle}"
+                    : window.ProcessName,
+                Icon = window.Icon
+            };
+            await ShowSetAppPasswordDialogAsync(rule, window);
             return;
         }
         await ShowSetAppPasswordDialogAsync(rule);
@@ -599,7 +608,7 @@ public sealed partial class ProtectionPage : Page
         }
     }
 
-    private async Task ShowSetAppPasswordDialogAsync(LockRule rule)
+    private async Task ShowSetAppPasswordDialogAsync(LockRule rule, RunningWindow? newWindowContext = null)
     {
         var xamlRoot = this.XamlRoot;
         if (xamlRoot == null) return;
@@ -626,7 +635,7 @@ public sealed partial class ProtectionPage : Page
         {
             Text = rule.HasCustomPassword
                 ? $"Update the custom password for \"{rule.DisplayName}\"."
-                : $"Set a custom password for \"{rule.DisplayName}\". Leave blank on the lock screen and this password will be used instead of the admin password.",
+                : $"Set a custom password for \"{rule.DisplayName}\". This password will be used to unlock the application.",
             FontSize = 12,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             TextWrapping = TextWrapping.Wrap,
@@ -678,7 +687,18 @@ public sealed partial class ProtectionPage : Page
             try
             {
                 ServiceContainer.AuthService.SetAppPassword(rule, pw);
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+                if (newWindowContext != null)
+                {
+                    _lockManager.AddRule(rule);
+                    newWindowContext.IsLocked = true;
+                    newWindowContext.HasCustomPassword = true;
+                }
+                else
+                {
+                    ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                }
+
                 saved = true;
                 args.Cancel = false;
             }
@@ -699,7 +719,9 @@ public sealed partial class ProtectionPage : Page
             RunningViewModel.UpdateLockStatesCommand?.Execute(null);
             ServiceContainer.NotificationService.ShowSuccess(
                 "App Password Set",
-                $"Custom password saved for \"{rule.DisplayName}\".");
+                newWindowContext != null
+                    ? $"\"{rule.DisplayName}\" is now locked with a custom password."
+                    : $"Custom password saved for \"{rule.DisplayName}\".");
         }
     }
 
