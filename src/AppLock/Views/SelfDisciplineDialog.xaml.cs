@@ -6,6 +6,7 @@ using AppLock.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
@@ -22,6 +23,7 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
     private readonly LockRule _rule;
     private readonly SelfDisciplineSettings _settingsCopy;
     private readonly List<TimeBlockCard> _cards = new();
+    private bool _isHelloVerified = false;
 
     public SelfDisciplineDialog(LockRule rule)
     {
@@ -37,9 +39,25 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         LoadSettingsIntoUI();
         SelectTab(_lastUsedTabIndex);
 
+        // Check Windows Hello availability
+        CheckHelloAvailabilityAsync();
+
         // Live ring update while dialog is open
         QuotaTracker.QuotaUpdated += OnQuotaUpdated;
         Closed += (_, _) => QuotaTracker.QuotaUpdated -= OnQuotaUpdated;
+    }
+
+    private async void CheckHelloAvailabilityAsync()
+    {
+        try
+        {
+            bool available = await ServiceContainer.HelloService.IsAvailableAsync();
+            HelloVerifyButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch
+        {
+            HelloVerifyButton.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void OnQuotaUpdated(LockRule updatedRule)
@@ -203,6 +221,131 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         IdleLimitNumberBox.IsEnabled = IdleToggle.IsOn;
     }
 
+    private void AdminAuthPasswordBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            if (TryVerifyAdminPassword())
+            {
+                if (CommitAndSave())
+                    Hide();
+            }
+        }
+    }
+
+    private async void HelloVerifyButton_Click(object sender, RoutedEventArgs e)
+    {
+        InlineErrorBar.IsOpen = false;
+        try
+        {
+            bool ok = await ServiceContainer.HelloService.RequestVerificationAsync("Verify to weaken Self-Discipline settings");
+            if (ok)
+            {
+                _isHelloVerified = true;
+                WeakeningAuthPanel.Visibility = Visibility.Collapsed;
+                if (CommitAndSave())
+                    Hide();
+            }
+            else
+            {
+                InlineErrorBar.Message = "Windows Hello verification failed.";
+                InlineErrorBar.IsOpen = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            InlineErrorBar.Message = $"Windows Hello error: {ex.Message}";
+            InlineErrorBar.IsOpen = true;
+        }
+    }
+
+    private bool TryVerifyAdminPassword()
+    {
+        InlineErrorBar.IsOpen = false;
+        string pw = AdminAuthPasswordBox.Password;
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            InlineErrorBar.Message = "Please enter your admin password to confirm changes.";
+            InlineErrorBar.IsOpen = true;
+            AdminAuthPasswordBox.Focus(FocusState.Programmatic);
+            return false;
+        }
+
+        if (ServiceContainer.AuthService.VerifyPassword(pw))
+        {
+            _isHelloVerified = true;
+            WeakeningAuthPanel.Visibility = Visibility.Collapsed;
+            return true;
+        }
+        else
+        {
+            InlineErrorBar.Message = "Incorrect admin password. Changes not saved.";
+            InlineErrorBar.IsOpen = true;
+            AdminAuthPasswordBox.SelectAll();
+            AdminAuthPasswordBox.Focus(FocusState.Programmatic);
+            return false;
+        }
+    }
+
+    private bool IsWeakeningSettings()
+    {
+        var orig = _rule.SelfDiscipline;
+        if (orig == null) return false;
+
+        // 1. Quota weakening
+        if (orig.QuotaEnabled && !QuotaToggle.IsOn)
+            return true; // Disabling quota toggle
+
+        if (orig.QuotaEnabled && QuotaToggle.IsOn && (int)QuotaLimitNumberBox.Value > orig.DailyLimitMinutes)
+            return true; // Raising daily limit
+
+        // 2. Idle weakening
+        if (orig.IdleRelockEnabled && !IdleToggle.IsOn)
+            return true; // Disabling idle toggle
+
+        if (orig.IdleRelockEnabled && IdleToggle.IsOn && (int)IdleLimitNumberBox.Value > orig.IdleRelockMinutes)
+            return true; // Raising idle relock timeout
+
+        // 3. Time blocks (Scheduled lock) weakening
+        int origCount = orig.TimeBlocks?.Count ?? 0;
+        int currCount = _settingsCopy.TimeBlocks?.Count ?? 0;
+        if (currCount < origCount)
+            return true; // Deleted a time block
+
+        if (orig.TimeBlocks != null && _settingsCopy.TimeBlocks != null)
+        {
+            foreach (var origBlock in orig.TimeBlocks)
+            {
+                var currBlock = _settingsCopy.TimeBlocks.FirstOrDefault(b => b.Id == origBlock.Id);
+                if (currBlock == null)
+                    return true; // Deleted this specific block
+
+                // Fewer active days
+                int origDays = origBlock.Days?.Count(d => d) ?? 0;
+                int currDays = currBlock.Days?.Count(d => d) ?? 0;
+                if (currDays < origDays)
+                    return true;
+
+                // Reduced duration
+                int origMin = GetBlockDurationMinutes(origBlock);
+                int currMin = GetBlockDurationMinutes(currBlock);
+                if (currMin < origMin)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int GetBlockDurationMinutes(TimeBlock block)
+    {
+        if (block.Start == block.End) return 0;
+        if (block.Start < block.End)
+            return (int)(block.End - block.Start).TotalMinutes;
+        else
+            return (int)((TimeSpan.FromHours(24) - block.Start.ToTimeSpan()) + block.End.ToTimeSpan()).TotalMinutes;
+    }
+
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         InlineErrorBar.IsOpen = false;
@@ -246,6 +389,46 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
             }
         }
 
+        // 4. Check for weakening rules
+        if (IsWeakeningSettings())
+        {
+            // Block weakening completely during an active schedule period
+            if (ScheduleEvaluator.IsInsideSchedule(_rule, DateTime.Now, out var until))
+            {
+                InlineErrorBar.Message = $"Settings cannot be weakened during an active scheduled lock period (active until {until:HH:mm}).";
+                InlineErrorBar.IsOpen = true;
+                args.Cancel = true;
+                return;
+            }
+
+            // Require admin password verification
+            if (!_isHelloVerified)
+            {
+                if (WeakeningAuthPanel.Visibility != Visibility.Visible)
+                {
+                    WeakeningAuthPanel.Visibility = Visibility.Visible;
+                    AdminAuthPasswordBox.Password = string.Empty;
+                    AdminAuthPasswordBox.Focus(FocusState.Programmatic);
+                    args.Cancel = true;
+                    return;
+                }
+
+                if (!TryVerifyAdminPassword())
+                {
+                    args.Cancel = true;
+                    return;
+                }
+            }
+        }
+
+        if (!CommitAndSave())
+        {
+            args.Cancel = true;
+        }
+    }
+
+    private bool CommitAndSave()
+    {
         // Commit working copy
         _settingsCopy.QuotaEnabled = QuotaToggle.IsOn;
         _settingsCopy.DailyLimitMinutes = (int)QuotaLimitNumberBox.Value;
@@ -261,12 +444,13 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
 
             string appName = !string.IsNullOrWhiteSpace(_rule.DisplayName) ? _rule.DisplayName : _rule.ProcessName;
             ServiceContainer.NotificationService.ShowSuccess(appName, "Self-Discipline settings updated.");
+            return true;
         }
         catch (Exception ex)
         {
             InlineErrorBar.Message = $"Failed to save settings: {ex.Message}";
             InlineErrorBar.IsOpen = true;
-            args.Cancel = true;
+            return false;
         }
     }
 }

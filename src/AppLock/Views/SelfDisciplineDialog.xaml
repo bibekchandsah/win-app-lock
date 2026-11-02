@@ -40,6 +40,7 @@
             <RowDefinition Height="Auto"/> <!-- App Info Subtitle Header -->
             <RowDefinition Height="Auto"/> <!-- 3-Tab Segmented Bar -->
             <RowDefinition Height="*"/>    <!-- Tab Content Panels -->
+            <RowDefinition Height="Auto"/> <!-- Weakening Re-Auth Panel -->
             <RowDefinition Height="Auto"/> <!-- Inline Error Banner -->
         </Grid.RowDefinitions>
 
@@ -292,9 +293,46 @@
             </StackPanel>
         </Grid>
 
+        <!-- Weakening Re-Authentication Section (appears when weakening settings) -->
+        <Border x:Name="WeakeningAuthPanel"
+                Grid.Row="3"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="#D9A0E8"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12,10"
+                Visibility="Collapsed">
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE72E;" FontSize="13" Foreground="#D9A0E8"/>
+                    <TextBlock Text="Admin password required to weaken settings" FontWeight="SemiBold" FontSize="12"/>
+                </StackPanel>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <PasswordBox x:Name="AdminAuthPasswordBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="Enter admin password to save"
+                                 KeyDown="AdminAuthPasswordBox_KeyDown"/>
+                    <Button x:Name="HelloVerifyButton"
+                            Grid.Column="1"
+                            Click="HelloVerifyButton_Click"
+                            ToolTipService.ToolTip="Verify with Windows Hello"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE77B;" FontSize="14"/>
+                            <TextBlock Text="Hello" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- Inline Validation Error Banner -->
         <InfoBar x:Name="InlineErrorBar"
-                 Grid.Row="3"
+                 Grid.Row="4"
                  Severity="Error"
                  IsOpen="False"
                  IsClosable="True"
