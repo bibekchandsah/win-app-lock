@@ -25,6 +25,8 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
     private readonly List<TimeBlockCard> _cards = new();
     private bool _isHelloVerified = false;
 
+    public bool IsSaved { get; private set; }
+
     public SelfDisciplineDialog(LockRule rule)
     {
         InitializeComponent();
@@ -467,6 +469,7 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         {
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
             _rule.NotifySelfDisciplineChanged();
+            IsSaved = true;
 
             string appName = !string.IsNullOrWhiteSpace(_rule.DisplayName) ? _rule.DisplayName : _rule.ProcessName;
             ServiceContainer.NotificationService.ShowSuccess(appName, "Self-Discipline settings updated.");

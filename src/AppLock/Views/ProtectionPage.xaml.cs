@@ -631,8 +631,10 @@ public sealed partial class ProtectionPage : Page
         if (window == null) return;
 
         var rule = FindLockRuleForWindow(window);
+        bool isNewRule = false;
         if (rule == null)
         {
+            isNewRule = true;
             rule = new LockRule
             {
                 Type = LockRuleType.ProcessName,
@@ -643,18 +645,21 @@ public sealed partial class ProtectionPage : Page
                     : window.ProcessName,
                 Icon = window.Icon
             };
+        }
+
+        bool saved = await ShowSelfDisciplineDialogAsync(rule);
+        if (saved && isNewRule)
+        {
             ServiceContainer.LockManager.AddRule(rule);
             window.IsLocked = true;
             RunningViewModel.RefreshWindowsCommand.Execute(null);
         }
-
-        await ShowSelfDisciplineDialogAsync(rule);
     }
 
-    private async Task ShowSelfDisciplineDialogAsync(LockRule rule)
+    private async Task<bool> ShowSelfDisciplineDialogAsync(LockRule rule)
     {
         var xamlRoot = this.XamlRoot;
-        if (xamlRoot == null) return;
+        if (xamlRoot == null) return false;
 
         var dialog = new SelfDisciplineDialog(rule)
         {
@@ -662,7 +667,8 @@ public sealed partial class ProtectionPage : Page
             RequestedTheme = this.ActualTheme
         };
 
-        await dialog.ShowAsync();
+        var result = await dialog.ShowAsync();
+        return dialog.IsSaved || result == ContentDialogResult.Primary;
     }
 
     private async Task ShowSetAppPasswordDialogAsync(LockRule rule, RunningWindow? newWindowContext = null)
