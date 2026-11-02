@@ -2,44 +2,62 @@
     x:Class="AppLock.Views.BitLockerPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AppLock.Views"
+    xmlns:vm="using:AppLock.ViewModels"
+    xmlns:models="using:AppLock.Models"
     Background="Transparent">
+
+    <Page.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Page.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Command Bar -->
-        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Left" Background="Transparent">
+        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Stretch" Background="Transparent">
             <AppBarButton Icon="Refresh" Label="Refresh" AccessKey="F5" Click="RefreshButton_Click"
-                          AutomationProperties.Name="Refresh drive list"/>
+                          AutomationProperties.Name="Refresh drive list">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="F5"/>
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="LockButton" Label="Lock" Click="LockButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanLockSelected, Mode=OneWay}"
                           AutomationProperties.Name="Lock selected drive">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE72E;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarButton x:Name="UnlockButton" Label="Unlock" Click="UnlockButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanUnlockSelected, Mode=OneWay}"
                           AutomationProperties.Name="Unlock selected drive">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE785;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="TurnOnButton" Label="Turn on BitLocker" Click="TurnOnButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanTurnOnSelected, Mode=OneWay}"
                           AutomationProperties.Name="Turn on BitLocker encryption">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE965;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarButton x:Name="TurnOffButton" Label="Turn off BitLocker" Click="TurnOffButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanTurnOffSelected, Mode=OneWay}"
                           AutomationProperties.Name="Turn off BitLocker encryption">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE7BA;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="SuspendButton" Label="Suspend protection" Click="SuspendButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanSuspendSelected, Mode=OneWay}"
                           AutomationProperties.Name="Suspend or resume BitLocker protection">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE769;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="BackupKeyButton" Label="Back up recovery key" Click="BackupKeyButton_Click"
+                          IsEnabled="{x:Bind ViewModel.CanBackupSelected, Mode=OneWay}"
                           AutomationProperties.Name="Back up BitLocker recovery key">
                 <AppBarButton.Icon><FontIcon Glyph="&#xEA37;"/></AppBarButton.Icon>
             </AppBarButton>
@@ -59,25 +77,385 @@
                  Grid.Row="1"
                  Severity="Warning"
                  Title="Administrator rights are needed to manage BitLocker."
+                 Message="Run AppLock as administrator to view full BitLocker protection status, manage protectors, and lock or unlock drives."
                  IsClosable="False"
-                 Margin="12,0,12,0">
+                 Margin="16,0,16,8">
             <InfoBar.ActionButton>
                 <Button Content="Restart as administrator" Click="RestartAsAdminButton_Click"/>
             </InfoBar.ActionButton>
         </InfoBar>
 
-        <!-- Empty State -->
-        <Grid x:Name="EmptyStateGrid" Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <StackPanel Spacing="16" HorizontalAlignment="Center">
-                <FontIcon Glyph="&#xEDA2;" FontSize="64"
-                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                          HorizontalAlignment="Center"/>
-                <TextBlock Text="No drives found"
-                           Style="{ThemeResource SubtitleTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           HorizontalAlignment="Center"/>
-                <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"/>
-            </StackPanel>
+        <!-- Main Content Area -->
+        <Grid Grid.Row="2" Margin="16,0,16,8">
+            <!-- Empty State -->
+            <Grid x:Name="EmptyStateGrid"
+                  Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                  VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <FontIcon Glyph="&#xEDA2;" FontSize="64"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="No BitLocker-capable drives found"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Drives List and Details Pane -->
+            <Grid Visibility="{x:Bind ViewModel.HasDrives, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="380"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Column: Drive Cards -->
+                <ListView Grid.Column="0"
+                          x:Name="DrivesList"
+                          ItemsSource="{x:Bind ViewModel.Drives, Mode=OneWay}"
+                          SelectedItem="{x:Bind ViewModel.SelectedDrive, Mode=TwoWay}"
+                          SelectionMode="Single"
+                          Margin="0,0,8,0">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="0,4"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DriveItemViewModel">
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16,12">
+                                <Grid RowSpacing="12">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Row 0: Icon, Label, and Status Chips -->
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Drive Icon -->
+                                        <FontIcon Glyph="{x:Bind DriveIconGlyph}"
+                                                  FontSize="24"
+                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,12,0"/>
+
+                                        <!-- Drive Label & Letter -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{x:Bind DisplayName}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="15"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{x:Bind VolumeGuid}"
+                                                       FontSize="10"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+
+                                        <!-- Status Chips -->
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <!-- Type Chip -->
+                                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="6,2">
+                                                <TextBlock Text="{x:Bind DriveTypeDisplay}"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+
+                                            <!-- Protection Chip -->
+                                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="6,2">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <FontIcon Glyph="{x:Bind ProtectionGlyph}"
+                                                              FontSize="10"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    <TextBlock Text="{x:Bind ProtectionStatusDisplay}"
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Lock Status Chip -->
+                                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="6,2">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <FontIcon Glyph="{x:Bind LockIconGlyph}"
+                                                              FontSize="10"
+                                                              VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{x:Bind LockStatusDisplay}"
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Row 1: Encryption % & Capacity Progress -->
+                                    <Grid Grid.Row="1" ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Encryption Progress -->
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="Encryption Status:"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                <TextBlock Text="{x:Bind ConversionStatus}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <ProgressBar Value="{x:Bind EncryptionPercent}" Maximum="100"/>
+                                            <TextBlock Text="{x:Bind EncryptionMethod}"
+                                                       FontSize="10"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+
+                                        <!-- Capacity -->
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="Capacity:"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                <TextBlock Text="{x:Bind CapacityDisplay}"
+                                                           FontSize="11"
+                                                           HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <ProgressBar Value="{x:Bind CapacityUsedPercent}" Maximum="100"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Row 2: Protectors Summary -->
+                                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock Text="Key Protectors:"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="{x:Bind ProtectorsSummary}"
+                                                   FontSize="11"
+                                                   FontWeight="Medium"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Right Column: Details Pane -->
+                <Border Grid.Column="1"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16"
+                        Margin="8,0,0,0">
+                    <Grid>
+                        <!-- No Selection Placeholder -->
+                        <StackPanel Visibility="{x:Bind ViewModel.HasSelectedDrive, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                            <FontIcon Glyph="&#xE8B9;" FontSize="40"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      HorizontalAlignment="Center"/>
+                            <TextBlock Text="Select a drive to view details"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Selected Drive Details -->
+                        <ScrollViewer Visibility="{x:Bind ViewModel.HasSelectedDrive, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                                      VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="16">
+                                <!-- Details Header -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="{x:Bind ViewModel.SelectedDrive.DriveIconGlyph, Mode=OneWay}"
+                                              FontSize="32"
+                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,12,0"/>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind ViewModel.SelectedDrive.DisplayName, Mode=OneWay}"
+                                                   Style="{ThemeResource SubtitleTextBlockStyle}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{x:Bind ViewModel.SelectedDrive.DriveTypeDisplay, Mode=OneWay}"
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <MenuFlyoutSeparator Margin="0,-4,0,0"/>
+
+                                <!-- Drive Status Overview -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Volume Properties" FontWeight="SemiBold" FontSize="13"/>
+                                    <Grid RowSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Protection:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.ProtectionStatusDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right" FontWeight="Medium"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Lock State:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.LockStatusDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right" FontWeight="Medium"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Method:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.EncryptionMethod, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Capacity:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.CapacityDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <MenuFlyoutSeparator/>
+
+                                <!-- Key Protectors Section -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Key Protectors" FontWeight="SemiBold" FontSize="13"/>
+                                    <TextBlock Text="No key protectors found."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Visibility="{x:Bind ViewModel.SelectedDrive.HasProtectors, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                    
+                                    <ItemsControl ItemsSource="{x:Bind ViewModel.SelectedDrive.KeyProtectors, Mode=OneWay}"
+                                                  Visibility="{x:Bind ViewModel.SelectedDrive.HasProtectors, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:KeyProtectorInfo">
+                                                <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="10,8"
+                                                        Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <FontIcon Glyph="{x:Bind IconGlyph}" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                        <StackPanel Grid.Column="1">
+                                                            <TextBlock Text="{x:Bind TypeName}" FontWeight="SemiBold" FontSize="12"/>
+                                                            <TextBlock Text="{x:Bind Id}" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <MenuFlyoutSeparator/>
+
+                                <!-- AppLock Automation Placeholders (M4, M5) -->
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="AppLock Integration" FontWeight="SemiBold" FontSize="13"/>
+                                    <Grid RowSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Saved password:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="No" FontSize="12" HorizontalAlignment="Right"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Auto-unlock at startup:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="Off" FontSize="12" HorizontalAlignment="Right"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Last unlocked:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="Not recorded" FontSize="12" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Quick Unlock Section (Visible when selected drive is locked) -->
+                                <StackPanel Spacing="10"
+                                            Visibility="{x:Bind ViewModel.SelectedDrive.IsLocked, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <MenuFlyoutSeparator/>
+                                    <TextBlock Text="Unlock Volume" FontWeight="SemiBold" FontSize="13"/>
+                                    <PasswordBox x:Name="QuickUnlockPasswordBox"
+                                                 PlaceholderText="Enter BitLocker password"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Unlock"
+                                                Click="UnlockButton_Click"
+                                                Style="{ThemeResource AccentButtonStyle}"/>
+                                        <Button Content="Use saved"
+                                                IsEnabled="False"/>
+                                    </StackPanel>
+                                    <CheckBox Content="Save password for this drive"
+                                              FontSize="12"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
+
+        <!-- Bottom Status Bar -->
+        <Border Grid.Row="3"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                                  Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                                  Width="16" Height="16"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="{x:Bind ViewModel.LastRefreshedText, Mode=OneWay}"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
     </Grid>
 </Page>

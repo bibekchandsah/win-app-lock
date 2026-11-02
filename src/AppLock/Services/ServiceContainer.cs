@@ -27,6 +27,8 @@ public static class ServiceContainer
     private static NotificationService? _notificationService;
     private static SelfDisciplineService? _selfDisciplineService;
     private static AppLock.Services.BitLocker.BitLockerSupportService? _bitLockerSupportService;
+    private static AppLock.Services.BitLocker.BitLockerService? _bitLockerService;
+    private static AppLock.Services.BitLocker.VolumeWatcher? _volumeWatcher;
 
     public static NotificationService NotificationService
     {
@@ -288,6 +290,9 @@ public static class ServiceContainer
         _notificationService = null;
         _selfDisciplineService = null;
         _bitLockerSupportService = null;
+        _bitLockerService = null;
+        _volumeWatcher?.Dispose();
+        _volumeWatcher = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -308,6 +313,26 @@ public static class ServiceContainer
             if (_bitLockerSupportService == null)
                 _bitLockerSupportService = new AppLock.Services.BitLocker.BitLockerSupportService();
             return _bitLockerSupportService;
+        }
+    }
+
+    public static AppLock.Services.BitLocker.BitLockerService BitLockerService
+    {
+        get
+        {
+            if (_bitLockerService == null)
+                _bitLockerService = new AppLock.Services.BitLocker.BitLockerService(BitLockerSupportService);
+            return _bitLockerService;
+        }
+    }
+
+    public static AppLock.Services.BitLocker.VolumeWatcher VolumeWatcher
+    {
+        get
+        {
+            if (_volumeWatcher == null)
+                _volumeWatcher = new AppLock.Services.BitLocker.VolumeWatcher();
+            return _volumeWatcher;
         }
     }
 }

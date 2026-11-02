@@ -13,6 +13,7 @@ public class BitLockerDrive
     public ProtectionStatus ProtectionStatus { get; set; }
     public LockStatus LockStatus { get; set; }
     public int EncryptionPercent { get; set; }
+    public string ConversionStatus { get; set; } = "";
     public string EncryptionMethod { get; set; } = "";
     public List<KeyProtectorInfo> KeyProtectors { get; set; } = new();
     public long TotalBytes { get; set; }

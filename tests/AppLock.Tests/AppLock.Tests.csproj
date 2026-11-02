@@ -22,14 +22,23 @@
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\..\src\AppLock\Models\LockRule.cs" Link="Models\LockRule.cs" />
     <Compile Include="..\..\src\AppLock\Models\SelfDisciplineSettings.cs" Link="Models\SelfDisciplineSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />
+    <Compile Include="..\..\src\AppLock\Models\BitLockerDrive.cs" Link="Models\BitLockerDrive.cs" />
+    <Compile Include="..\..\src\AppLock\Models\KeyProtectorInfo.cs" Link="Models\KeyProtectorInfo.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\IBitLockerService.cs" Link="Services\BitLocker\IBitLockerService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerSupportService.cs" Link="Services\BitLocker\BitLockerSupportService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerService.cs" Link="Services\BitLocker\BitLockerService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\VolumeWatcher.cs" Link="Services\BitLocker\VolumeWatcher.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\DriveItemViewModel.cs" Link="ViewModels\DriveItemViewModel.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\BitLockerViewModel.cs" Link="ViewModels\BitLockerViewModel.cs" />
   </ItemGroup>
 
   <ItemGroup>
