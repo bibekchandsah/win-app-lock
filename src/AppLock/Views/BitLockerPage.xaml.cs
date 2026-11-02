@@ -257,16 +257,26 @@ public sealed partial class BitLockerPage : Page
     {
         try
         {
+            // Already elevated — nothing to do
+            if (ServiceContainer.BitLockerSupportService.IsElevated) return;
+
             var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
             if (exe == null) return;
+
             var psi = new System.Diagnostics.ProcessStartInfo(exe)
             {
                 UseShellExecute = true,
                 Verb = "runas"
             };
+
             System.Diagnostics.Process.Start(psi);
-            Application.Current.Exit();
+
+            // Terminate this non-elevated process forcefully.
+            // Environment.Exit is synchronous, ensuring only the elevated window remains.
+            ServiceContainer.Reset();
+            Environment.Exit(0);
         }
+        catch (OperationCanceledException) { /* user cancelled UAC prompt */ }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Failed to restart as admin: {ex.Message}");

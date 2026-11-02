@@ -4,6 +4,9 @@ namespace AppLock;
 
 public partial class App : Application
 {
+    /// <summary>Static reference to the main window — used by RestartAsAdminButton_Click to hide before Environment.Exit.</summary>
+    public static Window? MainWindowInstance { get; private set; }
+
     private Window? _mainWindow;
 
     public App()
@@ -20,6 +23,7 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _mainWindow = new MainWindow();
+        MainWindowInstance = _mainWindow;
         _mainWindow.Activate();
 
         // Apply process tamper protection & launch independent watchdog after window is up
