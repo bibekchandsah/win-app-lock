@@ -49,6 +49,7 @@ powershell -ExecutionPolicy Bypass -File "build-with-msbuild.ps1" 2>&1
 
 # deleting the settings file to start fresh:
 Remove-Item "$env:APPDATA\AppLock\settings.json" -ErrorAction SilentlyContinue
+Get-Content "$env:APPDATA\AppLock\settings.json" -Raw
 
 
 
@@ -153,4 +154,10 @@ issue
      Plus System default which auto-detects the Windows display language.
 -> implemented - in app notification support for success and failed action (lock, unlock, password change, security question change, hotkey change) - fixed (Implemented centralized NotificationService and non-blocking InfoBar toast overlay in MainWindow, providing instant visual feedback with auto-dismiss timers and severity styling for app lock, window picking, app unlock, password change, security question updates, and emergency hotkey registration)
 -> implemented - allow user to set custom password for individual app if they want otherwise admin password will be default locked password.
--> self-discipline with Daily usage quota, Scheduled lock, Auto-relock  on timeout
+-> implemented - self-discipline with Daily usage quota, Scheduled lock, Auto-relock  on timeout
+-> fixed - emergency lock input resetting
+-> fixed - daily quot:count extended time as usage, always show quota overlay after limit
+-> background mica background effect, curved sidebar with title bar
+-> high priority for launching app on start up that is boot 
+-> bit locker -> lock/unlock
+-> app internet connection enable disable
