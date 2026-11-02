@@ -658,7 +658,8 @@ public sealed partial class ProtectionPage : Page
 
         var dialog = new SelfDisciplineDialog(rule)
         {
-            XamlRoot = xamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = this.ActualTheme
         };
 
         await dialog.ShowAsync();

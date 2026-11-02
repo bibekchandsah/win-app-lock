@@ -248,3 +248,4 @@ public class ScheduleEvaluatorTests
         Assert.Equal(new DateTime(2026, 3, 8, 4, 0, 0), until);
     }
 }
+

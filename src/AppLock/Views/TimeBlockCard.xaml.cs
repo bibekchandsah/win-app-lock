@@ -18,9 +18,6 @@ public sealed partial class TimeBlockCard : UserControl
     private static readonly SolidColorBrush SelectedDayBg = new(Color.FromArgb(255, 0xD9, 0xA0, 0xE8)); // Lilac
     private static readonly SolidColorBrush SelectedDayFg = new(Color.FromArgb(255, 0x1A, 0x1A, 0x1A)); // Dark text
     private static readonly SolidColorBrush SelectedDayBorder = new(Color.FromArgb(255, 0xD9, 0xA0, 0xE8));
-    private static readonly SolidColorBrush UnselectedDayBg = new(Color.FromArgb(255, 0x2C, 0x2C, 0x2E));
-    private static readonly SolidColorBrush UnselectedDayFg = new(Color.FromArgb(255, 0xDD, 0xDD, 0xDD));
-    private static readonly SolidColorBrush UnselectedDayBorder = new(Color.FromArgb(255, 0x4A, 0x4A, 0x4E));
 
     private readonly ToggleButton[] _dayButtons;
     private bool _isInitializing = true;
@@ -41,6 +38,14 @@ public sealed partial class TimeBlockCard : UserControl
         EndHourCombo.ItemsSource = Hours;
         StartMinuteCombo.ItemsSource = Minutes;
         EndMinuteCombo.ItemsSource = Minutes;
+
+        ActualThemeChanged += (s, e) =>
+        {
+            for (int i = 0; i < 7; i++)
+            {
+                UpdateDayButtonStyle(_dayButtons[i], _dayButtons[i].IsChecked == true);
+            }
+        };
 
         LoadFromBlock();
         _isInitializing = false;
@@ -79,10 +84,10 @@ public sealed partial class TimeBlockCard : UserControl
         }
         else
         {
-            btn.Background = UnselectedDayBg;
-            btn.Foreground = UnselectedDayFg;
-            btn.BorderBrush = UnselectedDayBorder;
-            btn.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
+            btn.ClearValue(ToggleButton.BackgroundProperty);
+            btn.ClearValue(ToggleButton.ForegroundProperty);
+            btn.ClearValue(ToggleButton.BorderBrushProperty);
+            btn.ClearValue(ToggleButton.FontWeightProperty);
         }
     }
 

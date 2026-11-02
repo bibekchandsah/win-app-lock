@@ -31,6 +31,18 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         _rule = rule;
         _settingsCopy = rule.SelfDiscipline.Clone();
 
+        ApplyTheme();
+        Loaded += (s, e) =>
+        {
+            ApplyTheme();
+            SelectTab(_lastUsedTabIndex);
+        };
+        ActualThemeChanged += (s, e) =>
+        {
+            ApplyTheme();
+            SelectTab(_lastUsedTabIndex);
+        };
+
         PrimaryButtonStyle = (Style)Resources["LilacPrimaryButtonStyle"];
 
         string appName = !string.IsNullOrWhiteSpace(rule.DisplayName) ? rule.DisplayName : rule.ProcessName;
@@ -45,6 +57,18 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         // Live ring update while dialog is open
         QuotaTracker.QuotaUpdated += OnQuotaUpdated;
         Closed += (_, _) => QuotaTracker.QuotaUpdated -= OnQuotaUpdated;
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private async void CheckHelloAvailabilityAsync()
@@ -110,9 +134,9 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         }
         else
         {
-            button.Background = UnselectedTabBg;
-            button.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-            button.FontWeight = Microsoft.UI.Text.FontWeights.Normal;
+            button.ClearValue(Button.BackgroundProperty);
+            button.ClearValue(Button.ForegroundProperty);
+            button.ClearValue(Button.FontWeightProperty);
         }
     }
 

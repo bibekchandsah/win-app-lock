@@ -133,3 +133,4 @@ public class QuotaAndIdleTests
         Assert.False(rule.HasActiveSelfDiscipline);
     }
 }
+
