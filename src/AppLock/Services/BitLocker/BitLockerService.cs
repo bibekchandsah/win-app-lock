@@ -162,6 +162,183 @@ public class BitLockerService : IBitLockerService
         }, ct);
     }
 
+    public Task<string?> GenerateRecoveryPasswordAsync(string driveLetter, CancellationToken ct = default)
+    {
+        return Task.FromResult<string?>(GenerateValidRecoveryPassword());
+    }
+
+    public static string GenerateValidRecoveryPassword()
+    {
+        using var random = System.Security.Cryptography.RandomNumberGenerator.Create();
+        var blocks = new string[8];
+        var bytes = new byte[4];
+        for (int i = 0; i < 8; i++)
+        {
+            uint k;
+            do
+            {
+                random.GetBytes(bytes);
+                uint val = BitConverter.ToUInt32(bytes, 0);
+                k = 9091 + (val % (65536 - 9091));
+            } while (k * 11 >= 720896);
+
+            blocks[i] = (k * 11).ToString("D6");
+        }
+        return string.Join("-", blocks);
+    }
+
+    public async Task<BitLockerActionResult> TurnOnBitLockerAsync(BitLockerTurnOnRequest request, CancellationToken ct = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.DriveLetter))
+            return BitLockerActionResult.Fail("Invalid drive letter specified.");
+
+        if (string.IsNullOrEmpty(request.Passphrase) || request.Passphrase.Length < 8)
+            return BitLockerActionResult.Fail("Password must be at least 8 characters long.");
+
+        var normalized = NormalizeDriveLetter(request.DriveLetter);
+
+        // Security check: OS drive cannot be encrypted without TPM detection / complex policy
+        if (IsOperatingSystemOrAppDrive(normalized))
+        {
+            return BitLockerActionResult.Fail("Operating system drive encryption requires TPM configuration and is restricted.");
+        }
+
+        // Try WMI first
+        var wmiResult = await TurnOnBitLockerWmiAsync(normalized, request, ct);
+        if (wmiResult.Success) return wmiResult;
+
+        Debug.WriteLine($"[BitLockerService] WMI TurnOn failed: {wmiResult.ErrorMessage}, falling back to PowerShell...");
+        return await TurnOnBitLockerPowerShellAsync(normalized, request, ct);
+    }
+
+    private async Task<BitLockerActionResult> TurnOnBitLockerWmiAsync(string normalized, BitLockerTurnOnRequest request, CancellationToken ct)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+
+                using var collection = searcher.Get();
+                ManagementObject? volumeObj = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeObj = mo;
+                    break;
+                }
+
+                if (volumeObj == null)
+                    return BitLockerActionResult.Fail($"Volume {normalized} not found in BitLocker namespace.");
+
+                using (volumeObj)
+                {
+                    // 1. Add passphrase protector
+                    using var passParams = volumeObj.GetMethodParameters("ProtectKeyWithPassphrase");
+                    passParams["Passphrase"] = request.Passphrase;
+                    using var passOut = volumeObj.InvokeMethod("ProtectKeyWithPassphrase", passParams, null);
+                    uint passCode = Convert.ToUInt32(passOut["ReturnValue"]);
+                    if (passCode != 0)
+                    {
+                        return BitLockerActionResult.Fail($"Failed to add password protector: {GetBitLockerErrorMessage(passCode)}", (int)passCode);
+                    }
+
+                    // 2. Add recovery password protector
+                    using var recParams = volumeObj.GetMethodParameters("ProtectKeyWithNumericalPassword");
+                    if (!string.IsNullOrWhiteSpace(request.RecoveryPassword))
+                    {
+                        recParams["NumericalPassword"] = NormalizeRecoveryKey(request.RecoveryPassword);
+                    }
+                    using var recOut = volumeObj.InvokeMethod("ProtectKeyWithNumericalPassword", recParams, null);
+                    uint recCode = Convert.ToUInt32(recOut["ReturnValue"]);
+                    if (recCode != 0)
+                    {
+                        Debug.WriteLine($"[BitLockerService] Warning: ProtectKeyWithNumericalPassword returned {recCode:X8}");
+                    }
+
+                    // 3. Start encryption
+                    using var encParams = volumeObj.GetMethodParameters("Encrypt");
+                    encParams["EncryptionMethod"] = (uint)request.Method;
+                    encParams["EncryptionFlags"] = request.Scope == BitLockerEncryptionScope.UsedSpaceOnly ? 1u : 0u;
+                    using var encOut = volumeObj.InvokeMethod("Encrypt", encParams, null);
+                    uint encCode = Convert.ToUInt32(encOut["ReturnValue"]);
+
+                    if (encCode == 0)
+                    {
+                        return BitLockerActionResult.Ok();
+                    }
+
+                    return BitLockerActionResult.Fail(GetBitLockerErrorMessage(encCode), (int)encCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                return BitLockerActionResult.Fail(ex.Message);
+            }
+        }, ct);
+    }
+
+    private async Task<BitLockerActionResult> TurnOnBitLockerPowerShellAsync(string normalized, BitLockerTurnOnRequest request, CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var methodStr = request.Method switch
+            {
+                BitLockerEncryptionMethod.XtsAes256 => "XtsAes256",
+                BitLockerEncryptionMethod.AesCbc128 => "Aes128",
+                BitLockerEncryptionMethod.AesCbc256 => "Aes256",
+                _ => "XtsAes128"
+            };
+
+            var usedOnly = request.Scope == BitLockerEncryptionScope.UsedSpaceOnly ? "$true" : "$false";
+
+            // Pass password via stdin
+            var script = "$p = Read-Host -AsSecureString; " +
+                         $"Enable-BitLocker -MountPoint $env:APPLOCK_TARGET -PasswordProtector -Password $p -UsedSpaceOnly:{usedOnly} -EncryptionMethod {methodStr} -ErrorAction Stop; " +
+                         (string.IsNullOrEmpty(request.RecoveryPassword) ? "" : $"Add-BitLockerKeyProtector -MountPoint $env:APPLOCK_TARGET -RecoveryPassword '{request.RecoveryPassword}' -ErrorAction SilentlyContinue;");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -NonInteractive -Command \"{script}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.Environment["APPLOCK_TARGET"] = normalized;
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+
+            using (var writer = process.StandardInput)
+            {
+                writer.WriteLine(request.Passphrase);
+            }
+
+            await process.WaitForExitAsync(ct);
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+
+            if (process.ExitCode == 0)
+            {
+                return BitLockerActionResult.Ok();
+            }
+
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? "Encryption failed via PowerShell." : stderr.Trim(), process.ExitCode);
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+    }
+
     public async Task<BitLockerActionResult> LockAsync(
         string driveLetter,
         bool forceDismount = true,

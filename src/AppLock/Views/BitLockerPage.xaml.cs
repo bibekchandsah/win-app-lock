@@ -427,7 +427,30 @@ public sealed partial class BitLockerPage : Page
             ViewModel.StatusSeverity = BitLockerStatusSeverity.Success;
         }
     }
-    private void TurnOnButton_Click(object sender, RoutedEventArgs e) { /* M6 */ }
+    private async void TurnOnButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.IsElevated)
+        {
+            ViewModel.StatusMessage = "Administrator rights are required to turn on BitLocker.";
+            ViewModel.StatusSeverity = BitLockerStatusSeverity.Warning;
+            return;
+        }
+
+        var drives = ViewModel.Drives.Select(d => d.Model).ToList();
+        var selectedLetter = ViewModel.SelectedDrive?.DriveLetter;
+
+        var dialog = new EnableBitLockerDialog(drives, selectedLetter)
+        {
+            XamlRoot = this.XamlRoot
+        };
+
+        await dialog.ShowAsync();
+
+        if (dialog.IsConfirmed && dialog.ResultRequest != null)
+        {
+            await ViewModel.TurnOnBitLockerAsync(dialog.ResultRequest);
+        }
+    }
     private void TurnOffButton_Click(object sender, RoutedEventArgs e) { /* M7 */ }
     private void SuspendButton_Click(object sender, RoutedEventArgs e) { /* M7 */ }
     private void BackupKeyButton_Click(object sender, RoutedEventArgs e) { /* M8 */ }

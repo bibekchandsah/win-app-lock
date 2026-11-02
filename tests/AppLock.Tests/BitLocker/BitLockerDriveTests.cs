@@ -30,6 +30,16 @@ public class BitLockerDriveTests
         {
             return Task.FromResult(BitLockerActionResult.Ok());
         }
+
+        public Task<BitLockerActionResult> TurnOnBitLockerAsync(BitLockerTurnOnRequest request, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<string?> GenerateRecoveryPasswordAsync(string driveLetter, CancellationToken ct = default)
+        {
+            return Task.FromResult<string?>("111111-222222-333333-444444-555555-666666-123456-654321");
+        }
     }
 
     [Theory]
@@ -296,6 +306,45 @@ public class BitLockerDriveTests
         info.Exists = false;
         info.ExePathMatches = false;
         Assert.False(info.NeedsRepair);
+    }
+
+    [Fact]
+    public void GenerateValidRecoveryPassword_GeneratesValidFormat()
+    {
+        var key = BitLockerService.GenerateValidRecoveryPassword();
+        Assert.NotNull(key);
+
+        var blocks = key.Split('-');
+        Assert.Equal(8, blocks.Length);
+
+        foreach (var block in blocks)
+        {
+            Assert.Equal(6, block.Length);
+            Assert.True(uint.TryParse(block, out uint num));
+            Assert.True(num >= 100000 && num < 720896);
+            Assert.Equal(0u, num % 11);
+        }
+    }
+
+    [Fact]
+    public async Task TurnOnBitLocker_ViewModel_InvokesServiceCorrectly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var request = new BitLockerTurnOnRequest
+        {
+            DriveLetter = "G:",
+            Passphrase = "SuperSecurePassword123!",
+            RecoveryPassword = "111111-222222-333333-444444-555555-666666-123456-654321",
+            Scope = BitLockerEncryptionScope.UsedSpaceOnly,
+            Method = BitLockerEncryptionMethod.XtsAes128
+        };
+
+        var result = await vm.TurnOnBitLockerAsync(request);
+        Assert.True(result.Success);
     }
 }
 

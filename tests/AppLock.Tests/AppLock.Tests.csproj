@@ -36,6 +36,7 @@
     <Compile Include="..\..\src\AppLock\Models\BitLockerActionResult.cs" Link="Models\BitLockerActionResult.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerStatusSeverity.cs" Link="Models\BitLockerStatusSeverity.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerSavedPassword.cs" Link="Models\BitLockerSavedPassword.cs" />
+    <Compile Include="..\..\src\AppLock\Models\BitLockerEncryptionOptions.cs" Link="Models\BitLockerEncryptionOptions.cs" />
     <Compile Include="..\..\src\AppLock\Models\StartupTaskInfo.cs" Link="Models\StartupTaskInfo.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />

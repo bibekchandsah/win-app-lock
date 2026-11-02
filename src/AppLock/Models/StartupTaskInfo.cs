@@ -11,3 +11,4 @@ public sealed class StartupTaskInfo
     public bool ExePathMatches { get; set; } = true;
     public bool NeedsRepair => Exists && !ExePathMatches;
 }
+

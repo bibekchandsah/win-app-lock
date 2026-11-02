@@ -1,0 +1,157 @@
+<ContentDialog
+    x:Class="AppLock.Views.EnableBitLockerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Turn on BitLocker"
+    PrimaryButtonText="Next"
+    SecondaryButtonText="Back"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="PrimaryButton_Click"
+    SecondaryButtonClick="SecondaryButton_Click">
+
+    <StackPanel Spacing="16" MinWidth="440" MaxWidth="500">
+        <!-- Step Indicator -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StepTitleText"
+                       Text="Choose Drive &amp; Encryption Mode"
+                       FontWeight="SemiBold"
+                       FontSize="14"/>
+            <TextBlock x:Name="StepIndicatorText"
+                       Grid.Column="1"
+                       Text="Step 1 of 3"
+                       FontSize="12"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </Grid>
+
+        <!-- STEP 1: Drive & Options -->
+        <StackPanel x:Name="Step1Panel" Spacing="14" Visibility="Visible">
+            <ComboBox x:Name="DriveComboBox"
+                      Header="Drive to Encrypt"
+                      HorizontalAlignment="Stretch"
+                      SelectionChanged="DriveComboBox_SelectionChanged"/>
+
+            <InfoBar x:Name="OsDriveWarningBar"
+                     IsOpen="False"
+                     Severity="Warning"
+                     IsClosable="False"
+                     Title="Operating System Drive"
+                     Message="System drive encryption requires TPM 2.0 or Group Policy changes and cannot be configured through standard data encryption."/>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Encryption Scope" FontWeight="Medium" FontSize="13"/>
+                <RadioButton x:Name="ScopeUsedSpaceRadio"
+                             Content="Encrypt used disk space only (faster, best for new drives)"
+                             IsChecked="True"/>
+                <RadioButton x:Name="ScopeEntireDriveRadio"
+                             Content="Encrypt entire drive (slower, recommended for drives already in use)"/>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Encryption Method" FontWeight="Medium" FontSize="13"/>
+                <ComboBox x:Name="MethodComboBox"
+                          HorizontalAlignment="Stretch"
+                          SelectedIndex="0">
+                    <ComboBoxItem Content="XTS-AES 128-bit (Recommended for Windows 10/11)"/>
+                    <ComboBoxItem Content="XTS-AES 256-bit (Maximum security)"/>
+                    <ComboBoxItem Content="AES-CBC 128-bit (Compatible with older Windows)"/>
+                    <ComboBoxItem Content="AES-CBC 256-bit (Compatible with older Windows)"/>
+                </ComboBox>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- STEP 2: Password Protector -->
+        <StackPanel x:Name="Step2Panel" Spacing="14" Visibility="Collapsed">
+            <TextBlock Text="Choose a password to unlock this drive. The password must be at least 8 characters long."
+                       TextWrapping="Wrap"
+                       FontSize="13"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+            <PasswordBox x:Name="NewPasswordBox"
+                         Header="BitLocker Password"
+                         PlaceholderText="Enter at least 8 characters"
+                         CornerRadius="4"
+                         PasswordRevealMode="Peek"
+                         PasswordChanged="PasswordBox_PasswordChanged"/>
+
+            <PasswordBox x:Name="ConfirmPasswordBox"
+                         Header="Confirm Password"
+                         PlaceholderText="Re-enter password"
+                         CornerRadius="4"
+                         PasswordRevealMode="Peek"
+                         PasswordChanged="PasswordBox_PasswordChanged"/>
+
+            <!-- Password strength indicator -->
+            <StackPanel Spacing="4">
+                <Grid>
+                    <TextBlock Text="Password Strength:" FontSize="12"/>
+                    <TextBlock x:Name="StrengthText" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold"/>
+                </Grid>
+                <ProgressBar x:Name="StrengthBar"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             CornerRadius="2"
+                             Height="4"/>
+            </StackPanel>
+
+            <TextBlock x:Name="PasswordErrorText"
+                       Text=""
+                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed"/>
+        </StackPanel>
+
+        <!-- STEP 3: Back Up Recovery Key -->
+        <StackPanel x:Name="Step3Panel" Spacing="14" Visibility="Collapsed">
+            <TextBlock Text="A 48-digit numerical recovery key has been generated. You MUST save or copy it before encryption can begin. If you ever forget your password, this key is the only way to recover your data."
+                       TextWrapping="Wrap"
+                       FontSize="13"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+            <!-- Key display card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,10">
+                <TextBox x:Name="RecoveryKeyTextBox"
+                         IsReadOnly="True"
+                         FontFamily="Consolas, monospace"
+                         FontSize="14"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap"
+                         BorderThickness="0"
+                         Background="Transparent"/>
+            </Border>
+
+            <!-- Backup Action Buttons -->
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button x:Name="SaveToFileButton"
+                        Content="Save to text file"
+                        Click="SaveToFileButton_Click">
+                    <Button.KeyboardAccelerators>
+                        <KeyboardAccelerator Key="S" Modifiers="Control"/>
+                    </Button.KeyboardAccelerators>
+                </Button>
+                <Button x:Name="CopyKeyButton"
+                        Content="Copy to clipboard"
+                        Click="CopyKeyButton_Click"/>
+            </StackPanel>
+
+            <InfoBar x:Name="BackupStatusInfoBar"
+                     IsOpen="False"
+                     Severity="Success"
+                     IsClosable="False"
+                     Title="Recovery Key Backed Up"
+                     Message="You can now proceed to begin encryption."/>
+        </StackPanel>
+    </StackPanel>
+</ContentDialog>
+

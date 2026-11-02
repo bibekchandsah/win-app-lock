@@ -560,6 +560,47 @@ public partial class BitLockerViewModel : ObservableObject
         }
     }
 
+    public async Task<string?> GenerateRecoveryPasswordAsync(string driveLetter)
+    {
+        return await _bitLockerService.GenerateRecoveryPasswordAsync(driveLetter);
+    }
+
+    public async Task<BitLockerActionResult> TurnOnBitLockerAsync(BitLockerTurnOnRequest request, CancellationToken ct = default)
+    {
+        if (request == null) return BitLockerActionResult.Fail("Invalid request.");
+
+        IsLoading = true;
+        StatusMessage = $"Starting BitLocker encryption on drive {request.DriveLetter}...";
+        StatusSeverity = BitLockerStatusSeverity.Informational;
+
+        try
+        {
+            var result = await _bitLockerService.TurnOnBitLockerAsync(request, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"BitLocker encryption initiated for Drive {request.DriveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to enable BitLocker on {request.DriveLetter}: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to enable BitLocker: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
     public async Task<BitLockerActionResult> LockSelectedDriveAsync(bool forceDismount = true, CancellationToken ct = default)
     {
         if (SelectedDrive == null)
