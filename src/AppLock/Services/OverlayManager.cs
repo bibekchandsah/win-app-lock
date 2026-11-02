@@ -607,7 +607,28 @@ public class OverlayManager
             var matchingRule = _lockManager.GetAllRules()
                 .FirstOrDefault(r => _lockManager.IsWindowLockedByRule(r, window));
 
-            var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle, matchingRule);
+            LockReason reason = LockReason.Manual;
+            DateTime scheduledUntil = default;
+
+            if (matchingRule != null)
+            {
+                if (ScheduleEvaluator.IsInsideSchedule(matchingRule, DateTime.Now, out scheduledUntil))
+                {
+                    reason = LockReason.Schedule;
+                }
+                else if (matchingRule.SelfDiscipline.QuotaEnabled &&
+                         matchingRule.SelfDiscipline.UsedSecondsToday >=
+                         matchingRule.SelfDiscipline.DailyLimitMinutes * 60 + matchingRule.SelfDiscipline.ExtraSecondsGrantedToday)
+                {
+                    reason = LockReason.Quota;
+                }
+                else if (matchingRule.IdleRelockPending)
+                {
+                    reason = LockReason.Idle;
+                }
+            }
+
+            var overlay = new LockOverlayWindow(window.Handle, window.WindowTitle, matchingRule, reason, scheduledUntil);
             _activeOverlays[window.Handle] = overlay;
             _overlayShownTick[window.Handle] = Environment.TickCount64;
 
@@ -822,12 +843,14 @@ public class OverlayManager
                 _unlockTimers.Remove(handle);
                 _indefinitelyUnlocked.Remove(handle);
 
-                // Close any existing overlay so it can be re-shown
+                // If overlay is already active, don't close and recreate it every tick!
                 if (_activeOverlays.TryGetValue(handle, out var existing))
                 {
-                    existing.Close();
-                    _activeOverlays.Remove(handle);
-                    _overlayShownTick.Remove(handle);
+                    if (reason == LockReason.Schedule && ScheduleEvaluator.IsInsideSchedule(rule, DateTime.Now, out var until))
+                    {
+                        existing.SetScheduleLockState(until);
+                    }
+                    continue;
                 }
 
                 // Re-check: this will call ShowOverlay if window is visible

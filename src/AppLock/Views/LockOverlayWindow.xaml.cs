@@ -54,12 +54,17 @@ public sealed partial class LockOverlayWindow : Window
     private ResizeEdge _activeResizeEdge;
     private System.Drawing.Point _dragStartCursor;
     private RECT _targetStartRect;
+    private LockReason _lockReason = LockReason.Manual;
+    private DateTime _scheduledUntil = default;
+    private bool _isEmergencyOverrideMode = false;
 
-    public LockOverlayWindow(nint targetWindowHandle, string windowTitle, LockRule? lockRule = null)
+    public LockOverlayWindow(nint targetWindowHandle, string windowTitle, LockRule? lockRule = null, LockReason reason = LockReason.Manual, DateTime scheduledUntil = default)
     {
         _targetWindowHandle = targetWindowHandle;
         _windowTitle = windowTitle;
         _lockRule = lockRule;
+        _lockReason = reason;
+        _scheduledUntil = scheduledUntil;
         _authService = ServiceContainer.AuthService;
         _displayHelper = ServiceContainer.DisplayHelper;
         _keepOnTop = ServiceContainer.Settings.KeepLockScreenOnTop;
@@ -89,6 +94,8 @@ public sealed partial class LockOverlayWindow : Window
 
         // Set initial button selection (No limit)
         SelectDurationButton(BtnNoLimit, BtnNoLimitS, 0);
+
+        ApplyLockReasonState();
 
         // Initialize Windows Hello button visibility asynchronously
         _ = InitializeWindowsHelloAsync();
@@ -486,10 +493,96 @@ public sealed partial class LockOverlayWindow : Window
 
     // --- Password & Auth ---
 
+    private void ApplyLockReasonState()
+    {
+        if (_lockReason == LockReason.Schedule)
+        {
+            TitleText.Text = _scheduledUntil != default
+                ? $"Locked by schedule until {_scheduledUntil:HH:mm}"
+                : "Locked by schedule";
+            SubtitleText.Text = "Unlocking is restricted during scheduled focus time.";
+            PasswordBox.IsEnabled = false;
+            PasswordBox.PlaceholderText = "Unlock disabled during schedule";
+            UnlockButton.Visibility = Visibility.Collapsed;
+            EmergencyOverrideButton.Visibility = Visibility.Visible;
+            DurationGrid.Visibility = Visibility.Collapsed;
+            DurationGridSmall.Visibility = Visibility.Collapsed;
+            DurationLabel.Visibility = Visibility.Collapsed;
+            WindowsHelloButton.Visibility = Visibility.Collapsed;
+        }
+        else if (_lockReason == LockReason.Quota)
+        {
+            string appName = !string.IsNullOrWhiteSpace(_lockRule?.DisplayName)
+                ? _lockRule.DisplayName
+                : (!string.IsNullOrWhiteSpace(_lockRule?.ProcessName) ? _lockRule.ProcessName : _windowTitle);
+            TitleText.Text = $"Daily limit reached for {appName}";
+            SubtitleText.Text = "Enter the password to extend time.";
+            DurationLabel.Text = "Extend time by";
+            BtnNoLimit.Visibility = Visibility.Collapsed;
+            BtnNoLimitS.Visibility = Visibility.Collapsed;
+            SelectDurationButton(Btn15Min, Btn15MinS, 15);
+        }
+    }
+
+    public void SetScheduleLockState(DateTime until)
+    {
+        _lockReason = LockReason.Schedule;
+        _scheduledUntil = until;
+        DispatcherQueue.TryEnqueue(ApplyLockReasonState);
+    }
+
+    private void EmergencyOverrideButton_Click(object sender, RoutedEventArgs e)
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+
+        if (!_isEmergencyOverrideMode)
+        {
+            _isEmergencyOverrideMode = true;
+            PasswordBox.IsEnabled = true;
+            PasswordBox.PlaceholderText = "Enter admin password";
+            PasswordBox.Password = string.Empty;
+            PasswordBox.Focus(FocusState.Programmatic);
+            SubtitleText.Text = "Enter admin password for emergency override. This will be logged.";
+            EmergencyOverrideButton.Content = "Confirm Override";
+            EmergencyOverrideButton.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xFF, 0x45, 0x3A));
+            return;
+        }
+
+        var password = PasswordBox.Password;
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            ShowError("Please enter the admin password.");
+            return;
+        }
+
+        bool verified = _authService.VerifyPassword(password);
+        if (verified)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EMERGENCY_OVERRIDE] {DateTime.Now:yyyy-MM-dd HH:mm:ss} - App '{_windowTitle}' unlocked via emergency override.");
+            ServiceContainer.NotificationService.ShowWarning(
+                "Emergency Override",
+                $"Unlocked \"{_windowTitle}\" via admin emergency override.");
+            IsUnlocked = true;
+            UnlockDuration = TimeSpan.FromMinutes(60);
+            Close();
+        }
+        else
+        {
+            ShowError("Incorrect admin password.");
+            PasswordBox.Password = string.Empty;
+            PasswordBox.Focus(FocusState.Programmatic);
+        }
+    }
+
     private void PasswordBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
-            TryUnlock();
+        {
+            if (_isEmergencyOverrideMode)
+                EmergencyOverrideButton_Click(this, null!);
+            else
+                TryUnlock();
+        }
     }
 
     private void UnlockButton_Click(object sender, RoutedEventArgs e) => TryUnlock();
@@ -511,6 +604,15 @@ public sealed partial class LockOverlayWindow : Window
         {
             IsUnlocked = true;
             UnlockDuration = GetSelectedDuration();
+
+            if (_lockReason == LockReason.Quota && _lockRule != null)
+            {
+                int extendSec = (int)UnlockDuration.TotalSeconds;
+                if (extendSec <= 0) extendSec = 900;
+                _lockRule.SelfDiscipline.ExtraSecondsGrantedToday += extendSec;
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            }
+
             ServiceContainer.NotificationService.ShowSuccess(
                 "App Unlocked",
                 $"Successfully unlocked \"{_windowTitle}\".");

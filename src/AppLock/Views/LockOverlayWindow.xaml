@@ -296,6 +296,17 @@
                                 CornerRadius="6"
                                 FontSize="14"
                                 FontWeight="SemiBold"/>
+                        <Button Grid.Column="0"
+                                x:Name="EmergencyOverrideButton"
+                                Content="Emergency Override"
+                                Click="EmergencyOverrideButton_Click"
+                                Style="{ThemeResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Height="40"
+                                CornerRadius="6"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Visibility="Collapsed"/>
                         <Button Grid.Column="1"
                                 x:Name="CancelButton"
                                 Content="Cancel"

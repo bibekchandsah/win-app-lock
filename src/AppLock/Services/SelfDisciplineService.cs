@@ -1,6 +1,7 @@
 using System;
 using AppLock.Models;
 using Microsoft.UI.Dispatching;
+using Microsoft.Win32;
 using Windows.Win32;
 
 namespace AppLock.Services;
@@ -9,7 +10,7 @@ namespace AppLock.Services;
 /// Single 1-second timer coordinating self-discipline enforcement per LockRule:
 ///   Step 3: Idle relock
 ///   Step 4: Quota tracking + flush
-///   Step 5: Schedule evaluation (added in Step 5)
+///   Step 5: Schedule evaluation + SystemEvents hooks
 /// </summary>
 public class SelfDisciplineService : IDisposable
 {
@@ -20,6 +21,7 @@ public class SelfDisciplineService : IDisposable
     private readonly DispatcherQueue _dispatcherQueue;
 
     private readonly QuotaTracker _quotaTracker;
+    private readonly ScheduleEvaluator _scheduleEvaluator;
 
     private System.Threading.Timer? _tickTimer;
     private bool _disposed;
@@ -38,9 +40,20 @@ public class SelfDisciplineService : IDisposable
         _dispatcherQueue = dispatcherQueue;
 
         _quotaTracker = new QuotaTracker(lockManager, overlayManager, settingsStore, settings, SystemClock.Instance);
+        _scheduleEvaluator = new ScheduleEvaluator(SystemClock.Instance);
 
         // When a rule is unlocked via the overlay, reset its idle-relock flag
         _overlayManager.RuleUnlocked += (_, rule) => rule.IdleRelockPending = false;
+
+        try
+        {
+            SystemEvents.TimeChanged += OnSystemTimeChanged;
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SelfDisciplineService] SystemEvents subscription failed: {ex.Message}");
+        }
     }
 
     public void Start()
@@ -57,6 +70,19 @@ public class SelfDisciplineService : IDisposable
         _tickTimer = null;
     }
 
+    private void OnSystemTimeChanged(object? sender, EventArgs e)
+    {
+        OnTick(null);
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Resume)
+        {
+            OnTick(null);
+        }
+    }
+
     private void OnTick(object? state)
     {
         if (_disposed) return;
@@ -70,6 +96,16 @@ public class SelfDisciplineService : IDisposable
             foreach (var rule in _lockManager.GetAllRules())
             {
                 var sd = rule.SelfDiscipline;
+
+                // --- Step 5: Schedule evaluation ---
+                if (_scheduleEvaluator.IsInsideSchedule(rule, out DateTime until))
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        _overlayManager.ForceLock(rule, LockReason.Schedule);
+                    });
+                    continue; // Skip idle relock check while schedule is active
+                }
 
                 // --- Step 3: Idle Relock ---
                 EvaluateIdleRelock(rule, sd, idleSeconds / 60.0);
@@ -106,6 +142,14 @@ public class SelfDisciplineService : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
+
+        try
+        {
+            SystemEvents.TimeChanged -= OnSystemTimeChanged;
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        }
+        catch { }
+
         _quotaTracker.Flush(); // persist counters on exit
     }
 }
