@@ -20,7 +20,14 @@ public static class Program
             return;
         }
 
-        // 2. Normal AppLock instance
+        // 2. If running headless BitLocker auto-unlock (from scheduled task)
+        if (args.Length > 0 && Array.Exists(args, a => string.Equals(a, "--bitlocker-autounlock", StringComparison.OrdinalIgnoreCase)))
+        {
+            AppLock.Services.BitLocker.BitLockerAutoUnlockService.RunHeadlessAsync().GetAwaiter().GetResult();
+            return;
+        }
+
+        // 3. Normal AppLock instance
         XamlCheckProcessRequirements();
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Microsoft.UI.Xaml.Application.Start((p) =>

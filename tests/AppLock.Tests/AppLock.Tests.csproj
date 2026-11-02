@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <WindowsPackageType>None</WindowsPackageType>
-    <DefineConstants>DISABLE_XAML_ICONS</DefineConstants>
+    <DefineConstants>DISABLE_XAML_ICONS;APPLOCK_TESTS</DefineConstants>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -36,6 +36,7 @@
     <Compile Include="..\..\src\AppLock\Models\BitLockerActionResult.cs" Link="Models\BitLockerActionResult.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerStatusSeverity.cs" Link="Models\BitLockerStatusSeverity.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerSavedPassword.cs" Link="Models\BitLockerSavedPassword.cs" />
+    <Compile Include="..\..\src\AppLock\Models\StartupTaskInfo.cs" Link="Models\StartupTaskInfo.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\IBitLockerService.cs" Link="Services\BitLocker\IBitLockerService.cs" />
@@ -43,6 +44,8 @@
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerService.cs" Link="Services\BitLocker\BitLockerService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\VolumeWatcher.cs" Link="Services\BitLocker\VolumeWatcher.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\SavedPasswordStore.cs" Link="Services\BitLocker\SavedPasswordStore.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\StartupTaskService.cs" Link="Services\BitLocker\StartupTaskService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerAutoUnlockService.cs" Link="Services\BitLocker\BitLockerAutoUnlockService.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\DriveItemViewModel.cs" Link="ViewModels\DriveItemViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\BitLockerViewModel.cs" Link="ViewModels\BitLockerViewModel.cs" />
   </ItemGroup>

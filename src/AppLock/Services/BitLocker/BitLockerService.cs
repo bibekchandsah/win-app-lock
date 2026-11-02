@@ -819,4 +819,23 @@ public class BitLockerService : IBitLockerService
             _ => percentage == 100 ? "Fully Encrypted" : (percentage == 0 ? "Fully Decrypted" : $"{percentage}%")
         };
     }
+
+    public static void TryOpenDriveInExplorer(string driveLetter)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter)) return;
+        try
+        {
+            var normalized = NormalizeDriveLetter(driveLetter) + "\\";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{normalized}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to open Explorer for {driveLetter}: {ex.Message}");
+        }
+    }
 }

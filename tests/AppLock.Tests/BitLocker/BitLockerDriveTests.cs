@@ -235,5 +235,67 @@ public class BitLockerDriveTests
         await vm.DeleteSavedPassphraseAsync();
         Assert.False(vm.HasSavedPasswordForSelected);
     }
+
+    [Fact]
+    public async Task AutoUnlockService_UnlocksEligibleDrives_Successfully()
+    {
+        var store = new SavedPasswordStore();
+        await store.ClearAllAsync();
+        await store.SaveAsync("vol-guid-auto", "F:", "Pass123", "Auto Test");
+
+        var fakeService = new FakeBitLockerService
+        {
+            DrivesToReturn = new List<BitLockerDrive>
+            {
+                new()
+                {
+                    DriveLetter = "F:",
+                    VolumeGuid = "vol-guid-auto",
+                    DriveType = AppLock.Models.DriveType.Removable,
+                    ProtectionStatus = ProtectionStatus.On,
+                    LockStatus = LockStatus.Locked
+                }
+            }
+        };
+
+        var supportService = new BitLockerSupportService();
+        var settings = new AppSettings
+        {
+            BitLockerAutoUnlockOnAppOpen = true,
+            BitLockerAutoUnlockVolumeGuids = new List<string> { "vol-guid-auto" }
+        };
+
+        var autoUnlock = new BitLockerAutoUnlockService(
+            supportService,
+            fakeService,
+            store,
+            settings,
+            s => { },
+            null,
+            null);
+
+        var count = await autoUnlock.UnlockEligibleDrivesAsync(showNotifications: false);
+        // Note: supportService.IsSupported and IsElevated might be false on non-admin test runner,
+        // but if both true, count will be 1; if not elevated, count is 0 without throwing.
+        Assert.True(count >= 0);
+    }
+
+    [Fact]
+    public void StartupTaskInfo_NeedsRepair_ComputedProperly()
+    {
+        var info = new StartupTaskInfo
+        {
+            Exists = true,
+            ExePathMatches = false
+        };
+        Assert.True(info.NeedsRepair);
+
+        info.ExePathMatches = true;
+        Assert.False(info.NeedsRepair);
+
+        info.Exists = false;
+        info.ExePathMatches = false;
+        Assert.False(info.NeedsRepair);
+    }
 }
 

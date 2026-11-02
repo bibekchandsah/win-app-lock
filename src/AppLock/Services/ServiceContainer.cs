@@ -30,6 +30,8 @@ public static class ServiceContainer
     private static AppLock.Services.BitLocker.BitLockerService? _bitLockerService;
     private static AppLock.Services.BitLocker.VolumeWatcher? _volumeWatcher;
     private static AppLock.Services.BitLocker.SavedPasswordStore? _savedPasswordStore;
+    private static AppLock.Services.BitLocker.StartupTaskService? _startupTaskService;
+    private static AppLock.Services.BitLocker.BitLockerAutoUnlockService? _autoUnlockService;
 
     public static NotificationService NotificationService
     {
@@ -295,6 +297,8 @@ public static class ServiceContainer
         _volumeWatcher?.Dispose();
         _volumeWatcher = null;
         _savedPasswordStore = null;
+        _startupTaskService = null;
+        _autoUnlockService = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -345,6 +349,35 @@ public static class ServiceContainer
             if (_savedPasswordStore == null)
                 _savedPasswordStore = new AppLock.Services.BitLocker.SavedPasswordStore();
             return _savedPasswordStore;
+        }
+    }
+
+    public static AppLock.Services.BitLocker.StartupTaskService StartupTaskService
+    {
+        get
+        {
+            if (_startupTaskService == null)
+                _startupTaskService = new AppLock.Services.BitLocker.StartupTaskService();
+            return _startupTaskService;
+        }
+    }
+
+    public static AppLock.Services.BitLocker.BitLockerAutoUnlockService AutoUnlockService
+    {
+        get
+        {
+            if (_autoUnlockService == null)
+            {
+                _autoUnlockService = new AppLock.Services.BitLocker.BitLockerAutoUnlockService(
+                    BitLockerSupportService,
+                    BitLockerService,
+                    SavedPasswordStore,
+                    Settings,
+                    s => SettingsStore.Save(s),
+                    (t, m) => NotificationService.ShowSuccess(t, m),
+                    (t, m) => NotificationService.ShowWarning(t, m));
+            }
+            return _autoUnlockService;
         }
     }
 }

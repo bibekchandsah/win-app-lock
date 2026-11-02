@@ -18,4 +18,8 @@ public class BitLockerDrive
     public List<KeyProtectorInfo> KeyProtectors { get; set; } = new();
     public long TotalBytes { get; set; }
     public long FreeBytes { get; set; }
+
+    public string DisplayName => !string.IsNullOrWhiteSpace(VolumeLabel)
+        ? $"{DriveLetter} ({VolumeLabel})"
+        : (!string.IsNullOrWhiteSpace(DriveLetter) ? $"{DriveLetter} (Local Disk)" : (string.IsNullOrWhiteSpace(VolumeGuid) ? "Drive" : VolumeGuid));
 }

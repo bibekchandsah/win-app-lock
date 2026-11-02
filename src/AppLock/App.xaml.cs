@@ -29,6 +29,17 @@ public partial class App : Application
         // Apply process tamper protection & launch independent watchdog after window is up
         AppLock.Services.ProcessProtectionService.ProtectCurrentProcess();
         AppLock.Services.ProcessProtectionService.StartWatchdog();
+
+        // BitLocker auto-unlock on launch if enabled
+        if (AppLock.Services.ServiceContainer.Settings.BitLockerAutoUnlockOnAppOpen &&
+            AppLock.Services.ServiceContainer.BitLockerSupportService.IsSupported)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+            });
+        }
     }
 
     public Window? FindMainWindow()

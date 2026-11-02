@@ -6,12 +6,10 @@
     xmlns:vm="using:AppLock.ViewModels"
     xmlns:models="using:AppLock.Models"
     Background="Transparent">
-
     <Page.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <local:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
+        <local:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
     </Page.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -19,7 +17,6 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
         <!-- Command Bar -->
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Stretch" Background="Transparent">
             <AppBarButton Icon="Refresh" Label="Refresh" AccessKey="F5" Click="RefreshButton_Click"
@@ -76,7 +73,6 @@
                 <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
-
         <!-- Elevation InfoBar -->
         <InfoBar x:Name="ElevationInfoBar"
                  Grid.Row="1"
@@ -89,7 +85,6 @@
                 <Button Content="Restart as administrator" Click="RestartAsAdminButton_Click"/>
             </InfoBar.ActionButton>
         </InfoBar>
-
         <!-- Main Content Area -->
         <Grid Grid.Row="2" Margin="16,0,16,8">
             <!-- Empty State -->
@@ -107,27 +102,29 @@
                     <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"/>
                 </StackPanel>
             </Grid>
-
             <!-- Drives List and Details Pane -->
             <Grid Visibility="{x:Bind ViewModel.HasDrives, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="380"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Left Column: Drive Cards -->
-                <ListView Grid.Column="0"
-                          x:Name="DrivesList"
-                          ItemsSource="{x:Bind ViewModel.Drives, Mode=OneWay}"
-                          SelectedItem="{x:Bind ViewModel.SelectedDrive, Mode=TwoWay}"
-                          SelectionMode="Single"
-                          Margin="0,0,8,0">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                            <Setter Property="Padding" Value="0,4"/>
-                        </Style>
-                    </ListView.ItemContainerStyle>
+                <!-- Left Column: Drive Cards & Auto-Unlock Bar -->
+                <Grid Grid.Column="0" Margin="0,0,8,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ListView Grid.Row="0"
+                              x:Name="DrivesList"
+                              ItemsSource="{x:Bind ViewModel.Drives, Mode=OneWay}"
+                              SelectedItem="{x:Bind ViewModel.SelectedDrive, Mode=TwoWay}"
+                              SelectionMode="Single">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0,4"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:DriveItemViewModel">
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -141,7 +138,6 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-
                                     <!-- Row 0: Icon, Label, and Status Chips -->
                                     <Grid Grid.Row="0">
                                         <Grid.ColumnDefinitions>
@@ -149,14 +145,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-
                                         <!-- Drive Icon -->
                                         <FontIcon Glyph="{x:Bind DriveIconGlyph}"
                                                   FontSize="24"
                                                   Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,12,0"/>
-
                                         <!-- Drive Label & Letter -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                             <TextBlock Text="{x:Bind DisplayName}"
@@ -168,7 +162,6 @@
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                                        TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
-
                                         <!-- Status Chips -->
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                             <!-- Type Chip -->
@@ -181,7 +174,6 @@
                                                            FontSize="11"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                             </Border>
-
                                             <!-- Protection Chip -->
                                             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -198,7 +190,6 @@
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                                 </StackPanel>
                                             </Border>
-
                                             <!-- Lock Status Chip -->
                                             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -216,14 +207,12 @@
                                             </Border>
                                         </StackPanel>
                                     </Grid>
-
                                     <!-- Row 1: Encryption % & Capacity Progress -->
                                     <Grid Grid.Row="1" ColumnSpacing="24">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-
                                         <!-- Encryption Progress -->
                                         <StackPanel Grid.Column="0" Spacing="4">
                                             <Grid>
@@ -240,7 +229,6 @@
                                                        FontSize="10"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         </StackPanel>
-
                                         <!-- Capacity -->
                                         <StackPanel Grid.Column="1" Spacing="4">
                                             <Grid>
@@ -254,7 +242,6 @@
                                             <ProgressBar Value="{x:Bind CapacityUsedPercent}" Maximum="100"/>
                                         </StackPanel>
                                     </Grid>
-
                                     <!-- Row 2: Protectors Summary -->
                                     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                         <TextBlock Text="Key Protectors:"
@@ -269,8 +256,38 @@
                             </Border>
                         </DataTemplate>
                     </ListView.ItemTemplate>
-                </ListView>
+                    </ListView>
 
+                    <!-- Auto-unlock bar below drives -->
+                    <Border Grid.Row="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12,8"
+                            Margin="0,8,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <CheckBox Content="Auto-unlock saved drives when AppLock opens"
+                                          IsChecked="{x:Bind ViewModel.AutoUnlockOnAppOpen, Mode=TwoWay}"
+                                          FontSize="12"/>
+                                <TextBlock Text="{x:Bind ViewModel.LastUnlockedSummary, Mode=OneWay}"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                           Margin="28,-4,0,0"/>
+                            </StackPanel>
+                            <HyperlinkButton Grid.Column="1"
+                                             Content="Setup startup task"
+                                             Click="AutoUnlockButton_Click"
+                                             FontSize="12"
+                                             VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                </Grid>
                 <!-- Right Column: Details Pane -->
                 <Border Grid.Column="1"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -290,7 +307,6 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
-
                         <!-- Selected Drive Details -->
                         <ScrollViewer Visibility="{x:Bind ViewModel.HasSelectedDrive, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
                                       VerticalScrollBarVisibility="Auto">
@@ -315,9 +331,7 @@
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
                                 </Grid>
-
                                 <MenuFlyoutSeparator Margin="0,-4,0,0"/>
-
                                 <!-- Drive Status Overview -->
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="Volume Properties" FontWeight="SemiBold" FontSize="13"/>
@@ -332,23 +346,17 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Protection:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.ProtectionStatusDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right" FontWeight="Medium"/>
-
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Lock State:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.LockStatusDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right" FontWeight="Medium"/>
-
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Method:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.EncryptionMethod, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
-
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Capacity:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind ViewModel.SelectedDrive.CapacityDisplay, Mode=OneWay}" FontSize="12" HorizontalAlignment="Right"/>
                                     </Grid>
                                 </StackPanel>
-
                                 <MenuFlyoutSeparator/>
-
                                 <!-- Key Protectors Section -->
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="Key Protectors" FontWeight="SemiBold" FontSize="13"/>
@@ -356,7 +364,6 @@
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                Visibility="{x:Bind ViewModel.SelectedDrive.HasProtectors, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                    
                                     <ItemsControl ItemsSource="{x:Bind ViewModel.SelectedDrive.KeyProtectors, Mode=OneWay}"
                                                   Visibility="{x:Bind ViewModel.SelectedDrive.HasProtectors, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <ItemsControl.ItemTemplate>
@@ -383,9 +390,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
-
                                 <MenuFlyoutSeparator/>
-
                                 <!-- AppLock Automation Placeholders (M4, M5) -->
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="AppLock Integration" FontWeight="SemiBold" FontSize="13"/>
@@ -399,33 +404,37 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Saved password:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="0" Grid.Column="1"
                                                    Text="{x:Bind ViewModel.HasSavedPasswordForSelected, Mode=OneWay, Converter={StaticResource BoolToYesNoConverter}}"
                                                    FontSize="12" HorizontalAlignment="Right"/>
-
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Auto-unlock at startup:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="Off" FontSize="12" HorizontalAlignment="Right"/>
-
+                                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                                   Text="{x:Bind ViewModel.SelectedDriveAutoUnlockDisplay, Mode=OneWay}"
+                                                   FontSize="12" HorizontalAlignment="Right"/>
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Last unlocked:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="Not recorded" FontSize="12" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                                   Text="{x:Bind ViewModel.LastUnlockedSummary, Mode=OneWay}"
+                                                   FontSize="12" HorizontalAlignment="Right"/>
                                     </Grid>
+                                    <CheckBox x:Name="IncludeInAutoUnlockCheckBox"
+                                              Content="Include in auto-unlock"
+                                              FontSize="12"
+                                              IsChecked="{x:Bind ViewModel.IsSelectedDriveAutoUnlock, Mode=TwoWay}"
+                                              Click="IncludeInAutoUnlockCheckBox_Click"
+                                              ToolTipService.ToolTip="Automatically unlock this volume when AppLock starts or when plugged in"/>
                                 </StackPanel>
-
                                 <!-- Quick Unlock Section (Visible when selected drive is locked) -->
                                 <StackPanel Spacing="10"
                                             Visibility="{x:Bind ViewModel.SelectedDrive.IsLocked, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <MenuFlyoutSeparator/>
                                     <TextBlock Text="Unlock Volume" FontWeight="SemiBold" FontSize="13"/>
-
                                     <!-- Cooldown notice -->
                                     <InfoBar IsOpen="{x:Bind ViewModel.IsCooldownActive, Mode=OneWay}"
                                              Severity="Warning"
                                              IsClosable="False"
                                              Title="Unlock cooldown active"
                                              Message="{x:Bind ViewModel.CooldownMessage, Mode=OneWay}"/>
-
                                     <PasswordBox x:Name="QuickUnlockPasswordBox"
                                                  PlaceholderText="Enter BitLocker password"
                                                  IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
@@ -436,32 +445,21 @@
                                                 IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
                                                 Style="{ThemeResource AccentButtonStyle}"/>
                                         <Button Content="Use saved"
-
                                                 Click="UseSavedPasswordButton_Click"
-
                                                 IsEnabled="{x:Bind ViewModel.HasSavedPasswordForSelected, Mode=OneWay}"
-
                                                 ToolTipService.ToolTip="Unlock using the saved password for this drive"/>
-
                                     </StackPanel>
-
                                     <!-- Recovery key unlock link -->
                                     <HyperlinkButton Content="Unlock with recovery key"
                                                      Click="UnlockWithRecoveryKey_Click"
                                                      IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
                                                      Padding="0"
                                                      FontSize="12"/>
-
                                     <CheckBox x:Name="SavePasswordCheckBox"
-
                                               Content="Save password for this drive"
-
                                               Checked="SavePasswordCheckbox_Checked"
-
                                               FontSize="12"
-
                                               ToolTipService.ToolTip="Password encrypted with DPAPI and stored locally"/>
-
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
@@ -469,7 +467,6 @@
                 </Border>
             </Grid>
         </Grid>
-
         <!-- Bottom Status Bar -->
         <Border Grid.Row="3"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
