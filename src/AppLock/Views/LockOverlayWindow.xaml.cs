@@ -386,7 +386,7 @@ public sealed partial class LockOverlayWindow : Window
 
             // Switch to 2-row duration grid
             DurationGrid.Visibility = Visibility.Collapsed;
-            DurationGridSmall.Visibility = Visibility.Visible;
+            DurationGridSmall.Visibility = _lockReason == LockReason.Schedule ? Visibility.Collapsed : Visibility.Visible;
 
             // Sync selection state to small buttons
             SyncSmallButtonSelection(_selectedMinutes);
@@ -401,11 +401,17 @@ public sealed partial class LockOverlayWindow : Window
             ContentPanel.Spacing = 20;
 
             // Switch to 1-row duration grid
-            DurationGrid.Visibility = Visibility.Visible;
+            DurationGrid.Visibility = _lockReason == LockReason.Schedule ? Visibility.Collapsed : Visibility.Visible;
             DurationGridSmall.Visibility = Visibility.Collapsed;
 
             // Sync selection state to normal buttons
             SyncNormalButtonSelection(_selectedMinutes);
+        }
+
+        if (_lockReason == LockReason.Quota)
+        {
+            BtnNoLimit.Visibility = Visibility.Collapsed;
+            BtnNoLimitS.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -522,10 +528,25 @@ public sealed partial class LockOverlayWindow : Window
             TitleText.Text = $"Daily limit reached for {appName}";
             SubtitleText.Text = "Enter the password to extend time.";
             DurationLabel.Text = "Extend time by";
+            DurationLabel.Visibility = Visibility.Visible;
+            DurationGrid.Visibility = _isSmallLayout ? Visibility.Collapsed : Visibility.Visible;
+            DurationGridSmall.Visibility = _isSmallLayout ? Visibility.Visible : Visibility.Collapsed;
+            PasswordBox.IsEnabled = true;
+            PasswordBox.PlaceholderText = "Enter password";
+            UnlockButton.Visibility = Visibility.Visible;
+            EmergencyOverrideButton.Visibility = Visibility.Collapsed;
+            WindowsHelloButton.Visibility = ServiceContainer.Settings.WindowsHelloEnabled ? Visibility.Visible : Visibility.Collapsed;
             BtnNoLimit.Visibility = Visibility.Collapsed;
             BtnNoLimitS.Visibility = Visibility.Collapsed;
             SelectDurationButton(Btn15Min, Btn15MinS, 15);
         }
+    }
+
+    public void SetQuotaLockState()
+    {
+        if (_lockReason == LockReason.Quota) return;
+        _lockReason = LockReason.Quota;
+        DispatcherQueue.TryEnqueue(ApplyLockReasonState);
     }
 
     public void SetScheduleLockState(DateTime until)
@@ -606,6 +627,21 @@ public sealed partial class LockOverlayWindow : Window
 
     private void UnlockButton_Click(object sender, RoutedEventArgs e) => TryUnlock();
 
+    private void ApplySuccessfulUnlock()
+    {
+        IsUnlocked = true;
+        UnlockDuration = GetSelectedDuration();
+
+        if (_lockReason == LockReason.Quota && _lockRule != null)
+        {
+            int extendSec = (int)UnlockDuration.TotalSeconds;
+            if (extendSec <= 0) extendSec = 900;
+            _lockRule.SelfDiscipline.ExtraSecondsGrantedToday += extendSec;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            QuotaTracker.FireQuotaUpdated(_lockRule);
+        }
+    }
+
     private void TryUnlock()
     {
         ErrorText.Visibility = Visibility.Collapsed;
@@ -621,16 +657,7 @@ public sealed partial class LockOverlayWindow : Window
 
         if (verified)
         {
-            IsUnlocked = true;
-            UnlockDuration = GetSelectedDuration();
-
-            if (_lockReason == LockReason.Quota && _lockRule != null)
-            {
-                int extendSec = (int)UnlockDuration.TotalSeconds;
-                if (extendSec <= 0) extendSec = 900;
-                _lockRule.SelfDiscipline.ExtraSecondsGrantedToday += extendSec;
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-            }
+            ApplySuccessfulUnlock();
 
             ServiceContainer.NotificationService.ShowSuccess(
                 "App Unlocked",
@@ -957,8 +984,7 @@ public sealed partial class LockOverlayWindow : Window
 
             if (verified)
             {
-                IsUnlocked = true;
-                UnlockDuration = GetSelectedDuration();
+                ApplySuccessfulUnlock();
                 ServiceContainer.NotificationService.ShowSuccess(
                     "App Unlocked",
                     $"Successfully unlocked \"{_windowTitle}\" with Windows Hello.");
@@ -1076,8 +1102,7 @@ public sealed partial class LockOverlayWindow : Window
 
             if (resetDialog.PasswordReset)
             {
-                IsUnlocked = true;
-                UnlockDuration = GetSelectedDuration();
+                ApplySuccessfulUnlock();
                 ServiceContainer.NotificationService.ShowSuccess(
                     "App Unlocked",
                     $"Successfully unlocked \"{_windowTitle}\" via password reset.");

@@ -68,18 +68,15 @@ public class QuotaTracker
             int limitSec = sd.DailyLimitMinutes * 60 + sd.ExtraSecondsGrantedToday;
             if (sd.UsedSecondsToday >= limitSec)
             {
-                _overlayManager.ForceLock(rule, LockReason.Quota);
+                _overlayManager!.ForceLock(rule, LockReason.Quota);
                 continue;
             }
 
             // --- Count only when: app unlocked + foreground + not idle ---
             if (idleSeconds >= IdlePauseSeconds) continue;
 
-            // Check if foreground HWND matches this rule
-            if (!IsForegroundHwndMatchingRule(foregroundHwnd, rule)) continue;
-
-            // Check if rule is currently in an unlocked session
-            if (!IsWindowHandleUnlocked(foregroundHwnd)) continue;
+            if (!_overlayManager!.IsRuleForegroundAndUnlocked(rule, foregroundHwnd))
+                continue;
 
             sd.UsedSecondsToday++;
             dirty = true;
@@ -126,70 +123,12 @@ public class QuotaTracker
     /// </summary>
     public static event Action<LockRule>? QuotaUpdated;
 
-    // ─── Helpers ────────────────────────────────────────────────────────────────
-
-    private bool IsForegroundHwndMatchingRule(nint hwnd, LockRule rule)
-    {
-        if (hwnd == 0) return false;
-        try
-        {
-            uint pid = 0;
-            unsafe { PInvoke.GetWindowThreadProcessId(new HWND(hwnd), &pid); }
-            if (pid == 0) return false;
-
-            var hProc = PInvoke.OpenProcess_SafeHandle(
-                PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-            if (hProc.IsInvalid) return false;
-
-            string processName;
-            using (hProc)
-            {
-                var buf = new char[260];
-                uint sz = (uint)buf.Length;
-                unsafe
-                {
-                    fixed (char* p = buf)
-                        PInvoke.QueryFullProcessImageName(hProc, 0, new Windows.Win32.Foundation.PWSTR(p), ref sz);
-                }
-                string path = new string(buf).TrimEnd('\0');
-                processName = System.IO.Path.GetFileNameWithoutExtension(path);
-            }
-
-            if (string.IsNullOrEmpty(processName)) return false;
-
-            // Simple process-name match (covers the main lock case)
-            if (!string.IsNullOrEmpty(rule.ProcessName) &&
-                processName.Equals(rule.ProcessName, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            // Prefix match for UWP (e.g. "Calculator" vs "CalculatorApp")
-            if (!string.IsNullOrEmpty(rule.ProcessName))
-            {
-                string rn = rule.ProcessName;
-                string wn = processName;
-                if ((wn.StartsWith(rn, StringComparison.OrdinalIgnoreCase) ||
-                     rn.StartsWith(wn, StringComparison.OrdinalIgnoreCase)) &&
-                    Math.Min(rn.Length, wn.Length) >= 5)
-                    return true;
-            }
-
-            return false;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     /// <summary>
-    /// Checks whether the given HWND is currently in an unlocked session
-    /// by asking OverlayManager's public method.
-    /// Fast path: we pass the hwnd directly, no enumeration needed.
+    /// Triggers the QuotaUpdated event manually (e.g. when timer expires or extra seconds granted).
     /// </summary>
-    private bool IsWindowHandleUnlocked(nint hwnd)
+    public static void FireQuotaUpdated(LockRule rule)
     {
-        // Delegate to a lighter HWND-based check exposed on OverlayManager
-        return _overlayManager.IsHwndUnlocked(hwnd);
+        QuotaUpdated?.Invoke(rule);
     }
 }
 

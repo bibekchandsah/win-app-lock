@@ -535,7 +535,7 @@ public class OverlayManager
         });
     }
 
-    private void CheckWindow(nint windowHandle)
+    private void CheckWindow(nint windowHandle, LockReason? forcedReason = null)
     {
         if (!_lockManager.IsProtectionEnabled)
             return;
@@ -572,7 +572,7 @@ public class OverlayManager
 
             if (!PInvoke.IsIconic(hwnd) && PInvoke.IsWindowVisible(hwnd))
             {
-                ShowOverlay(window);
+                ShowOverlay(window, forcedReason);
             }
         }
         else
@@ -589,7 +589,7 @@ public class OverlayManager
         }
     }
 
-    private void ShowOverlay(RunningWindow window)
+    private void ShowOverlay(RunningWindow window, LockReason? forcedReason = null)
     {
         // Check if overlay already exists
         if (_activeOverlays.ContainsKey(window.Handle))
@@ -607,10 +607,10 @@ public class OverlayManager
             var matchingRule = _lockManager.GetAllRules()
                 .FirstOrDefault(r => _lockManager.IsWindowLockedByRule(r, window));
 
-            LockReason reason = LockReason.Manual;
+            LockReason reason = forcedReason ?? LockReason.Manual;
             DateTime scheduledUntil = default;
 
-            if (matchingRule != null)
+            if (matchingRule != null && !forcedReason.HasValue)
             {
                 if (matchingRule.EmergencyOverrideUntil.HasValue && DateTime.Now < matchingRule.EmergencyOverrideUntil.Value)
                 {
@@ -621,8 +621,10 @@ public class OverlayManager
                     reason = LockReason.Schedule;
                 }
                 else if (matchingRule.SelfDiscipline.QuotaEnabled &&
-                         matchingRule.SelfDiscipline.UsedSecondsToday >=
-                         matchingRule.SelfDiscipline.DailyLimitMinutes * 60 + matchingRule.SelfDiscipline.ExtraSecondsGrantedToday)
+                         (matchingRule.SelfDiscipline.UsedSecondsToday >=
+                          matchingRule.SelfDiscipline.DailyLimitMinutes * 60 + matchingRule.SelfDiscipline.ExtraSecondsGrantedToday
+                          || matchingRule.SelfDiscipline.UsedSecondsToday >= matchingRule.SelfDiscipline.DailyLimitMinutes * 60
+                          || matchingRule.SelfDiscipline.ExtraSecondsGrantedToday > 0))
                 {
                     reason = LockReason.Quota;
                 }
@@ -786,6 +788,28 @@ public class OverlayManager
             foreach (var windowHandle in expiredTimers)
             {
                 _unlockTimers.Remove(windowHandle);
+
+                var win = _windowEnumerator.EnumerateWindows().FirstOrDefault(w => w.Handle == windowHandle);
+                if (win != null)
+                {
+                    var appSettings = ServiceContainer.Settings;
+                    var rule = appSettings.LockRules.FirstOrDefault(r => _lockManager.IsWindowLockedByRule(r, win));
+                    if (rule != null && rule.SelfDiscipline.QuotaEnabled &&
+                        (rule.SelfDiscipline.UsedSecondsToday >= rule.SelfDiscipline.DailyLimitMinutes * 60 ||
+                         rule.SelfDiscipline.ExtraSecondsGrantedToday > 0))
+                    {
+                        int limitWithExtra = rule.SelfDiscipline.DailyLimitMinutes * 60 + rule.SelfDiscipline.ExtraSecondsGrantedToday;
+                        if (rule.SelfDiscipline.UsedSecondsToday < limitWithExtra)
+                        {
+                            rule.SelfDiscipline.UsedSecondsToday = limitWithExtra;
+                            ServiceContainer.SettingsStore.Save(appSettings);
+                            QuotaTracker.FireQuotaUpdated(rule);
+                        }
+                        CheckWindow(windowHandle, LockReason.Quota);
+                        continue;
+                    }
+                }
+
                 CheckWindow(windowHandle);
             }
         });
@@ -812,6 +836,52 @@ public class OverlayManager
             if (_indefinitelyUnlocked.Contains(h) || _unlockTimers.ContainsKey(h))
                 return true;
         }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a window matching <paramref name="rule"/> is currently the foreground window
+    /// (or contains the foreground window) AND is in an active unlocked session with NO active overlay covering it.
+    /// Used by QuotaTracker to increment UsedSecondsToday only during actual active foreground use.
+    /// </summary>
+    public bool IsRuleForegroundAndUnlocked(LockRule rule, nint foregroundHwnd)
+    {
+        if (foregroundHwnd == 0) return false;
+
+        var rootHwnd = (nint)PInvoke.GetAncestor(new HWND(foregroundHwnd), GET_ANCESTOR_FLAGS.GA_ROOT).Value;
+        if (rootHwnd == 0) rootHwnd = foregroundHwnd;
+
+        uint fgPid = 0;
+        unsafe { PInvoke.GetWindowThreadProcessId(new HWND(foregroundHwnd), &fgPid); }
+        uint rootPid = 0;
+        unsafe { PInvoke.GetWindowThreadProcessId(new HWND(rootHwnd), &rootPid); }
+
+        var windows = _windowEnumerator.EnumerateWindows();
+        foreach (var window in windows)
+        {
+            if (!_lockManager.IsWindowLockedByRule(rule, window))
+                continue;
+
+            // If an overlay is currently active over this window, it's NOT unlocked
+            if (_activeOverlays.ContainsKey(window.Handle))
+                continue;
+
+            // Is this window in an unlocked session?
+            bool isUnlocked = _indefinitelyUnlocked.Contains(window.Handle) ||
+                              _unlockTimers.ContainsKey(window.Handle);
+
+            if (!isUnlocked)
+                continue;
+
+            // Is this window (or its child/process) in the foreground?
+            if (window.Handle == rootHwnd ||
+                window.Handle == foregroundHwnd ||
+                (window.ProcessId != 0 && (window.ProcessId == fgPid || window.ProcessId == rootPid)))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -854,11 +924,15 @@ public class OverlayManager
                     {
                         existing.SetScheduleLockState(until);
                     }
+                    else if (reason == LockReason.Quota)
+                    {
+                        existing.SetQuotaLockState();
+                    }
                     continue;
                 }
 
                 // Re-check: this will call ShowOverlay if window is visible
-                CheckWindow(handle);
+                CheckWindow(handle, reason);
             }
         });
     }

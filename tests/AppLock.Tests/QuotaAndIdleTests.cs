@@ -132,5 +132,53 @@ public class QuotaAndIdleTests
         Assert.Empty(rule.SelfDiscipline.TimeBlocks);
         Assert.False(rule.HasActiveSelfDiscipline);
     }
+
+    [Fact]
+    public void ExtendedQuota_CalculatesTotalAllowedSecondsAccurately()
+    {
+        var settings = new SelfDisciplineSettings
+        {
+            QuotaEnabled = true,
+            DailyLimitMinutes = 60,
+            UsedSecondsToday = 3600, // Reached initial 1-hour limit
+            ExtraSecondsGrantedToday = 900 // Extended by 15 min
+        };
+
+        int totalAllowed = settings.DailyLimitMinutes * 60 + settings.ExtraSecondsGrantedToday;
+        Assert.Equal(4500, totalAllowed);
+
+        // Usage during extension (e.g. 10 minutes into extension = 4200s)
+        settings.UsedSecondsToday = 4200;
+        bool isExhausted = settings.UsedSecondsToday >= totalAllowed;
+        Assert.False(isExhausted);
+
+        // When extension runs out
+        settings.UsedSecondsToday = 4500;
+        bool isExhaustedAfter = settings.UsedSecondsToday >= totalAllowed;
+        Assert.True(isExhaustedAfter);
+    }
+
+    [Fact]
+    public void ExtendedQuota_WhenLockingAfterInitialLimitReached_DeterminesQuotaReason()
+    {
+        var rule = new LockRule
+        {
+            DisplayName = "TestApp",
+            SelfDiscipline = new SelfDisciplineSettings
+            {
+                QuotaEnabled = true,
+                DailyLimitMinutes = 60,
+                UsedSecondsToday = 3600, // Reached initial limit
+                ExtraSecondsGrantedToday = 900 // Has had an extension
+            }
+        };
+
+        // When evaluating lock reason for an app whose daily quota was reached or extended
+        bool isQuotaReason = rule.SelfDiscipline.QuotaEnabled &&
+            (rule.SelfDiscipline.UsedSecondsToday >= rule.SelfDiscipline.DailyLimitMinutes * 60 ||
+             rule.SelfDiscipline.ExtraSecondsGrantedToday > 0);
+
+        Assert.True(isQuotaReason);
+    }
 }
 

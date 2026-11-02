@@ -89,6 +89,7 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         if (updatedRule.Id != _rule.Id) return;
         // Copy the latest counter into our working copy so the ring reflects real usage
         _settingsCopy.UsedSecondsToday = updatedRule.SelfDiscipline.UsedSecondsToday;
+        _settingsCopy.ExtraSecondsGrantedToday = updatedRule.SelfDiscipline.ExtraSecondsGrantedToday;
 
         // Must update UI on the dispatcher thread
         DispatcherQueue.TryEnqueue(UpdateProgressRing);
@@ -170,11 +171,12 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
             ? 60.0
             : QuotaLimitNumberBox.Value;
 
+        double totalLimitMin = limitMin + (_settingsCopy.ExtraSecondsGrantedToday / 60.0);
         double usedMin = usedSec / 60.0;
-        QuotaProgressRing.Maximum = limitMin;
+        QuotaProgressRing.Maximum = totalLimitMin;
         QuotaProgressRing.Value = usedMin;
 
-        double ratio = limitMin > 0 ? (usedMin / limitMin) : 0;
+        double ratio = totalLimitMin > 0 ? (usedMin / totalLimitMin) : 0;
         if (ratio >= 0.9)
         {
             QuotaProgressRing.Foreground = new SolidColorBrush(Color.FromArgb(255, 0xFF, 0x9F, 0x0A)); // Warning amber
