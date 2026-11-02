@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppLock", "src\AppLock\AppL
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AppLockHook", "src\AppLockHook\AppLockHook.vcxproj", "{B2C3D4E5-F6A7-4B5C-9D8E-7F6A5B4C3D2E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1235E840-3FE8-4E84-9499-8CF9902F0CA0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppLock.Tests", "tests\AppLock.Tests\AppLock.Tests.csproj", "{938B7088-2DB8-44B5-8179-EA18FB92CAFC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +28,12 @@ Global
 		{B2C3D4E5-F6A7-4B5C-9D8E-7F6A5B4C3D2E}.Debug|x64.Build.0 = Debug|x64
 		{B2C3D4E5-F6A7-4B5C-9D8E-7F6A5B4C3D2E}.Release|x64.ActiveCfg = Release|x64
 		{B2C3D4E5-F6A7-4B5C-9D8E-7F6A5B4C3D2E}.Release|x64.Build.0 = Release|x64
+		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Debug|x64.ActiveCfg = Debug|x64
+		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Debug|x64.Build.0 = Debug|x64
+		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Release|x64.ActiveCfg = Release|x64
+		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{938B7088-2DB8-44B5-8179-EA18FB92CAFC} = {1235E840-3FE8-4E84-9499-8CF9902F0CA0}
 	EndGlobalSection
 EndGlobal

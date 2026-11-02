@@ -90,8 +90,10 @@ public class LockRule : ObservableObject
         OnPropertyChanged(nameof(HasCustomPassword));
     }
 
+#if !DISABLE_XAML_ICONS
     [System.Text.Json.Serialization.JsonIgnore]
     public Microsoft.UI.Xaml.Media.Imaging.BitmapImage? Icon { get; set; }
+#endif
 
     /// <summary>
     /// Transient flag set by SelfDisciplineService when this rule is idle-relocked.
