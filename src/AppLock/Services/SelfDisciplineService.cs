@@ -100,11 +100,22 @@ public class SelfDisciplineService : IDisposable
                 // --- Step 5: Schedule evaluation ---
                 if (_scheduleEvaluator.IsInsideSchedule(rule, out DateTime until))
                 {
+                    if (rule.EmergencyOverrideUntil.HasValue && DateTime.Now < rule.EmergencyOverrideUntil.Value)
+                    {
+                        // Active emergency override for this scheduled block: bypass force-relock
+                        continue;
+                    }
+
                     _dispatcherQueue.TryEnqueue(() =>
                     {
                         _overlayManager.ForceLock(rule, LockReason.Schedule);
                     });
                     continue; // Skip idle relock check while schedule is active
+                }
+                else
+                {
+                    // Reset emergency override once schedule ends
+                    rule.EmergencyOverrideUntil = null;
                 }
 
                 // --- Step 3: Idle Relock ---

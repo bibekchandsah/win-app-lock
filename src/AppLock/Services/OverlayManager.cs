@@ -612,7 +612,11 @@ public class OverlayManager
 
             if (matchingRule != null)
             {
-                if (ScheduleEvaluator.IsInsideSchedule(matchingRule, DateTime.Now, out scheduledUntil))
+                if (matchingRule.EmergencyOverrideUntil.HasValue && DateTime.Now < matchingRule.EmergencyOverrideUntil.Value)
+                {
+                    reason = LockReason.Manual;
+                }
+                else if (ScheduleEvaluator.IsInsideSchedule(matchingRule, DateTime.Now, out scheduledUntil))
                 {
                     reason = LockReason.Schedule;
                 }

@@ -101,4 +101,11 @@ public class LockRule : ObservableObject
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IdleRelockPending { get; set; }
+
+    /// <summary>
+    /// Transient expiration timestamp set when admin performs an emergency override during schedule.
+    /// While active, ScheduleEvaluator force-lock is bypassed until this period ends.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public DateTime? EmergencyOverrideUntil { get; set; }
 }

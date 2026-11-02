@@ -500,6 +500,10 @@ public sealed partial class LockOverlayWindow : Window
             TitleText.Text = _scheduledUntil != default
                 ? $"Locked by schedule until {_scheduledUntil:HH:mm}"
                 : "Locked by schedule";
+
+            if (_isEmergencyOverrideMode)
+                return; // Preserve active emergency override input state
+
             SubtitleText.Text = "Unlocking is restricted during scheduled focus time.";
             PasswordBox.IsEnabled = false;
             PasswordBox.PlaceholderText = "Unlock disabled during schedule";
@@ -526,6 +530,12 @@ public sealed partial class LockOverlayWindow : Window
 
     public void SetScheduleLockState(DateTime until)
     {
+        if (_isEmergencyOverrideMode)
+            return;
+
+        if (_lockReason == LockReason.Schedule && _scheduledUntil == until)
+            return;
+
         _lockReason = LockReason.Schedule;
         _scheduledUntil = until;
         DispatcherQueue.TryEnqueue(ApplyLockReasonState);
@@ -562,6 +572,15 @@ public sealed partial class LockOverlayWindow : Window
             ServiceContainer.NotificationService.ShowWarning(
                 "Emergency Override",
                 $"Unlocked \"{_windowTitle}\" via admin emergency override.");
+
+            // Exemption period for the rest of this schedule block
+            if (_lockRule != null)
+            {
+                _lockRule.EmergencyOverrideUntil = _scheduledUntil != default
+                    ? _scheduledUntil
+                    : DateTime.Now.AddHours(1);
+            }
+
             IsUnlocked = true;
             UnlockDuration = TimeSpan.FromMinutes(60);
             Close();
