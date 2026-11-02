@@ -801,3 +801,31 @@ All services compile successfully. Ready for integration testing once build envi
 - README.md completion
 - Final polish and bug fixes
 
+
+
+---
+
+## BitLocker Feature — Milestone 1 (2026-11-02)
+
+### Files Created
+- `src\AppLock\Models\BitLockerDrive.cs` — Drive model with `DriveType`, `ProtectionStatus`, `LockStatus` enums
+- `src\AppLock\Models\KeyProtectorInfo.cs` — Key protector info model
+- `src\AppLock\Services\BitLocker\BitLockerSupportService.cs` — Detects BitLocker support via registry edition ID, `manage-bde.exe` presence, and WMI availability; lazy-caches all results; `Refresh()` resets cache
+- `src\AppLock\Services\BitLocker\IBitLockerService.cs` — Stub interface for testability (expanded in M2+)
+- `src\AppLock\ViewModels\BitLockerViewModel.cs` — MVVM ViewModel wrapping `BitLockerSupportService`
+- `src\AppLock\Views\BitLockerPage.xaml` — Page shell with CommandBar, InfoBar (elevation warning), and empty-state placeholder
+- `src\AppLock\Views\BitLockerPage.xaml.cs` — Code-behind; sets `InfoBar.IsOpen = !IsElevated`; stub handlers for all commands
+
+### Files Modified
+- `src\AppLock\Services\ServiceContainer.cs` — Added `BitLockerSupportService` singleton property and `_bitLockerSupportService = null` in `Reset()`
+- `src\AppLock\MainWindow.xaml` — Added `BitLockerNavButton` (Visibility=Collapsed by default) after WebsitesNavButton in top nav StackPanel
+- `src\AppLock\MainWindow.xaml.cs` — Added `UpdateBitLockerNavVisibility()`, `BitLockerNavButton_Click()`, integrated into `UpdateNavSelection`, `SetNavPaneExpanded`, `ApplyLocalization`
+- `src\AppLock\AppLock.csproj` — Added `System.Management` v8.0.0 NuGet reference
+
+### Design Decisions
+- **Home-edition detection**: Uses registry `EditionID` value; Home editions (`Core`, `CoreN`, `CoreSingleLanguage`, `CoreCountrySpecific`) hide the nav button entirely — no UI pollution for users who can't use BitLocker
+- **WMI access denied → not elevated**: When WMI returns `AccessDenied`, service treats process as non-elevated and WMI as unavailable, but still marks `IsSupported = true` (edition + manage-bde.exe checks passed)
+- **Nav button starts Collapsed**: `BitLockerNavButton.Visibility` defaults to `Collapsed` in XAML; `UpdateBitLockerNavVisibility()` called in constructor sets it `Visible` only if supported
+- **All brushes ThemeResource only**: No hardcoded colors in XAML; InfoBar and CommandBar use `Background="Transparent"` or system defaults
+- **InfoBar not closable**: `IsClosable="False"` so users cannot accidentally dismiss the elevation warning; they must explicitly click "Restart as administrator"
+- **Build**: 0 errors, 1 pre-existing NETSDK1206 warning (unrelated WindowsAppSDK RID warning)

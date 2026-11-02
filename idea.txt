@@ -159,5 +159,5 @@ issue
 -> fixed - daily quot:count extended time as usage, always show quota overlay after limit
 -> background mica background effect, curved sidebar with title bar
 -> high priority for launching app on start up that is boot 
--> bit locker -> lock/unlock
+-> bit locker -> lock/unlock, refresh drive list, check current usage, 
 -> app internet connection enable disable

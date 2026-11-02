@@ -1,0 +1,83 @@
+<Page
+    x:Class="AppLock.Views.BitLockerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Command Bar -->
+        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Left" Background="Transparent">
+            <AppBarButton Icon="Refresh" Label="Refresh" AccessKey="F5" Click="RefreshButton_Click"
+                          AutomationProperties.Name="Refresh drive list"/>
+            <AppBarSeparator/>
+            <AppBarButton x:Name="LockButton" Label="Lock" Click="LockButton_Click"
+                          AutomationProperties.Name="Lock selected drive">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE72E;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton x:Name="UnlockButton" Label="Unlock" Click="UnlockButton_Click"
+                          AutomationProperties.Name="Unlock selected drive">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE785;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarSeparator/>
+            <AppBarButton x:Name="TurnOnButton" Label="Turn on BitLocker" Click="TurnOnButton_Click"
+                          AutomationProperties.Name="Turn on BitLocker encryption">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE965;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton x:Name="TurnOffButton" Label="Turn off BitLocker" Click="TurnOffButton_Click"
+                          AutomationProperties.Name="Turn off BitLocker encryption">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE7BA;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarSeparator/>
+            <AppBarButton x:Name="SuspendButton" Label="Suspend protection" Click="SuspendButton_Click"
+                          AutomationProperties.Name="Suspend or resume BitLocker protection">
+                <AppBarButton.Icon><FontIcon Glyph="&#xE769;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarSeparator/>
+            <AppBarButton x:Name="BackupKeyButton" Label="Back up recovery key" Click="BackupKeyButton_Click"
+                          AutomationProperties.Name="Back up BitLocker recovery key">
+                <AppBarButton.Icon><FontIcon Glyph="&#xEA37;"/></AppBarButton.Icon>
+            </AppBarButton>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Label="Change password" Click="ChangePasswordButton_Click"/>
+                <AppBarButton Label="Manage key protectors" Click="ManageProtectorsButton_Click"/>
+                <AppBarButton Label="Check usage" Click="CheckUsageButton_Click"/>
+                <AppBarButton Label="Open in File Explorer" Click="OpenExplorerButton_Click"/>
+                <AppBarButton Label="Auto-unlock on this PC" Click="AutoUnlockButton_Click"/>
+                <AppBarSeparator/>
+                <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"/>
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+
+        <!-- Elevation InfoBar -->
+        <InfoBar x:Name="ElevationInfoBar"
+                 Grid.Row="1"
+                 Severity="Warning"
+                 Title="Administrator rights are needed to manage BitLocker."
+                 IsClosable="False"
+                 Margin="12,0,12,0">
+            <InfoBar.ActionButton>
+                <Button Content="Restart as administrator" Click="RestartAsAdminButton_Click"/>
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <!-- Empty State -->
+        <Grid x:Name="EmptyStateGrid" Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <StackPanel Spacing="16" HorizontalAlignment="Center">
+                <FontIcon Glyph="&#xEDA2;" FontSize="64"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                          HorizontalAlignment="Center"/>
+                <TextBlock Text="No drives found"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
+                <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

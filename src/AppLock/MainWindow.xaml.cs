@@ -108,6 +108,9 @@ public sealed partial class MainWindow : Window
         // Initialize collapsible navigation pane from settings
         SetNavPaneExpanded(ServiceContainer.Settings.IsNavPaneExpanded, saveSetting: false);
 
+        // Show/hide BitLocker nav based on platform support
+        UpdateBitLockerNavVisibility();
+
         // Wire localization
         ServiceContainer.LocalizationService.LanguageChanged += (s, e) =>
         {
@@ -299,6 +302,7 @@ public sealed partial class MainWindow : Window
         bool isProtection = pageType == typeof(ProtectionPage);
         bool isFeedback = pageType == typeof(FeedbackPage);
         bool isSettings = pageType == typeof(SettingsPage);
+        bool isBitLocker = pageType == typeof(BitLockerPage);
 
         bool isDark = IsDarkMode;
         var windowAccentColor = GetWindowAccentColor();
@@ -341,6 +345,13 @@ public sealed partial class MainWindow : Window
 
         UpdateNavItem(isSettings, SettingsNavBackground, SettingsNavIndicator, SettingsNavIcon, SettingsNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        // BitLocker nav (only if visible / supported)
+        if (BitLockerNavButton?.Visibility == Visibility.Visible)
+        {
+            UpdateNavItem(isBitLocker, BitLockerNavBackground, BitLockerNavIndicator, BitLockerNavIcon, BitLockerNavLabel,
+                activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+        }
 
         // Update toggle button and disabled nav items
         if (NavTogglePaneIcon != null) NavTogglePaneIcon.Foreground = inactiveIconBrush;
@@ -558,6 +569,24 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void UpdateBitLockerNavVisibility()
+    {
+        if (BitLockerNavButton != null)
+        {
+            BitLockerNavButton.Visibility = ServiceContainer.BitLockerSupportService.IsSupported
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void BitLockerNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isMainAuthenticated) return;
+        if (ContentFrame.CurrentSourcePageType != typeof(BitLockerPage))
+        {
+            ContentFrame.Navigate(typeof(BitLockerPage));
+        }
+    }
+
     private void NavTogglePaneButton_Click(object sender, RoutedEventArgs e)
     {
         SetNavPaneExpanded(!_isNavPaneExpanded, saveSetting: true);
@@ -577,6 +606,7 @@ public sealed partial class MainWindow : Window
         if (WebsitesNavLabel != null) WebsitesNavLabel.Visibility = labelVis;
         if (FeedbackNavLabel != null) FeedbackNavLabel.Visibility = labelVis;
         if (SettingsNavLabel != null) SettingsNavLabel.Visibility = labelVis;
+        if (BitLockerNavLabel != null) BitLockerNavLabel.Visibility = labelVis;
 
         if (saveSetting && ServiceContainer.Settings != null)
         {
@@ -601,6 +631,8 @@ public sealed partial class MainWindow : Window
         if (FeedbackNavButton != null) ToolTipService.SetToolTip(FeedbackNavButton, loc["NavFeedback"]);
         if (SettingsNavButton != null) ToolTipService.SetToolTip(SettingsNavButton, loc["NavSettings"]);
         if (NavTogglePaneButton != null) ToolTipService.SetToolTip(NavTogglePaneButton, loc["NavToggle"]);
+        if (BitLockerNavLabel != null) BitLockerNavLabel.Text = "BitLocker";
+        if (BitLockerNavButton != null) ToolTipService.SetToolTip(BitLockerNavButton, "BitLocker");
     }
 
     private void InitializeServices()

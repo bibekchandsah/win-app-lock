@@ -181,6 +181,56 @@
                                        Visibility="Collapsed"/>
                         </Grid>
                     </Button>
+
+                    <Button x:Name="BitLockerNavButton" 
+                            Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            Click="BitLockerNavButton_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            ToolTipService.ToolTip="BitLocker"
+                            Visibility="Collapsed">
+                        <Grid Height="40" HorizontalAlignment="Stretch">
+                            <Border x:Name="BitLockerNavBackground"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="BitLockerNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="BitLockerNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xEDA2;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="BitLockerNavLabel"
+                                           Grid.Column="1"
+                                           Text="BitLocker"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Grid>
+                    </Button>
                 </StackPanel>
 
                 <!-- Bottom Navigation Items -->

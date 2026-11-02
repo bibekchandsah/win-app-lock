@@ -26,6 +26,7 @@ public static class ServiceContainer
     private static LocalizationService? _localizationService;
     private static NotificationService? _notificationService;
     private static SelfDisciplineService? _selfDisciplineService;
+    private static AppLock.Services.BitLocker.BitLockerSupportService? _bitLockerSupportService;
 
     public static NotificationService NotificationService
     {
@@ -286,6 +287,7 @@ public static class ServiceContainer
         _localizationService = null;
         _notificationService = null;
         _selfDisciplineService = null;
+        _bitLockerSupportService = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -298,4 +300,14 @@ public static class ServiceContainer
     }
 
     public static SelfDisciplineService? SelfDisciplineService => _selfDisciplineService;
+
+    public static AppLock.Services.BitLocker.BitLockerSupportService BitLockerSupportService
+    {
+        get
+        {
+            if (_bitLockerSupportService == null)
+                _bitLockerSupportService = new AppLock.Services.BitLocker.BitLockerSupportService();
+            return _bitLockerSupportService;
+        }
+    }
 }
