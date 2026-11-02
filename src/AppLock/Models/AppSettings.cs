@@ -32,6 +32,9 @@ public class AppSettings
     
     // Lock rules
     public List<LockRule> LockRules { get; set; } = new();
+
+    // BitLocker
+    public bool BitLockerOpenDriveAfterUnlock { get; set; } = false;
     
     // First run
     public bool IsFirstRun { get; set; } = true;

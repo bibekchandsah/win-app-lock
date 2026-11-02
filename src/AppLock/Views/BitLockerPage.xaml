@@ -30,11 +30,13 @@
             <AppBarSeparator/>
             <AppBarButton x:Name="LockButton" Label="Lock" Click="LockButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanLockSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.LockTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Lock selected drive">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE72E;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarButton x:Name="UnlockButton" Label="Unlock" Click="UnlockButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanUnlockSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.UnlockTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Unlock selected drive">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE785;"/></AppBarButton.Icon>
             </AppBarButton>
@@ -411,15 +413,34 @@
                                             Visibility="{x:Bind ViewModel.SelectedDrive.IsLocked, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                                     <MenuFlyoutSeparator/>
                                     <TextBlock Text="Unlock Volume" FontWeight="SemiBold" FontSize="13"/>
+
+                                    <!-- Cooldown notice -->
+                                    <InfoBar IsOpen="{x:Bind ViewModel.IsCooldownActive, Mode=OneWay}"
+                                             Severity="Warning"
+                                             IsClosable="False"
+                                             Title="Unlock cooldown active"
+                                             Message="{x:Bind ViewModel.CooldownMessage, Mode=OneWay}"/>
+
                                     <PasswordBox x:Name="QuickUnlockPasswordBox"
-                                                 PlaceholderText="Enter BitLocker password"/>
+                                                 PlaceholderText="Enter BitLocker password"
+                                                 IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
+                                                 KeyDown="QuickUnlockPasswordBox_KeyDown"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button Content="Unlock"
-                                                Click="UnlockButton_Click"
+                                                Click="QuickUnlockButton_Click"
+                                                IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
                                                 Style="{ThemeResource AccentButtonStyle}"/>
                                         <Button Content="Use saved"
                                                 IsEnabled="False"/>
                                     </StackPanel>
+
+                                    <!-- Recovery key unlock link -->
+                                    <HyperlinkButton Content="Unlock with recovery key"
+                                                     Click="UnlockWithRecoveryKey_Click"
+                                                     IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
+                                                     Padding="0"
+                                                     FontSize="12"/>
+
                                     <CheckBox Content="Save password for this drive"
                                               FontSize="12"/>
                                 </StackPanel>

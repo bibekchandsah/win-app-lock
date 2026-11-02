@@ -161,3 +161,7 @@ issue
 -> high priority for launching app on start up that is boot 
 -> bit locker -> lock/unlock, refresh drive list, check current usage, 
 -> app internet connection enable disable
+-> protect eye with custom message and custom duration 
+-> brightness shortcut key according to brightness percentage 0% ctrl+shift+0, 10% ctrl+sft+1., 20% ctrl+shift+2, 100% ctrl+shift+f..... (custom hotkey)
+   blur overlay on screen ctrl+shift+b (custom blur intensity) (custom hotkey)
+-> volume mixture 

@@ -15,6 +15,21 @@ public class BitLockerDriveTests
         {
             return Task.FromResult<IReadOnlyList<BitLockerDrive>>(DrivesToReturn);
         }
+
+        public Task<BitLockerActionResult> UnlockWithPassphraseAsync(string driveLetter, string passphrase, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> UnlockWithNumericalPasswordAsync(string driveLetter, string numericalPassword, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> LockAsync(string driveLetter, bool forceDismount = true, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
     }
 
     [Theory]
@@ -145,3 +160,4 @@ public class BitLockerDriveTests
         Assert.False(vm.SelectedDrive.CanLock); // OS drive can't be locked
     }
 }
+

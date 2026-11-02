@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Management;
 using AppLock.Models;
@@ -16,6 +17,487 @@ public class BitLockerService : IBitLockerService
     public async Task<IReadOnlyList<BitLockerDrive>> GetDrivesAsync(CancellationToken ct = default)
     {
         return await Task.Run(() => QueryDrives(ct), ct);
+    }
+
+    public async Task<BitLockerActionResult> UnlockWithPassphraseAsync(
+        string driveLetter,
+        string passphrase,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        if (string.IsNullOrEmpty(passphrase))
+            return BitLockerActionResult.Fail("Password cannot be empty.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("UnlockWithPassphrase");
+                        inParams["Passphrase"] = passphrase;
+                        using var outParams = volumeMo.InvokeMethod("UnlockWithPassphrase", inParams, null);
+
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI UnlockWithPassphrase failed: {ex.Message}. Attempting PowerShell fallback.");
+            }
+
+            // Fallback to PowerShell SDK without putting password on command line
+            return UnlockWithPassphrasePowerShell(normalized, passphrase, ct);
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> UnlockWithNumericalPasswordAsync(
+        string driveLetter,
+        string numericalPassword,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var formattedKey = NormalizeRecoveryKey(numericalPassword);
+        if (formattedKey == null)
+            return BitLockerActionResult.Fail("The BitLocker recovery key must contain 48 digits.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("UnlockWithNumericalPassword");
+                        inParams["NumericalPassword"] = formattedKey;
+                        using var outParams = volumeMo.InvokeMethod("UnlockWithNumericalPassword", inParams, null);
+
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI UnlockWithNumericalPassword failed: {ex.Message}. Attempting PowerShell fallback.");
+            }
+
+            // Fallback to PowerShell SDK
+            return UnlockWithRecoveryKeyPowerShell(normalized, formattedKey, ct);
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> LockAsync(
+        string driveLetter,
+        bool forceDismount = true,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        if (IsOperatingSystemOrAppDrive(normalized))
+        {
+            return BitLockerActionResult.Fail(
+                "The operating system drive and the drive running AppLock cannot be locked.");
+        }
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("Lock");
+                        inParams["ForceDismount"] = forceDismount;
+                        using var outParams = volumeMo.InvokeMethod("Lock", inParams, null);
+
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI Lock failed: {ex.Message}. Attempting PowerShell fallback.");
+            }
+
+            // Fallback to PowerShell Lock-BitLocker
+            return LockPowerShell(normalized, forceDismount, ct);
+        }, ct);
+    }
+
+    private static BitLockerActionResult UnlockWithPassphrasePowerShell(
+        string mountPoint,
+        string passphrase,
+        CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -NonInteractive -Command \"$p = Read-Host -AsSecureString; Unlock-BitLocker -MountPoint $env:APPLOCK_TARGET -Password $p -ErrorAction Stop\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.Environment["APPLOCK_TARGET"] = mountPoint;
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+
+            // Feed password via stdin to prevent command-line visibility
+            using (var writer = process.StandardInput)
+            {
+                writer.WriteLine(passphrase);
+            }
+
+            process.WaitForExit(15000);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                return BitLockerActionResult.Fail("Unlock timed out.");
+            }
+
+            var stderr = process.StandardError.ReadToEnd();
+            if (process.ExitCode == 0)
+            {
+                return BitLockerActionResult.Ok();
+            }
+
+            if (stderr.Contains("0x80310027") || stderr.Contains("incorrect", StringComparison.OrdinalIgnoreCase) || stderr.Contains("authentication", StringComparison.OrdinalIgnoreCase))
+            {
+                return BitLockerActionResult.Fail("The password provided is incorrect.", unchecked((int)0x80310027));
+            }
+
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? "Unlock failed via PowerShell." : stderr.Trim(), process.ExitCode);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail($"PowerShell unlock failed: {ex.Message}");
+        }
+    }
+
+    private static BitLockerActionResult UnlockWithRecoveryKeyPowerShell(
+        string mountPoint,
+        string recoveryKey,
+        CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -NonInteractive -Command \"$k = Read-Host; Unlock-BitLocker -MountPoint $env:APPLOCK_TARGET -RecoveryPassword $k -ErrorAction Stop\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.Environment["APPLOCK_TARGET"] = mountPoint;
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+
+            using (var writer = process.StandardInput)
+            {
+                writer.WriteLine(recoveryKey);
+            }
+
+            process.WaitForExit(15000);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                return BitLockerActionResult.Fail("Unlock timed out.");
+            }
+
+            var stderr = process.StandardError.ReadToEnd();
+            if (process.ExitCode == 0)
+            {
+                return BitLockerActionResult.Ok();
+            }
+
+            if (stderr.Contains("0x80310027") || stderr.Contains("0x80310034") || stderr.Contains("incorrect", StringComparison.OrdinalIgnoreCase))
+            {
+                return BitLockerActionResult.Fail("The recovery key provided is incorrect.", unchecked((int)0x80310027));
+            }
+
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? "Recovery key unlock failed via PowerShell." : stderr.Trim(), process.ExitCode);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail($"PowerShell recovery unlock failed: {ex.Message}");
+        }
+    }
+
+    private static BitLockerActionResult LockPowerShell(
+        string mountPoint,
+        bool forceDismount,
+        CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var dismountArg = forceDismount ? "-ForceDismount" : "";
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -NonInteractive -Command \"Lock-BitLocker -MountPoint $env:APPLOCK_TARGET {dismountArg} -ErrorAction Stop\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.Environment["APPLOCK_TARGET"] = mountPoint;
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+
+            process.WaitForExit(15000);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                return BitLockerActionResult.Fail("Lock operation timed out.");
+            }
+
+            var stderr = process.StandardError.ReadToEnd();
+            if (process.ExitCode == 0)
+            {
+                return BitLockerActionResult.Ok();
+            }
+
+            if (stderr.Contains("0x80310023") || stderr.Contains("already locked", StringComparison.OrdinalIgnoreCase))
+            {
+                return BitLockerActionResult.Fail("The drive is already locked.", unchecked((int)0x80310023));
+            }
+
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? "Lock failed via PowerShell." : stderr.Trim(), process.ExitCode);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail($"PowerShell lock failed: {ex.Message}");
+        }
+    }
+
+    public static string NormalizeDriveLetter(string letter)
+    {
+        if (string.IsNullOrWhiteSpace(letter)) return "";
+        var trimmed = letter.Trim();
+        if (trimmed.EndsWith(":\\", StringComparison.Ordinal))
+            return trimmed.Substring(0, 2).ToUpperInvariant();
+        if (trimmed.EndsWith(":", StringComparison.Ordinal))
+            return trimmed.ToUpperInvariant();
+        return (trimmed + ":").ToUpperInvariant();
+    }
+
+    public static string? NormalizeRecoveryKey(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        var digits = new string(input.Where(char.IsDigit).ToArray());
+        if (digits.Length != 48) return null;
+        return string.Join("-", Enumerable.Range(0, 8).Select(i => digits.Substring(i * 6, 6)));
+    }
+
+    public static bool IsOperatingSystemOrAppDrive(string driveLetter)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter)) return false;
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        var systemDrive = Path.GetPathRoot(Environment.SystemDirectory)?.TrimEnd('\\').ToUpperInvariant();
+        if (!string.IsNullOrEmpty(systemDrive) && string.Equals(normalized, systemDrive, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var appExe = Environment.ProcessPath ?? AppContext.BaseDirectory;
+        var appDrive = Path.GetPathRoot(appExe)?.TrimEnd('\\').ToUpperInvariant();
+        if (!string.IsNullOrEmpty(appDrive) && string.Equals(normalized, appDrive, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    public static IReadOnlyList<string> GetProcessesOnDrive(string driveLetter)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(driveLetter)) return result;
+
+        var prefix = NormalizeDriveLetter(driveLetter) + "\\";
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    var mainModulePath = p.MainModule?.FileName;
+                    if (!string.IsNullOrEmpty(mainModulePath) &&
+                        mainModulePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.Add($"{p.ProcessName} (PID {p.Id})");
+                    }
+                }
+                catch
+                {
+                    // Access denied on system/protected processes
+                }
+                finally
+                {
+                    p.Dispose();
+                }
+            }
+        }
+        catch
+        {
+        }
+        return result;
+    }
+
+    public static string GetBitLockerErrorMessage(uint returnVal)
+    {
+        return returnVal switch
+        {
+            0 => "Operation completed successfully.",
+            0x80310008 => "BitLocker operations are not allowed in Windows Safe Mode.",
+            0x80310023 => "The drive is already locked.",
+            0x80310025 => "BitLocker is not enabled on this drive.",
+            0x80310027 => "The password or recovery key provided is incorrect.",
+            0x80310034 => "The specified key protector was not found on this drive.",
+            0x80310035 => "The drive is already unlocked.",
+            0x80310036 => "The volume has open files or handles and cannot be locked without force dismount.",
+            0x80070005 => "Access denied. Administrator privileges are required.",
+            0x80070015 => "The device is not ready.",
+            0x80070020 => "The drive cannot be locked because files are in use by another process.",
+            0x80070032 => "The request is not supported.",
+            _ => $"BitLocker error (0x{returnVal:X8})"
+        };
     }
 
     private IReadOnlyList<BitLockerDrive> QueryDrives(CancellationToken ct)
@@ -38,7 +520,7 @@ public class BitLockerService : IBitLockerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to get DriveInfo: {ex.Message}");
+            Debug.WriteLine($"Failed to get DriveInfo: {ex.Message}");
         }
 
         var processedLetters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -78,7 +560,7 @@ public class BitLockerService : IBitLockerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WMI Win32_EncryptableVolume query failed (non-elevated or error): {ex.Message}");
+            Debug.WriteLine($"WMI Win32_EncryptableVolume query failed (non-elevated or error): {ex.Message}");
         }
 
         // Add any remaining drives from DriveInfo that were not in WMI

@@ -29,8 +29,11 @@
     <Compile Include="..\..\src\AppLock\Models\LockRule.cs" Link="Models\LockRule.cs" />
     <Compile Include="..\..\src\AppLock\Models\SelfDisciplineSettings.cs" Link="Models\SelfDisciplineSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />
+    <Compile Include="..\..\src\AppLock\Models\AppSettings.cs" Link="Models\AppSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerDrive.cs" Link="Models\BitLockerDrive.cs" />
     <Compile Include="..\..\src\AppLock\Models\KeyProtectorInfo.cs" Link="Models\KeyProtectorInfo.cs" />
+    <Compile Include="..\..\src\AppLock\Models\BitLockerActionResult.cs" Link="Models\BitLockerActionResult.cs" />
+    <Compile Include="..\..\src\AppLock\Models\BitLockerStatusSeverity.cs" Link="Models\BitLockerStatusSeverity.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\IBitLockerService.cs" Link="Services\BitLocker\IBitLockerService.cs" />

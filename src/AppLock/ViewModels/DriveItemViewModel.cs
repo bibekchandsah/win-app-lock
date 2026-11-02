@@ -76,11 +76,28 @@ public partial class DriveItemViewModel : ObservableObject
         _ => "\uE897"
     };
 
+    public static string? CurrentAppDrive { get; set; } = Path.GetPathRoot(Environment.ProcessPath ?? AppContext.BaseDirectory)?.TrimEnd('\\');
+
     public bool IsLocked => LockStatus == LockStatus.Locked;
     public bool IsUnlocked => LockStatus == LockStatus.Unlocked;
-    public bool IsOsDrive => DriveType == Models.DriveType.OperatingSystem;
-    public bool CanLock => !IsOsDrive && IsUnlocked;
+    public bool IsOsDrive => DriveType == Models.DriveType.OperatingSystem ||
+        string.Equals(DriveLetter, Path.GetPathRoot(Environment.SystemDirectory)?.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+    public bool IsAppDrive => !string.IsNullOrEmpty(CurrentAppDrive) &&
+        string.Equals(DriveLetter, CurrentAppDrive, StringComparison.OrdinalIgnoreCase);
+
+    public bool CanLock => !IsOsDrive && !IsAppDrive && IsUnlocked;
     public bool CanUnlock => IsLocked;
+
+    public string LockDisabledReason
+    {
+        get
+        {
+            if (IsOsDrive) return "The OS drive cannot be locked.";
+            if (IsAppDrive) return "The drive containing AppLock cannot be locked.";
+            if (!IsUnlocked) return "The drive is already locked.";
+            return string.Empty;
+        }
+    }
 
     public bool HasCapacity => TotalBytes > 0;
     public double CapacityUsedPercent => TotalBytes > 0
@@ -111,3 +128,4 @@ public partial class DriveItemViewModel : ObservableObject
         return $"{d:0.#} {suffixes[i]}";
     }
 }
+
