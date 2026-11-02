@@ -9,6 +9,7 @@
 
     <Page.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <local:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
     </Page.Resources>
 
     <Grid>
@@ -69,6 +70,8 @@
                 <AppBarButton Label="Check usage" Click="CheckUsageButton_Click"/>
                 <AppBarButton Label="Open in File Explorer" Click="OpenExplorerButton_Click"/>
                 <AppBarButton Label="Auto-unlock on this PC" Click="AutoUnlockButton_Click"/>
+                <AppBarSeparator/>
+                <AppBarButton Label="Manage saved passwords" Click="ManageSavedPasswordsButton_Click"/>
                 <AppBarSeparator/>
                 <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"/>
             </CommandBar.SecondaryCommands>
@@ -398,7 +401,9 @@
                                         </Grid.RowDefinitions>
 
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Saved password:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="No" FontSize="12" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                                   Text="{x:Bind ViewModel.HasSavedPasswordForSelected, Mode=OneWay, Converter={StaticResource BoolToYesNoConverter}}"
+                                                   FontSize="12" HorizontalAlignment="Right"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Auto-unlock at startup:" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="Off" FontSize="12" HorizontalAlignment="Right"/>
@@ -431,7 +436,13 @@
                                                 IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
                                                 Style="{ThemeResource AccentButtonStyle}"/>
                                         <Button Content="Use saved"
-                                                IsEnabled="False"/>
+
+                                                Click="UseSavedPasswordButton_Click"
+
+                                                IsEnabled="{x:Bind ViewModel.HasSavedPasswordForSelected, Mode=OneWay}"
+
+                                                ToolTipService.ToolTip="Unlock using the saved password for this drive"/>
+
                                     </StackPanel>
 
                                     <!-- Recovery key unlock link -->
@@ -441,8 +452,16 @@
                                                      Padding="0"
                                                      FontSize="12"/>
 
-                                    <CheckBox Content="Save password for this drive"
-                                              FontSize="12"/>
+                                    <CheckBox x:Name="SavePasswordCheckBox"
+
+                                              Content="Save password for this drive"
+
+                                              Checked="SavePasswordCheckbox_Checked"
+
+                                              FontSize="12"
+
+                                              ToolTipService.ToolTip="Password encrypted with DPAPI and stored locally"/>
+
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>

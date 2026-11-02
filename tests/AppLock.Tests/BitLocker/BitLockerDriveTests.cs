@@ -159,5 +159,74 @@ public class BitLockerDriveTests
         Assert.True(vm.SelectedDrive.IsOsDrive);
         Assert.False(vm.SelectedDrive.CanLock); // OS drive can't be locked
     }
+
+    [Fact]
+    public async Task SavedPasswordStore_SaveGetDelete_WorksCorrectly()
+    {
+        var store = new SavedPasswordStore();
+        await store.ClearAllAsync();
+
+        var initial = await store.GetForDriveAsync("Z:");
+        Assert.Null(initial);
+
+        await store.SaveAsync("Z:", "TestPassword123!", "Backup Drive");
+        var saved = await store.GetForDriveAsync("Z:");
+        Assert.NotNull(saved);
+        Assert.Equal("Z:", saved.DriveLetter);
+        Assert.Equal("Backup Drive", saved.Label);
+
+        var decrypted = await store.GetDecryptedPassphraseAsync("Z:");
+        Assert.Equal("TestPassword123!", decrypted);
+
+        var all = await store.GetAllAsync();
+        Assert.Contains(all, p => p.DriveLetter == "Z:");
+
+        var deleted = await store.DeleteAsync("Z:");
+        Assert.True(deleted);
+
+        var afterDelete = await store.GetForDriveAsync("Z:");
+        Assert.Null(afterDelete);
+    }
+
+    [Fact]
+    public async Task BitLockerViewModel_SavedPassword_Integration()
+    {
+        var store = new SavedPasswordStore();
+        await store.ClearAllAsync();
+
+        var fakeService = new FakeBitLockerService
+        {
+            DrivesToReturn = new List<BitLockerDrive>
+            {
+                new()
+                {
+                    DriveLetter = "E:",
+                    DriveType = AppLock.Models.DriveType.Removable,
+                    ProtectionStatus = ProtectionStatus.On,
+                    LockStatus = LockStatus.Locked
+                }
+            }
+        };
+
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher, savedPasswordStore: store);
+
+        await vm.RefreshDrivesAsync();
+        Assert.NotNull(vm.SelectedDrive);
+        Assert.False(vm.HasSavedPasswordForSelected);
+
+        await vm.SavePassphraseForSelectedAsync("SecretPass123", "USB Drive");
+        Assert.True(vm.HasSavedPasswordForSelected);
+
+        var savedPass = await vm.GetSavedPassphraseAsync();
+        Assert.Equal("SecretPass123", savedPass);
+
+        var unlockSuccess = await vm.UnlockWithSavedPassphraseAsync();
+        Assert.True(unlockSuccess);
+
+        await vm.DeleteSavedPassphraseAsync();
+        Assert.False(vm.HasSavedPasswordForSelected);
+    }
 }
 

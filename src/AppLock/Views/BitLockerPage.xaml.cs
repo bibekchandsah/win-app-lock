@@ -6,6 +6,16 @@ using Microsoft.UI.Xaml.Input;
 
 namespace AppLock.Views;
 
+/// <summary>Converts bool to "Yes" / "No" string for the Saved Password indicator in the details pane.</summary>
+public sealed class BoolToYesNoConverter : Microsoft.UI.Xaml.Data.IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => (value is bool b && b) ? "Yes" : "No";
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
+}
+
 public sealed partial class BitLockerPage : Page
 {
     public BitLockerViewModel ViewModel { get; }
@@ -19,7 +29,8 @@ public sealed partial class BitLockerPage : Page
             ServiceContainer.BitLockerService,
             ServiceContainer.VolumeWatcher,
             ServiceContainer.Settings,
-            settings => ServiceContainer.SettingsStore.Save(settings));
+            settings => ServiceContainer.SettingsStore.Save(settings),
+            ServiceContainer.SavedPasswordStore);
 
         InitializeComponent();
 
@@ -185,7 +196,12 @@ public sealed partial class BitLockerPage : Page
             return;
         }
 
-        await ViewModel.UnlockWithPassphraseAsync(pwd);
+        var result = await ViewModel.UnlockWithPassphraseAsync(pwd);
+        if (result.Success && SavePasswordCheckBox.IsChecked == true)
+        {
+            await ViewModel.SavePassphraseForSelectedAsync(pwd);
+            SavePasswordCheckBox.IsChecked = false;
+        }
     }
 
     private void QuickUnlockPasswordBox_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -239,6 +255,108 @@ public sealed partial class BitLockerPage : Page
             if (!string.IsNullOrWhiteSpace(key))
             {
                 await ViewModel.UnlockWithRecoveryKeyAsync(key);
+            }
+        }
+    }
+
+    private async void UseSavedPasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.CanAttemptUnlock) return;
+        var found = await ViewModel.UnlockWithSavedPassphraseAsync();
+        if (!found)
+        {
+            ViewModel.StatusMessage = "No saved password found for this drive.";
+        }
+    }
+
+    private void SavePasswordCheckbox_Checked(object sender, RoutedEventArgs e)
+    {
+        // Checkbox state is read when unlocking — this handler is a no-op placeholder.
+    }
+
+    private async void ManageSavedPasswordsButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Gate with AppLock admin password before showing stored credentials
+        var authDialog = new ContentDialog
+        {
+            Title = "Confirm Identity",
+            Content = new TextBlock
+            {
+                Text = "Enter your AppLock admin password to manage saved BitLocker passwords.",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "Continue",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot
+        };
+        var authResult = await authDialog.ShowAsync();
+        if (authResult != ContentDialogResult.Primary) return;
+
+        await ShowManageSavedPasswordsDialogAsync();
+    }
+
+    private async Task ShowManageSavedPasswordsDialogAsync()
+    {
+        var passwords = await ViewModel.GetAllSavedPasswordsAsync();
+
+        if (passwords.Count == 0)
+        {
+            var emptyDialog = new ContentDialog
+            {
+                Title = "Saved Passwords",
+                Content = new TextBlock { Text = "No saved passwords found.", TextWrapping = TextWrapping.Wrap },
+                CloseButtonText = "Close",
+                XamlRoot = this.XamlRoot
+            };
+            await emptyDialog.ShowAsync();
+            return;
+        }
+
+        var panel = new StackPanel { Spacing = 8, MinWidth = 360 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"{passwords.Count} saved password(s). Select entries to delete:",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 8)
+        });
+
+        var checkBoxes = new List<(CheckBox cb, string driveLetter)>();
+        foreach (var pwd in passwords)
+        {
+            var label = string.IsNullOrWhiteSpace(pwd.Label) ? pwd.DriveLetter : $"{pwd.DriveLetter} – {pwd.Label}";
+            var dateStr = pwd.SavedAt.ToLocalTime().ToString("g");
+            var cb = new CheckBox
+            {
+                Content = new TextBlock
+                {
+                    Text = $"{label}  (saved {dateStr})",
+                    TextWrapping = TextWrapping.Wrap
+                }
+            };
+            panel.Children.Add(cb);
+            checkBoxes.Add((cb, pwd.DriveLetter));
+        }
+
+        var manageDialog = new ContentDialog
+        {
+            Title = "Manage Saved Passwords",
+            Content = new ScrollViewer { Content = panel, MaxHeight = 400 },
+            PrimaryButtonText = "Delete selected",
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        var res = await manageDialog.ShowAsync();
+        if (res == ContentDialogResult.Primary)
+        {
+            foreach (var (cb, letter) in checkBoxes)
+            {
+                if (cb.IsChecked == true)
+                {
+                    await ViewModel.RemoveSavedPasswordAsync(letter);
+                }
             }
         }
     }

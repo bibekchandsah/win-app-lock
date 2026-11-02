@@ -16,6 +16,7 @@ public partial class BitLockerViewModel : ObservableObject
     private readonly AppSettings? _settings;
     private readonly Action<AppSettings>? _saveSettings;
     private bool _isRefreshing;
+    private readonly SavedPasswordStore? _savedPasswordStore;
 
     [ObservableProperty]
     private bool _isElevated;
@@ -42,6 +43,7 @@ public partial class BitLockerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(QuickUnlockTitle))]
     [NotifyPropertyChangedFor(nameof(LockTooltip))]
     [NotifyPropertyChangedFor(nameof(UnlockTooltip))]
+    [NotifyPropertyChangedFor(nameof(HasSavedPasswordForSelected))]
     private DriveItemViewModel? _selectedDrive;
 
     [ObservableProperty]
@@ -80,9 +82,14 @@ public partial class BitLockerViewModel : ObservableObject
     public Action? OnCooldownStarted { get; set; }
     public Action? OnCooldownEnded { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSavedPasswordForSelected))]
+    private bool _hasSavedPasswords;
+
     public bool HasSelectedDrive => SelectedDrive != null;
     public bool CanLockSelected => SelectedDrive != null && SelectedDrive.CanLock && IsElevated;
     public bool CanUnlockSelected => SelectedDrive != null && SelectedDrive.CanUnlock && IsElevated;
+    public bool HasSavedPasswordForSelected => SelectedDrive != null && HasSavedPasswords;
     public bool CanAttemptUnlock => CanUnlockSelected && !IsCooldownActive;
     public bool IsSelectedDriveLocked => SelectedDrive != null && SelectedDrive.IsLocked;
     public string QuickUnlockTitle => SelectedDrive != null ? $"Unlock Volume {SelectedDrive.DisplayName}" : "Unlock Volume";
@@ -122,13 +129,15 @@ public partial class BitLockerViewModel : ObservableObject
         IBitLockerService bitLockerService,
         VolumeWatcher volumeWatcher,
         AppSettings? settings = null,
-        Action<AppSettings>? saveSettings = null)
+        Action<AppSettings>? saveSettings = null,
+        SavedPasswordStore? savedPasswordStore = null)
     {
         _supportService = supportService;
         _bitLockerService = bitLockerService;
         _volumeWatcher = volumeWatcher;
         _settings = settings;
         _saveSettings = saveSettings;
+        _savedPasswordStore = savedPasswordStore;
 
         _isSupported = supportService.IsSupported;
         _isElevated = supportService.IsElevated;
@@ -137,6 +146,78 @@ public partial class BitLockerViewModel : ObservableObject
         {
             _openDriveAfterUnlock = _settings.BitLockerOpenDriveAfterUnlock;
         }
+    }
+
+    /// <summary>Called when SelectedDrive changes — refreshes HasSavedPasswordForSelected.</summary>
+    partial void OnSelectedDriveChanged(DriveItemViewModel? value)
+    {
+        _ = RefreshHasSavedPasswordAsync();
+    }
+
+    private async Task RefreshHasSavedPasswordAsync()
+    {
+        if (_savedPasswordStore == null || SelectedDrive == null)
+        {
+            HasSavedPasswords = false;
+            return;
+        }
+        var entry = await _savedPasswordStore.GetForDriveAsync(SelectedDrive.DriveLetter);
+        HasSavedPasswords = entry != null;
+    }
+
+    /// <summary>Saves the passphrase for the currently selected drive (called after successful unlock).</summary>
+    public async Task SavePassphraseForSelectedAsync(string passphrase, string label = "")
+    {
+        if (_savedPasswordStore == null || SelectedDrive == null || string.IsNullOrEmpty(passphrase)) return;
+        await _savedPasswordStore.SaveAsync(SelectedDrive.DriveLetter, passphrase, label);
+        HasSavedPasswords = true;
+    }
+
+    /// <summary>Returns the decrypted saved passphrase for the selected drive, or null if none saved.</summary>
+    public async Task<string?> GetSavedPassphraseAsync()
+    {
+        if (_savedPasswordStore == null || SelectedDrive == null) return null;
+        return await _savedPasswordStore.GetDecryptedPassphraseAsync(SelectedDrive.DriveLetter);
+    }
+
+    /// <summary>Unlocks the selected drive using its saved passphrase. Returns false if no saved password exists.</summary>
+    public async Task<bool> UnlockWithSavedPassphraseAsync()
+    {
+        var passphrase = await GetSavedPassphraseAsync();
+        if (passphrase == null) return false;
+        await UnlockWithPassphraseAsync(passphrase);
+        return true;
+    }
+
+    /// <summary>Deletes the saved passphrase for the selected drive.</summary>
+    public async Task DeleteSavedPassphraseAsync()
+    {
+        if (_savedPasswordStore == null || SelectedDrive == null) return;
+        await _savedPasswordStore.DeleteAsync(SelectedDrive.DriveLetter);
+        HasSavedPasswords = false;
+    }
+
+    /// <summary>Returns all saved password entries (for the Manage dialog).</summary>
+    public async Task<IReadOnlyList<BitLockerSavedPassword>> GetAllSavedPasswordsAsync()
+    {
+        if (_savedPasswordStore == null) return Array.Empty<BitLockerSavedPassword>();
+        return await _savedPasswordStore.GetAllAsync();
+    }
+
+    /// <summary>Removes a saved password by drive letter (for the Manage dialog).</summary>
+    public async Task RemoveSavedPasswordAsync(string driveLetter)
+    {
+        if (_savedPasswordStore == null) return;
+        await _savedPasswordStore.DeleteAsync(driveLetter);
+        await RefreshHasSavedPasswordAsync();
+    }
+
+    /// <summary>Clears all saved passwords (requires confirmation from caller).</summary>
+    public async Task ClearAllSavedPasswordsAsync()
+    {
+        if (_savedPasswordStore == null) return;
+        await _savedPasswordStore.ClearAllAsync();
+        HasSavedPasswords = false;
     }
 
     partial void OnOpenDriveAfterUnlockChanged(bool value)
