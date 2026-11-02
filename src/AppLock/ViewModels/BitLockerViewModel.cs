@@ -40,6 +40,9 @@ public partial class BitLockerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanTurnOffSelected))]
     [NotifyPropertyChangedFor(nameof(CanSuspendSelected))]
     [NotifyPropertyChangedFor(nameof(CanBackupSelected))]
+    [NotifyPropertyChangedFor(nameof(CanSuspendOrResumeSelected))]
+    [NotifyPropertyChangedFor(nameof(SuspendButtonLabel))]
+    [NotifyPropertyChangedFor(nameof(SuspendButtonGlyph))]
     [NotifyPropertyChangedFor(nameof(IsSelectedDriveLocked))]
     [NotifyPropertyChangedFor(nameof(QuickUnlockTitle))]
     [NotifyPropertyChangedFor(nameof(LockTooltip))]
@@ -109,7 +112,12 @@ public partial class BitLockerViewModel : ObservableObject
 
     public bool CanTurnOnSelected => SelectedDrive != null && SelectedDrive.ProtectionStatus == ProtectionStatus.Off && IsElevated;
     public bool CanTurnOffSelected => SelectedDrive != null && SelectedDrive.ProtectionStatus != ProtectionStatus.Off && IsElevated;
-    public bool CanSuspendSelected => SelectedDrive != null && SelectedDrive.ProtectionStatus == ProtectionStatus.On && IsElevated;
+    public bool CanSuspendSelected => CanSuspendOrResumeSelected;
+    public bool CanSuspendOrResumeSelected => SelectedDrive != null &&
+        (SelectedDrive.ProtectionStatus == ProtectionStatus.On || SelectedDrive.ProtectionStatus == ProtectionStatus.Suspended) &&
+        IsElevated;
+    public string SuspendButtonLabel => SelectedDrive?.ProtectionStatus == ProtectionStatus.Suspended ? "Resume protection" : "Suspend protection";
+    public string SuspendButtonGlyph => SelectedDrive?.ProtectionStatus == ProtectionStatus.Suspended ? "" : "";
     public bool CanBackupSelected => SelectedDrive != null && SelectedDrive.HasProtectors && IsElevated;
 
     public string LockTooltip
@@ -598,6 +606,265 @@ public partial class BitLockerViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    public async Task<BitLockerActionResult> TurnOffBitLockerAsync(string driveLetter, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("No drive letter specified.");
+
+        IsLoading = true;
+        StatusMessage = $"Decrypting drive {driveLetter}...";
+        StatusSeverity = BitLockerStatusSeverity.Informational;
+
+        try
+        {
+            var result = await _bitLockerService.TurnOffBitLockerAsync(driveLetter, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"BitLocker decryption started on drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to turn off BitLocker on {driveLetter}: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to turn off BitLocker: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task<BitLockerActionResult> SuspendProtectionAsync(int rebootCount = 1, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        IsLoading = true;
+        var driveLetter = SelectedDrive.DriveLetter;
+        StatusMessage = $"Suspending protection on drive {driveLetter}...";
+        StatusSeverity = BitLockerStatusSeverity.Informational;
+
+        try
+        {
+            var result = await _bitLockerService.SuspendProtectionAsync(driveLetter, rebootCount, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"BitLocker protection suspended on drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Warning;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to suspend protection on {driveLetter}: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to suspend protection: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task<BitLockerActionResult> ResumeProtectionAsync(CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        IsLoading = true;
+        var driveLetter = SelectedDrive.DriveLetter;
+        StatusMessage = $"Resuming protection on drive {driveLetter}...";
+        StatusSeverity = BitLockerStatusSeverity.Informational;
+
+        try
+        {
+            var result = await _bitLockerService.ResumeProtectionAsync(driveLetter, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"BitLocker protection resumed on drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to resume protection on {driveLetter}: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to resume protection: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task<BitLockerActionResult> ChangePasswordAsync(string oldPassphrase, string newPassphrase, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        IsLoading = true;
+        var driveLetter = SelectedDrive.DriveLetter;
+        StatusMessage = $"Changing password on drive {driveLetter}...";
+        StatusSeverity = BitLockerStatusSeverity.Informational;
+
+        try
+        {
+            var result = await _bitLockerService.ChangePasswordAsync(driveLetter, oldPassphrase, newPassphrase, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"Password changed successfully for drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+
+                if (_savedPasswordStore != null)
+                {
+                    var saved = await _savedPasswordStore.GetForVolumeAsync(SelectedDrive.VolumeGuid, SelectedDrive.DriveLetter);
+                    if (saved != null)
+                    {
+                        await _savedPasswordStore.SaveAsync(SelectedDrive.VolumeGuid, SelectedDrive.DriveLetter, newPassphrase, SelectedDrive.VolumeLabel);
+                    }
+                }
+
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to change password on {driveLetter}: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to change password: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    public async Task<IReadOnlyList<KeyProtectorInfo>> GetKeyProtectorsAsync(CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return Array.Empty<KeyProtectorInfo>();
+
+        return await _bitLockerService.GetKeyProtectorsAsync(SelectedDrive.DriveLetter, ct);
+    }
+
+    public async Task<BitLockerActionResult> DeleteKeyProtectorAsync(string protectorId, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        var driveLetter = SelectedDrive.DriveLetter;
+        try
+        {
+            var result = await _bitLockerService.DeleteKeyProtectorAsync(driveLetter, protectorId, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"Key protector removed from drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to delete key protector: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to delete protector: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+    }
+
+    public async Task<BitLockerActionResult> AddPasswordProtectorAsync(string passphrase, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        var driveLetter = SelectedDrive.DriveLetter;
+        try
+        {
+            var result = await _bitLockerService.AddPasswordProtectorAsync(driveLetter, passphrase, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"Password protector added to drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to add password protector: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to add protector: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+    }
+
+    public async Task<BitLockerActionResult> AddRecoveryPasswordProtectorAsync(string? recoveryPassword = null, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null)
+            return BitLockerActionResult.Fail("No drive selected.");
+
+        var driveLetter = SelectedDrive.DriveLetter;
+        try
+        {
+            var result = await _bitLockerService.AddRecoveryPasswordProtectorAsync(driveLetter, recoveryPassword, ct);
+            if (result.Success)
+            {
+                StatusMessage = $"Recovery key protector added to drive {driveLetter}.";
+                StatusSeverity = BitLockerStatusSeverity.Success;
+                await RefreshDrivesAsync();
+            }
+            else
+            {
+                StatusMessage = $"Failed to add recovery key: {result.ErrorMessage}";
+                StatusSeverity = BitLockerStatusSeverity.Error;
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to add recovery key: {ex.Message}";
+            StatusSeverity = BitLockerStatusSeverity.Error;
+            return BitLockerActionResult.Fail(ex.Message);
         }
     }
 

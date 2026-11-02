@@ -50,10 +50,10 @@
                 <AppBarButton.Icon><FontIcon Glyph="&#xE7BA;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
-            <AppBarButton x:Name="SuspendButton" Label="Suspend protection" Click="SuspendButton_Click"
+            <AppBarButton x:Name="SuspendButton" Label="{x:Bind ViewModel.SuspendButtonLabel, Mode=OneWay}" Click="SuspendButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanSuspendSelected, Mode=OneWay}"
                           AutomationProperties.Name="Suspend or resume BitLocker protection">
-                <AppBarButton.Icon><FontIcon Glyph="&#xE769;"/></AppBarButton.Icon>
+                <AppBarButton.Icon><FontIcon Glyph="{x:Bind ViewModel.SuspendButtonGlyph, Mode=OneWay}"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="BackupKeyButton" Label="Back up recovery key" Click="BackupKeyButton_Click"

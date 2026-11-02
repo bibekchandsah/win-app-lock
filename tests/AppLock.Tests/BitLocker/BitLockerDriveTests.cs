@@ -40,6 +40,56 @@ public class BitLockerDriveTests
         {
             return Task.FromResult<string?>("111111-222222-333333-444444-555555-666666-123456-654321");
         }
+
+        public Task<BitLockerActionResult> TurnOffBitLockerAsync(string driveLetter, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> SuspendProtectionAsync(string driveLetter, int rebootCount = 1, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> ResumeProtectionAsync(string driveLetter, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> ChangePasswordAsync(string driveLetter, string oldPassphrase, string newPassphrase, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<IReadOnlyList<KeyProtectorInfo>> GetKeyProtectorsAsync(string driveLetter, CancellationToken ct = default)
+        {
+            var list = new List<KeyProtectorInfo>
+            {
+                new KeyProtectorInfo { Id = "{11111111-1111-1111-1111-111111111111}", TypeCode = 8, TypeName = "Password" },
+                new KeyProtectorInfo { Id = "{22222222-2222-2222-2222-222222222222}", TypeCode = 3, TypeName = "Recovery Password" }
+            };
+            return Task.FromResult<IReadOnlyList<KeyProtectorInfo>>(list);
+        }
+
+        public Task<BitLockerActionResult> DeleteKeyProtectorAsync(string driveLetter, string protectorId, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> AddPasswordProtectorAsync(string driveLetter, string passphrase, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<BitLockerActionResult> AddRecoveryPasswordProtectorAsync(string driveLetter, string? recoveryPassword = null, CancellationToken ct = default)
+        {
+            return Task.FromResult(BitLockerActionResult.Ok());
+        }
+
+        public Task<string?> GetRecoveryKeyAsync(string driveLetter, string protectorId, CancellationToken ct = default)
+        {
+            return Task.FromResult<string?>("111111-222222-333333-444444-555555-666666-123456-654321");
+        }
     }
 
     [Theory]
@@ -345,6 +395,78 @@ public class BitLockerDriveTests
 
         var result = await vm.TurnOnBitLockerAsync(request);
         Assert.True(result.Success);
+    }
+
+    [Fact]
+    public async Task TurnOffBitLocker_ViewModel_InvokesServiceCorrectly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var result = await vm.TurnOffBitLockerAsync("D:");
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public async Task SuspendAndResume_ViewModel_InvokesServiceCorrectly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var drive = new BitLockerDrive { DriveLetter = "D:", ProtectionStatus = ProtectionStatus.On };
+        fakeService.DrivesToReturn.Add(drive);
+        vm.SelectedDrive = new DriveItemViewModel(drive);
+
+        var suspendRes = await vm.SuspendProtectionAsync(1);
+        Assert.True(suspendRes.Success);
+
+        var resumeRes = await vm.ResumeProtectionAsync();
+        Assert.True(resumeRes.Success);
+    }
+
+    [Fact]
+    public async Task ChangePassword_ViewModel_InvokesServiceCorrectly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var drive = new BitLockerDrive { DriveLetter = "D:", ProtectionStatus = ProtectionStatus.On };
+        fakeService.DrivesToReturn.Add(drive);
+        vm.SelectedDrive = new DriveItemViewModel(drive);
+
+        var result = await vm.ChangePasswordAsync("OldPass123!", "NewPass456!");
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public async Task ManageProtectors_ViewModel_InvokesServiceCorrectly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var drive = new BitLockerDrive { DriveLetter = "D:", ProtectionStatus = ProtectionStatus.On };
+        fakeService.DrivesToReturn.Add(drive);
+        vm.SelectedDrive = new DriveItemViewModel(drive);
+
+        var protectors = await vm.GetKeyProtectorsAsync();
+        Assert.Equal(2, protectors.Count);
+
+        var addPassRes = await vm.AddPasswordProtectorAsync("NewPass123!");
+        Assert.True(addPassRes.Success);
+
+        var addRecRes = await vm.AddRecoveryPasswordProtectorAsync();
+        Assert.True(addRecRes.Success);
+
+        var delRes = await vm.DeleteKeyProtectorAsync(protectors[0].Id);
+        Assert.True(delRes.Success);
     }
 }
 

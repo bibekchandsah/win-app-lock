@@ -413,6 +413,766 @@ public class BitLockerService : IBitLockerService
         }, ct);
     }
 
+    public async Task<BitLockerActionResult> TurnOffBitLockerAsync(string driveLetter, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var outParams = volumeMo.InvokeMethod("Decrypt", null, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI Decrypt failed: {ex.Message}. Falling back to PowerShell.");
+            }
+
+            return RunPowerShellCommand(
+                "-NoProfile -NonInteractive -Command \"Disable-BitLocker -MountPoint $env:APPLOCK_TARGET -ErrorAction Stop\"",
+                normalized,
+                ct,
+                "Failed to turn off BitLocker.");
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> SuspendProtectionAsync(string driveLetter, int rebootCount = 1, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("DisableKeyProtectors");
+                        inParams["DisableCount"] = (uint)Math.Max(0, rebootCount);
+                        using var outParams = volumeMo.InvokeMethod("DisableKeyProtectors", inParams, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI DisableKeyProtectors failed: {ex.Message}. Falling back to PowerShell.");
+            }
+
+            var rebootArg = rebootCount > 0 ? $"-RebootCount {rebootCount}" : "";
+            return RunPowerShellCommand(
+                $"-NoProfile -NonInteractive -Command \"Suspend-BitLocker -MountPoint $env:APPLOCK_TARGET {rebootArg} -ErrorAction Stop\"",
+                normalized,
+                ct,
+                "Failed to suspend BitLocker protection.");
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> ResumeProtectionAsync(string driveLetter, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var outParams = volumeMo.InvokeMethod("EnableKeyProtectors", null, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI EnableKeyProtectors failed: {ex.Message}. Falling back to PowerShell.");
+            }
+
+            return RunPowerShellCommand(
+                "-NoProfile -NonInteractive -Command \"Resume-BitLocker -MountPoint $env:APPLOCK_TARGET -ErrorAction Stop\"",
+                normalized,
+                ct,
+                "Failed to resume BitLocker protection.");
+        }, ct);
+    }
+
+    public async Task<IReadOnlyList<KeyProtectorInfo>> GetKeyProtectorsAsync(string driveLetter, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return Array.Empty<KeyProtectorInfo>();
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            var result = new List<KeyProtectorInfo>();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                foreach (ManagementObject mo in collection)
+                {
+                    using (mo)
+                    {
+                        using var inParams = mo.GetMethodParameters("GetKeyProtectors");
+                        inParams["KeyProtectorType"] = 0; // return all
+                        using var outParams = mo.InvokeMethod("GetKeyProtectors", inParams, null);
+                        if (outParams != null && outParams["VolumeKeyProtectorID"] is string[] ids)
+                        {
+                            foreach (var id in ids)
+                            {
+                                int typeCode = 0;
+                                try
+                                {
+                                    using var inType = mo.GetMethodParameters("GetKeyProtectorType");
+                                    inType["VolumeKeyProtectorID"] = id;
+                                    using var outType = mo.InvokeMethod("GetKeyProtectorType", inType, null);
+                                    if (outType != null && outType["KeyProtectorType"] != null)
+                                    {
+                                        typeCode = Convert.ToInt32(outType["KeyProtectorType"]);
+                                    }
+                                }
+                                catch { }
+
+                                result.Add(new KeyProtectorInfo
+                                {
+                                    Id = id,
+                                    TypeCode = typeCode,
+                                    TypeName = MapProtectorType(typeCode)
+                                });
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to get key protectors for {driveLetter}: {ex.Message}");
+            }
+
+            return (IReadOnlyList<KeyProtectorInfo>)result;
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> DeleteKeyProtectorAsync(string driveLetter, string protectorId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter) || string.IsNullOrWhiteSpace(protectorId))
+            return BitLockerActionResult.Fail("Drive letter and protector ID are required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        var existingProtectors = await GetKeyProtectorsAsync(normalized, ct);
+        if (existingProtectors.Count <= 1)
+        {
+            return BitLockerActionResult.Fail("Cannot delete the last key protector. A volume must retain at least one protector.");
+        }
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("DeleteKeyProtector");
+                        inParams["VolumeKeyProtectorID"] = protectorId;
+                        using var outParams = volumeMo.InvokeMethod("DeleteKeyProtector", inParams, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI DeleteKeyProtector failed: {ex.Message}. Falling back to manage-bde.");
+            }
+
+            return RunManageBdeCommand(
+                $"-protectors -delete {normalized} -id {protectorId}",
+                ct,
+                "Failed to delete key protector.");
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> AddPasswordProtectorAsync(string driveLetter, string passphrase, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        if (string.IsNullOrEmpty(passphrase) || passphrase.Length < 8)
+            return BitLockerActionResult.Fail("Password must be at least 8 characters long.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("ProtectKeyWithPassphrase");
+                        inParams["Passphrase"] = passphrase;
+                        using var outParams = volumeMo.InvokeMethod("ProtectKeyWithPassphrase", inParams, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI ProtectKeyWithPassphrase failed: {ex.Message}. Falling back to PowerShell.");
+            }
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoProfile -NonInteractive -Command \"$p = Read-Host -AsSecureString; Add-BitLockerKeyProtector -MountPoint $env:APPLOCK_TARGET -PasswordProtector -Password $p -ErrorAction Stop\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.Environment["APPLOCK_TARGET"] = normalized;
+
+                using var process = new Process { StartInfo = psi };
+                process.Start();
+
+                using (var writer = process.StandardInput)
+                {
+                    writer.WriteLine(passphrase);
+                }
+
+                process.WaitForExit(15000);
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                    return BitLockerActionResult.Fail("Add password protector timed out.");
+                }
+
+                if (process.ExitCode == 0)
+                {
+                    return BitLockerActionResult.Ok();
+                }
+
+                var stderr = process.StandardError.ReadToEnd();
+                return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? "Failed to add password protector." : stderr.Trim(), process.ExitCode);
+            }
+            catch (Exception ex)
+            {
+                return BitLockerActionResult.Fail(ex.Message);
+            }
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> AddRecoveryPasswordProtectorAsync(string driveLetter, string? recoveryPassword = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+        var recKey = !string.IsNullOrWhiteSpace(recoveryPassword)
+            ? (NormalizeRecoveryKey(recoveryPassword) ?? recoveryPassword)
+            : GenerateValidRecoveryPassword();
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                ManagementObject? volumeMo = null;
+                foreach (ManagementObject mo in collection)
+                {
+                    volumeMo = mo;
+                    break;
+                }
+
+                if (volumeMo != null)
+                {
+                    using (volumeMo)
+                    {
+                        using var inParams = volumeMo.GetMethodParameters("ProtectKeyWithNumericalPassword");
+                        inParams["NumericalPassword"] = recKey;
+                        using var outParams = volumeMo.InvokeMethod("ProtectKeyWithNumericalPassword", inParams, null);
+                        if (outParams != null && outParams["ReturnValue"] != null)
+                        {
+                            var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                            if (returnVal == 0)
+                            {
+                                return BitLockerActionResult.Ok();
+                            }
+
+                            return BitLockerActionResult.Fail(
+                                GetBitLockerErrorMessage(returnVal),
+                                unchecked((int)returnVal));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI ProtectKeyWithNumericalPassword failed: {ex.Message}. Falling back to manage-bde.");
+            }
+
+            return RunManageBdeCommand(
+                $"-protectors -add {normalized} -RecoveryPassword {recKey}",
+                ct,
+                "Failed to add recovery password protector.");
+        }, ct);
+    }
+
+    public async Task<BitLockerActionResult> ChangePasswordAsync(string driveLetter, string oldPassphrase, string newPassphrase, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter))
+            return BitLockerActionResult.Fail("Drive letter is required.");
+
+        if (string.IsNullOrEmpty(newPassphrase) || newPassphrase.Length < 8)
+            return BitLockerActionResult.Fail("New password must be at least 8 characters long.");
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        var protectors = await GetKeyProtectorsAsync(normalized, ct);
+        var oldPasswordProtector = protectors.FirstOrDefault(p => p.TypeCode == 8);
+
+        if (oldPasswordProtector != null)
+        {
+            var wmiChangeResult = await Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                    scope.Connect();
+
+                    using var searcher = new ManagementObjectSearcher(
+                        scope,
+                        new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                    using var collection = searcher.Get();
+
+                    foreach (ManagementObject mo in collection)
+                    {
+                        using (mo)
+                        {
+                            using var inParams = mo.GetMethodParameters("ChangePassphrase");
+                            inParams["VolumeKeyProtectorID"] = oldPasswordProtector.Id;
+                            inParams["NewPassphrase"] = newPassphrase;
+                            using var outParams = mo.InvokeMethod("ChangePassphrase", inParams, null);
+                            if (outParams != null && outParams["ReturnValue"] != null)
+                            {
+                                var returnVal = Convert.ToUInt32(outParams["ReturnValue"]);
+                                if (returnVal == 0)
+                                {
+                                    return BitLockerActionResult.Ok();
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"WMI ChangePassphrase failed: {ex.Message}");
+                }
+                return null;
+            }, ct);
+
+            if (wmiChangeResult != null && wmiChangeResult.Success)
+            {
+                return wmiChangeResult;
+            }
+        }
+
+        var addResult = await AddPasswordProtectorAsync(normalized, newPassphrase, ct);
+        if (!addResult.Success)
+        {
+            return addResult;
+        }
+
+        if (oldPasswordProtector != null)
+        {
+            try
+            {
+                await DeleteKeyProtectorAsync(normalized, oldPasswordProtector.Id, ct);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Warning: Failed to delete previous password protector during change: {ex.Message}");
+            }
+        }
+
+        return BitLockerActionResult.Ok();
+    }
+
+    public async Task<string?> GetRecoveryKeyAsync(string driveLetter, string protectorId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(driveLetter) || string.IsNullOrWhiteSpace(protectorId))
+            return null;
+
+        var normalized = NormalizeDriveLetter(driveLetter);
+
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(
+                    scope,
+                    new ObjectQuery($"SELECT * FROM Win32_EncryptableVolume WHERE DriveLetter = '{normalized}'"));
+                using var collection = searcher.Get();
+
+                foreach (ManagementObject mo in collection)
+                {
+                    using (mo)
+                    {
+                        using var inParams = mo.GetMethodParameters("GetKeyProtectorNumericalPassword");
+                        inParams["VolumeKeyProtectorID"] = protectorId;
+                        using var outParams = mo.InvokeMethod("GetKeyProtectorNumericalPassword", inParams, null);
+                        if (outParams != null && outParams["NumericalPassword"] != null)
+                        {
+                            var key = outParams["NumericalPassword"].ToString();
+                            if (!string.IsNullOrEmpty(key))
+                            {
+                                return NormalizeRecoveryKey(key) ?? key;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WMI GetKeyProtectorNumericalPassword failed: {ex.Message}");
+            }
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -NonInteractive -Command \"(Get-BitLockerVolume -MountPoint $env:APPLOCK_TARGET).KeyProtector | Where-Object {{ $_.KeyProtectorId -eq '{protectorId}' }} | Select-Object -ExpandProperty RecoveryPassword\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.Environment["APPLOCK_TARGET"] = normalized;
+
+                using var process = new Process { StartInfo = psi };
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit(10000);
+
+                if (!string.IsNullOrWhiteSpace(stdout))
+                {
+                    return NormalizeRecoveryKey(stdout) ?? stdout;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PowerShell GetRecoveryKey fallback failed: {ex.Message}");
+            }
+
+            return null;
+        }, ct);
+    }
+
+    private static BitLockerActionResult RunPowerShellCommand(
+        string args,
+        string mountPoint,
+        CancellationToken ct,
+        string defaultErrorMessage)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            psi.Environment["APPLOCK_TARGET"] = mountPoint;
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+            process.WaitForExit(20000);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                return BitLockerActionResult.Fail("Command timed out.");
+            }
+
+            if (process.ExitCode == 0)
+                return BitLockerActionResult.Ok();
+
+            var stderr = process.StandardError.ReadToEnd().Trim();
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(stderr) ? defaultErrorMessage : stderr, process.ExitCode);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+    }
+
+    private static BitLockerActionResult RunManageBdeCommand(
+        string args,
+        CancellationToken ct,
+        string defaultErrorMessage)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var psi = new ProcessStartInfo
+            {
+                FileName = "manage-bde.exe",
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = new Process { StartInfo = psi };
+            process.Start();
+            process.WaitForExit(20000);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                return BitLockerActionResult.Fail("Command timed out.");
+            }
+
+            if (process.ExitCode == 0)
+                return BitLockerActionResult.Ok();
+
+            var stderr = process.StandardError.ReadToEnd().Trim();
+            var stdout = process.StandardOutput.ReadToEnd().Trim();
+            var msg = !string.IsNullOrWhiteSpace(stderr) ? stderr : stdout;
+            return BitLockerActionResult.Fail(string.IsNullOrWhiteSpace(msg) ? defaultErrorMessage : msg, process.ExitCode);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return BitLockerActionResult.Fail(ex.Message);
+        }
+    }
+
     private static BitLockerActionResult UnlockWithPassphrasePowerShell(
         string mountPoint,
         string passphrase,
