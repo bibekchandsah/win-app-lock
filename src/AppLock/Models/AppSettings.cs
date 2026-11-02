@@ -33,6 +33,14 @@ public class AppSettings
     // Lock rules
     public List<LockRule> LockRules { get; set; } = new();
 
+    // Network/Firewall rules
+    public List<NetworkRuleEntry> NetworkRules { get; set; } = new();
+    
+    // Firewall settings
+    public bool RequirePasswordForFirewallUnblock { get; set; } = true;
+    public bool KeepRulesWhenUnblocking { get; set; } = false;
+    public int ActiveConnectionsRefreshSeconds { get; set; } = 3;
+
     // BitLocker
     public bool BitLockerOpenDriveAfterUnlock { get; set; } = false;
     public bool BitLockerHasShownSavedPasswordNotice { get; set; } = false;

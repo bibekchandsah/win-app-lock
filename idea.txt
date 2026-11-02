@@ -165,4 +165,3 @@ issue
 -> brightness shortcut key according to brightness percentage 0% ctrl+shift+0, 10% ctrl+sft+1., 20% ctrl+shift+2, 100% ctrl+shift+f..... (custom hotkey)
    blur overlay on screen ctrl+shift+b (custom blur intensity) (custom hotkey)
 -> volume mixture 
-"continue" for Milestone 4 (Saved passwords: store, "Use saved", Manage Passwords dialog, security gates).

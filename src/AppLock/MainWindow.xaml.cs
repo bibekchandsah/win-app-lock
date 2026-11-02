@@ -303,6 +303,7 @@ public sealed partial class MainWindow : Window
         bool isFeedback = pageType == typeof(FeedbackPage);
         bool isSettings = pageType == typeof(SettingsPage);
         bool isBitLocker = pageType == typeof(BitLockerPage);
+        bool isInternetAccess = pageType == typeof(InternetAccessPage);
 
         bool isDark = IsDarkMode;
         var windowAccentColor = GetWindowAccentColor();
@@ -344,6 +345,10 @@ public sealed partial class MainWindow : Window
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
         UpdateNavItem(isSettings, SettingsNavBackground, SettingsNavIndicator, SettingsNavIcon, SettingsNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        // Internet Access nav
+        UpdateNavItem(isInternetAccess, InternetAccessNavBackground, InternetAccessNavIndicator, InternetAccessNavIcon, InternetAccessNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
         // BitLocker nav (only if visible / supported)
@@ -587,6 +592,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void InternetAccessNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isMainAuthenticated) return;
+        if (ContentFrame.CurrentSourcePageType != typeof(InternetAccessPage))
+        {
+            ContentFrame.Navigate(typeof(InternetAccessPage));
+        }
+    }
+
     private void NavTogglePaneButton_Click(object sender, RoutedEventArgs e)
     {
         SetNavPaneExpanded(!_isNavPaneExpanded, saveSetting: true);
@@ -607,6 +621,7 @@ public sealed partial class MainWindow : Window
         if (FeedbackNavLabel != null) FeedbackNavLabel.Visibility = labelVis;
         if (SettingsNavLabel != null) SettingsNavLabel.Visibility = labelVis;
         if (BitLockerNavLabel != null) BitLockerNavLabel.Visibility = labelVis;
+        if (InternetAccessNavLabel != null) InternetAccessNavLabel.Visibility = labelVis;
 
         if (saveSetting && ServiceContainer.Settings != null)
         {
@@ -633,6 +648,8 @@ public sealed partial class MainWindow : Window
         if (NavTogglePaneButton != null) ToolTipService.SetToolTip(NavTogglePaneButton, loc["NavToggle"]);
         if (BitLockerNavLabel != null) BitLockerNavLabel.Text = "BitLocker";
         if (BitLockerNavButton != null) ToolTipService.SetToolTip(BitLockerNavButton, "BitLocker");
+        if (InternetAccessNavLabel != null) InternetAccessNavLabel.Text = "Internet Access";
+        if (InternetAccessNavButton != null) ToolTipService.SetToolTip(InternetAccessNavButton, "Internet Access");
     }
 
     private void InitializeServices()

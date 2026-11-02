@@ -31,6 +31,7 @@
     <Compile Include="..\..\src\AppLock\Models\SelfDisciplineSettings.cs" Link="Models\SelfDisciplineSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />
     <Compile Include="..\..\src\AppLock\Models\AppSettings.cs" Link="Models\AppSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\NetworkRuleEntry.cs" Link="Models\NetworkRuleEntry.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerDrive.cs" Link="Models\BitLockerDrive.cs" />
     <Compile Include="..\..\src\AppLock\Models\KeyProtectorInfo.cs" Link="Models\KeyProtectorInfo.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerActionResult.cs" Link="Models\BitLockerActionResult.cs" />
@@ -40,6 +41,9 @@
     <Compile Include="..\..\src\AppLock\Models\StartupTaskInfo.cs" Link="Models\StartupTaskInfo.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Firewall\IFirewallService.cs" Link="Services\Firewall\IFirewallService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Firewall\FakeFirewallService.cs" Link="Services\Firewall\FakeFirewallService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Firewall\RuleSyncService.cs" Link="Services\Firewall\RuleSyncService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\IBitLockerService.cs" Link="Services\BitLocker\IBitLockerService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerSupportService.cs" Link="Services\BitLocker\BitLockerSupportService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerService.cs" Link="Services\BitLocker\BitLockerService.cs" />
