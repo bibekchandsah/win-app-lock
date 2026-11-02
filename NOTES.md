@@ -829,3 +829,112 @@ All services compile successfully. Ready for integration testing once build envi
 - **All brushes ThemeResource only**: No hardcoded colors in XAML; InfoBar and CommandBar use `Background="Transparent"` or system defaults
 - **InfoBar not closable**: `IsClosable="False"` so users cannot accidentally dismiss the elevation warning; they must explicitly click "Restart as administrator"
 - **Build**: 0 errors, 1 pre-existing NETSDK1206 warning (unrelated WindowsAppSDK RID warning)
+
+
+---
+
+## BitLocker Feature — Milestone 2: Drive Listing, Details & Hotplug (2026-11-02)
+
+### Implementation Completed
+- **`BitLockerService.GetDrivesAsync()`**: Queries WMI `Win32_EncryptableVolume` under `root\CIMV2\Security\MicrosoftVolumeEncryption` combined with `System.IO.DriveInfo` fallback. Correctly identifies OS, Fixed Data, and Removable volumes.
+- **Drive Sorting**: Operating system drive first, then fixed data drives sorted alphabetically, then removable drives.
+- **Drive Details Pane**: Shows capacity bar (used/free), volume GUID, lock state, protection status, encryption percentage, conversion state, encryption method (e.g. XTS-AES 128), and key protectors list.
+- **Auto-Refresh & Hotplug**:
+  - `VolumeWatcher`: Win32 device notification service listening for `WM_DEVICECHANGE` (`DBT_DEVICEARRIVAL`, `DBT_DEVICEREMOVECOMPLETE`) to detect USB and drive insertions/removals in real-time.
+  - 5-second polling timer as secondary fallback.
+- **Single-Window Admin Elevation**: Fixed multi-window bug on "Restart as administrator" by setting `App.MainWindowInstance` and forcefully terminating non-elevated process via `Environment.Exit(0)`.
+
+---
+
+## BitLocker Feature — Milestone 3: Lock & Unlock, Cooldown & Error Handling (2026-11-02)
+
+### Implementation Completed
+- **Locking (`LockSelectedDriveAsync`)**:
+  - Invokes WMI `Lock` with `ForceDismount=true`, falling back to PowerShell `Lock-BitLocker -MountPoint {drive} -ForceDismount`.
+  - Safety guards: OS drive and drive containing AppLock binaries cannot be locked.
+- **Unlock with Passphrase (`UnlockWithPassphraseAsync`)**:
+  - Unlocks via WMI `UnlockWithPassphrase`.
+  - Fallback to PowerShell via standard input (`Read-Host -AsSecureString | Unlock-BitLocker`), preventing password from ever appearing in process command lines.
+- **Unlock with Recovery Key (`UnlockWithRecoveryKeyAsync`)**:
+  - Unlocks via WMI `UnlockWithNumericalPassword` using 48-digit numerical key.
+- **Rate Limiting & Cooldown**:
+  - Tracks consecutive failed attempts; after 5 failed attempts, initiates a 30-second UI cooldown.
+  - Disables unlock buttons and quick-unlock field with countdown display.
+- **Error Mapping**: Converts BitLocker HRESULTs (e.g. `0x80310027` wrong password, `0x80310023` already locked, `0x80310035` already unlocked) to friendly messages.
+
+---
+
+## BitLocker Feature — Milestone 4: Saved Passwords (DPAPI), Security Gates & Management (2026-11-02)
+
+### Implementation Completed
+- **`SavedPasswordStore`**:
+  - Encrypts passphrases using Windows DPAPI (`ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) and per-app entropy.
+  - Keyed by `(VolumeGuid, DriveLetter)` dual-key to maintain persistence across drive letter changes.
+  - Never logs or stores plaintext passwords.
+- **Security Gate (`BitLockerSecurityGate`)**:
+  - Requires user authentication via AppLock password / Windows Hello before accessing sensitive BitLocker management operations.
+  - Implements 2-minute memory cache so repetitive actions within a session don't re-prompt continuously.
+- **One-Time Notice**: Informs user about DPAPI storage and Windows profile scope when first enabling saved passwords.
+- **Manage Saved Passwords Dialog**:
+  - Accessible via CommandBar secondary menu.
+  - Lists saved drive passwords with volume label, GUID, and saved timestamp (viewing plaintext is strictly prohibited).
+  - Provides "Update", "Delete", and "Delete All" operations.
+  - Automatically marks saved passwords as invalid if rejected during unlock attempts.
+
+---
+
+## BitLocker Feature — Milestone 5: Auto-Unlock, Hotplug & Startup Task (2026-11-02)
+
+### Implementation Completed
+- **`BitLockerAutoUnlockService`**:
+  - Unlocks eligible drives automatically on application startup and on volume insertion events.
+  - Per-drive "Include in auto-unlock" toggle backed by `BitLockerAutoUnlockVolumeGuids` in `AppSettings`.
+  - Sends desktop toast notifications summarizing unlock results.
+- **Headless Mode (`--bitlocker-autounlock`)**:
+  - CLI argument handled before WinUI initialization in `Program.cs`.
+  - Unlocks drives silently in the background without launching any windows or UI components, then cleanly exits.
+- **Logon Startup Task (`StartupTaskService`)**:
+  - Creates and manages a Windows Scheduled Task (`schtasks.exe`) named `AppLock_BitLocker_AutoUnlock`.
+  - Runs at user logon with `RunLevel=Highest`, eliminating UAC elevation prompts on logon.
+  - "BitLocker Auto-Unlock at Logon" dialog displays real-time task status, last run time, result codes, "Run now", "Create/Update task", "Remove task", and executable path repair.
+
+---
+
+## BitLocker Feature — Milestone 6: Turn on BitLocker Wizard & Key Generation (2026-11-02)
+
+### Implementation Completed
+- **`EnableBitLockerDialog`**: 3-step wizard dialog:
+  1. *Volume & Mode*: Selects drive, encryption scope (Used Space Only vs Full Drive), and cipher algorithm (XTS-AES 128 vs XTS-AES 256).
+  2. *Password Setup*: Enter password and confirm; real-time strength meter evaluating length, case, digits, and symbols.
+  3. *Recovery Key Backup*: Automatically generates a valid 48-digit numerical recovery key; options to save formatted text file to Desktop or copy to clipboard with 60-second auto-clear.
+- **Recovery Password Algorithm**: Generates valid 48-digit numerical BitLocker recovery keys where each 6-digit block satisfies the mathematical requirement (`k * 11 < 720896`, `block % 11 == 0`).
+- **Encryption Service**: Executes `TurnOnBitLockerAsync` using WMI `Win32_EncryptableVolume.Encrypt` and fallback to PowerShell `Enable-BitLocker`.
+
+---
+
+## BitLocker Feature — Milestone 7: Turn Off, Suspend/Resume, Change Password, and Manage Protectors (2026-11-02)
+
+### Implementation Completed
+- **Turn Off BitLocker (Decryption)**:
+  - WMI `Decrypt` with PowerShell `Disable-BitLocker` fallback.
+  - Security-gated (`BitLockerSecurityGate`).
+  - Confirmation dialog requires typing the target drive letter to prevent accidental decryption.
+  - Operating system drive requires explicit double confirmation.
+- **Suspend & Resume Protection**:
+  - WMI `DisableKeyProtectors(DisableCount)` and `EnableKeyProtectors` with PowerShell fallbacks.
+  - For OS drive: Suspend dialog provides reboot count selection (1 reboot recommended, 2, 3, or until manually resumed).
+  - Toolbar `SuspendButton` dynamically binds label and icon, toggling between "Suspend protection" (`\uE769`) and "Resume protection" (`\uE768`).
+- **Change Password**:
+  - Accessible from CommandBar secondary commands; protected by security gate.
+  - Dialog prompts for old password, new password, confirmation, and live strength indicator.
+  - WMI `ChangePassphrase` with atomic add-new then remove-old protector fallback.
+  - Automatically updates `SavedPasswordStore` if a saved password was stored for the drive.
+- **Manage Key Protectors**:
+  - Security-gated dialog listing all key protectors on the drive (Password, Recovery Password, TPM, External Key).
+  - Deletion protection: Delete button is disabled if only 1 protector remains on the drive.
+  - "+ Add password" dialog: validates matching passwords and minimum length (8 characters).
+  - "+ Add recovery key" dialog: generates and displays a new 48-digit recovery password with one-click clipboard copy.
+- **Testing & Verification**:
+  - Added unit tests for Turn Off, Suspend/Resume, Change Password, and Manage Protectors.
+  - All 52 unit tests pass in `AppLock.Tests`.
+  - Release build (`dotnet build src/AppLock/AppLock.csproj -c Release`) passes clean with 0 errors.
