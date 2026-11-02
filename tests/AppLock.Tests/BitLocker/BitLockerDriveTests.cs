@@ -169,19 +169,26 @@ public class BitLockerDriveTests
         var initial = await store.GetForDriveAsync("Z:");
         Assert.Null(initial);
 
-        await store.SaveAsync("Z:", "TestPassword123!", "Backup Drive");
-        var saved = await store.GetForDriveAsync("Z:");
+        await store.SaveAsync("volume-guid-123", "Z:", "TestPassword123!", "Backup Drive");
+        var saved = await store.GetForVolumeAsync("volume-guid-123", "Z:");
         Assert.NotNull(saved);
         Assert.Equal("Z:", saved.DriveLetter);
+        Assert.Equal("volume-guid-123", saved.VolumeGuid);
         Assert.Equal("Backup Drive", saved.Label);
+        Assert.True(saved.IsValid);
 
-        var decrypted = await store.GetDecryptedPassphraseAsync("Z:");
+        var decrypted = await store.GetDecryptedPassphraseAsync("volume-guid-123", "Z:");
         Assert.Equal("TestPassword123!", decrypted);
+
+        await store.MarkInvalidAsync("volume-guid-123", "Z:");
+        var invalidEntry = await store.GetForVolumeAsync("volume-guid-123", "Z:");
+        Assert.NotNull(invalidEntry);
+        Assert.False(invalidEntry.IsValid);
 
         var all = await store.GetAllAsync();
         Assert.Contains(all, p => p.DriveLetter == "Z:");
 
-        var deleted = await store.DeleteAsync("Z:");
+        var deleted = await store.DeleteAsync("volume-guid-123", "Z:");
         Assert.True(deleted);
 
         var afterDelete = await store.GetForDriveAsync("Z:");

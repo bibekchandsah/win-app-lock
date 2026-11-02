@@ -5,9 +5,10 @@ using AppLock.Models;
 namespace AppLock.Services.BitLocker;
 
 /// <summary>
-/// Persists BitLocker passphrases encrypted with DPAPI (current-user scope)
+/// Persists BitLocker passphrases encrypted with DPAPI (current-user scope plus per-app entropy)
 /// to %APPDATA%\AppLock\bitlocker-passwords.json.
-/// All encrypt/decrypt operations are synchronous-in-memory; file I/O is async.
+/// Keyed primarily by Volume GUID (fallback to DriveLetter).
+/// Never stores plaintext, never logs plaintext.
 /// </summary>
 public sealed class SavedPasswordStore
 {
@@ -15,6 +16,8 @@ public sealed class SavedPasswordStore
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AppLock",
         "bitlocker-passwords.json");
+
+    private static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("AppLock.BitLocker.PasswordStore.Entropy.v1");
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -34,50 +37,68 @@ public sealed class SavedPasswordStore
         return _cache.AsReadOnly();
     }
 
-    /// <summary>Returns the saved entry for <paramref name="driveLetter"/>, or null.</summary>
-    public async Task<BitLockerSavedPassword?> GetForDriveAsync(string driveLetter)
+    /// <summary>Finds a saved password matching either VolumeGuid or DriveLetter.</summary>
+    public async Task<BitLockerSavedPassword?> GetForVolumeAsync(string? volumeGuid, string? driveLetter)
     {
         await EnsureLoadedAsync();
-        var normalized = NormalizeLetter(driveLetter);
+        var normGuid = NormalizeGuid(volumeGuid);
+        var normLetter = NormalizeLetter(driveLetter);
+
         return _cache.FirstOrDefault(p =>
-            string.Equals(NormalizeLetter(p.DriveLetter), normalized, StringComparison.OrdinalIgnoreCase));
+            (!string.IsNullOrEmpty(normGuid) && string.Equals(NormalizeGuid(p.VolumeGuid), normGuid, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(normLetter) && string.Equals(NormalizeLetter(p.DriveLetter), normLetter, StringComparison.OrdinalIgnoreCase)));
     }
 
-    /// <summary>Decrypts and returns the plaintext passphrase for <paramref name="driveLetter"/>, or null if not found.</summary>
-    public async Task<string?> GetDecryptedPassphraseAsync(string driveLetter)
+    /// <summary>Returns the saved entry matching driveLetter.</summary>
+    public Task<BitLockerSavedPassword?> GetForDriveAsync(string driveLetter) =>
+        GetForVolumeAsync(null, driveLetter);
+
+    /// <summary>Decrypts and returns the plaintext passphrase, or null if not found.</summary>
+    public async Task<string?> GetDecryptedPassphraseAsync(string? volumeGuid, string? driveLetter)
     {
-        var entry = await GetForDriveAsync(driveLetter);
+        var entry = await GetForVolumeAsync(volumeGuid, driveLetter);
         if (entry == null) return null;
         return TryDecrypt(entry.EncryptedPasswordBase64);
     }
 
-    /// <summary>Saves (or replaces) the encrypted passphrase for a drive.</summary>
-    public async Task SaveAsync(string driveLetter, string passphrase, string label = "")
+    /// <summary>Decrypts and returns the plaintext passphrase for drive letter.</summary>
+    public Task<string?> GetDecryptedPassphraseAsync(string driveLetter) =>
+        GetDecryptedPassphraseAsync(null, driveLetter);
+
+    /// <summary>Saves (or replaces) the encrypted passphrase for a volume.</summary>
+    public async Task SaveAsync(string volumeGuid, string driveLetter, string passphrase, string label = "")
     {
         await EnsureLoadedAsync();
         await _lock.WaitAsync();
         try
         {
-            var normalized = NormalizeLetter(driveLetter);
+            var normGuid = NormalizeGuid(volumeGuid);
+            var normLetter = NormalizeLetter(driveLetter);
             var encrypted = Encrypt(passphrase);
 
             var existing = _cache.FirstOrDefault(p =>
-                string.Equals(NormalizeLetter(p.DriveLetter), normalized, StringComparison.OrdinalIgnoreCase));
+                (!string.IsNullOrEmpty(normGuid) && string.Equals(NormalizeGuid(p.VolumeGuid), normGuid, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(normLetter) && string.Equals(NormalizeLetter(p.DriveLetter), normLetter, StringComparison.OrdinalIgnoreCase)));
 
             if (existing != null)
             {
+                if (!string.IsNullOrEmpty(normGuid)) existing.VolumeGuid = normGuid;
+                if (!string.IsNullOrEmpty(normLetter)) existing.DriveLetter = normLetter;
                 existing.EncryptedPasswordBase64 = encrypted;
                 existing.SavedAt = DateTime.UtcNow;
-                existing.Label = label;
+                existing.IsValid = true;
+                if (!string.IsNullOrEmpty(label)) existing.Label = label;
             }
             else
             {
                 _cache.Add(new BitLockerSavedPassword
                 {
-                    DriveLetter = normalized,
+                    VolumeGuid = normGuid,
+                    DriveLetter = normLetter,
                     EncryptedPasswordBase64 = encrypted,
                     Label = label,
-                    SavedAt = DateTime.UtcNow
+                    SavedAt = DateTime.UtcNow,
+                    IsValid = true
                 });
             }
 
@@ -89,16 +110,52 @@ public sealed class SavedPasswordStore
         }
     }
 
-    /// <summary>Removes the saved entry for <paramref name="driveLetter"/>.</summary>
-    public async Task<bool> DeleteAsync(string driveLetter)
+    /// <summary>Backward-compatible overload for saving by drive letter only.</summary>
+    public Task SaveAsync(string driveLetter, string passphrase, string label = "") =>
+        SaveAsync(string.Empty, driveLetter, passphrase, label);
+
+    /// <summary>Marks a saved password as invalid (e.g. when unlock fails with it).</summary>
+    public async Task<bool> MarkInvalidAsync(string? volumeGuid, string? driveLetter)
     {
         await EnsureLoadedAsync();
         await _lock.WaitAsync();
         try
         {
-            var normalized = NormalizeLetter(driveLetter);
+            var normGuid = NormalizeGuid(volumeGuid);
+            var normLetter = NormalizeLetter(driveLetter);
+
+            var entry = _cache.FirstOrDefault(p =>
+                (!string.IsNullOrEmpty(normGuid) && string.Equals(NormalizeGuid(p.VolumeGuid), normGuid, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(normLetter) && string.Equals(NormalizeLetter(p.DriveLetter), normLetter, StringComparison.OrdinalIgnoreCase)));
+
+            if (entry != null)
+            {
+                entry.IsValid = false;
+                await PersistAsync();
+                return true;
+            }
+            return false;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    /// <summary>Removes the saved entry for a volume.</summary>
+    public async Task<bool> DeleteAsync(string? volumeGuid, string? driveLetter)
+    {
+        await EnsureLoadedAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            var normGuid = NormalizeGuid(volumeGuid);
+            var normLetter = NormalizeLetter(driveLetter);
+
             var removed = _cache.RemoveAll(p =>
-                string.Equals(NormalizeLetter(p.DriveLetter), normalized, StringComparison.OrdinalIgnoreCase));
+                (!string.IsNullOrEmpty(normGuid) && string.Equals(NormalizeGuid(p.VolumeGuid), normGuid, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(normLetter) && string.Equals(NormalizeLetter(p.DriveLetter), normLetter, StringComparison.OrdinalIgnoreCase)));
+
             if (removed > 0) await PersistAsync();
             return removed > 0;
         }
@@ -107,6 +164,10 @@ public sealed class SavedPasswordStore
             _lock.Release();
         }
     }
+
+    /// <summary>Removes the saved entry for drive letter.</summary>
+    public Task<bool> DeleteAsync(string driveLetter) =>
+        DeleteAsync(null, driveLetter);
 
     /// <summary>Removes all saved passwords.</summary>
     public async Task ClearAllAsync()
@@ -158,7 +219,6 @@ public sealed class SavedPasswordStore
 
     private async Task PersistAsync()
     {
-        // Caller must hold _lock
         try
         {
             var dir = Path.GetDirectoryName(StorePath)!;
@@ -175,8 +235,8 @@ public sealed class SavedPasswordStore
     private static string Encrypt(string plaintext)
     {
         var data = System.Text.Encoding.UTF8.GetBytes(plaintext);
-        // CurrentUser scope — only decryptable on this machine by this user
-        var encrypted = ProtectedData.Protect(data, null, DataProtectionScope.CurrentUser);
+        // CurrentUser scope with per-app entropy
+        var encrypted = ProtectedData.Protect(data, Entropy, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
     }
 
@@ -185,8 +245,18 @@ public sealed class SavedPasswordStore
         try
         {
             var data = Convert.FromBase64String(base64);
-            var plain = ProtectedData.Unprotect(data, null, DataProtectionScope.CurrentUser);
-            return System.Text.Encoding.UTF8.GetString(plain);
+            // Try with per-app entropy
+            try
+            {
+                var plain = ProtectedData.Unprotect(data, Entropy, DataProtectionScope.CurrentUser);
+                return System.Text.Encoding.UTF8.GetString(plain);
+            }
+            catch
+            {
+                // Fallback for legacy entries without optional entropy
+                var plainLegacy = ProtectedData.Unprotect(data, null, DataProtectionScope.CurrentUser);
+                return System.Text.Encoding.UTF8.GetString(plainLegacy);
+            }
         }
         catch (Exception ex)
         {
@@ -195,7 +265,9 @@ public sealed class SavedPasswordStore
         }
     }
 
-    private static string NormalizeLetter(string driveLetter) =>
-        driveLetter.TrimEnd('\\').TrimEnd('/').ToUpperInvariant();
-}
+    private static string NormalizeLetter(string? driveLetter) =>
+        string.IsNullOrWhiteSpace(driveLetter) ? string.Empty : driveLetter.TrimEnd('\\').TrimEnd('/').ToUpperInvariant();
 
+    private static string NormalizeGuid(string? guid) =>
+        string.IsNullOrWhiteSpace(guid) ? string.Empty : guid.Trim();
+}

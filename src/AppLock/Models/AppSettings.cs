@@ -35,6 +35,7 @@ public class AppSettings
 
     // BitLocker
     public bool BitLockerOpenDriveAfterUnlock { get; set; } = false;
+    public bool BitLockerHasShownSavedPasswordNotice { get; set; } = false;
     
     // First run
     public bool IsFirstRun { get; set; } = true;
