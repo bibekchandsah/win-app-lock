@@ -33,6 +33,8 @@ public partial class ActiveConnectionViewModel : ObservableObject
     [ObservableProperty]
     private string _statusText = "";
 
+    public string FilterButtonText => ShowOnlyWithConnections ? "Connected only" : "Show all";
+
     public ActiveConnectionViewModel()
     {
         _connectionService = new ActiveConnectionService();
@@ -45,6 +47,7 @@ public partial class ActiveConnectionViewModel : ObservableObject
 
     partial void OnShowOnlyWithConnectionsChanged(bool value)
     {
+        OnPropertyChanged(nameof(FilterButtonText));
         FilterConnections();
     }
 

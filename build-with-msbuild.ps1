@@ -53,3 +53,4 @@ if ($vsPath) {
     Write-Host "Or run: dotnet build -c Release" -ForegroundColor Yellow
 }
 
+Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs

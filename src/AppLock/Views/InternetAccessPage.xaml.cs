@@ -724,6 +724,12 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private void FilterToggleGrid_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        // Toggle the switch when the grid (including label) is tapped
+        FilterToggle.IsOn = !FilterToggle.IsOn;
+    }
+
     private async void DirectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (sender is ComboBox comboBox && comboBox.DataContext is NetworkRuleViewModel app)

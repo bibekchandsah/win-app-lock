@@ -330,22 +330,32 @@
                     </Grid.RowDefinitions>
 
                     <!-- Filter and options -->
-                    <Grid Grid.Row="0" ColumnSpacing="12">
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
+                        <!-- Search Box -->
                         <TextBox
                             Grid.Column="0"
                             PlaceholderText="Filter by process, address, or protocol..."
-                            Text="{x:Bind ActiveConnectionsViewModel.FilterQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            Text="{x:Bind ActiveConnectionsViewModel.FilterQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            VerticalAlignment="Center"
+                            Height="32"
+                            Margin="0,0,12,0"/>
 
-                        <ToggleSwitch
-                            Grid.Column="1"
-                            Header="Show only connected"
-                            IsOn="{x:Bind ActiveConnectionsViewModel.ShowOnlyWithConnections, Mode=TwoWay}"
-                            MinWidth="0"/>
+                        <!-- Filter Toggle -->
+                        <Grid Grid.Column="1" 
+                              VerticalAlignment="Center"
+                              Tapped="FilterToggleGrid_Tapped">
+                            <ToggleSwitch
+                                x:Name="FilterToggle"
+                                IsOn="{x:Bind ActiveConnectionsViewModel.ShowOnlyWithConnections, Mode=TwoWay}"
+                                OffContent="Showing all"
+                                OnContent="Connected only"
+                                MinWidth="0"/>
+                        </Grid>
                     </Grid>
 
                     <!-- Connections list -->
