@@ -21,6 +21,7 @@ public partial class InternetAccessViewModel : ObservableObject
     private readonly InstalledAppsService _installedAppsService;
     private readonly FirewallAuthService _authService;
     private readonly FirewallImportExportService _importExportService;
+    private readonly HashSet<NetworkRuleViewModel> _iconsLoaded = new();
 
     [ObservableProperty]
     private ObservableCollection<NetworkRuleViewModel> _apps = new();
@@ -50,13 +51,18 @@ public partial class InternetAccessViewModel : ObservableObject
         {
             var settings = ServiceContainer.Settings;
             Apps.Clear();
+            _iconsLoaded.Clear();
 
             foreach (var entry in settings.NetworkRules)
             {
-                Apps.Add(new NetworkRuleViewModel(entry));
+                var viewModel = new NetworkRuleViewModel(entry);
+                Apps.Add(viewModel);
             }
 
             HasApps = Apps.Count > 0;
+
+            // Load icons for first 15 apps immediately
+            await LoadInitialIconsAsync();
 
             // Sync with actual firewall rules
             await SyncWithFirewallAsync();
@@ -65,6 +71,71 @@ public partial class InternetAccessViewModel : ObservableObject
         {
             Debug.WriteLine($"Error loading apps: {ex.Message}");
         }
+    }
+
+    private async Task LoadInitialIconsAsync()
+    {
+        try
+        {
+            var initialApps = Apps.Take(15).ToList();
+            Debug.WriteLine($"[InternetAccess] Loading icons for {initialApps.Count} initial apps...");
+
+            foreach (var app in initialApps)
+            {
+                if (!_iconsLoaded.Contains(app))
+                {
+                    _iconsLoaded.Add(app);
+                    await app.LoadIconAsync();
+                }
+            }
+
+            Debug.WriteLine("[InternetAccess] Initial icon loading complete");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[InternetAccess] LoadInitialIconsAsync error: {ex}");
+        }
+    }
+
+    public async Task LoadIconsForVisibleAppsAsync(IEnumerable<NetworkRuleViewModel> visibleApps)
+    {
+        var appsToLoad = visibleApps
+            .Where(app => !_iconsLoaded.Contains(app))
+            .ToList();
+
+        if (appsToLoad.Count == 0)
+            return;
+
+        Debug.WriteLine($"[InternetAccess] Loading {appsToLoad.Count} icons...");
+
+        foreach (var app in appsToLoad)
+        {
+            _iconsLoaded.Add(app);
+        }
+
+        // Load in batches of 5
+        const int batchSize = 5;
+        for (int i = 0; i < appsToLoad.Count; i += batchSize)
+        {
+            var batch = appsToLoad.Skip(i).Take(batchSize);
+            var tasks = batch.Select(app => app.LoadIconAsync()).ToList();
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[InternetAccess] Batch error: {ex.Message}");
+            }
+
+            if (i + batchSize < appsToLoad.Count)
+            {
+                await Task.Delay(100);
+            }
+        }
+
+        Debug.WriteLine($"[InternetAccess] Completed loading {appsToLoad.Count} icons");
     }
 
     public async Task AddAppAsync(string exePath, string displayName, bool blockImmediately = true, string direction = "Outgoing", string? packageFamilyName = null, BitmapImage? icon = null)

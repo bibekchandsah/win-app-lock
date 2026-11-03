@@ -40,8 +40,10 @@ public partial class InstalledAppViewModel : ObservableObject
             
             if (_app.IsUwp)
             {
-                System.Diagnostics.Debug.WriteLine($"[IconLoad] Skipping UWP app: {_app.DisplayName}");
-                return; // Skip UWP apps for now
+                // Try to load UWP app icon
+                System.Diagnostics.Debug.WriteLine($"[IconLoad] Loading UWP icon for: {_app.DisplayName}");
+                await LoadUwpIconAsync();
+                return;
             }
 
             if (string.IsNullOrEmpty(_app.ExecutablePath))
@@ -93,7 +95,56 @@ public partial class InstalledAppViewModel : ObservableObject
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[IconLoad] Exception for {_app.DisplayName}: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[IconLoad] Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task LoadUwpIconAsync()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(_app.PackageFamilyName))
+                return;
+
+            if (_dispatcherQueue != null)
+            {
+                var tcs = new TaskCompletionSource<bool>();
+                
+                _dispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        // Try to get the package and load its logo
+                        var packageManager = new Windows.Management.Deployment.PackageManager();
+                        var packages = packageManager.FindPackagesForUser("", _app.PackageFamilyName);
+                        var package = packages.FirstOrDefault();
+
+                        if (package != null)
+                        {
+                            // Get the logo from the package
+                            var logoUri = package.Logo;
+                            if (logoUri != null)
+                            {
+                                var icon = new BitmapImage(logoUri);
+                                Icon = icon;
+                                _app.Icon = icon;
+                                System.Diagnostics.Debug.WriteLine($"[IconLoad] UWP icon loaded for: {_app.DisplayName}");
+                            }
+                        }
+                        tcs.SetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[IconLoad] UWP icon load failed: {ex.Message}");
+                        tcs.SetException(ex);
+                    }
+                });
+                
+                await tcs.Task;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[IconLoad] UWP icon exception: {ex.Message}");
         }
     }
 
@@ -231,7 +282,7 @@ public partial class InstalledAppsDialogViewModel : ObservableObject
     public async Task LoadIconsForVisibleItemsAsync(IEnumerable<InstalledAppViewModel> visibleItems)
     {
         var itemsToLoad = visibleItems
-            .Where(item => !_iconsLoaded.Contains(item) && !item.IsUwp)
+            .Where(item => !_iconsLoaded.Contains(item)) // Load all types now
             .ToList();
 
         if (itemsToLoad.Count == 0)

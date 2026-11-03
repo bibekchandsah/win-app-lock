@@ -27,6 +27,8 @@ public sealed partial class InternetAccessPage : Page
     private readonly InstalledAppsService _installedAppsService;
     private readonly SettingsStore _settingsStore;
     private bool _isElevated;
+    private ScrollViewer? _appsScrollViewer;
+    private bool _isLoadingAppIcons = false;
 
     public InternetAccessViewModel ViewModel => _viewModel;
     public ActiveConnectionViewModel ActiveConnectionsViewModel => _activeConnectionsViewModel;
@@ -369,8 +371,79 @@ public sealed partial class InternetAccessPage : Page
 
     private async void RefreshApps_Click(object sender, RoutedEventArgs e)
     {
+        // Don't reload from scratch, just sync
         await _viewModel.RefreshAsync();
+        
+        // Trigger icon loading for all visible apps
+        await LoadVisibleAppIcons();
+        
         UpdateAppsVisibility();
+    }
+
+    private void AppsListView_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Find the ScrollViewer inside the ListView
+        _appsScrollViewer = FindScrollViewer(AppsListView);
+        if (_appsScrollViewer != null)
+        {
+            _appsScrollViewer.ViewChanged += AppsScrollViewer_ViewChanged;
+        }
+    }
+
+    private async void AppsScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (_isLoadingAppIcons || _appsScrollViewer == null)
+            return;
+
+        await LoadVisibleAppIcons();
+    }
+
+    private async Task LoadVisibleAppIcons()
+    {
+        if (_isLoadingAppIcons || _appsScrollViewer == null)
+            return;
+
+        _isLoadingAppIcons = true;
+        try
+        {
+            var itemHeight = 70.0; // Approximate height of each item
+            var verticalOffset = _appsScrollViewer.VerticalOffset;
+            var viewportHeight = _appsScrollViewer.ViewportHeight;
+
+            var visibleStartIndex = Math.Max(0, (int)(verticalOffset / itemHeight) - 5);
+            var visibleCount = (int)(viewportHeight / itemHeight) + 15;
+
+            var visibleApps = _viewModel.Apps
+                .Skip(visibleStartIndex)
+                .Take(visibleCount)
+                .ToList();
+
+            await _viewModel.LoadIconsForVisibleAppsAsync(visibleApps);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AppsScroll] Error: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingAppIcons = false;
+        }
+    }
+
+    private ScrollViewer? FindScrollViewer(DependencyObject element)
+    {
+        if (element is ScrollViewer scrollViewer)
+            return scrollViewer;
+
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(element); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(element, i);
+            var result = FindScrollViewer(child);
+            if (result != null)
+                return result;
+        }
+
+        return null;
     }
 
     private async void BlockAllSelected_Click(object sender, RoutedEventArgs e)

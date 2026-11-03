@@ -102,36 +102,24 @@
         </ListView>
 
         <!-- Status -->
-        <Grid Grid.Row="2" ColumnSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
             <ProgressRing
-                Grid.Column="0"
                 Width="16"
                 Height="16"
                 IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                 Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"/>
             <TextBlock
-                Grid.Column="1"
                 Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
                 Style="{ThemeResource CaptionTextBlockStyle}"
-                VerticalAlignment="Center"
-                Margin="8,0,0,0"/>
+                VerticalAlignment="Center"/>
             <Button
-                Grid.Column="2"
                 Content="Load all icons"
                 Click="LoadAllIcons_Click"
-                Style="{ThemeResource AccentButtonStyle}"
-                Padding="12,4"
-                VerticalAlignment="Center">
-                <Button.Resources>
-                    <Thickness x:Key="ButtonPadding">12,4</Thickness>
-                </Button.Resources>
-            </Button>
-        </Grid>
+                Style="{StaticResource AccentButtonStyle}"
+                Padding="16,6"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Right"
+                Margin="8,0,0,0"/>
+        </StackPanel>
     </Grid>
 </ContentDialog>

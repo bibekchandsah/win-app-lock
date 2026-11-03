@@ -10,6 +10,9 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Page.Resources>
+        <!-- Converters -->
+        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        
         <!-- Color converter for status chips -->
         <SolidColorBrush x:Key="BlockedColor" Color="#DC3545"/>
         <SolidColorBrush x:Key="AllowedColor" Color="#28A745"/>
@@ -197,7 +200,8 @@
                                   SelectionMode="Multiple"
                                   Padding="0"
                                   AutomationProperties.Name="Applications list"
-                                  AutomationProperties.HelpText="List of applications with firewall rules">
+                                  AutomationProperties.HelpText="List of applications with firewall rules"
+                                  Loaded="AppsListView_Loaded">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Padding="16,12" ColumnSpacing="16">
@@ -210,25 +214,23 @@
                                             <ColumnDefinition Width="Auto"/> <!-- Repair -->
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- App Icon with fallback -->
+                                        <!-- App Icon with conditional fallback -->
                                         <Grid Grid.Column="0" Width="40" Height="40">
-                                            <!-- Fallback background -->
+                                            <!-- Fallback background (only visible when Icon is null) -->
                                             <Border
                                                 CornerRadius="4"
-                                                Background="{ThemeResource AccentFillColorDefaultBrush}">
+                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                Visibility="{Binding Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
                                                 <FontIcon
                                                     Glyph="&#xE8A7;"
                                                     FontSize="20"
                                                     Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
                                             </Border>
-                                            <!-- Actual icon (overlays fallback when loaded) -->
-                                            <Border
-                                                CornerRadius="4"
-                                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
-                                                <Image Source="{Binding Icon, Mode=OneWay}" 
-                                                       Width="32" Height="32"
-                                                       Stretch="Uniform"/>
-                                            </Border>
+                                            <!-- Actual icon (visible when loaded, no background) -->
+                                            <Image Source="{Binding Icon, Mode=OneWay}" 
+                                                   Width="40" Height="40"
+                                                   Stretch="Uniform"
+                                                   Visibility="{Binding Icon, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
                                         </Grid>
 
                                         <!-- App Info -->

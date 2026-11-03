@@ -14,6 +14,8 @@ namespace AppLock.ViewModels;
 
 public partial class NetworkRuleViewModel : ObservableObject
 {
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+    
     [ObservableProperty]
     private NetworkRuleEntry _entry;
 
@@ -65,33 +67,70 @@ public partial class NetworkRuleViewModel : ObservableObject
         _exePath = entry.ExePath;
         _isBlocked = entry.Blocked;
         _fileExists = File.Exists(entry.ExePath);
+        
+        // Capture dispatcher queue
+        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
         UpdateDirection();
         UpdateStatus();
-        
-        // Load icon asynchronously if not UWP
-        if (string.IsNullOrEmpty(entry.PackageFamilyName) && !string.IsNullOrEmpty(entry.ExePath))
-        {
-            _ = LoadIconAsync();
-        }
     }
 
     public async Task LoadIconAsync()
     {
         try
         {
-            if (!string.IsNullOrEmpty(Entry.ExePath) && File.Exists(Entry.ExePath))
+            System.Diagnostics.Debug.WriteLine($"[NetworkRule] Loading icon for: {DisplayName}");
+            
+            if (string.IsNullOrEmpty(Entry.ExePath))
             {
-                var icon = await Task.Run(() => ServiceContainer.WindowEnumerator.ExtractIcon(Entry.ExePath));
-                if (icon != null)
+                System.Diagnostics.Debug.WriteLine($"[NetworkRule] No exe path for: {DisplayName}");
+                return;
+            }
+
+            if (!File.Exists(Entry.ExePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[NetworkRule] File not found: {Entry.ExePath}");
+                return;
+            }
+
+            // ExtractIcon needs UI thread for BitmapImage
+            if (_dispatcherQueue != null)
+            {
+                var tcs = new TaskCompletionSource<bool>();
+
+                _dispatcherQueue.TryEnqueue(() =>
                 {
-                    Icon = icon;
-                }
+                    try
+                    {
+                        var icon = ServiceContainer.WindowEnumerator.ExtractIcon(Entry.ExePath);
+                        if (icon != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[NetworkRule] Icon loaded for: {DisplayName}");
+                            Icon = icon;
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[NetworkRule] Icon extraction returned null for: {DisplayName}");
+                        }
+                        tcs.SetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[NetworkRule] ExtractIcon failed: {ex.Message}");
+                        tcs.SetException(ex);
+                    }
+                });
+
+                await tcs.Task;
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[NetworkRule] No dispatcher queue for: {DisplayName}");
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Icon loading failed, keep null
+            System.Diagnostics.Debug.WriteLine($"[NetworkRule] LoadIconAsync exception: {ex.Message}");
         }
     }
 
