@@ -76,7 +76,7 @@ public partial class NetworkRuleViewModel : ObservableObject
         }
     }
 
-    private async Task LoadIconAsync()
+    public async Task LoadIconAsync()
     {
         try
         {

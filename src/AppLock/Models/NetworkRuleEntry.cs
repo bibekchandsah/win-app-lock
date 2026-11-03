@@ -19,4 +19,12 @@ public class NetworkRuleEntry
     
     // Import/Export UI property (not persisted)
     public string? ImportStatus { get; set; }
+    
+    public string DirectionText => (BlockOutbound, BlockInbound) switch
+    {
+        (true, true) => "→ Outgoing + ← Incoming",
+        (true, false) => "→ Outgoing",
+        (false, true) => "← Incoming",
+        _ => "None"
+    };
 }

@@ -846,10 +846,12 @@ public sealed partial class InternetAccessPage : Page
                 foreach (var rule in importDialog.SelectedRules)
                 {
                     ServiceContainer.Settings.NetworkRules.Add(rule);
-                    _viewModel.Apps.Add(new NetworkRuleViewModel(rule));
                 }
                 
                 _settingsStore.Save(ServiceContainer.Settings);
+                
+                // Reload the entire list to ensure proper initialization and UI update
+                await _viewModel.LoadAppsAsync();
                 UpdateAppsVisibility();
                 
                 LogService.LogFirewallAction("IMPORT", $"{importDialog.SelectedRules.Count} rules", $"Imported from {selectedFile.FileName}");

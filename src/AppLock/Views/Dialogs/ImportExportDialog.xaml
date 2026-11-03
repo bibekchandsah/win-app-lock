@@ -46,46 +46,40 @@
             SelectionChanged="RulesList_SelectionChanged">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="models:NetworkRuleEntry">
-                    <Grid ColumnSpacing="12" Padding="8">
+                    <Grid ColumnSpacing="12" Padding="12,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- App info -->
-                        <StackPanel Grid.Column="0">
+                        <!-- App info with badges below -->
+                        <StackPanel Grid.Column="0" Spacing="6">
                             <TextBlock Text="{x:Bind DisplayName}" FontWeight="SemiBold"/>
                             <TextBlock 
                                 Text="{x:Bind ExePath}" 
                                 Style="{ThemeResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-
-                        <!-- Direction badges -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            
+                            <!-- Direction badge -->
                             <Border
-                                Background="{ThemeResource ControlFillColorDefaultBrush}"
-                                CornerRadius="4"
-                                Padding="6,2"
-                                Visibility="{x:Bind BlockOutbound}">
-                                <TextBlock Text="Out" Style="{ThemeResource CaptionTextBlockStyle}"/>
-                            </Border>
-                            <Border
-                                Background="{ThemeResource ControlFillColorDefaultBrush}"
-                                CornerRadius="4"
-                                Padding="6,2"
-                                Visibility="{x:Bind BlockInbound}">
-                                <TextBlock Text="In" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                CornerRadius="12"
+                                Padding="12,6"
+                                HorizontalAlignment="Left">
+                                <TextBlock Text="{x:Bind DirectionText}" 
+                                          Style="{ThemeResource CaptionTextBlockStyle}"
+                                          Foreground="White"
+                                          FontWeight="SemiBold"/>
                             </Border>
                         </StackPanel>
 
                         <!-- Status -->
                         <TextBlock
-                            Grid.Column="2"
+                            Grid.Column="1"
                             Text="{x:Bind ImportStatus, Mode=OneWay}"
-                            Style="{ThemeResource CaptionTextBlockStyle}"/>
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            VerticalAlignment="Center"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
