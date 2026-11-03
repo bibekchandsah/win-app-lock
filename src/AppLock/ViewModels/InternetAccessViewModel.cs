@@ -66,7 +66,7 @@ public partial class InternetAccessViewModel : ObservableObject
         }
     }
 
-    public async Task AddAppAsync(string exePath, string displayName, bool blockImmediately = true, string direction = "Both", string? packageFamilyName = null)
+    public async Task AddAppAsync(string exePath, string displayName, bool blockImmediately = true, string direction = "Outgoing", string? packageFamilyName = null)
     {
         try
         {
@@ -88,7 +88,7 @@ public partial class InternetAccessViewModel : ObservableObject
                 BlockInbound = direction == "Both" || direction == "Incoming",
                 BlockOutbound = direction == "Both" || direction == "Outgoing",
                 Blocked = blockImmediately,
-                Profiles = int.MaxValue
+                Profiles = 0x7
             };
 
             var viewModel = new NetworkRuleViewModel(entry);

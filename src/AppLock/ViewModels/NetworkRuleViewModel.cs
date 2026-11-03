@@ -33,7 +33,7 @@ public partial class NetworkRuleViewModel : ObservableObject
     private bool _isBlocked;
 
     [ObservableProperty]
-    private string _direction = "Both";
+    private string _direction = "Outgoing";
 
     [ObservableProperty]
     private bool _fileExists;
