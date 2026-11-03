@@ -334,7 +334,8 @@ public sealed partial class InternetAccessPage : Page
                         app.ExecutablePath ?? "",
                         app.DisplayName,
                         blockImmediately: true,
-                        packageFamilyName: app.PackageFamilyName);
+                        packageFamilyName: app.PackageFamilyName,
+                        icon: app.Icon);
                 }
                 UpdateAppsVisibility();
             }

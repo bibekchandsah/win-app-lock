@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.Firewall;
@@ -66,7 +67,7 @@ public partial class InternetAccessViewModel : ObservableObject
         }
     }
 
-    public async Task AddAppAsync(string exePath, string displayName, bool blockImmediately = true, string direction = "Outgoing", string? packageFamilyName = null)
+    public async Task AddAppAsync(string exePath, string displayName, bool blockImmediately = true, string direction = "Outgoing", string? packageFamilyName = null, BitmapImage? icon = null)
     {
         try
         {
@@ -92,6 +93,13 @@ public partial class InternetAccessViewModel : ObservableObject
             };
 
             var viewModel = new NetworkRuleViewModel(entry);
+            
+            // Set icon if provided, otherwise it will load asynchronously
+            if (icon != null)
+            {
+                viewModel.Icon = icon;
+            }
+            
             Apps.Add(viewModel);
             HasApps = true;
 

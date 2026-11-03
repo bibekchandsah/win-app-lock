@@ -14,6 +14,8 @@ namespace AppLock.ViewModels;
 public partial class InstalledAppViewModel : ObservableObject
 {
     private readonly InstalledApp _app;
+    private bool _iconLoadStarted = false;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
     [ObservableProperty]
     private BitmapImage? _icon;
@@ -23,32 +25,75 @@ public partial class InstalledAppViewModel : ObservableObject
         _app = app;
         _icon = app.Icon;
         
-        // Load icon asynchronously for desktop apps with an executable path
-        if (app.Icon == null && !app.IsUwp && !string.IsNullOrEmpty(app.ExecutablePath))
-        {
-            System.Diagnostics.Debug.WriteLine($"Loading icon for: {app.DisplayName} from {app.ExecutablePath}");
-            _ = LoadIconAsync();
-        }
+        // Capture dispatcher queue
+        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
     }
 
-    private async Task LoadIconAsync()
+    public async Task LoadIconAsync()
     {
+        if (_iconLoadStarted) return; // Prevent duplicate loading
+        _iconLoadStarted = true;
+
         try
         {
-            if (!string.IsNullOrEmpty(_app.ExecutablePath))
+            System.Diagnostics.Debug.WriteLine($"[IconLoad] Starting for: {_app.DisplayName}");
+            
+            if (_app.IsUwp)
             {
-                // Use DispatcherQueue to ensure UI thread access
-                var icon = await Task.Run(() => ServiceContainer.WindowEnumerator.ExtractIcon(_app.ExecutablePath));
-                if (icon != null)
+                System.Diagnostics.Debug.WriteLine($"[IconLoad] Skipping UWP app: {_app.DisplayName}");
+                return; // Skip UWP apps for now
+            }
+
+            if (string.IsNullOrEmpty(_app.ExecutablePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[IconLoad] No executable path for: {_app.DisplayName}");
+                return;
+            }
+
+            if (!System.IO.File.Exists(_app.ExecutablePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[IconLoad] File not found: {_app.ExecutablePath}");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[IconLoad] Extracting icon from: {_app.ExecutablePath}");
+            
+            // ExtractIcon needs to run on UI thread for BitmapImage operations
+            if (_dispatcherQueue != null)
+            {
+                var tcs = new TaskCompletionSource<bool>();
+                
+                _dispatcherQueue.TryEnqueue(() =>
                 {
-                    Icon = icon;
-                    _app.Icon = icon;
-                }
+                    try
+                    {
+                        var icon = ServiceContainer.WindowEnumerator.ExtractIcon(_app.ExecutablePath);
+                        if (icon != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[IconLoad] Icon extracted successfully for: {_app.DisplayName}");
+                            Icon = icon;
+                            _app.Icon = icon;
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[IconLoad] Icon extraction returned null for: {_app.DisplayName}");
+                        }
+                        tcs.SetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[IconLoad] ExtractIcon failed: {ex.Message}");
+                        tcs.SetException(ex);
+                    }
+                });
+                
+                await tcs.Task;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Icon loading failed for {_app.DisplayName}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[IconLoad] Exception for {_app.DisplayName}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[IconLoad] Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -66,6 +111,7 @@ public partial class InstalledAppsDialogViewModel : ObservableObject
     private readonly InstalledAppsService _installedAppsService;
     private readonly HashSet<string> _existingPaths;
     private List<InstalledAppViewModel> _allApps = new();
+    private HashSet<InstalledAppViewModel> _iconsLoaded = new();
 
     [ObservableProperty]
     private ObservableCollection<InstalledAppViewModel> _filteredApps = new();
@@ -117,14 +163,46 @@ public partial class InstalledAppsDialogViewModel : ObservableObject
             FilterApps();
 
             StatusText = $"{_allApps.Count} apps available";
+
+            // Important: Await this to ensure icons start loading
+            await Task.Delay(100); // Small delay to let UI render first
+            await LoadInitialIconsAsync();
         }
         catch (Exception ex)
         {
             StatusText = $"Error loading apps: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"LoadAppsAsync error: {ex}");
         }
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private async Task LoadInitialIconsAsync()
+    {
+        try
+        {
+            // Load icons for first 15 visible apps
+            var initialApps = FilteredApps.Take(15).Where(a => !a.IsUwp).ToList();
+            
+            System.Diagnostics.Debug.WriteLine($"Loading icons for {initialApps.Count} initial apps...");
+            
+            foreach (var app in initialApps)
+            {
+                if (!_iconsLoaded.Contains(app))
+                {
+                    _iconsLoaded.Add(app);
+                    System.Diagnostics.Debug.WriteLine($"Loading icon for: {app.DisplayName}");
+                    await app.LoadIconAsync();
+                }
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Initial icon loading complete");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadInitialIconsAsync error: {ex}");
         }
     }
 
@@ -142,6 +220,55 @@ public partial class InstalledAppsDialogViewModel : ObservableObject
         }
 
         FilteredApps = new ObservableCollection<InstalledAppViewModel>(filtered);
+        
+        // Load icons for newly visible apps after filtering
+        _ = LoadInitialIconsAsync();
+    }
+
+    /// <summary>
+    /// Called when user scrolls - loads icons for visible items
+    /// </summary>
+    public async Task LoadIconsForVisibleItemsAsync(IEnumerable<InstalledAppViewModel> visibleItems)
+    {
+        var itemsToLoad = visibleItems
+            .Where(item => !_iconsLoaded.Contains(item) && !item.IsUwp)
+            .ToList();
+
+        if (itemsToLoad.Count == 0)
+            return;
+
+        System.Diagnostics.Debug.WriteLine($"[LoadVisible] Loading {itemsToLoad.Count} icons...");
+
+        // Mark as loading to prevent duplicate requests
+        foreach (var item in itemsToLoad)
+        {
+            _iconsLoaded.Add(item);
+        }
+
+        // Load icons in parallel batches of 5 for better performance
+        const int batchSize = 5;
+        for (int i = 0; i < itemsToLoad.Count; i += batchSize)
+        {
+            var batch = itemsToLoad.Skip(i).Take(batchSize);
+            var tasks = batch.Select(item => item.LoadIconAsync()).ToList();
+            
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LoadVisible] Batch error: {ex.Message}");
+            }
+            
+            // Small delay between batches to keep UI responsive
+            if (i + batchSize < itemsToLoad.Count)
+            {
+                await Task.Delay(100);
+            }
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[LoadVisible] Completed loading {itemsToLoad.Count} icons");
     }
 
     public void UpdateSelection(List<InstalledAppViewModel> selectedItems)

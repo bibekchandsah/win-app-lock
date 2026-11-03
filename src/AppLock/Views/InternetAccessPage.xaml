@@ -210,15 +210,26 @@
                                             <ColumnDefinition Width="Auto"/> <!-- Repair -->
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- App Icon (placeholder) -->
-                                        <Border Grid.Column="0" 
-                                                Width="40" Height="40"
+                                        <!-- App Icon with fallback -->
+                                        <Grid Grid.Column="0" Width="40" Height="40">
+                                            <!-- Fallback background -->
+                                            <Border
+                                                CornerRadius="4"
+                                                Background="{ThemeResource AccentFillColorDefaultBrush}">
+                                                <FontIcon
+                                                    Glyph="&#xE8A7;"
+                                                    FontSize="20"
+                                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                            </Border>
+                                            <!-- Actual icon (overlays fallback when loaded) -->
+                                            <Border
                                                 CornerRadius="4"
                                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
-                                            <Image Source="{Binding Icon, Mode=OneWay}" 
-                                                   Width="32" Height="32"
-                                                   Stretch="Uniform"/>
-                                        </Border>
+                                                <Image Source="{Binding Icon, Mode=OneWay}" 
+                                                       Width="32" Height="32"
+                                                       Stretch="Uniform"/>
+                                            </Border>
+                                        </Grid>
 
                                         <!-- App Info -->
                                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">

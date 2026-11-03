@@ -2,17 +2,18 @@
 # This imports the VS Developer environment which includes all required build tools
 
 try {
-    $evt = [System.Threading.EventWaitHandle]::OpenExisting("Local\AppLock_DevShutdown")
-    $evt.Set()
-    Start-Sleep -Milliseconds 800
+    # $evt = [System.Threading.EventWaitHandle]::OpenExisting("Local\AppLock_DevShutdown")
+    # $evt.Set()
+    # Start-Sleep -Milliseconds 800
+    
+    Write-Host "`Close the AppLock manually" -ForegroundColor Red
+    Write-Host "`nPress Enter to continue..."
+    Read-Host
 } catch {}
 
 if (Get-Process "AppLock" -ErrorAction SilentlyContinue) {
     # & taskkill.exe /F /IM "AppLock.exe" 2>$null
     # Start-Sleep -Milliseconds 600
-    Write-Host "`Close the AppLock manually" -ForegroundColor Red
-    Write-Host "`nPress Enter to continue..."
-    Read-Host
 }
 
 
