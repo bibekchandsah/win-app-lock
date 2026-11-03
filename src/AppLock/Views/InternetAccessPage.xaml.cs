@@ -373,24 +373,74 @@ public sealed partial class InternetAccessPage : Page
     private async void BlockAllSelected_Click(object sender, RoutedEventArgs e)
     {
         var selected = AppsListView.SelectedItems.Cast<NetworkRuleViewModel>().ToList();
+        if (selected.Count == 0)
+        {
+            await ShowMessageAsync("No Selection", "Please select one or more apps to block.");
+            return;
+        }
+
+        _isBulkOperation = true;
+        int succeeded = 0;
+        int failed = 0;
+        
         foreach (var app in selected)
         {
             if (!app.IsBlocked)
             {
-                await _viewModel.BlockAppAsync(app);
+                bool success = await _viewModel.BlockAppAsync(app);
+                if (success)
+                    succeeded++;
+                else
+                    failed++;
             }
+        }
+        _isBulkOperation = false;
+
+        if (failed > 0)
+        {
+            await ShowMessageAsync("Block Complete", 
+                $"Blocked: {succeeded}\nFailed: {failed}\n\nSome rules could not be created. Check the logs for details.");
+        }
+        else if (succeeded > 0)
+        {
+            await ShowMessageAsync("Success", $"Successfully blocked {succeeded} app(s).");
         }
     }
 
     private async void UnblockAllSelected_Click(object sender, RoutedEventArgs e)
     {
         var selected = AppsListView.SelectedItems.Cast<NetworkRuleViewModel>().ToList();
+        if (selected.Count == 0)
+        {
+            await ShowMessageAsync("No Selection", "Please select one or more apps to unblock.");
+            return;
+        }
+
+        _isBulkOperation = true;
+        int succeeded = 0;
+        int failed = 0;
+        
         foreach (var app in selected)
         {
             if (app.IsBlocked)
             {
-                await _viewModel.UnblockAppAsync(app);
+                bool success = await _viewModel.UnblockAppAsync(app);
+                if (success)
+                    succeeded++;
+                else
+                    failed++;
             }
+        }
+        _isBulkOperation = false;
+
+        if (failed > 0)
+        {
+            await ShowMessageAsync("Unblock Complete", 
+                $"Unblocked: {succeeded}\nFailed: {failed}\n\nSome rules could not be removed. Check the logs for details.");
+        }
+        else if (succeeded > 0)
+        {
+            await ShowMessageAsync("Success", $"Successfully unblocked {succeeded} app(s).");
         }
     }
 
@@ -603,8 +653,12 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private bool _isBulkOperation = false;
+
     private async void BlockedToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isBulkOperation) return; // Skip during bulk operations
+        
         if (sender is ToggleSwitch toggle && toggle.DataContext is NetworkRuleViewModel app)
         {
             // Only process if this is a user-initiated change (not initial binding)

@@ -148,7 +148,7 @@
                         <AppBarButton Label="Unblock all selected" Click="UnblockAllSelected_Click"
                                       AutomationProperties.Name="Allow internet for selected applications">
                             <AppBarButton.Icon>
-                                <FontIcon Glyph="&#xE8E8;"/>
+                                <FontIcon Glyph="&#xE785;"/><!-- Shield with checkmark -->
                             </AppBarButton.Icon>
                         </AppBarButton>
                         <AppBarButton Label="Remove" Icon="Delete" Click="RemoveSelected_Click"

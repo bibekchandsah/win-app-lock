@@ -195,11 +195,21 @@ public class WindowsFirewallService : IFirewallService
         {
             try
             {
+                LogService.LogAction("firewall", $"RemoveRuleAsync: Attempting to remove {ruleName}");
+                
                 Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-                if (policyType == null) return false;
+                if (policyType == null)
+                {
+                    LogService.LogAction("firewall", "RemoveRuleAsync: Failed to get FwPolicy2 type");
+                    return false;
+                }
 
                 dynamic? policy = Activator.CreateInstance(policyType);
-                if (policy == null) return false;
+                if (policy == null)
+                {
+                    LogService.LogAction("firewall", "RemoveRuleAsync: Failed to create FwPolicy2 instance");
+                    return false;
+                }
 
                 dynamic rules = policy.Rules;
 
@@ -211,21 +221,23 @@ public class WindowsFirewallService : IFirewallService
                     if (grouping == APPLOCK_GROUP)
                     {
                         rules.Remove(ruleName);
-                        System.Diagnostics.Debug.WriteLine($"Removed firewall rule: {ruleName}");
+                        LogService.LogAction("firewall", $"RemoveRuleAsync: Successfully removed {ruleName}");
                         return true;
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"Rule {ruleName} does not belong to AppLock group, skipping removal");
+                        LogService.LogAction("firewall", $"RemoveRuleAsync: Rule {ruleName} does not belong to AppLock group, skipping");
                         return false;
                     }
                 }
 
-                return false;
+                // Rule doesn't exist - consider this success (already removed)
+                LogService.LogAction("firewall", $"RemoveRuleAsync: Rule {ruleName} not found (already removed)");
+                return true;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                System.Diagnostics.Debug.WriteLine("Access denied: Administrator rights required");
+                LogService.LogAction("firewall", $"RemoveRuleAsync: Access denied - {ex.Message}");
                 return false;
             }
             catch (COMException ex)
