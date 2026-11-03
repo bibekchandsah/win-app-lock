@@ -44,7 +44,8 @@
                             Grid.Column="0"
                             Width="32"
                             Height="32"
-                            Source="{x:Bind Icon, Mode=OneWay}"/>
+                            Source="{x:Bind Icon, Mode=OneWay}">
+                        </Image>
 
                         <!-- Name and path -->
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">

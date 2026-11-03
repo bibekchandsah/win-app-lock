@@ -1,11 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using AppLock.Models;
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI;
 using Windows.UI;
 using System;
 using System.IO;
+using System.Threading.Tasks;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace AppLock.ViewModels;
 
@@ -38,6 +41,9 @@ public partial class NetworkRuleViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasDrift;
 
+    [ObservableProperty]
+    private BitmapImage? _icon;
+
     public Visibility RepairButtonVisibility => HasDrift ? Visibility.Visible : Visibility.Collapsed;
 
     partial void OnHasDriftChanged(bool value)
@@ -55,6 +61,31 @@ public partial class NetworkRuleViewModel : ObservableObject
 
         UpdateDirection();
         UpdateStatus();
+        
+        // Load icon asynchronously if not UWP
+        if (string.IsNullOrEmpty(entry.PackageFamilyName) && !string.IsNullOrEmpty(entry.ExePath))
+        {
+            _ = LoadIconAsync();
+        }
+    }
+
+    private async Task LoadIconAsync()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(Entry.ExePath) && File.Exists(Entry.ExePath))
+            {
+                var icon = await Task.Run(() => ServiceContainer.WindowEnumerator.ExtractIcon(Entry.ExePath));
+                if (icon != null)
+                {
+                    Icon = icon;
+                }
+            }
+        }
+        catch
+        {
+            // Icon loading failed, keep null
+        }
     }
 
     private void UpdateDirection()

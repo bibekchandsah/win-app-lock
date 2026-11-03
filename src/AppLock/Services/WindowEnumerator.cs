@@ -208,13 +208,20 @@ public class WindowEnumerator
         if (string.IsNullOrWhiteSpace(path))
             return null;
 
+        // Check cache first
         if (_iconCache.TryGetValue(path, out var cachedIcon))
             return cachedIcon;
 
         try
         {
+            // File existence check
             if (!File.Exists(path))
+            {
+                System.Diagnostics.Debug.WriteLine($"ExtractIcon: File not found - {path}");
                 return null;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"ExtractIcon: Extracting from {path}");
 
             SHFILEINFOW fileInfo = default;
             unsafe
@@ -241,12 +248,15 @@ public class WindowEnumerator
                             var bitmapImage = new BitmapImage();
                             bitmapImage.SetSource(stream.AsRandomAccessStream());
 
+                            // Cache the icon
                             _iconCache[path] = bitmapImage;
                             var processName = Path.GetFileNameWithoutExtension(path);
                             if (!string.IsNullOrWhiteSpace(processName))
                             {
                                 _iconCache[processName] = bitmapImage;
                             }
+                            
+                            System.Diagnostics.Debug.WriteLine($"ExtractIcon: Success for {Path.GetFileName(path)}");
                             return bitmapImage;
                         }
                         finally
@@ -254,12 +264,16 @@ public class WindowEnumerator
                             PInvoke.DestroyIcon(fileInfo.hIcon);
                         }
                     }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ExtractIcon: SHGetFileInfo returned 0 or null icon for {path}");
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error extracting icon for {path}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"ExtractIcon: Exception for {path}: {ex.Message}");
         }
 
         return null;

@@ -80,6 +80,7 @@ public class InstalledAppsService
         var uwpApps = await GetUwpAppsAsync(ct);
         apps.AddRange(uwpApps);
 
+        // Icons are loaded asynchronously by the ViewModel for each app
         return apps.OrderBy(a => a.DisplayName).ToList();
     }
 
@@ -127,7 +128,8 @@ public class InstalledAppsService
                         {
                             DisplayName = displayName,
                             ExecutablePath = target,
-                            Publisher = GetFilePublisher(target)
+                            Publisher = GetFilePublisher(target),
+                            Icon = null // Icon loaded asynchronously for performance
                         });
                     }
                     catch
@@ -172,7 +174,8 @@ public class InstalledAppsService
                         {
                             DisplayName = displayName,
                             PackageFamilyName = package.Id.FamilyName,
-                            Publisher = package.Id.Publisher
+                            Publisher = package.Id.Publisher,
+                            Icon = null // UWP icons not loaded yet
                         });
                     }
                     catch

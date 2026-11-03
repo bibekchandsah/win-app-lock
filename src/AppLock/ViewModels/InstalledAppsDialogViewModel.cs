@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using AppLock.Services.Firewall;
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 
@@ -14,16 +15,47 @@ public partial class InstalledAppViewModel : ObservableObject
 {
     private readonly InstalledApp _app;
 
+    [ObservableProperty]
+    private BitmapImage? _icon;
+
     public InstalledAppViewModel(InstalledApp app)
     {
         _app = app;
+        _icon = app.Icon;
+        
+        // Load icon asynchronously for desktop apps with an executable path
+        if (app.Icon == null && !app.IsUwp && !string.IsNullOrEmpty(app.ExecutablePath))
+        {
+            System.Diagnostics.Debug.WriteLine($"Loading icon for: {app.DisplayName} from {app.ExecutablePath}");
+            _ = LoadIconAsync();
+        }
+    }
+
+    private async Task LoadIconAsync()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_app.ExecutablePath))
+            {
+                // Use DispatcherQueue to ensure UI thread access
+                var icon = await Task.Run(() => ServiceContainer.WindowEnumerator.ExtractIcon(_app.ExecutablePath));
+                if (icon != null)
+                {
+                    Icon = icon;
+                    _app.Icon = icon;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Icon loading failed for {_app.DisplayName}: {ex.Message}");
+        }
     }
 
     public string DisplayName => _app.DisplayName;
     public string PathOrPackage => _app.IsUwp ? $"Package: {_app.PackageFamilyName}" : _app.ExecutablePath ?? "";
     public string Publisher => _app.Publisher ?? "";
     public Visibility HasPublisher => !string.IsNullOrEmpty(_app.Publisher) ? Visibility.Visible : Visibility.Collapsed;
-    public BitmapImage? Icon => _app.Icon;
     public bool IsUwp => _app.IsUwp;
     public Visibility IsUwpVisible => _app.IsUwp ? Visibility.Visible : Visibility.Collapsed;
     public InstalledApp App => _app;

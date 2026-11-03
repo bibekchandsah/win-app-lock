@@ -215,8 +215,9 @@
                                                 Width="40" Height="40"
                                                 CornerRadius="4"
                                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
-                                            <FontIcon Glyph="&#xE8A7;" FontSize="20" 
-                                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            <Image Source="{Binding Icon, Mode=OneWay}" 
+                                                   Width="32" Height="32"
+                                                   Stretch="Uniform"/>
                                         </Border>
 
                                         <!-- App Info -->

@@ -14,6 +14,8 @@ using AppLock.Models;
 using AppLock.Views.Dialogs;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI;
 
 namespace AppLock.Views;
 
@@ -130,7 +132,12 @@ public sealed partial class InternetAccessPage : Page
     {
         try
         {
-            var picker = new FileOpenPicker();
+            var picker = new FileOpenPicker
+            {
+                ViewMode = PickerViewMode.List,
+                SuggestedStartLocation = PickerLocationId.ComputerFolder
+            };
+            
             var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
             InitializeWithWindow.Initialize(picker, hwnd);
             
@@ -146,6 +153,12 @@ public sealed partial class InternetAccessPage : Page
                 if (exePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
                 {
                     exePath = ResolveShortcut(exePath);
+                }
+
+                if (string.IsNullOrEmpty(exePath) || !System.IO.File.Exists(exePath))
+                {
+                    await ShowMessageAsync("Error", "Could not resolve file path.");
+                    return;
                 }
 
                 string displayName = System.IO.Path.GetFileNameWithoutExtension(exePath);
@@ -165,6 +178,7 @@ public sealed partial class InternetAccessPage : Page
         catch (Exception ex)
         {
             Debug.WriteLine($"Error browsing for program: {ex.Message}");
+            await ShowMessageAsync("Error", $"Failed to add program: {ex.Message}");
         }
     }
 
