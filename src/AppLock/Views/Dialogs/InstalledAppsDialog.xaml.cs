@@ -15,6 +15,7 @@ public sealed partial class InstalledAppsDialog : ContentDialog
     {
         this.InitializeComponent();
         XamlRoot = xamlRoot;
+        RequestedTheme = ((FrameworkElement)xamlRoot.Content).ActualTheme;
         ViewModel = new InstalledAppsDialogViewModel(installedAppsService, existingPaths);
         _ = ViewModel.LoadAppsAsync();
     }

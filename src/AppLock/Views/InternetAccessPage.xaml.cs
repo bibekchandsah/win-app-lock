@@ -228,6 +228,7 @@ public sealed partial class InternetAccessPage : Page
                 CloseButtonText = "Cancel",
                 PrimaryButtonText = "Add",
                 XamlRoot = XamlRoot,
+                RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme,
                 Content = CreateRunningProgramsList(runningApps)
             };
 
@@ -357,7 +358,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Block Anyway",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
         };
 
         var result = await dialog.ShowAsync();
@@ -461,7 +463,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Remove",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
         };
 
         var result = await dialog.ShowAsync();
@@ -539,7 +542,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Remove All",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
         };
 
         var result = await dialog.ShowAsync();
@@ -595,7 +599,8 @@ public sealed partial class InternetAccessPage : Page
             Title = "Firewall Status",
             Content = statusText,
             CloseButtonText = "OK",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
         };
 
         await dialog.ShowAsync();
@@ -667,7 +672,8 @@ public sealed partial class InternetAccessPage : Page
             Title = title,
             Content = message,
             CloseButtonText = "OK",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
         };
         await dialog.ShowAsync();
     }
@@ -798,21 +804,54 @@ public sealed partial class InternetAccessPage : Page
                 return;
             }
 
-            // Show file selection dialog
+            // Show file selection dialog with styled list
             var listView = new ListView
             {
                 ItemsSource = jsonFiles.Select(f => f.FileName).ToList(),
                 SelectionMode = ListViewSelectionMode.Single,
-                MaxHeight = 400
+                MaxHeight = 400,
+                MinWidth = 500
             };
+            
+            // Style the list items
+            var itemTemplate = new DataTemplate();
+            listView.ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(@"
+                <DataTemplate xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"">
+                    <Grid Padding=""12,8"" ColumnSpacing=""12"">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width=""Auto""/>
+                            <ColumnDefinition Width=""*""/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column=""0"" 
+                                 Glyph=""&#xE8A5;"" 
+                                 FontSize=""16""
+                                 Foreground=""{ThemeResource AccentFillColorDefaultBrush}""/>
+                        <TextBlock Grid.Column=""1"" 
+                                  Text=""{Binding}""
+                                  TextWrapping=""NoWrap""
+                                  TextTrimming=""CharacterEllipsis""/>
+                    </Grid>
+                </DataTemplate>");
+
+            var stackPanel = new StackPanel { Spacing = 8 };
+            stackPanel.Children.Add(new TextBlock 
+            { 
+                Text = $"Found {jsonFiles.Count} exported file(s) in Documents\\AppLock\\",
+                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+            stackPanel.Children.Add(listView);
 
             var dialog = new ContentDialog
             {
                 Title = "Select File to Import",
-                Content = listView,
+                Content = stackPanel,
                 PrimaryButtonText = "Import",
                 CloseButtonText = "Cancel",
-                XamlRoot = XamlRoot
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
             };
 
             var result = await dialog.ShowAsync();

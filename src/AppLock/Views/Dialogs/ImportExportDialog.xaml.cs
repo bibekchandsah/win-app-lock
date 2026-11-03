@@ -17,6 +17,7 @@ public sealed partial class ImportExportDialog : ContentDialog
     {
         this.InitializeComponent();
         XamlRoot = xamlRoot;
+        RequestedTheme = ((FrameworkElement)xamlRoot.Content).ActualTheme;
         ViewModel = new ImportDialogViewModel(newRules, conflicts);
         RulesList.ItemsSource = ViewModel.AllRules;
         
