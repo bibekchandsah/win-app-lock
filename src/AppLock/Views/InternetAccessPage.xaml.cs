@@ -774,54 +774,93 @@ public sealed partial class InternetAccessPage : Page
     {
         try
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            // Workaround: List files from Documents\AppLock folder (file pickers are broken)
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var appLockFolder = System.IO.Path.Combine(documentsPath, "AppLock");
             
-            picker.FileTypeFilter.Add(".json");
-            var file = await picker.PickSingleFileAsync();
-            
-            if (file != null)
+            if (!System.IO.Directory.Exists(appLockFolder))
             {
-                var importService = _viewModel.ImportExportService;
-                var exportData = await importService.ImportFromFileAsync(file.Path);
-                
-                if (exportData == null)
-                {
-                    await ShowMessageAsync("Import Failed", "Invalid or corrupted import file.");
-                    return;
-                }
+                await ShowMessageAsync("No Export Files", 
+                    "No exported rule files found.\n\nExport some rules first, then try importing.");
+                return;
+            }
 
-                var rules = importService.ConvertToRules(exportData);
-                var (newRules, conflicts) = importService.CheckConflicts(rules, _viewModel.Apps.Select(a => a.Entry).ToList());
-                
-                if (newRules.Count == 0 && conflicts.Count == 0)
-                {
-                    await ShowMessageAsync("Import", "No rules to import.");
-                    return;
-                }
+            var jsonFiles = System.IO.Directory.GetFiles(appLockFolder, "*.json")
+                .OrderByDescending(f => System.IO.File.GetLastWriteTime(f))
+                .Take(10)
+                .Select(f => new { FileName = System.IO.Path.GetFileName(f), FullPath = f })
+                .ToList();
 
-                var dialog = new Dialogs.ImportExportDialog(XamlRoot, newRules, conflicts);
-                var result = await dialog.ShowAsync();
-                
-                if (result == ContentDialogResult.Primary)
+            if (jsonFiles.Count == 0)
+            {
+                await ShowMessageAsync("No Export Files", 
+                    "No JSON files found in Documents\\AppLock\\\n\nExport some rules first, then try importing.");
+                return;
+            }
+
+            // Show file selection dialog
+            var listView = new ListView
+            {
+                ItemsSource = jsonFiles.Select(f => f.FileName).ToList(),
+                SelectionMode = ListViewSelectionMode.Single,
+                MaxHeight = 400
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = "Select File to Import",
+                Content = listView,
+                PrimaryButtonText = "Import",
+                CloseButtonText = "Cancel",
+                XamlRoot = XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary || listView.SelectedIndex < 0)
+                return;
+
+            var selectedFile = jsonFiles[listView.SelectedIndex];
+            var importService = _viewModel.ImportExportService;
+            var exportData = await importService.ImportFromFileAsync(selectedFile.FullPath);
+            
+            if (exportData == null)
+            {
+                await ShowMessageAsync("Import Failed", "Invalid or corrupted import file.");
+                return;
+            }
+
+            var rules = importService.ConvertToRules(exportData);
+            var (newRules, conflicts) = importService.CheckConflicts(rules, _viewModel.Apps.Select(a => a.Entry).ToList());
+            
+            if (newRules.Count == 0 && conflicts.Count == 0)
+            {
+                await ShowMessageAsync("Import", "No rules to import.");
+                return;
+            }
+
+            var importDialog = new Dialogs.ImportExportDialog(XamlRoot, newRules, conflicts);
+            var importResult = await importDialog.ShowAsync();
+            
+            if (importResult == ContentDialogResult.Primary)
+            {
+                foreach (var rule in importDialog.SelectedRules)
                 {
-                    foreach (var rule in dialog.SelectedRules)
-                    {
-                        ServiceContainer.Settings.NetworkRules.Add(rule);
-                        _viewModel.Apps.Add(new NetworkRuleViewModel(rule));
-                    }
-                    
-                    _settingsStore.Save(ServiceContainer.Settings);
-                    UpdateAppsVisibility();
-                    
-                    await ShowMessageAsync("Import Complete", $"Imported {dialog.SelectedRules.Count} rules.");
+                    ServiceContainer.Settings.NetworkRules.Add(rule);
+                    _viewModel.Apps.Add(new NetworkRuleViewModel(rule));
                 }
+                
+                _settingsStore.Save(ServiceContainer.Settings);
+                UpdateAppsVisibility();
+                
+                LogService.LogFirewallAction("IMPORT", $"{importDialog.SelectedRules.Count} rules", $"Imported from {selectedFile.FileName}");
+                await ShowMessageAsync("Import Complete", $"Imported {importDialog.SelectedRules.Count} rules.");
             }
         }
         catch (Exception ex)
         {
-            await ShowMessageAsync("Import Error", $"Failed to import rules: {ex.Message}");
+            var errorDetails = $"Type: {ex.GetType().Name}\nMessage: {(string.IsNullOrEmpty(ex.Message) ? "No message" : ex.Message)}\nInner: {ex.InnerException?.Message}";
+            LogService.LogFirewallAction("IMPORT_ERROR", "Import failed", errorDetails);
+            await ShowMessageAsync("Import Error", $"Failed to import rules:\n\n{errorDetails}");
         }
     }
     
@@ -835,26 +874,27 @@ public sealed partial class InternetAccessPage : Page
                 return;
             }
 
-            var picker = new Windows.Storage.Pickers.FileSavePicker();
-            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            // Workaround: Save directly to Documents folder (file pickers are broken in unpackaged WinUI3 apps)
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var appLockFolder = System.IO.Path.Combine(documentsPath, "AppLock");
+            System.IO.Directory.CreateDirectory(appLockFolder);
             
-            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
-            picker.FileTypeChoices.Add("JSON file", new List<string> { ".json" });
-            picker.SuggestedFileName = $"AppLock-Firewall-Rules-{DateTime.Now:yyyy-MM-dd}";
+            var fileName = $"AppLock-Firewall-Rules-{DateTime.Now:yyyy-MM-dd-HHmmss}.json";
+            var filePath = System.IO.Path.Combine(appLockFolder, fileName);
             
-            var file = await picker.PickSaveFileAsync();
+            var rules = _viewModel.Apps.Select(a => a.Entry).ToList();
+            await _viewModel.ImportExportService.ExportToFileAsync(rules, filePath);
             
-            if (file != null)
-            {
-                var rules = _viewModel.Apps.Select(a => a.Entry).ToList();
-                await _viewModel.ImportExportService.ExportToFileAsync(rules, file.Path);
-                await ShowMessageAsync("Export Complete", $"Exported {rules.Count} rules to {file.Name}");
-            }
+            LogService.LogFirewallAction("EXPORT", $"{rules.Count} rules", $"Exported to {fileName}");
+            
+            await ShowMessageAsync("Export Complete", 
+                $"Exported {rules.Count} rules to:\n\n{filePath}\n\nYou can find it in:\nDocuments\\AppLock\\");
         }
         catch (Exception ex)
         {
-            await ShowMessageAsync("Export Error", $"Failed to export rules: {ex.Message}");
+            var errorDetails = $"Type: {ex.GetType().Name}\nMessage: {(string.IsNullOrEmpty(ex.Message) ? "No message" : ex.Message)}\nInner: {ex.InnerException?.Message}";
+            LogService.LogFirewallAction("EXPORT_ERROR", "Export failed", errorDetails);
+            await ShowMessageAsync("Export Error", $"Failed to export rules:\n\n{errorDetails}");
         }
     }
 }
