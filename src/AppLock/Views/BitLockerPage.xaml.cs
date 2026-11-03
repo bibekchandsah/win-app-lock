@@ -5,6 +5,7 @@ using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using System.Threading.Tasks;
 namespace AppLock.Views;
 /// <summary>Converts bool to "Yes" / "No" string for the Saved Password indicator in the details pane.</summary>
 public sealed class BoolToYesNoConverter : Microsoft.UI.Xaml.Data.IValueConverter
@@ -1166,24 +1167,49 @@ public sealed partial class BitLockerPage : Page
         await dialog.ShowAsync();
     }
     private void DiagnosticsButton_Click(object sender, RoutedEventArgs e) { /* M8 */ }
-    private void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
+    private async void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             // Already elevated — nothing to do
             if (ServiceContainer.BitLockerSupportService.IsElevated) return;
+            
             var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
             if (exe == null) return;
+            
             var psi = new System.Diagnostics.ProcessStartInfo(exe)
             {
                 UseShellExecute = true,
                 Verb = "runas"
             };
-            System.Diagnostics.Process.Start(psi);
-            // Terminate this non-elevated process forcefully.
-            // Environment.Exit is synchronous, ensuring only the elevated window remains.
-            ServiceContainer.Reset();
-            Environment.Exit(0);
+            
+            // Signal authorized exit to prevent watchdog from restarting
+            ProcessProtectionService.SignalAuthorizedExit();
+            ProcessProtectionService.UnprotectCurrentProcess();
+            
+            // Start elevated process
+            var process = System.Diagnostics.Process.Start(psi);
+            
+            if (process != null)
+            {
+                // Wait a moment for elevated process to start, then close this instance
+                await Task.Delay(300);
+                
+                // Hide window before exiting for cleaner UX
+                if (App.MainWindowInstance != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        App.MainWindowInstance.Close();
+                    });
+                }
+                else
+                {
+                    // Terminate this non-elevated process
+                    ServiceContainer.Reset();
+                    Environment.Exit(0);
+                }
+            }
         }
         catch (OperationCanceledException) { /* user cancelled UAC prompt */ }
         catch (Exception ex)
