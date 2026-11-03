@@ -444,14 +444,64 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
-    private void RemoveSelected_Click(object sender, RoutedEventArgs e)
+    private async void RemoveSelected_Click(object sender, RoutedEventArgs e)
     {
         var selected = AppsListView.SelectedItems.Cast<NetworkRuleViewModel>().ToList();
+        if (selected.Count == 0)
+        {
+            await ShowMessageAsync("No Selection", "Please select one or more apps to remove.");
+            return;
+        }
+
+        // Confirm deletion
+        var dialog = new ContentDialog
+        {
+            Title = "Remove Apps",
+            Content = $"Are you sure you want to remove {selected.Count} app(s) from the list?\n\nThis will also remove all associated firewall rules.",
+            PrimaryButtonText = "Remove",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary)
+            return;
+
+        _isBulkOperation = true;
+        int succeeded = 0;
+        int failed = 0;
+
         foreach (var app in selected)
         {
+            // First unblock to remove firewall rules
+            if (app.IsBlocked)
+            {
+                bool unblockSuccess = await _viewModel.UnblockAppAsync(app);
+                if (!unblockSuccess)
+                {
+                    failed++;
+                    continue; // Skip removing from list if we can't remove rules
+                }
+            }
+
+            // Then remove from list
             _viewModel.RemoveApp(app);
+            succeeded++;
         }
+        _isBulkOperation = false;
+
         UpdateAppsVisibility();
+
+        if (failed > 0)
+        {
+            await ShowMessageAsync("Remove Complete",
+                $"Removed: {succeeded}\nFailed: {failed}\n\nSome apps could not be removed because their firewall rules could not be deleted.");
+        }
+        else if (succeeded > 0)
+        {
+            await ShowMessageAsync("Success", $"Successfully removed {succeeded} app(s).");
+        }
     }
 
     private void ImportRules_Click(object sender, RoutedEventArgs e) 
@@ -485,7 +535,7 @@ public sealed partial class InternetAccessPage : Page
         var dialog = new ContentDialog
         {
             Title = "Remove All AppLock Rules",
-            Content = "This will remove all firewall rules created by AppLock. This action cannot be undone.\n\nAre you sure?",
+            Content = "This will remove all apps and their firewall rules from the list. This action cannot be undone.\n\nAre you sure?",
             PrimaryButtonText = "Remove All",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -495,12 +545,40 @@ public sealed partial class InternetAccessPage : Page
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
         {
+            _isBulkOperation = true;
+            int total = _viewModel.Apps.Count;
+            int succeeded = 0;
+            int failed = 0;
+
             foreach (var app in _viewModel.Apps.ToList())
             {
-                await _viewModel.UnblockAppAsync(app);
+                // Unblock first to remove rules
+                if (app.IsBlocked)
+                {
+                    bool unblockSuccess = await _viewModel.UnblockAppAsync(app);
+                    if (!unblockSuccess)
+                    {
+                        failed++;
+                        continue;
+                    }
+                }
+
                 _viewModel.RemoveApp(app);
+                succeeded++;
             }
+            _isBulkOperation = false;
+
             UpdateAppsVisibility();
+
+            if (failed > 0)
+            {
+                await ShowMessageAsync("Remove All Complete",
+                    $"Removed: {succeeded}\nFailed: {failed}\n\nSome firewall rules could not be deleted.");
+            }
+            else
+            {
+                await ShowMessageAsync("Success", $"All {succeeded} apps and their firewall rules have been removed.");
+            }
         }
     }
     
