@@ -202,6 +202,9 @@ public partial class NetworkRuleViewModel : ObservableObject
                 Entry.BlockOutbound = false;
                 break;
         }
+        
+        // Update the status badge to reflect the new direction
+        UpdateStatus();
     }
 
     public void SetBlocked(bool blocked)
