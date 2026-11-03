@@ -68,8 +68,16 @@ public partial class NetworkRuleViewModel : ObservableObject
         _isBlocked = entry.Blocked;
         _fileExists = File.Exists(entry.ExePath);
         
-        // Capture dispatcher queue
-        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        // Try to capture dispatcher queue - may be null if not on UI thread
+        try
+        {
+            _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        }
+        catch
+        {
+            _dispatcherQueue = null;
+            System.Diagnostics.Debug.WriteLine($"[NetworkRule] Could not capture DispatcherQueue for {entry.DisplayName}");
+        }
 
         UpdateDirection();
         UpdateStatus();

@@ -134,22 +134,19 @@ public sealed partial class InternetAccessPage : Page
     {
         try
         {
-            var picker = new FileOpenPicker
+            // Use Win32 OpenFileDialog as workaround for broken FileOpenPicker in unpackaged apps
+            var openFileDialog = new System.Windows.Forms.OpenFileDialog
             {
-                ViewMode = PickerViewMode.List,
-                SuggestedStartLocation = PickerLocationId.ComputerFolder
+                Filter = "Executable Files (*.exe)|*.exe|Shortcut Files (*.lnk)|*.lnk|All Files (*.*)|*.*",
+                FilterIndex = 1,
+                Title = "Select Program to Block",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
             };
-            
-            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
-            InitializeWithWindow.Initialize(picker, hwnd);
-            
-            picker.FileTypeFilter.Add(".exe");
-            picker.FileTypeFilter.Add(".lnk");
-            
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
+
+            var result = openFileDialog.ShowDialog();
+            if (result == System.Windows.Forms.DialogResult.OK)
             {
-                string exePath = file.Path;
+                string exePath = openFileDialog.FileName;
                 
                 // Resolve .lnk shortcuts
                 if (exePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
@@ -173,14 +170,21 @@ public sealed partial class InternetAccessPage : Page
                         return;
                 }
 
-                await _viewModel.AddAppAsync(exePath, displayName, blockImmediately: true);
+                await _viewModel.AddAppAsync(
+                    exePath, 
+                    displayName, 
+                    blockImmediately: true, 
+                    direction: "Outgoing", 
+                    packageFamilyName: null, 
+                    icon: null);
                 UpdateAppsVisibility();
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error browsing for program: {ex.Message}");
-            await ShowMessageAsync("Error", $"Failed to add program: {ex.Message}");
+            Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            await ShowMessageAsync("Error", $"Failed to add program:\n\n{ex.Message}\n\nType: {ex.GetType().Name}");
         }
     }
 
@@ -248,7 +252,13 @@ public sealed partial class InternetAccessPage : Page
                         return;
                 }
 
-                await _viewModel.AddAppAsync(selected.ProcessPath, selected.ProcessName, blockImmediately: true);
+                await _viewModel.AddAppAsync(
+                    selected.ProcessPath, 
+                    selected.ProcessName, 
+                    blockImmediately: true, 
+                    direction: "Outgoing", 
+                    packageFamilyName: null, 
+                    icon: null);
                 UpdateAppsVisibility();
             }
         }
@@ -302,7 +312,13 @@ public sealed partial class InternetAccessPage : Page
                         return;
                 }
 
-                await _viewModel.AddAppAsync(pickedWindow.ProcessPath, displayName, blockImmediately: true);
+                await _viewModel.AddAppAsync(
+                    pickedWindow.ProcessPath, 
+                    displayName, 
+                    blockImmediately: true, 
+                    direction: "Outgoing", 
+                    packageFamilyName: null, 
+                    icon: null);
                 UpdateAppsVisibility();
             }
         }
@@ -791,7 +807,13 @@ public sealed partial class InternetAccessPage : Page
 
             // Add to Apps list and block
             string displayName = connection.ProcessName;
-            await _viewModel.AddAppAsync(connection.ProcessPath, displayName, blockImmediately: true);
+            await _viewModel.AddAppAsync(
+                connection.ProcessPath, 
+                displayName, 
+                blockImmediately: true, 
+                direction: "Outgoing", 
+                packageFamilyName: null, 
+                icon: null);
             UpdateAppsVisibility();
 
             await ShowMessageAsync("Blocked", $"{displayName} has been added to the blocked apps list.");

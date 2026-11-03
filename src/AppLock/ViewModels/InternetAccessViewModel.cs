@@ -142,15 +142,23 @@ public partial class InternetAccessViewModel : ObservableObject
     {
         try
         {
+            LogService.LogFirewallAction("ADD_START", displayName, $"Starting add: {exePath}");
+            Debug.WriteLine($"[AddApp] Step 1: Checking duplicates for {displayName}");
+            
             // Check for duplicates
             var key = packageFamilyName ?? exePath;
             if (Apps.Any(a => 
                 (a.Entry.PackageFamilyName != null && a.Entry.PackageFamilyName.Equals(packageFamilyName, StringComparison.OrdinalIgnoreCase)) ||
                 (a.ExePath.Equals(exePath, StringComparison.OrdinalIgnoreCase))))
             {
+                LogService.LogFirewallAction("ADD_DUPLICATE", displayName, "Already exists");
+                Debug.WriteLine($"[AddApp] Already added: {displayName}");
                 return; // Already added
             }
 
+            LogService.LogFirewallAction("ADD_STEP2", displayName, "Creating NetworkRuleEntry");
+            Debug.WriteLine($"[AddApp] Step 2: Creating NetworkRuleEntry for {displayName}");
+            
             var entry = new NetworkRuleEntry
             {
                 Id = Guid.NewGuid(),
@@ -163,30 +171,68 @@ public partial class InternetAccessViewModel : ObservableObject
                 Profiles = 0x7
             };
 
-            var viewModel = new NetworkRuleViewModel(entry);
+            LogService.LogFirewallAction("ADD_STEP3", displayName, "Creating ViewModel");
+            Debug.WriteLine($"[AddApp] Step 3: Creating ViewModel for {displayName}");
+            
+            // Create ViewModel - this must be done on UI thread to capture DispatcherQueue
+            NetworkRuleViewModel viewModel;
+            try
+            {
+                viewModel = new NetworkRuleViewModel(entry);
+                LogService.LogFirewallAction("ADD_VM_OK", displayName, "ViewModel created");
+                Debug.WriteLine($"[AddApp] ViewModel created successfully");
+            }
+            catch (Exception vmEx)
+            {
+                LogService.LogFirewallAction("ADD_VM_ERROR", displayName, $"{vmEx.GetType().Name}: {vmEx.Message}");
+                Debug.WriteLine($"[AddApp] ViewModel creation failed: {vmEx.GetType().Name} - {vmEx.Message}");
+                throw;
+            }
+            
+            LogService.LogFirewallAction("ADD_STEP4", displayName, "Setting icon");
+            Debug.WriteLine($"[AddApp] Step 4: Setting icon for {displayName}");
             
             // Set icon if provided, otherwise it will load asynchronously
             if (icon != null)
             {
                 viewModel.Icon = icon;
             }
+            else
+            {
+                // Trigger icon loading asynchronously
+                _ = viewModel.LoadIconAsync();
+            }
             
+            LogService.LogFirewallAction("ADD_STEP5", displayName, "Adding to collection");
+            Debug.WriteLine($"[AddApp] Step 5: Adding to collection");
             Apps.Add(viewModel);
             HasApps = true;
 
+            LogService.LogFirewallAction("ADD_STEP6", displayName, "Saving to settings");
+            Debug.WriteLine($"[AddApp] Step 6: Saving to settings");
             ServiceContainer.Settings.NetworkRules.Add(entry);
             _settingsStore.Save(ServiceContainer.Settings);
 
-            LogService.LogFirewallAction("ADD", displayName, blockImmediately ? "Blocked immediately" : "Added without blocking");
+            LogService.LogFirewallAction("ADD_STEP7", displayName, blockImmediately ? "Blocked immediately" : "Added without blocking");
+            Debug.WriteLine($"[AddApp] Step 7: Logging action");
 
             if (blockImmediately)
             {
+                LogService.LogFirewallAction("ADD_STEP8", displayName, "Calling BlockAppAsync");
+                Debug.WriteLine($"[AddApp] Step 8: Blocking app");
                 await BlockAppAsync(viewModel);
+                LogService.LogFirewallAction("ADD_BLOCK_DONE", displayName, "BlockAppAsync completed");
             }
+            
+            LogService.LogFirewallAction("ADD_COMPLETE", displayName, "Successfully added");
+            Debug.WriteLine($"[AddApp] Completed successfully for {displayName}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error adding app: {ex.Message}");
+            LogService.LogFirewallAction("ADD_ERROR", displayName, $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            Debug.WriteLine($"[AddApp] ERROR: {ex.GetType().Name} - {ex.Message}");
+            Debug.WriteLine($"[AddApp] Stack trace: {ex.StackTrace}");
+            throw; // Re-throw to let caller handle it
         }
     }
 
