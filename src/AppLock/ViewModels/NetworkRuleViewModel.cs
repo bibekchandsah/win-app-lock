@@ -71,14 +71,14 @@ public partial class NetworkRuleViewModel : ObservableObject
 
     public void UpdateStatus()
     {
-        if (!_fileExists)
+        if (!FileExists)
         {
             StatusText = "App not found";
             StatusBrush = new SolidColorBrush(Color.FromArgb(255, 108, 117, 125)); // Gray
             return;
         }
 
-        if (_isBlocked)
+        if (IsBlocked)
         {
             if (Entry.BlockInbound && Entry.BlockOutbound)
             {

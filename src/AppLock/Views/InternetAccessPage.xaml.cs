@@ -461,7 +461,7 @@ public sealed partial class InternetAccessPage : Page
 
     // Active connections filter (removed old placeholder handlers)
     // Info bar actions
-    private void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
+    private async void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -472,10 +472,37 @@ public sealed partial class InternetAccessPage : Page
                 UseShellExecute = true,
                 Verb = "runas"
             };
-            Process.Start(psi);
-            Application.Current.Exit();
+            
+            // Signal authorized exit to prevent watchdog from restarting
+            ProcessProtectionService.SignalAuthorizedExit();
+            ProcessProtectionService.UnprotectCurrentProcess();
+            
+            // Start elevated process
+            var process = Process.Start(psi);
+            
+            if (process != null)
+            {
+                // Wait a moment for elevated process to start, then close this instance
+                await Task.Delay(300);
+                
+                // Hide window before exiting for cleaner UX
+                if (App.MainWindowInstance != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        App.MainWindowInstance.Close();
+                    });
+                }
+                else
+                {
+                    Application.Current.Exit();
+                }
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error restarting as admin: {ex.Message}");
+        }
     }
 
     private void OpenWindowsSecurityButton_Click(object sender, RoutedEventArgs e)
