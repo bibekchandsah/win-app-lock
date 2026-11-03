@@ -35,6 +35,13 @@ public partial class NetworkRuleViewModel : ObservableObject
     [ObservableProperty]
     private string _direction = "Outgoing";
 
+    public event EventHandler<string>? DirectionChanged;
+
+    partial void OnDirectionChanged(string value)
+    {
+        DirectionChanged?.Invoke(this, value);
+    }
+
     [ObservableProperty]
     private bool _fileExists;
 

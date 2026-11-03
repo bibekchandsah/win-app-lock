@@ -198,6 +198,53 @@ public partial class InternetAccessViewModel : ObservableObject
         LogService.LogFirewallAction("REMOVE", app.DisplayName);
     }
 
+    public async Task<bool> UpdateDirectionAsync(NetworkRuleViewModel app, string newDirection)
+    {
+        try
+        {
+            string ruleName = app.Entry.CustomRuleName ?? $"AppLock - {app.DisplayName}";
+            
+            // Remove existing rules first
+            await _firewallService.RemoveRuleAsync($"{ruleName} (Outbound)");
+            await _firewallService.RemoveRuleAsync($"{ruleName} (Inbound)");
+
+            // Update the entry
+            app.SetDirection(newDirection);
+
+            // Create new rules based on direction if blocked
+            if (app.IsBlocked)
+            {
+                bool success = await _firewallService.CreateRuleAsync(
+                    ruleName,
+                    app.ExePath,
+                    app.Entry.BlockInbound,
+                    app.Entry.BlockOutbound,
+                    app.Entry.Profiles,
+                    app.Entry.Id);
+
+                if (success)
+                {
+                    _settingsStore.Save(ServiceContainer.Settings);
+                    LogService.LogFirewallAction("UPDATE_DIRECTION", app.DisplayName, $"Direction: {newDirection}");
+                    return true;
+                }
+            }
+            else
+            {
+                // Just save the preference, no rules to create
+                _settingsStore.Save(ServiceContainer.Settings);
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error updating direction: {ex.Message}");
+            return false;
+        }
+    }
+
     public async Task RefreshAsync()
     {
         await LoadAppsAsync();

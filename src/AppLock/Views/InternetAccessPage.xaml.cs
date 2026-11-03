@@ -590,6 +590,19 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private async void DirectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox comboBox && comboBox.DataContext is NetworkRuleViewModel app)
+        {
+            // Only process if selection actually changed (not initial binding)
+            if (e.AddedItems.Count > 0 && e.RemovedItems.Count > 0)
+            {
+                string newDirection = e.AddedItems[0] as string ?? "Outgoing";
+                await _viewModel.UpdateDirectionAsync(app, newDirection);
+            }
+        }
+    }
+
     private async Task ImportRulesAsync()
     {
         try

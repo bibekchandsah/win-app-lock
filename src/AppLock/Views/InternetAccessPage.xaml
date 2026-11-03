@@ -239,7 +239,8 @@
                                         <ComboBox Grid.Column="2"
                                                   SelectedItem="{Binding Direction, Mode=TwoWay}"
                                                   MinWidth="120"
-                                                  VerticalAlignment="Center">
+                                                  VerticalAlignment="Center"
+                                                  SelectionChanged="DirectionComboBox_SelectionChanged">
                                             <x:String>Outgoing</x:String>
                                             <x:String>Incoming</x:String>
                                             <x:String>Both</x:String>
