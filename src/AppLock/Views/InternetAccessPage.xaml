@@ -240,9 +240,9 @@
                                                   SelectedItem="{Binding Direction, Mode=TwoWay}"
                                                   MinWidth="120"
                                                   VerticalAlignment="Center">
-                                            <ComboBoxItem Content="Outgoing"/>
-                                            <ComboBoxItem Content="Incoming"/>
-                                            <ComboBoxItem Content="Both"/>
+                                            <x:String>Outgoing</x:String>
+                                            <x:String>Incoming</x:String>
+                                            <x:String>Both</x:String>
                                         </ComboBox>
 
                                         <!-- Status Chip -->

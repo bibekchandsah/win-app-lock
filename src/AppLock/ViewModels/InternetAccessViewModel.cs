@@ -128,7 +128,7 @@ public partial class InternetAccessViewModel : ObservableObject
     {
         try
         {
-            string ruleName = app.Entry.CustomRuleName ?? $"AppLock – {app.DisplayName}";
+            string ruleName = app.Entry.CustomRuleName ?? $"AppLock - {app.DisplayName}";
             
             bool success = await _firewallService.CreateRuleAsync(
                 ruleName,
@@ -158,7 +158,7 @@ public partial class InternetAccessViewModel : ObservableObject
     {
         try
         {
-            string ruleName = app.Entry.CustomRuleName ?? $"AppLock – {app.DisplayName}";
+            string ruleName = app.Entry.CustomRuleName ?? $"AppLock - {app.DisplayName}";
             
             bool success = true;
 

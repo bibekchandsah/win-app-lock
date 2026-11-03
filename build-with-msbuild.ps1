@@ -8,9 +8,14 @@ try {
 } catch {}
 
 if (Get-Process "AppLock" -ErrorAction SilentlyContinue) {
-    & taskkill.exe /F /IM "AppLock.exe" 2>$null
-    Start-Sleep -Milliseconds 600
+    # & taskkill.exe /F /IM "AppLock.exe" 2>$null
+    # Start-Sleep -Milliseconds 600
+    Write-Host "`Close the AppLock manually" -ForegroundColor Red
+    Write-Host "`nPress Enter to continue..."
+    Read-Host
 }
+
+
 
 # Move any locked output files aside so the build can write fresh copies cleanly
 $outDir = "src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0"
@@ -38,6 +43,8 @@ if ($vsPath) {
         Write-Host "`nBuild succeeded!" -ForegroundColor Green
         Write-Host "`nTo run the app, execute:" -ForegroundColor Cyan
         Write-Host ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -ForegroundColor Yellow
+        Write-Host "`nTo run the app as administrator, execute:" -ForegroundColor Cyan
+        Write-Host 'Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs' -ForegroundColor Yellow
     } else {
         Write-Host "`nBuild failed with exit code $LASTEXITCODE" -ForegroundColor Red
     }

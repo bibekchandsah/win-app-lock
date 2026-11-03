@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Threading.Tasks;
 
 namespace AppLock.Services.Firewall;
@@ -13,14 +14,28 @@ namespace AppLock.Services.Firewall;
 public class WindowsFirewallService : IFirewallService
 {
     private const string APPLOCK_GROUP = "AppLock Connection Firewall";
-    private const string DESCRIPTION_PREFIX = "AppLock-managed|id=";
+    private const string DESCRIPTION_PREFIX = "Managed by AppLock ";
     
     // COM constants
     private const int NET_FW_RULE_DIR_IN = 1;
     private const int NET_FW_RULE_DIR_OUT = 2;
     private const int NET_FW_ACTION_BLOCK = 0;
-    private const int NET_FW_PROFILE2_ALL = 0x7FFFFFFF;
+    private const int NET_FW_PROFILE2_ALL = 0x7; // Domain (1) + Private (2) + Public (4)
     private const int NET_FW_IP_PROTOCOL_ANY = 256;
+
+    private bool IsElevated()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public async Task<bool> CreateRuleAsync(
         string ruleName,
@@ -35,18 +50,34 @@ public class WindowsFirewallService : IFirewallService
         {
             try
             {
+                LogService.LogAction("firewall", $"CreateRuleAsync: Starting for {ruleName}, IsElevated={IsElevated()}");
+                
                 Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-                if (policyType == null) return false;
+                if (policyType == null)
+                {
+                    LogService.LogAction("firewall", "CreateRuleAsync: Failed to get FwPolicy2 type");
+                    return false;
+                }
+                LogService.LogAction("firewall", "CreateRuleAsync: Got FwPolicy2 type");
 
                 dynamic? policy = Activator.CreateInstance(policyType);
-                if (policy == null) return false;
+                if (policy == null)
+                {
+                    LogService.LogAction("firewall", "CreateRuleAsync: Failed to create FwPolicy2 instance");
+                    return false;
+                }
+                LogService.LogAction("firewall", "CreateRuleAsync: Created FwPolicy2 instance");
 
                 dynamic rules = policy.Rules;
+                int ruleCount = 0;
+                try { ruleCount = rules.Count; } catch { }
+                LogService.LogAction("firewall", $"CreateRuleAsync: Got Rules collection, count={ruleCount}");
 
                 // Create outbound rule if requested
                 if (blockOutbound)
                 {
                     string outboundName = $"{ruleName} (Outbound)";
+                    LogService.LogAction("firewall", $"CreateRuleAsync: Creating outbound rule: {outboundName}");
                     CreateSingleRule(rules, outboundName, exePath, NET_FW_RULE_DIR_OUT, profiles, id, description);
                 }
 
@@ -54,24 +85,26 @@ public class WindowsFirewallService : IFirewallService
                 if (blockInbound)
                 {
                     string inboundName = $"{ruleName} (Inbound)";
+                    LogService.LogAction("firewall", $"CreateRuleAsync: Creating inbound rule: {inboundName}");
                     CreateSingleRule(rules, inboundName, exePath, NET_FW_RULE_DIR_IN, profiles, id, description);
                 }
 
+                LogService.LogAction("firewall", "CreateRuleAsync: Success");
                 return true;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                System.Diagnostics.Debug.WriteLine("Access denied: Administrator rights required");
+                LogService.LogAction("firewall", $"CreateRuleAsync: Access denied - {ex.Message}");
                 return false;
             }
             catch (COMException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"COM error creating firewall rule: {ex.Message}");
+                LogService.LogAction("firewall", $"CreateRuleAsync: COM error - {ex.Message}, HResult=0x{ex.HResult:X8}");
                 return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating firewall rule: {ex.Message}");
+                LogService.LogAction("firewall", $"CreateRuleAsync: Error - {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         });
@@ -81,6 +114,8 @@ public class WindowsFirewallService : IFirewallService
     {
         try
         {
+            LogService.LogAction("firewall", $"CreateSingleRule: Starting for {ruleName}");
+            
             // Remove existing rule with same name if it exists and belongs to AppLock
             try
             {
@@ -90,20 +125,35 @@ public class WindowsFirewallService : IFirewallService
                     string grouping = existingRule.Grouping ?? string.Empty;
                     if (grouping == APPLOCK_GROUP)
                     {
+                        LogService.LogAction("firewall", $"CreateSingleRule: Removing existing rule {ruleName}");
                         rules.Remove(ruleName);
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogService.LogAction("firewall", $"CreateSingleRule: Error checking existing rule - {ex.Message}");
+            }
 
             Type? ruleType = Type.GetTypeFromProgID("HNetCfg.FWRule");
-            if (ruleType == null) return;
+            if (ruleType == null)
+            {
+                LogService.LogAction("firewall", "CreateSingleRule: Failed to get FWRule type");
+                return;
+            }
+            LogService.LogAction("firewall", "CreateSingleRule: Got FWRule type");
 
             dynamic? rule = Activator.CreateInstance(ruleType);
-            if (rule == null) return;
+            if (rule == null)
+            {
+                LogService.LogAction("firewall", "CreateSingleRule: Failed to create FWRule instance");
+                return;
+            }
+            LogService.LogAction("firewall", "CreateSingleRule: Created FWRule instance");
             
+            LogService.LogAction("firewall", $"CreateSingleRule: Setting properties - Name={ruleName}, ExePath={exePath}, Direction={direction}");
             rule.Name = ruleName;
-            rule.Description = description ?? $"{DESCRIPTION_PREFIX}{id}";
+            rule.Description = description ?? $"{DESCRIPTION_PREFIX}{id:N}"; // Use :N format (no hyphens)
             rule.Grouping = APPLOCK_GROUP;
             rule.ApplicationName = exePath;
             rule.Direction = direction;
@@ -112,12 +162,13 @@ public class WindowsFirewallService : IFirewallService
             rule.Profiles = profiles;
             rule.Protocol = NET_FW_IP_PROTOCOL_ANY;
 
+            LogService.LogAction("firewall", $"CreateSingleRule: Adding rule to collection");
             rules.Add(rule);
-            System.Diagnostics.Debug.WriteLine($"Created firewall rule: {ruleName}");
+            LogService.LogAction("firewall", $"CreateSingleRule: Successfully added rule {ruleName}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error creating single rule {ruleName}: {ex.Message}");
+            LogService.LogAction("firewall", $"CreateSingleRule: Error - {ex.GetType().Name}: {ex.Message}");
             throw;
         }
     }

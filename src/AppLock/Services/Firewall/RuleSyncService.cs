@@ -59,7 +59,7 @@ public class RuleSyncService
                 actualRules = await _firewallService.GetAppLockRulesAsync();
             }
 
-            string ruleName = entry.CustomRuleName ?? $"AppLock – {entry.DisplayName}";
+            string ruleName = entry.CustomRuleName ?? $"AppLock - {entry.DisplayName}";
             
             bool outboundExpected = entry.BlockOutbound && entry.Blocked;
             bool inboundExpected = entry.BlockInbound && entry.Blocked;
@@ -122,7 +122,7 @@ public class RuleSyncService
         try
         {
             var entry = drift.Entry;
-            string ruleName = entry.CustomRuleName ?? $"AppLock – {entry.DisplayName}";
+            string ruleName = entry.CustomRuleName ?? $"AppLock - {entry.DisplayName}";
 
             if (entry.Blocked)
             {

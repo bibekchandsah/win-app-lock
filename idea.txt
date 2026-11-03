@@ -35,6 +35,7 @@ msbuild src\AppLock\AppLock.csproj /p:Configuration=Release /p:Platform=x64 /t:R
 Run the app:
 dotnet run --project src\AppLock\AppLock.csproj
 LAUNCH the app:- .\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe
+Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs
 
 cache and rebuild:
 # Clean the build outputs
@@ -174,3 +175,12 @@ taskkill /f /t /im AppLock.exe
 Get-Process AppLock -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process WerFault -ErrorAction SilentlyContinue | Stop-Process -Force   # clears ghost error dialogs
 
+Log Location:
+%APPDATA%\AppLock\logs\firewall-2026-11.log
+Full path (for you):
+C:\Users\bibek\AppData\Roaming\AppLock\logs\firewall-2026-11.log
+To view logs, run in your PowerShell:
+# View the firewall log
+notepad "$env:APPDATA\AppLock\logs\firewall-2026-11.log"
+# Or view all logs
+Get-ChildItem "$env:APPDATA\AppLock\logs\" | ForEach-Object { Write-Host "`n=== $($_.Name) ===" -ForegroundColor Cyan; Get-Content $_.FullName -Tail 20 }
