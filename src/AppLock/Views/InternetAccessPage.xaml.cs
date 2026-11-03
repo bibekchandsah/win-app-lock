@@ -752,7 +752,7 @@ public sealed partial class InternetAccessPage : Page
         if (sender is ToggleSwitch toggle && toggle.DataContext is NetworkRuleViewModel app)
         {
             // Only process if this is a user-initiated change (not initial binding)
-            if (toggle.FocusState != FocusState.Unfocused || e.OriginalSource == toggle)
+            if (toggle.FocusState != FocusState.Unfocused || ReferenceEquals(e.OriginalSource, toggle))
             {
                 bool isBlocked = toggle.IsOn;
                 
