@@ -778,6 +778,300 @@ Added Win32 API declarations:
    - Microsoft Store apps work
    - Process name shows app name, not "ApplicationFrameHost"
 
+4. **Multi-Monitor & DPI**:
+   - Overlays position correctly on all monitors
+   - Correct placement at various DPI scales
+   - Shadow-free positioning
+   - Monitor bounds detection
+
+### Next Milestone
+
+Milestone 9+ features (brightness control, BitLocker integration, etc.)
+
+
+## Milestone 9: Internet Access (Connection Firewall) Feature
+
+### Overview
+
+Implemented a complete Internet Access control feature that allows blocking/unblocking network access for applications using Windows Firewall. This is a major new feature beyond the original protection/locking functionality.
+
+### Architecture
+
+**Services:**
+
+1. **WindowsFirewallService** (`Services/Firewall/WindowsFirewallService.cs`):
+   - Manages Windows Firewall COM API (HNetCfg)
+   - Creates/removes firewall rules with proper direction (Inbound/Outbound/Both)
+   - All rules placed in "AppLock Connection Firewall" group
+   - Rules use Action=Block, Enabled=true, all profiles (Domain+Private+Public)
+   - Supports both .exe paths and UWP PackageFamilyName
+   - Proper rule naming: "AppLock - {AppName} (Outbound/Inbound)"
+   - Validates system elevation status
+   - Comprehensive logging for debugging
+
+2. **InstalledAppsService** (`Services/InstalledAppsService.cs`):
+   - Enumerates installed applications from multiple sources:
+     - Win32 apps from Uninstall registry keys
+     - UWP apps from Windows.Management.Deployment.PackageManager
+   - Extracts DisplayName, InstallPath/PackageFamilyName, Icon
+   - Filters system-critical apps (svchost, csrss, lsass, etc.)
+   - Provides `IsSystemCritical()` check to prevent accidental blocking
+   - Returns unified AppInfo list sorted alphabetically
+
+3. **NetworkConnectionService** (`Services/Firewall/NetworkConnectionService.cs`):
+   - Monitors active network connections using `GetExtendedTcpTable` and `GetExtendedUdpTable`
+   - Resolves local/remote addresses and ports
+   - Maps PIDs to process names and paths
+   - Returns connection info: Protocol, LocalAddress, RemoteAddress, State, ProcessName
+   - Updates on-demand (no polling by default)
+
+4. **ImportExportService** (`Services/Firewall/ImportExportService.cs`):
+   - Exports NetworkRuleEntry list to JSON format
+   - Imports JSON with conflict detection
+   - Stores files in Documents\AppLock\ folder (workaround for broken file pickers)
+   - Uses System.Text.Json serialization
+   - Includes metadata: version, timestamp, rule count
+   - Supports manual file management
+
+**ViewModels:**
+
+1. **InternetAccessViewModel** (`ViewModels/InternetAccessViewModel.cs`):
+   - Manages list of blocked/allowed apps
+   - Commands: Block, Unblock, Remove, UpdateDirection, BulkUnblock
+   - Loads rules from settings on startup
+   - Saves rules to settings on changes
+   - Integrates with WindowsFirewallService for rule creation/removal
+   - Import/export functionality
+   - Search filtering
+   - Lazy icon loading for first 15 apps + scroll-based loading
+   - Proper logging integration
+
+2. **ActiveConnectionViewModel** (`ViewModels/ActiveConnectionViewModel.cs`):
+   - Displays active TCP/UDP connections
+   - Auto-refresh every 5 seconds (toggleable)
+   - Incremental UI updates (only changed connections refresh)
+   - Quick-add to blocked list from connection
+   - Process name based blocking
+   - Connection key tracking to minimize UI flicker
+   - Filter toggle for refresh behavior
+
+3. **NetworkRuleViewModel** (`ViewModels/NetworkRuleViewModel.cs`):
+   - Represents a single firewall rule
+   - Properties: DisplayName, ExePath, Icon, IsBlocked, Direction, StatusText
+   - Badge system:
+     - **"Blocked"** (red) = Both directions blocked
+     - **"Partially blocked"** (yellow) = Single direction blocked
+     - **"Allowed"** (green) = Not blocked
+   - Lazy icon loading with DispatcherQueue support
+   - `SetDirection()` updates badge immediately
+   - `UpdateStatus()` recalculates badge text and color
+
+**Views:**
+
+1. **InternetAccessPage.xaml**:
+   - Complete UI for managing network rules
+   - Top section: Firewall status card
+     - Firewall Enabled: True/False
+     - Service Running: True/False
+     - Group Policy Managed: True/False (must be False for app to work)
+     - Current Profile: 1=Domain, 2=Private, 4=Public
+   - Middle section: Control bar
+     - "Add from installed" button → opens installed apps dialog
+     - "Browse for program" button → Win32 file picker dialog
+     - "Block all selected" / "Unblock all selected" buttons
+     - "Remove selected" button
+     - Import/Export buttons
+     - Refresh button
+     - Search box
+   - Apps list (ListView):
+     - App icon (lazy loaded)
+     - Display name
+     - Direction dropdown (Outgoing/Incoming/Both)
+     - Status badge (Blocked/Partially blocked/Allowed)
+     - Block/Unblock toggle
+     - Checkbox for selection
+   - Bottom section: Active Connections expander
+     - Auto-refresh toggle
+     - Manual refresh button
+     - Connection list with Protocol, Local, Remote, State, Process
+     - "Add" button per connection
+
+2. **InstalledAppsDialog.xaml**:
+   - Searchable list of installed applications
+   - Win32 and UWP apps combined
+   - Lazy icon loading (first 15 immediately, then scroll-based batches of 5)
+   - "Load all icons" button for manual loading
+   - Checkbox multi-select
+   - "Add Selected" button
+   - Direction preset (default: Outgoing)
+   - Shows app count
+   - Styled with rounded corners and accent colors
+
+3. **ImportExportDialog.xaml**:
+   - Shows rules to import with conflict detection
+   - Displays: App name, Direction (badge), Conflict status
+   - Allows selecting which rules to import
+   - Clear UI with green/red indicators
+   - Lists conflicts separately
+
+**Models:**
+
+1. **NetworkRuleEntry** (`Models/NetworkRuleEntry.cs`):
+   - Id (Guid), DisplayName, ExePath
+   - PackageFamilyName (for UWP apps)
+   - BlockInbound, BlockOutbound (bool)
+   - Blocked (bool) - controls if rules are active
+   - Profiles (int) - 0x7 = all profiles
+   - CustomRuleName (optional)
+
+2. **ConnectionInfo** (`Models/ConnectionInfo.cs`):
+   - Protocol, LocalAddress, LocalPort
+   - RemoteAddress, RemotePort
+   - State, ProcessName, ProcessId
+   - Connection property for display
+
+### Key Implementation Details
+
+**FileOpenPicker/FileSavePicker Workaround:**
+- FileOpenPicker and FileSavePicker are **broken** in unpackaged WinUI 3 apps
+- They throw COMException when initialized
+- **Solution for Export**: Save to fixed path `Documents\AppLock\networkreules_{timestamp}.json`
+- **Solution for Import**: List files from `Documents\AppLock\*.json` and show dialog
+- **Solution for Browse**: Use `System.Windows.Forms.OpenFileDialog` (Win32 classic dialog)
+
+**Lazy Icon Loading Strategy:**
+- Load first 15 icons immediately on page load
+- Load remaining icons in batches of 5 when user scrolls
+- Use ScrollViewer.ViewChanged event to detect scroll
+- Parallel loading within each batch for performance
+- DispatcherQueue required for BitmapImage creation (UI thread)
+- Icons only loaded once per app (tracked with HashSet)
+
+**Direction Change & Badge Update:**
+- User changes dropdown → `DirectionComboBox_SelectionChanged` fires
+- Calls `UpdateDirectionAsync(app, newDirection)`
+- Removes old firewall rules (both directions)
+- Updates `BlockInbound`/`BlockOutbound` via `SetDirection()`
+- `SetDirection()` calls `UpdateStatus()` to refresh badge
+- Creates new firewall rules based on new direction
+- Badge updates immediately: "Blocked" (red), "Partially blocked" (yellow), "Allowed" (green)
+
+**Firewall Rule Management:**
+- All rules in group "AppLock Connection Firewall"
+- Rule naming: "AppLock - {DisplayName} (Outbound/Inbound)"
+- Action: Block, Enabled: true
+- Profiles: 0x7 (Domain | Private | Public)
+- Direction: 1=Inbound, 2=Outbound
+- Proper cleanup on unblock/remove
+- Checks elevation status before operations
+
+**Active Connections:**
+- Uses `GetExtendedTcpTable` and `GetExtendedUdpTable`
+- Filters out 0.0.0.0 and :: addresses
+- Resolves IP addresses and port numbers
+- Maps PIDs to process info
+- Connection state: Established, Listen, CloseWait, etc.
+- Incremental refresh to reduce UI flicker
+- Uses connection key (Protocol+Local+Remote+State+Process) for tracking
+
+### Build and Integration
+
+**Package References Added:**
+- `System.Windows.Forms` (FrameworkReference) - for OpenFileDialog workaround
+
+**Files Added:**
+- 4 services (WindowsFirewallService, InstalledAppsService, NetworkConnectionService, ImportExportService)
+- 3 ViewModels (InternetAccessViewModel, ActiveConnectionViewModel, NetworkRuleViewModel)
+- 3 Views (InternetAccessPage, InstalledAppsDialog, ImportExportDialog)
+- 2 Models (NetworkRuleEntry, ConnectionInfo)
+- Updated NativeMethods.txt with network APIs
+
+**Integration Points:**
+- Added to MainWindow navigation
+- ServiceContainer includes new services
+- AppSettings includes NetworkRules list
+- LogService used for firewall actions
+- AuthService elevation checks
+
+### Features Working
+
+✅ Block/unblock applications from internet access
+✅ Direction control (Outgoing/Incoming/Both)
+✅ Add from installed apps (Win32 + UWP)
+✅ Browse for any .exe file
+✅ Import/export rules
+✅ Active connections monitoring
+✅ Auto-refresh with incremental updates
+✅ Search/filter apps
+✅ Bulk operations (select multiple, unblock all)
+✅ Status badges with color coding
+✅ Lazy icon loading for performance
+✅ Firewall status display
+✅ System critical app warnings
+✅ Theme synchronization for dialogs
+✅ Browse button using Win32 OpenFileDialog
+
+### Known Issues & Fixes
+
+1. ❌ **FileOpenPicker COMException**: Fixed by using System.Windows.Forms.OpenFileDialog
+2. ❌ **Icons not showing**: Fixed by implementing lazy loading with DispatcherQueue
+3. ❌ **Badge not updating on direction change**: Fixed by calling UpdateStatus() in SetDirection()
+4. ❌ **Dialog theme mismatch**: Fixed by setting RequestedTheme on all ContentDialogs
+5. ❌ **No logs appearing**: Fixed by adding LogService.LogFirewallAction() calls throughout
+
+### User Workflow
+
+1. **Block an app**:
+   - Click "Add from installed" → select apps → Add Selected
+   - Or "Browse for program" → select .exe → Add
+   - App appears in list with "Blocked" badge (red) if direction=Both
+   - Firewall rules created automatically
+
+2. **Change blocking direction**:
+   - Select app in list
+   - Change dropdown from "Outgoing" to "Both" or "Incoming"
+   - Badge updates immediately
+   - Firewall rules recreated with new direction
+
+3. **Unblock an app**:
+   - Toggle switch from "Blocked" to "Allowed"
+   - Badge changes to "Allowed" (green)
+   - Firewall rules removed
+
+4. **Block from active connection**:
+   - Expand "Active Connections"
+   - Find connection in list
+   - Click "Add" button
+   - App added to blocked list with its process name
+
+5. **Import/Export**:
+   - Export: Saves to Documents\AppLock\networkreules_{timestamp}.json
+   - Import: Lists files from Documents\AppLock, select file, choose rules, import
+
+### Testing Notes
+
+- Requires admin elevation for firewall operations
+- Test with non-system apps first (Edge, Chrome, etc.)
+- Verify rules in Windows Firewall Advanced Security
+- Check all rules are in "AppLock Connection Firewall" group
+- Test direction changes update rules correctly
+- Test unblock removes rules completely
+
+### Firewall Status Interpretation
+
+**Display shows:**
+- **Firewall Enabled: True** = Windows Firewall is ON
+- **Service Running: True** = mpssvc service is running
+- **Group Policy Managed: False** = NOT managed by domain policy (good - app can control rules)
+- **Current Profile: 4** = Public network profile (1=Domain, 2=Private, 4=Public)
+
+**Profile number meaning:**
+- 1 = Domain profile (corporate domain-joined network)
+- 2 = Private profile (home/work trusted network)
+- 4 = Public profile (coffee shop, airport, untrusted network)
+
+Rules created with Profiles=0x7 apply to ALL profiles (1|2|4), ensuring blocking works regardless of network connection type.st"
+
 4. **Multi-Monitor**:
    - Overlay follows window to secondary monitor
    - Correct positioning on all monitors
