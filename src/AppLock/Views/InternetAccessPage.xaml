@@ -268,7 +268,8 @@
                                                       OffContent="Allowed"
                                                       OnContent="Blocked"
                                                       MinWidth="100"
-                                                      VerticalAlignment="Center"/>
+                                                      VerticalAlignment="Center"
+                                                      Toggled="BlockedToggle_Toggled"/>
 
                                         <!-- Repair Button (only visible when drift detected) -->
                                         <Button Grid.Column="5"

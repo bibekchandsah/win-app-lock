@@ -603,6 +603,41 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private async void BlockedToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is NetworkRuleViewModel app)
+        {
+            // Only process if this is a user-initiated change (not initial binding)
+            if (toggle.FocusState != FocusState.Unfocused || e.OriginalSource == toggle)
+            {
+                bool isBlocked = toggle.IsOn;
+                
+                if (isBlocked)
+                {
+                    // Block the app
+                    bool success = await _viewModel.BlockAppAsync(app);
+                    if (!success)
+                    {
+                        // Revert on failure
+                        toggle.IsOn = false;
+                        await ShowMessageAsync("Error", $"Failed to block {app.DisplayName}. Make sure the app is running as administrator.");
+                    }
+                }
+                else
+                {
+                    // Unblock the app (allow internet access)
+                    bool success = await _viewModel.UnblockAppAsync(app);
+                    if (!success)
+                    {
+                        // Revert on failure
+                        toggle.IsOn = true;
+                        await ShowMessageAsync("Error", $"Failed to unblock {app.DisplayName}. Make sure the app is running as administrator.");
+                    }
+                }
+            }
+        }
+    }
+
     private async Task ImportRulesAsync()
     {
         try
