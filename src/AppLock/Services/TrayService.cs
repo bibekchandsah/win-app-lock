@@ -17,6 +17,8 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _openMenuItem;
     private MenuFlyoutItem? _protectionMenuItem;
     private MenuFlyoutItem? _emergencyLockMenuItem;
+    private MenuFlyoutItem? _brightnessHotkeysMenuItem;
+    private MenuFlyoutItem? _blurHotkeyMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly SettingsStore _settingsStore;
@@ -27,6 +29,8 @@ public sealed class TrayService : IDisposable
     public event EventHandler? EmergencyLockRequested;
     public event EventHandler? ExitRequested;
     public event EventHandler<bool>? ProtectionToggleRequested;
+    public event EventHandler<bool>? BrightnessHotkeysToggleRequested;
+    public event EventHandler<bool>? BlurHotkeyToggleRequested;
 
     public TrayService(SettingsStore settingsStore, AuthService authService, LockManager lockManager)
     {
@@ -67,6 +71,10 @@ public sealed class TrayService : IDisposable
                             _protectionMenuItem = mfi;
                         else if (text.Contains("Emergency", StringComparison.OrdinalIgnoreCase))
                             _emergencyLockMenuItem = mfi;
+                        else if (text.Contains("Brightness Hotkeys", StringComparison.OrdinalIgnoreCase))
+                            _brightnessHotkeysMenuItem = mfi;
+                        else if (text.Contains("Blur Hotkey", StringComparison.OrdinalIgnoreCase))
+                            _blurHotkeyMenuItem = mfi;
                         else if (text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -117,6 +125,28 @@ public sealed class TrayService : IDisposable
                     System.Diagnostics.Debug.WriteLine("Emergency lock menu item wired");
                 }
                 
+                if (_brightnessHotkeysMenuItem != null)
+                {
+                    _brightnessHotkeysMenuItem.Command = new RelayCommand(() =>
+                    {
+                        System.Diagnostics.Debug.WriteLine("Brightness hotkeys menu item Command executed!");
+                        var settings = _settingsStore.Load();
+                        BrightnessHotkeysToggleRequested?.Invoke(this, !settings.Brightness.HotkeysEnabled);
+                    });
+                    System.Diagnostics.Debug.WriteLine("Brightness hotkeys menu item wired");
+                }
+                
+                if (_blurHotkeyMenuItem != null)
+                {
+                    _blurHotkeyMenuItem.Command = new RelayCommand(() =>
+                    {
+                        System.Diagnostics.Debug.WriteLine("Blur hotkey menu item Command executed!");
+                        var settings = _settingsStore.Load();
+                        BlurHotkeyToggleRequested?.Invoke(this, !settings.Brightness.Blur.HotkeyEnabled);
+                    });
+                    System.Diagnostics.Debug.WriteLine("Blur hotkey menu item wired");
+                }
+                
                 if (_exitMenuItem != null)
                 {
                     _exitMenuItem.Click -= ExitMenuItem_Click;
@@ -138,6 +168,7 @@ public sealed class TrayService : IDisposable
             
             UpdateTooltip();
             UpdateProtectionMenuItems();
+            UpdateBrightnessMenuItems();
             
             // IMPORTANT: Force create the tray icon - this makes it actually appear!
             _trayIcon.ForceCreate();
@@ -251,6 +282,25 @@ public sealed class TrayService : IDisposable
         _protectionMenuItem.Text = settings.IsProtectionEnabled ? "Disable Protection" : "Enable Protection";
         
         UpdateTooltip();
+    }
+
+    public void UpdateBrightnessMenuItems()
+    {
+        var settings = _settingsStore.Load();
+        
+        if (_brightnessHotkeysMenuItem != null)
+        {
+            _brightnessHotkeysMenuItem.Text = settings.Brightness.HotkeysEnabled 
+                ? "Disable Brightness Hotkeys" 
+                : "Enable Brightness Hotkeys";
+        }
+        
+        if (_blurHotkeyMenuItem != null)
+        {
+            _blurHotkeyMenuItem.Text = settings.Brightness.Blur.HotkeyEnabled 
+                ? "Disable Blur Hotkey" 
+                : "Enable Blur Hotkey";
+        }
     }
 
     public void ShowNotification(string title, string message)

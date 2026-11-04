@@ -84,6 +84,20 @@
                         
                         <MenuFlyoutSeparator/>
                         
+                        <MenuFlyoutItem x:Name="BrightnessHotkeysMenuItem" Text="Disable Brightness Hotkeys">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE706;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutItem x:Name="BlurHotkeyMenuItem" Text="Disable Blur Hotkey">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7B3;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutSeparator/>
+                        
                         <MenuFlyoutItem x:Name="ExitMenuItem" Text="Exit">
                             <MenuFlyoutItem.Icon>
                                 <FontIcon Glyph="&#xE711;"/>

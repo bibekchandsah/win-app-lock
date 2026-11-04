@@ -756,6 +756,16 @@ public sealed partial class MainWindow : Window
                 DispatcherQueue.TryEnqueue(async () => await HandleProtectionToggleAsync(newState));
             };
             
+            ServiceContainer.TrayService.BrightnessHotkeysToggleRequested += (s, newState) =>
+            {
+                DispatcherQueue.TryEnqueue(() => HandleBrightnessHotkeysToggle(newState));
+            };
+            
+            ServiceContainer.TrayService.BlurHotkeyToggleRequested += (s, newState) =>
+            {
+                DispatcherQueue.TryEnqueue(() => HandleBlurHotkeyToggle(newState));
+            };
+            
             System.Diagnostics.Debug.WriteLine("Tray service initialized");
         }
         catch (Exception ex)
@@ -810,6 +820,42 @@ public sealed partial class MainWindow : Window
         finally
         {
             _isAuthDialogOpen = false;
+        }
+    }
+
+    private void HandleBrightnessHotkeysToggle(bool enable)
+    {
+        try
+        {
+            ServiceContainer.Settings.Brightness.HotkeysEnabled = enable;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            
+            // Update tray menu
+            ServiceContainer.TrayService.UpdateBrightnessMenuItems();
+            
+            System.Diagnostics.Debug.WriteLine($"Brightness hotkeys {(enable ? "enabled" : "disabled")} from tray");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error toggling brightness hotkeys: {ex.Message}");
+        }
+    }
+
+    private void HandleBlurHotkeyToggle(bool enable)
+    {
+        try
+        {
+            ServiceContainer.Settings.Brightness.Blur.HotkeyEnabled = enable;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            
+            // Update tray menu
+            ServiceContainer.TrayService.UpdateBrightnessMenuItems();
+            
+            System.Diagnostics.Debug.WriteLine($"Blur hotkey {(enable ? "enabled" : "disabled")} from tray");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error toggling blur hotkey: {ex.Message}");
         }
     }
 
