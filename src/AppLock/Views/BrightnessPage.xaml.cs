@@ -14,7 +14,6 @@ public sealed partial class BrightnessPage : Page
 {
     private BrightnessViewModel? _viewModel;
     private DispatcherTimer? _pollingTimer;
-    private BrightnessHotkeyManager? _hotkeyManager;
     private OsdService? _osdService;
     private BlurOverlayService? _blurOverlayService;
     private bool _isLoadingSettings;
@@ -37,15 +36,8 @@ public sealed partial class BrightnessPage : Page
         _viewModel = new BrightnessViewModel(brightnessService, DispatcherQueue);
         DataContext = _viewModel;
 
-        // Initialize hotkey manager
-        _hotkeyManager = new BrightnessHotkeyManager(
-            ServiceContainer.HotkeyService,
-            brightnessService,
-            _osdService,
-            _blurOverlayService,
-            DispatcherQueue);
-        
-        _hotkeyManager.RegisterAllHotkeys();
+        // Note: Hotkey manager is now initialized globally in ServiceContainer
+        // and persists even when navigating away from this page
 
         // Load settings into UI (this will trigger slider events which update preview)
         LoadSettings();
@@ -60,8 +52,7 @@ public sealed partial class BrightnessPage : Page
     private void BrightnessPage_Unloaded(object sender, RoutedEventArgs e)
     {
         StopPolling();
-        _hotkeyManager?.Dispose();
-        _hotkeyManager = null;
+        // Don't dispose hotkey manager here - it's now managed globally
         _blurOverlayService?.Dispose();
         _blurOverlayService = null;
         _osdService?.Dispose();
@@ -176,7 +167,7 @@ public sealed partial class BrightnessPage : Page
             presetVm.UpdateHotkey(dialog.CapturedHotkey);
             
             // Re-register hotkeys
-            _hotkeyManager?.RegisterAllHotkeys();
+            ServiceContainer.BrightnessHotkeyManager?.RegisterAllHotkeys();
         }
     }
 
@@ -188,7 +179,7 @@ public sealed partial class BrightnessPage : Page
         _viewModel.RemovePreset(presetVm);
         
         // Re-register hotkeys
-        _hotkeyManager?.RegisterAllHotkeys();
+        ServiceContainer.BrightnessHotkeyManager?.RegisterAllHotkeys();
     }
 
     private void AddPreset_Click(object sender, RoutedEventArgs e)
@@ -225,7 +216,7 @@ public sealed partial class BrightnessPage : Page
             _viewModel?.ResetToDefaults();
             
             // Re-register hotkeys
-            _hotkeyManager?.RegisterAllHotkeys();
+            ServiceContainer.BrightnessHotkeyManager?.RegisterAllHotkeys();
         }
     }
 
@@ -452,7 +443,7 @@ public sealed partial class BrightnessPage : Page
             }
             
             // Re-register hotkeys
-            _hotkeyManager?.RegisterAllHotkeys();
+            ServiceContainer.BrightnessHotkeyManager?.RegisterAllHotkeys();
             
             // Refresh diagnostics
             RefreshDiagnostics();

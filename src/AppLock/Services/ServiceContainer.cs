@@ -32,6 +32,7 @@ public static class ServiceContainer
     private static AppLock.Services.BitLocker.SavedPasswordStore? _savedPasswordStore;
     private static AppLock.Services.BitLocker.StartupTaskService? _startupTaskService;
     private static AppLock.Services.BitLocker.BitLockerAutoUnlockService? _autoUnlockService;
+    private static AppLock.Services.Brightness.BrightnessHotkeyManager? _brightnessHotkeyManager;
 
     public static NotificationService NotificationService
     {
@@ -272,6 +273,7 @@ public static class ServiceContainer
         _trayService?.Dispose();
         _thumbnailService?.Dispose();
         _windowEventMonitor?.Dispose();
+        _brightnessHotkeyManager?.Dispose();
         
         _settingsStore = null;
         _settings = null;
@@ -299,6 +301,7 @@ public static class ServiceContainer
         _savedPasswordStore = null;
         _startupTaskService = null;
         _autoUnlockService = null;
+        _brightnessHotkeyManager = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -378,6 +381,27 @@ public static class ServiceContainer
                     (t, m) => NotificationService.ShowWarning(t, m));
             }
             return _autoUnlockService;
+        }
+    }
+
+    public static AppLock.Services.Brightness.BrightnessHotkeyManager? BrightnessHotkeyManager => _brightnessHotkeyManager;
+
+    public static void InitializeBrightnessHotkeys(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_brightnessHotkeyManager == null)
+        {
+            var brightnessService = new AppLock.Services.Brightness.BrightnessService(dispatcherQueue);
+            var osdService = new AppLock.Services.Brightness.OsdService(dispatcherQueue);
+            var blurOverlayService = new AppLock.Services.Brightness.BlurOverlayService(dispatcherQueue);
+
+            _brightnessHotkeyManager = new AppLock.Services.Brightness.BrightnessHotkeyManager(
+                HotkeyService,
+                brightnessService,
+                osdService,
+                blurOverlayService,
+                dispatcherQueue);
+
+            _brightnessHotkeyManager.RegisterAllHotkeys();
         }
     }
 }

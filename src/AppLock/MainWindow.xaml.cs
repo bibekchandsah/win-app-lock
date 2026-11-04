@@ -693,6 +693,9 @@ public sealed partial class MainWindow : Window
         var sdService = ServiceContainer.GetOrCreateSelfDisciplineService(DispatcherQueue);
         sdService.Start();
 
+        // Initialize global brightness hotkeys
+        ServiceContainer.InitializeBrightnessHotkeys(DispatcherQueue);
+
         // Safety net: restore all DWM thumbnails even on unexpected process exit
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {
