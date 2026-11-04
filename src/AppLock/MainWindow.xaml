@@ -284,6 +284,55 @@
 
                 <!-- Bottom Navigation Items -->
                 <StackPanel Grid.Row="2" Spacing="4" Margin="0,0,0,8">
+                    <Button x:Name="OthersNavButton" 
+                            Height="40" 
+                            Margin="4,0"
+                            Padding="0"
+                            CornerRadius="6"
+                            Click="OthersNavButton_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            ToolTipService.ToolTip="Others">
+                        <Grid Height="40" HorizontalAlignment="Stretch">
+                            <Border x:Name="OthersNavBackground"
+                                    CornerRadius="6"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="OthersNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="OthersNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xE712;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="OthersNavLabel"
+                                           Grid.Column="1"
+                                           Text="Others"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                        </Grid>
+                    </Button>
+
                     <Button x:Name="FeedbackNavButton" 
                             Height="40" 
                             Margin="4,0"

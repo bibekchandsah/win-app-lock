@@ -1,0 +1,66 @@
+<ContentDialog
+    x:Class="AppLock.Views.Dialogs.HotkeyCaptureDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Set Hotkey"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Clear"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    PrimaryButtonClick="SaveButton_Click"
+    SecondaryButtonClick="ClearButton_Click">
+
+    <StackPanel Spacing="16" MinWidth="400">
+        <!-- Instruction -->
+        <TextBlock Text="Press the new shortcut"
+                   FontSize="14"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <!-- Keycap Display -->
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16"
+                MinHeight="60">
+            <ItemsControl x:Name="KeycapDisplay" HorizontalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="8"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12,6"
+                                MinWidth="48">
+                            <TextBlock Text="{Binding}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- Error Message -->
+        <InfoBar x:Name="ErrorInfoBar"
+                 Severity="Error"
+                 IsOpen="False"
+                 IsClosable="False"/>
+
+        <!-- Hint Text -->
+        <TextBlock Text="Hotkey must include at least one modifier (Ctrl, Alt, Shift, Win)"
+                   FontSize="12"
+                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                   TextWrapping="Wrap"/>
+    </StackPanel>
+</ContentDialog>

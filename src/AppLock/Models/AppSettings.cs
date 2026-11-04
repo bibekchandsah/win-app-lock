@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace AppLock.Models;
 
 public class AppSettings
@@ -47,6 +50,9 @@ public class AppSettings
     public bool BitLockerAutoUnlockOnAppOpen { get; set; } = false;
     public List<string> BitLockerAutoUnlockVolumeGuids { get; set; } = new();
     public string BitLockerLastUnlockedSummary { get; set; } = string.Empty;
+    
+    // Brightness
+    public BrightnessSettings Brightness { get; set; } = new();
     
     // First run
     public bool IsFirstRun { get; set; } = true;

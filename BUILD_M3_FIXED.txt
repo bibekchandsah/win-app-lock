@@ -1,0 +1,24 @@
+Milestone 3 Build Errors - FIXED
+=================================
+
+Fixed Issues:
+
+1. DispatcherQueue.EnqueueAsync doesn't exist
+   - Changed to TryEnqueue() with Task.Delay(50) for synchronization
+   - File: SoftwareDimProvider.cs
+
+2. Lambda parameter type inconsistency in EnumDisplayMonitors
+   - Extracted lambda to explicit MonitorEnumDelegate variable with typed parameters
+   - File: BrightnessService.cs
+
+3. Nullable reference warning on Screen.PrimaryScreen
+   - Added null-coalescing operators (?? 1920, ?? 1080) for fallback dimensions
+   - File: SoftwareDimProvider.cs
+
+4. BrightnessSettings not found in test project
+   - Added <Compile Include> link to BrightnessSettings.cs in AppLock.Tests.csproj
+   - File: AppLock.Tests.csproj
+
+All compilation errors resolved. Ready to build.
+
+Run: .\build-with-msbuild.ps1

@@ -1,0 +1,13 @@
+Milestone 2 Build Instructions
+==============================
+
+All code is ready. Please run:
+
+.\build-with-msbuild.ps1
+
+Fixed Issues:
+- Changed DisplayEnumerator to use manual P/Invoke instead of CsWin32
+- Moved BrightnessSettings classes to AppLock.Models namespace
+- Added EnumDisplayDevices and EnumDisplaySettings to NativeMethods.txt
+
+The build should succeed now.
