@@ -37,52 +37,132 @@
                 
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Button Click="UtilityCard_Click"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Padding="20"
                                 Margin="0,0,16,16"
                                 Width="320"
-                                Height="140"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Stretch">
+                                MinHeight="140">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                
-                                <!-- Icon -->
-                                <FontIcon Grid.Row="0"
-                                          Glyph="{Binding Icon}"
-                                          FontSize="32"
-                                          Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                          Margin="0,0,0,12"/>
-                                
-                                <!-- Title and Description -->
-                                <StackPanel Grid.Row="1" Spacing="4">
-                                    <TextBlock Text="{Binding Title}"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding Description}"
-                                               FontSize="13"
-                                               TextWrapping="Wrap"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                                
-                                <!-- Status -->
-                                <TextBlock Grid.Row="2"
-                                           Text="{Binding Status}"
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                           Margin="0,8,0,0"
-                                           Visibility="{Binding StatusVisibility}"/>
+
+                                <!-- Main Card Content (Clickable) -->
+                                <Button Grid.Row="0"
+                                        Click="UtilityCard_Click"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="20"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Top">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        
+                                        <!-- Icon -->
+                                        <FontIcon Grid.Row="0"
+                                                  Glyph="{Binding Icon}"
+                                                  FontSize="32"
+                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                  Margin="0,0,0,12"/>
+                                        
+                                        <!-- Title and Description -->
+                                        <StackPanel Grid.Row="1" Spacing="6">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="13"
+                                                       TextWrapping="Wrap"
+                                                       LineHeight="18"
+                                                       MaxLines="3"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+                                        
+                                        <!-- Status -->
+                                        <TextBlock Grid.Row="2"
+                                                   Text="{Binding Status}"
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                   Margin="0,12,0,0"
+                                                   Visibility="{Binding StatusVisibility}"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Expander for Quick Settings -->
+                                <Expander Grid.Row="1"
+                                          HorizontalAlignment="Stretch"
+                                          HorizontalContentAlignment="Stretch"
+                                          Margin="12,0,12,12"
+                                          IsExpanded="False"
+                                          Expanding="CardExpander_Expanding">
+                                    <Expander.Header>
+                                        <TextBlock Text="Quick Settings"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </Expander.Header>
+                                    <Expander.Content>
+                                        <StackPanel Spacing="12" Margin="0,8,0,0">
+                                            <!-- Brightness Hotkeys Toggle -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="Brightness Hotkeys"
+                                                               FontSize="13"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <TextBlock Text="Enable/disable all brightness shortcuts"
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsOn="{Binding BrightnessHotkeysEnabled, Mode=OneWay}"
+                                                              Toggled="BrightnessHotkeysToggle_Toggled"
+                                                              MinWidth="0"
+                                                              OffContent=""
+                                                              OnContent=""/>
+                                            </Grid>
+
+                                            <!-- Blur Hotkey Toggle -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="Blur Overlay Hotkey"
+                                                               FontSize="13"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <TextBlock Text="Enable/disable blur overlay shortcut"
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsOn="{Binding BlurHotkeyEnabled, Mode=OneWay}"
+                                                              Toggled="BlurHotkeyToggle_Toggled"
+                                                              MinWidth="0"
+                                                              OffContent=""
+                                                              OnContent=""/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander.Content>
+                                </Expander>
                             </Grid>
-                        </Button>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
