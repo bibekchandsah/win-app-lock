@@ -29,21 +29,42 @@ public sealed partial class HotkeyCaptureDialog : ContentDialog
             _virtualKey = currentHotkey.VirtualKey;
             UpdateKeycapDisplay();
         }
+        else
+        {
+            // Show placeholder
+            KeycapDisplay.ItemsSource = new List<string> { "Press a key..." };
+        }
 
         Loaded += HotkeyCaptureDialog_Loaded;
     }
 
     private void HotkeyCaptureDialog_Loaded(object sender, RoutedEventArgs e)
     {
-        // Focus the dialog for key capture
-        this.Focus(FocusState.Programmatic);
+        // Focus the root panel to receive keyboard input
+        RootPanel.Focus(FocusState.Programmatic);
+        
+        System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Dialog loaded and focused");
+    }
+
+    private void ContentDialog_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[HotkeyCaptureDialog] PreviewKeyDown event: {e.Key} (OriginalKey: {e.OriginalKey})");
+        HandleKeyDown(e);
     }
 
     protected override void OnKeyDown(KeyRoutedEventArgs e)
     {
         base.OnKeyDown(e);
+        System.Diagnostics.Debug.WriteLine($"[HotkeyCaptureDialog] OnKeyDown: {e.Key}");
+        HandleKeyDown(e);
+    }
 
-        var key = e.Key;
+    private void HandleKeyDown(KeyRoutedEventArgs e)
+    {
+        // Use OriginalKey which is the actual physical key pressed
+        var key = e.OriginalKey != VirtualKey.None ? e.OriginalKey : e.Key;
+        
+        System.Diagnostics.Debug.WriteLine($"[HotkeyCaptureDialog] HandleKeyDown called with key: {key} (Original: {e.OriginalKey}, Key: {e.Key})");
         
         // Update modifiers
         const uint MOD_CONTROL = 0x0002;
@@ -52,23 +73,30 @@ public sealed partial class HotkeyCaptureDialog : ContentDialog
         const uint MOD_WIN = 0x0008;
 
         _modifiers = 0;
-        var coreWindow = Microsoft.UI.Xaml.Window.Current?.CoreWindow;
-        if (coreWindow != null)
+        
+        // Use GetKeyState from user32.dll for WinUI 3
+        if (IsKeyDown(VirtualKey.Control))
         {
-            var controlState = coreWindow.GetKeyState(VirtualKey.Control);
-            var altState = coreWindow.GetKeyState(VirtualKey.Menu);
-            var shiftState = coreWindow.GetKeyState(VirtualKey.Shift);
-            var winState = coreWindow.GetKeyState(VirtualKey.LeftWindows) | coreWindow.GetKeyState(VirtualKey.RightWindows);
-
-            if ((controlState & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
-                _modifiers |= MOD_CONTROL;
-            if ((altState & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
-                _modifiers |= MOD_ALT;
-            if ((shiftState & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
-                _modifiers |= MOD_SHIFT;
-            if ((winState & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
-                _modifiers |= MOD_WIN;
+            _modifiers |= MOD_CONTROL;
+            System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Ctrl detected");
         }
+        if (IsKeyDown(VirtualKey.Menu)) // Alt key
+        {
+            _modifiers |= MOD_ALT;
+            System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Alt detected");
+        }
+        if (IsKeyDown(VirtualKey.Shift))
+        {
+            _modifiers |= MOD_SHIFT;
+            System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Shift detected");
+        }
+        if (IsKeyDown(VirtualKey.LeftWindows) || IsKeyDown(VirtualKey.RightWindows))
+        {
+            _modifiers |= MOD_WIN;
+            System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Win detected");
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[HotkeyCaptureDialog] Total modifiers: {_modifiers}");
 
         // Ignore modifier keys themselves
         if (key == VirtualKey.Control || key == VirtualKey.Shift || key == VirtualKey.Menu ||
@@ -81,10 +109,20 @@ public sealed partial class HotkeyCaptureDialog : ContentDialog
 
         // Capture the key
         _virtualKey = (uint)key;
+        System.Diagnostics.Debug.WriteLine($"[HotkeyCaptureDialog] Virtual key captured: {_virtualKey} ({key})");
+        
         UpdateKeycapDisplay();
         ValidateCurrentHotkey();
 
         e.Handled = true;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern short GetKeyState(int nVirtKey);
+
+    private bool IsKeyDown(VirtualKey key)
+    {
+        return (GetKeyState((int)key) & 0x8000) != 0;
     }
 
     private void UpdateKeycapDisplay()

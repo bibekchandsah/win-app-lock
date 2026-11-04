@@ -11,9 +11,10 @@
     CloseButtonText="Cancel"
     DefaultButton="Primary"
     PrimaryButtonClick="SaveButton_Click"
-    SecondaryButtonClick="ClearButton_Click">
+    SecondaryButtonClick="ClearButton_Click"
+    PreviewKeyDown="ContentDialog_PreviewKeyDown">
 
-    <StackPanel Spacing="16" MinWidth="400">
+    <StackPanel Spacing="16" MinWidth="400" x:Name="RootPanel">
         <!-- Instruction -->
         <TextBlock Text="Press the new shortcut"
                    FontSize="14"
