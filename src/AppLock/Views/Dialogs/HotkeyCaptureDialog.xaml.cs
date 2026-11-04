@@ -35,13 +35,29 @@ public sealed partial class HotkeyCaptureDialog : ContentDialog
             KeycapDisplay.ItemsSource = new List<string> { "Press a key..." };
         }
 
+        ApplyTheme();
         Loaded += HotkeyCaptureDialog_Loaded;
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = AppLock.Services.ServiceContainer.CurrentTheme;
+        }
     }
 
     private void HotkeyCaptureDialog_Loaded(object sender, RoutedEventArgs e)
     {
         // Focus the root panel to receive keyboard input
         RootPanel.Focus(FocusState.Programmatic);
+        
+        // Re-apply theme when loaded
+        ApplyTheme();
         
         System.Diagnostics.Debug.WriteLine("[HotkeyCaptureDialog] Dialog loaded and focused");
     }

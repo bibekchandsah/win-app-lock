@@ -205,8 +205,19 @@ public sealed partial class BrightnessPage : Page
             PrimaryButtonText = "Reset",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8)
         };
+
+        // Apply theme synchronization
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            dialog.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            dialog.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
 
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
