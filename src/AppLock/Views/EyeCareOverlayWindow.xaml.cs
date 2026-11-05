@@ -16,16 +16,27 @@ public sealed partial class EyeCareOverlayWindow : Window
     private Timer? _autoCloseTimer;
     private AppWindow? _appWindow;
 
+    public AppWindow? AppWindow => _appWindow;
+
     public EyeCareOverlayWindow(string htmlPath, int durationSeconds, Action closeAllCallback)
     {
+        System.Diagnostics.Debug.WriteLine("[EyeCare] Constructor called");
+        
         this.InitializeComponent();
+        
+        System.Diagnostics.Debug.WriteLine("[EyeCare] InitializeComponent completed");
         
         _htmlPath = htmlPath;
         _durationSeconds = durationSeconds;
         _closeAllCallback = closeAllCallback;
 
         SetupWindow();
-        _ = InitializeWebViewAsync();
+        
+        // Temporarily disabled for testing - no WebView in XAML
+        // _ = InitializeWebViewAsync();
+        
+        // Start auto-close timer for testing
+        StartAutoCloseTimer();
     }
 
     private void SetupWindow()
@@ -35,11 +46,15 @@ public sealed partial class EyeCareOverlayWindow : Window
             // Get AppWindow
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+            
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Window handle: {hWnd}, WindowId: {windowId.Value}");
+            
             var appWindow = AppWindow.GetFromWindowId(windowId);
 
             if (appWindow != null)
             {
                 _appWindow = appWindow;
+                System.Diagnostics.Debug.WriteLine("[EyeCare] AppWindow obtained successfully");
 
                 // Hide from taskbar and task switcher
                 appWindow.IsShownInSwitchers = false;
@@ -53,6 +68,12 @@ public sealed partial class EyeCareOverlayWindow : Window
                 {
                     overlapped.IsAlwaysOnTop = true;
                 }
+                
+                System.Diagnostics.Debug.WriteLine("[EyeCare] Window configured successfully");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[EyeCare] WARNING: AppWindow is null!");
             }
 
             // Remove title bar
@@ -62,11 +83,14 @@ public sealed partial class EyeCareOverlayWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[EyeCare] Window setup error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
         }
     }
 
     private async System.Threading.Tasks.Task InitializeWebViewAsync()
     {
+        // Temporarily disabled for testing - WebView removed from XAML
+        /*
         try
         {
             await WebView.EnsureCoreWebView2Async();
@@ -131,6 +155,8 @@ public sealed partial class EyeCareOverlayWindow : Window
             // Fallback: close immediately if WebView fails
             DispatcherQueue.TryEnqueue(() => _closeAllCallback());
         }
+        */
+        await System.Threading.Tasks.Task.CompletedTask;
     }
 
     private void StartAutoCloseTimer()

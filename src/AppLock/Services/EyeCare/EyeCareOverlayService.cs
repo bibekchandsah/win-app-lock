@@ -69,24 +69,117 @@ public sealed class EyeCareOverlayService
         try
         {
             var settings = _getSettings();
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Got settings");
+            
             var renderedPath = await RenderTemplateAsync(settings);
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Template rendered to: {renderedPath}");
 
             // Get all displays
-            var displays = DisplayArea.FindAll();
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] About to call DisplayArea.FindAll()...");
+            
+            IReadOnlyList<DisplayArea>? displays = null;
+            try
+            {
+                displays = DisplayArea.FindAll();
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] DisplayArea.FindAll() returned successfully");
+            }
+            catch (InvalidCastException ice)
+            {
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] InvalidCastException in DisplayArea.FindAll()!");
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {ice.Message}");
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] HResult: 0x{ice.HResult:X8}");
+                throw;
+            }
+            
+            if (displays == null || displays.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] No displays found!");
+                return;
+            }
+            
             System.Diagnostics.Debug.WriteLine($"[EyeCare] Creating overlay on {displays.Count} display(s)");
 
-            foreach (var display in displays)
+            // Convert to list to avoid WinRT interop issues with IReadOnlyList enumeration
+            var displayList = new List<DisplayArea>();
+            for (int i = 0; i < displays.Count; i++)
             {
-                var window = new EyeCareOverlayWindow(renderedPath, settings.DurationSeconds, CloseAll);
-                _activeWindows.Add(window);
-                
-                // Position and show window
-                window.Activate();
-                
-                // Position on specific display (AppWindow is inherited from Window base class)
-                if (window.AppWindow != null)
+                try
                 {
-                    window.AppWindow.MoveAndResize(display.OuterBounds);
+                    var display = displays[i];
+                    displayList.Add(display);
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Display {i}: {display.OuterBounds}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Failed to access display {i}: {ex.Message}");
+                }
+            }
+
+            foreach (var display in displayList)
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] About to create EyeCareOverlayWindow...");
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Rendered path: {renderedPath}");
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Duration: {settings.DurationSeconds}");
+                    
+                    EyeCareOverlayWindow? window = null;
+                    
+                    try
+                    {
+                        window = new EyeCareOverlayWindow(renderedPath, settings.DurationSeconds, CloseAll);
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Window object created");
+                    }
+                    catch (InvalidCastException ice)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] InvalidCastException during window creation!");
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {ice.Message}");
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Source: {ice.Source}");
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] HResult: 0x{ice.HResult:X8}");
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace:\n{ice.StackTrace}");
+                        if (ice.InnerException != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner: {ice.InnerException.GetType().Name} - {ice.InnerException.Message}");
+                            System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner stack:\n{ice.InnerException.StackTrace}");
+                        }
+                        throw;
+                    }
+                    
+                    if (window == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Window is null after creation!");
+                        continue;
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window created successfully, about to activate");
+                    
+                    // Activate first to ensure window handle is valid
+                    window.Activate();
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window activated");
+                    
+                    _activeWindows.Add(window);
+                    
+                    // Position on specific display after activation
+                    if (window.AppWindow != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Moving window to display bounds: {display.OuterBounds}");
+                        window.AppWindow.MoveAndResize(display.OuterBounds);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] WARNING: Cannot position window - AppWindow is null");
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window creation failed: {innerEx.GetType().Name}");
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {innerEx.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace: {innerEx.StackTrace}");
+                    if (innerEx.InnerException != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner exception: {innerEx.InnerException.GetType().Name} - {innerEx.InnerException.Message}");
+                    }
+                    throw;
                 }
             }
         }

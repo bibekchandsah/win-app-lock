@@ -63,10 +63,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\**\*">
+    <Content Include="..\..\Assets\**\*">
+      <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
 
   <!-- Copy native hook DLL to output directory after build -->
   <Target Name="CopyAppLockHookDll" AfterTargets="Build">

@@ -355,23 +355,41 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            Debug.WriteLine("[EyeCare] BrowseForTemplateAsync started");
+            
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             picker.FileTypeFilter.Add(".html");
             
+            Debug.WriteLine($"[EyeCare] App.MainWindowInstance is null: {App.MainWindowInstance == null}");
+            
+            if (App.MainWindowInstance == null)
+            {
+                Debug.WriteLine("[EyeCare] ERROR: MainWindowInstance is null!");
+                throw new InvalidOperationException("Main window instance is not available");
+            }
+            
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindowInstance);
+            Debug.WriteLine($"[EyeCare] Window handle: {hWnd}");
+            
             WinRT.Interop.InitializeWithWindow.Initialize(picker, hWnd);
+            Debug.WriteLine("[EyeCare] Picker initialized, showing dialog...");
 
             var file = await picker.PickSingleFileAsync();
+            Debug.WriteLine($"[EyeCare] File picked: {file?.Path ?? "null"}");
+            
             if (file != null)
             {
                 ServiceContainer.Settings.EyeCare.TemplatePath = file.Path;
                 SaveSettings();
                 RefreshTemplateList();
+                Debug.WriteLine("[EyeCare] Template path saved and list refreshed");
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[EyeCare] Browse template error: {ex.Message}");
+            Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
+            throw; // Re-throw so the UI handler can catch it
         }
     }
 
@@ -397,11 +415,23 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            Debug.WriteLine("[EyeCare] PreviewAsync started");
+            Debug.WriteLine($"[EyeCare] Overlay service is null: {_overlayService == null}");
+            
+            if (_overlayService == null)
+            {
+                throw new InvalidOperationException("Overlay service is not available");
+            }
+            
+            Debug.WriteLine("[EyeCare] Calling ShowAsync...");
             await _overlayService.ShowAsync();
+            Debug.WriteLine("[EyeCare] ShowAsync completed");
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[EyeCare] Preview error: {ex.Message}");
+            Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
+            throw; // Re-throw so the UI handler can catch it
         }
     }
 

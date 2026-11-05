@@ -35,6 +35,15 @@ public sealed partial class EyeCarePage : Page
         Frame.GoBack();
     }
 
+    private void Button_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("[EyeCarePage] Button PointerPressed detected!");
+        if (sender is Button button)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EyeCarePage] Button content: {button.Content}");
+        }
+    }
+
     private void UpdateIntervalDisplay()
     {
         if (_viewModel == null) return;
@@ -157,9 +166,34 @@ public sealed partial class EyeCarePage : Page
 
     private async void BrowseTemplate_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel != null)
+        try
         {
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] Browse button clicked");
+            
+            if (_viewModel == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[EyeCarePage] ViewModel is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] Calling BrowseForTemplateAsync");
             await _viewModel.BrowseForTemplateAsync();
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] BrowseForTemplateAsync completed");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EyeCarePage] Browse error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[EyeCarePage] Stack trace: {ex.StackTrace}");
+            
+            // Show error to user
+            var dialog = new ContentDialog
+            {
+                Title = "Error",
+                Content = $"Failed to browse for template: {ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
         }
     }
 
@@ -170,9 +204,34 @@ public sealed partial class EyeCarePage : Page
 
     private async void Preview_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel != null)
+        try
         {
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] Preview button clicked");
+            
+            if (_viewModel == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[EyeCarePage] ViewModel is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] Calling PreviewAsync");
             await _viewModel.PreviewAsync();
+            System.Diagnostics.Debug.WriteLine("[EyeCarePage] PreviewAsync completed");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EyeCarePage] Preview error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[EyeCarePage] Stack trace: {ex.StackTrace}");
+            
+            // Show error to user
+            var dialog = new ContentDialog
+            {
+                Title = "Error",
+                Content = $"Failed to show preview: {ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
         }
     }
 }
