@@ -40,6 +40,7 @@
     <Compile Include="..\..\src\AppLock\Models\BitLockerEncryptionOptions.cs" Link="Models\BitLockerEncryptionOptions.cs" />
     <Compile Include="..\..\src\AppLock\Models\StartupTaskInfo.cs" Link="Models\StartupTaskInfo.cs" />
     <Compile Include="..\..\src\AppLock\Models\BrightnessSettings.cs" Link="Models\BrightnessSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\EyeCareSettings.cs" Link="Models\EyeCareSettings.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\IFirewallService.cs" Link="Services\Firewall\IFirewallService.cs" />

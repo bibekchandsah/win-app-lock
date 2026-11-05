@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blinking Eye Animation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background: #212121;
+            /* cursor: none; */
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            display: flex;
+            gap: 80px;
+            align-items: center;
+            scale: 1.5;
+        }
+
+        .eye {
+            position: relative;
+            width: 130px;
+            height: 180px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .iris {
+            position: relative;
+            width: 90px;
+            height: 90px;
+            background: 
+                radial-gradient(circle at center, 
+                    #8fb3d5 0%, 
+                    #5a98c9 15%, 
+                    #2d7ab8 40%, 
+                    #1a5a8f 70%, 
+                    #0d3d66 85%, 
+                    #051e33 100%);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 
+                inset 0 0 25px rgba(0, 0, 0, 0.5),
+                inset 0 0 10px rgba(0, 0, 0, 0.3);
+            animation: eye-movement 12s infinite ease-in-out;
+            overflow: hidden;
+        }
+
+        /* Limbal ring - dark border around iris */
+        .iris::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center,
+                transparent 0%,
+                transparent 82%,
+                rgba(10, 25, 40, 0.9) 88%,
+                rgba(5, 15, 25, 1) 92%,
+                rgba(0, 0, 0, 0.8) 100%
+            );
+            border-radius: 50%;
+            z-index: 5;
+        }
+
+        /* Radial striations - spoke pattern */
+        .iris::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image:
+                repeating-conic-gradient(from 0deg at 50% 50%,
+                    transparent 0deg,
+                    rgba(15, 45, 75, 0.7) 0.5deg,
+                    rgba(25, 65, 100, 0.8) 1deg,
+                    transparent 1.2deg,
+                    transparent 1.8deg
+                ),
+                repeating-conic-gradient(from 3deg at 50% 50%,
+                    transparent 0deg,
+                    rgba(30, 70, 110, 0.6) 0.8deg,
+                    transparent 1.5deg,
+                    transparent 2.5deg
+                ),
+                repeating-conic-gradient(from 7deg at 50% 50%,
+                    transparent 0deg,
+                    rgba(40, 85, 125, 0.5) 0.6deg,
+                    transparent 1deg,
+                    transparent 3deg
+                ),
+                radial-gradient(circle at center,
+                    transparent 25%,
+                    rgba(20, 55, 85, 0.3) 30%,
+                    transparent 35%,
+                    rgba(15, 50, 80, 0.2) 50%,
+                    transparent 55%,
+                    rgba(10, 40, 70, 0.3) 70%,
+                    transparent 75%
+                );
+            border-radius: 50%;
+            z-index: 2;
+            mix-blend-mode: multiply;
+        }
+
+        .pupil {
+            width: 40px;
+            height: 40px;
+            background: radial-gradient(circle at 35% 35%, #1a1a1a 0%, #000000 50%);
+            border-radius: 50%;
+            position: relative;
+            z-index: 10;
+            box-shadow: 
+                0 0 12px rgba(0, 0, 0, 0.8),
+                inset 0 0 8px rgba(0, 0, 0, 0.9);
+        }
+
+        .pupil::after {
+            content: '';
+            position: absolute;
+            top: 20%;
+            left: 25%;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+            border-radius: 50%;
+            filter: blur(0.5px);
+        }
+
+        /* Additional light reflection */
+        .pupil::before {
+            content: '';
+            position: absolute;
+            bottom: 25%;
+            right: 20%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            filter: blur(1px);
+        }
+
+        /* Add slight asymmetry to blink timing for realism */
+        .eye:nth-child(2) .eyelid-upper,
+        .eye:nth-child(2) .eyelid-lower {
+            animation-delay: 0.05s;
+        }
+
+        /* Natural eye movement animation */
+        @keyframes eye-movement {
+            0%, 15% {
+                transform: translate(0, 0);
+            }
+            20%, 32% {
+                transform: translate(-12px, -3px);
+            }
+            37%, 49% {
+                transform: translate(10px, -2px);
+            }
+            54%, 66% {
+                transform: translate(0, 0);
+            }
+            71%, 83% {
+                transform: translate(-5px, 4px);
+            }
+            88%, 100% {
+                transform: translate(0, 0);
+            }
+        }
+
+        /* Upper Eyelid */
+        .eyelid-upper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(to bottom, #f4c2a4, #e8b298);
+            border-radius: 50% 50% 0 0;
+            animation: blink-upper 4s infinite ease-in-out;
+            z-index: 2;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Lower Eyelid */
+        .eyelid-lower {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(to top, #f4c2a4, #e8b298);
+            border-radius: 0 0 50% 50%;
+            animation: blink-lower 4s infinite ease-in-out;
+            z-index: 2;
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+
+
+        /* Blink Animation for Upper Eyelid - moves down from top */
+        @keyframes blink-upper {
+            0%, 100% {
+                transform: translateY(-100%);
+            }
+            45%, 55% {
+                transform: translateY(-100%);
+            }
+            48% {
+                transform: translateY(0);
+            }
+            52% {
+                transform: translateY(0);
+            }
+        }
+
+        /* Blink Animation for Lower Eyelid - moves up from bottom */
+        @keyframes blink-lower {
+            0%, 100% {
+                transform: translateY(100%);
+            }
+            45%, 55% {
+                transform: translateY(100%);
+            }
+            48% {
+                transform: translateY(0);
+            }
+            52% {
+                transform: translateY(0);
+            }
+        }
+
+        .title {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            width: 90%;
+            max-width: 1200px;
+            z-index: 1000;
+        }
+
+        /* Custom Context Menu */
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 2px solid #333;
+            border-radius: 5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 999999;
+            min-width: 120px;
+            pointer-events: auto;
+        }
+
+        .context-menu-item {
+            padding: 12px 24px;
+            cursor: pointer;
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            user-select: none;
+        }
+
+        .context-menu-item:hover {
+            background: #e0e0e0;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="eye">
+            <div class="eyelid-upper"></div>
+            <div class="eyelid-lower"></div>
+            <div class="iris">
+                <div class="pupil"></div>
+            </div>
+        </div>
+        <div class="eye">
+            <div class="eyelid-upper"></div>
+            <div class="eyelid-lower"></div>
+            <div class="iris">
+                <div class="pupil"></div>
+            </div>
+        </div>
+    </div>
+    <div class="title">{{REMINDER_MESSAGE}}</div>
+
+    <!-- Custom Context Menu -->
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" onclick="closeWindow()">Close</div>
+    </div>
+
+    <script>
+        // Countdown timer
+        let countdown = {{DURATION}};
+        const countdownElement = document.querySelector('.title');
+        const originalMessage = countdownElement.textContent;
+        
+        function updateCountdown() {
+            if (countdown > 0) {
+                countdownElement.innerHTML = `${originalMessage}<br><span style="font-size: 48px; margin-top: 20px; display: inline-block;">${countdown}</span>`;
+                countdown--;
+                setTimeout(updateCountdown, 1000);
+            } else {
+                closeWindow();
+            }
+        }
+        
+        // Start countdown on load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCountdown();
+        });
+
+        // Close window function for WebView2
+        function closeWindow() {
+            console.log('closeWindow called');
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage('close');
+            } else {
+                window.close();
+            }
+        }
+        
+        // Exit on any key press
+        // document.addEventListener('keydown', function() {
+        //     closeWindow();
+        // });
+
+        // Show custom context menu on right-click
+        const contextMenu = document.getElementById('contextMenu');
+        console.log('Context menu element:', contextMenu);
+        
+        // Ensure context menu starts hidden
+        if (contextMenu) {
+            contextMenu.style.display = 'none';
+        }
+        
+        document.addEventListener('contextmenu', function(e) {
+            console.log('Right-click detected at:', e.pageX, e.pageY);
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Show context menu at cursor position
+            if (contextMenu) {
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+                console.log('Context menu displayed');
+            } else {
+                console.error('Context menu element not found');
+            }
+            
+            return false;
+        });
+
+        // Handle clicks - only to hide context menu, not close window
+        document.addEventListener('click', function(e) {
+            // If clicking on context menu item, let it handle the close
+            if (e.target.closest('.context-menu-item')) {
+                console.log('Context menu item clicked');
+                closeWindow();
+                return;
+            }
+            
+            // Hide context menu if it's visible
+            if (contextMenu && contextMenu.style.display === 'block') {
+                contextMenu.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

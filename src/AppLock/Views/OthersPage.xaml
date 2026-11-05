@@ -4,8 +4,95 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:AppLock.Views"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <!-- Brightness Card Template -->
+        <DataTemplate x:Key="BrightnessTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Brightness Hotkeys Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Brightness Hotkeys"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable all brightness shortcuts"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind BrightnessHotkeysEnabled, Mode=OneWay}"
+                                  Toggled="BrightnessHotkeysToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+
+                <!-- Blur Hotkey Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Blur Overlay Hotkey"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable blur overlay shortcut"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind BlurHotkeyEnabled, Mode=OneWay}"
+                                  Toggled="BlurHotkeyToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Eye Care Card Template -->
+        <DataTemplate x:Key="EyeCareTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Eye Care Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Eye Care Reminders"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable periodic eye care reminders"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind EyeCareEnabled, Mode=TwoWay}"
+                                  Toggled="EyeCareToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Template Selector -->
+        <local:CardContentTemplateSelector x:Key="CardContentSelector"
+                                           BrightnessTemplate="{StaticResource BrightnessTemplate}"
+                                           EyeCareTemplate="{StaticResource EyeCareTemplate}"/>
+    </Page.Resources>
 
     <Grid Padding="24,20,24,24">
         <Grid.RowDefinitions>
@@ -26,24 +113,26 @@
 
         <!-- Cards Grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="UtilityCardsControl">
+            <ItemsControl ItemsSource="{x:Bind Cards, Mode=OneTime}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <ItemsWrapGrid Orientation="Horizontal" 
-                                       MaximumRowsOrColumns="3"
-                                       HorizontalAlignment="Left"/>
+                        <StackPanel Orientation="Horizontal" Spacing="16"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="local:UtilityCard">
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Margin="0,0,16,16"
                                 Width="320"
-                                MinHeight="140">
+                                VerticalAlignment="Top"
+                                x:Name="CardBorder">
+                            <Border.Shadow>
+                                <ThemeShadow />
+                            </Border.Shadow>
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -104,7 +193,9 @@
                                           HorizontalContentAlignment="Stretch"
                                           Margin="12,0,12,12"
                                           IsExpanded="False"
-                                          Expanding="CardExpander_Expanding">
+                                          Loaded="CardExpander_Loaded"
+                                          Expanding="CardExpander_Expanding"
+                                          Collapsed="CardExpander_Collapsed">
                                     <Expander.Header>
                                         <TextBlock Text="Quick Settings"
                                                    FontSize="13"
@@ -112,53 +203,9 @@
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                     </Expander.Header>
                                     <Expander.Content>
-                                        <StackPanel Spacing="12" Margin="0,8,0,0">
-                                            <!-- Brightness Hotkeys Toggle -->
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                    <TextBlock Text="Brightness Hotkeys"
-                                                               FontSize="13"
-                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                                    <TextBlock Text="Enable/disable all brightness shortcuts"
-                                                               FontSize="11"
-                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                                <ToggleSwitch Grid.Column="1"
-                                                              IsOn="{Binding BrightnessHotkeysEnabled, Mode=OneWay}"
-                                                              Toggled="BrightnessHotkeysToggle_Toggled"
-                                                              MinWidth="0"
-                                                              OffContent=""
-                                                              OnContent=""/>
-                                            </Grid>
-
-                                            <!-- Blur Hotkey Toggle -->
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                    <TextBlock Text="Blur Overlay Hotkey"
-                                                               FontSize="13"
-                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                                    <TextBlock Text="Enable/disable blur overlay shortcut"
-                                                               FontSize="11"
-                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                                <ToggleSwitch Grid.Column="1"
-                                                              IsOn="{Binding BlurHotkeyEnabled, Mode=OneWay}"
-                                                              Toggled="BlurHotkeyToggle_Toggled"
-                                                              MinWidth="0"
-                                                              OffContent=""
-                                                              OnContent=""/>
-                                            </Grid>
-                                        </StackPanel>
+                                        <ContentControl Content="{Binding}"
+                                                        ContentTemplateSelector="{StaticResource CardContentSelector}"
+                                                        HorizontalContentAlignment="Stretch"/>
                                     </Expander.Content>
                                 </Expander>
                             </Grid>

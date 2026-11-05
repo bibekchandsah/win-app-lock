@@ -7,32 +7,79 @@ using AppLock.Services;
 
 namespace AppLock.Views;
 
+// Template selector to choose content based on card type
+public class CardContentTemplateSelector : DataTemplateSelector
+{
+    public DataTemplate? BrightnessTemplate { get; set; }
+    public DataTemplate? EyeCareTemplate { get; set; }
+
+    protected override DataTemplate? SelectTemplateCore(object item)
+    {
+        System.Diagnostics.Debug.WriteLine($"SelectTemplateCore called with item: {item}");
+        
+        if (item is UtilityCard card)
+        {
+            System.Diagnostics.Debug.WriteLine($"Card ID: {card.Id}, Title: {card.Title}");
+            
+            var template = card.Id switch
+            {
+                "brightness" => BrightnessTemplate,
+                "eyecare" => EyeCareTemplate,
+                _ => null
+            };
+            
+            System.Diagnostics.Debug.WriteLine($"Selected template: {template?.GetType().Name ?? "NULL"}");
+            return template;
+        }
+        
+        System.Diagnostics.Debug.WriteLine("Item is not UtilityCard!");
+        return null;
+    }
+
+    protected override DataTemplate? SelectTemplateCore(object item, DependencyObject container)
+    {
+        System.Diagnostics.Debug.WriteLine($"SelectTemplateCore (with container) called");
+        return SelectTemplateCore(item);
+    }
+}
+
 public sealed partial class OthersPage : Page
 {
+    public List<UtilityCard> Cards { get; } = new();
+
     public OthersPage()
     {
-        this.InitializeComponent();
         LoadUtilityCards();
+        this.InitializeComponent();
     }
 
     private void LoadUtilityCards()
     {
-        var cards = new List<UtilityCard>
+        Cards.Add(new UtilityCard
         {
-            new UtilityCard
-            {
-                Id = "brightness",
-                Icon = "\uE706", // Sun icon
-                Title = "Brightness",
-                Description = "Control screen brightness with shortcuts and a blur overlay",
-                Status = "Ready to configure",
-                StatusVisibility = Visibility.Collapsed,
-                BrightnessHotkeysEnabled = ServiceContainer.Settings.Brightness.HotkeysEnabled,
-                BlurHotkeyEnabled = ServiceContainer.Settings.Brightness.Blur.HotkeyEnabled
-            }
-        };
-
-        UtilityCardsControl.ItemsSource = cards;
+            Id = "brightness",
+            Icon = "\uE706", // Sun icon
+            Title = "Brightness",
+            Description = "Control screen brightness with shortcuts and a blur overlay",
+            Status = "",
+            StatusVisibility = Visibility.Collapsed,
+            BrightnessHotkeysEnabled = ServiceContainer.Settings.Brightness.HotkeysEnabled,
+            BlurHotkeyEnabled = ServiceContainer.Settings.Brightness.Blur.HotkeyEnabled,
+            EyeCareEnabled = false
+        });
+        
+        Cards.Add(new UtilityCard
+        {
+            Id = "eyecare",
+            Icon = "\uE7B3", // Eye icon
+            Title = "Eye Care",
+            Description = "Periodic reminders to rest your eyes with fullscreen overlays",
+            Status = "",
+            StatusVisibility = Visibility.Collapsed,
+            BrightnessHotkeysEnabled = false,
+            BlurHotkeyEnabled = false,
+            EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled
+        });
     }
 
     private void UtilityCard_Click(object sender, RoutedEventArgs e)
@@ -44,6 +91,11 @@ public sealed partial class OthersPage : Page
             {
                 // Navigate to BrightnessPage
                 Frame.Navigate(typeof(BrightnessPage));
+            }
+            else if (card.Id == "eyecare")
+            {
+                // Navigate to EyeCarePage
+                Frame.Navigate(typeof(EyeCarePage));
             }
         }
     }
@@ -68,11 +120,87 @@ public sealed partial class OthersPage : Page
         }
     }
 
+    private void CardExpander_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Show expander for both brightness and eyecare cards
+        if (sender is Expander expander && expander.DataContext is UtilityCard card)
+        {
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare") 
+                ? Visibility.Visible 
+                : Visibility.Collapsed;
+        }
+    }
+
     private void CardExpander_Expanding(Expander sender, ExpanderExpandingEventArgs args)
     {
-        // Prevent card click when expander is toggled
-        // Note: ExpanderExpandingEventArgs doesn't have Handled property, 
-        // but the event structure prevents propagation automatically
+        // Elevate the card when expanding (bring to front with z-index and shadow)
+        var border = GetParentBorder(sender);
+        if (border != null)
+        {
+            // Set high z-index to appear on top
+            Canvas.SetZIndex(border, 10);
+            
+            // Add elevation with translation and shadow
+            border.Translation = new System.Numerics.Vector3(0, 0, 16);
+            
+            // Force layout update
+            border.InvalidateMeasure();
+            border.InvalidateArrange();
+            border.UpdateLayout();
+        }
+    }
+
+    private void CardExpander_Collapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    {
+        // Reset the card elevation when collapsing
+        var border = GetParentBorder(sender);
+        if (border != null)
+        {
+            // Reset z-index to normal
+            Canvas.SetZIndex(border, 0);
+            
+            // Remove elevation
+            border.Translation = new System.Numerics.Vector3(0, 0, 0);
+            
+            // Force layout update
+            border.InvalidateMeasure();
+            border.InvalidateArrange();
+            border.UpdateLayout();
+        }
+    }
+
+    private Border? GetParentBorder(DependencyObject child)
+    {
+        var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(child);
+        while (parent != null)
+        {
+            if (parent is Border border)
+                return border;
+            parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
+        }
+        return null;
+    }
+
+    private void EyeCareToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
+        {
+            ServiceContainer.Settings.EyeCare.Enabled = toggle.IsOn;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            
+            // Update the card property
+            card.EyeCareEnabled = toggle.IsOn;
+            
+            // Update scheduler
+            if (toggle.IsOn)
+            {
+                ServiceContainer.EyeCareScheduler?.Start();
+            }
+            else
+            {
+                ServiceContainer.EyeCareScheduler?.Stop();
+            }
+        }
     }
 }
 
@@ -80,12 +208,34 @@ public class UtilityCard : INotifyPropertyChanged
 {
     private bool _brightnessHotkeysEnabled;
     private bool _blurHotkeyEnabled;
+    private bool _eyeCareEnabled;
+    private string _status = string.Empty;
 
     public string Id { get; set; } = string.Empty;
     public string Icon { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
+    
+    // Visibility helpers - computed based on Id
+    public bool IsBrightnessCard => Id == "brightness";
+    public bool IsEyeCareCard => Id == "eyecare";
+    
+    public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
+    
+    public string Status
+    {
+        get => _status;
+        set
+        {
+            if (_status != value)
+            {
+                _status = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+    
     public Visibility StatusVisibility { get; set; } = Visibility.Collapsed;
 
     public bool BrightnessHotkeysEnabled
@@ -109,6 +259,19 @@ public class UtilityCard : INotifyPropertyChanged
             if (_blurHotkeyEnabled != value)
             {
                 _blurHotkeyEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool EyeCareEnabled
+    {
+        get => _eyeCareEnabled;
+        set
+        {
+            if (_eyeCareEnabled != value)
+            {
+                _eyeCareEnabled = value;
                 OnPropertyChanged();
             }
         }

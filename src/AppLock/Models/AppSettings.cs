@@ -54,6 +54,9 @@ public class AppSettings
     // Brightness
     public BrightnessSettings Brightness { get; set; } = new();
     
+    // Eye Care
+    public EyeCareSettings EyeCare { get; set; } = new();
+    
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

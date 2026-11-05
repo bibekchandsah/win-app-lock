@@ -33,6 +33,8 @@ public static class ServiceContainer
     private static AppLock.Services.BitLocker.StartupTaskService? _startupTaskService;
     private static AppLock.Services.BitLocker.BitLockerAutoUnlockService? _autoUnlockService;
     private static AppLock.Services.Brightness.BrightnessHotkeyManager? _brightnessHotkeyManager;
+    private static AppLock.Services.EyeCare.EyeCareScheduler? _eyeCareScheduler;
+    private static AppLock.Services.EyeCare.EyeCareOverlayService? _eyeCareOverlayService;
 
     public static NotificationService NotificationService
     {
@@ -302,6 +304,9 @@ public static class ServiceContainer
         _startupTaskService = null;
         _autoUnlockService = null;
         _brightnessHotkeyManager = null;
+        _eyeCareScheduler?.Dispose();
+        _eyeCareScheduler = null;
+        _eyeCareOverlayService = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -402,6 +407,34 @@ public static class ServiceContainer
                 dispatcherQueue);
 
             _brightnessHotkeyManager.RegisterAllHotkeys();
+        }
+    }
+
+    public static AppLock.Services.EyeCare.EyeCareOverlayService? EyeCareOverlayService => _eyeCareOverlayService;
+    public static AppLock.Services.EyeCare.EyeCareScheduler? EyeCareScheduler => _eyeCareScheduler;
+
+    public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_eyeCareOverlayService == null)
+        {
+            _eyeCareOverlayService = new AppLock.Services.EyeCare.EyeCareOverlayService(
+                dispatcherQueue,
+                () => Settings.EyeCare);
+        }
+
+        if (_eyeCareScheduler == null)
+        {
+            _eyeCareScheduler = new AppLock.Services.EyeCare.EyeCareScheduler(
+                _eyeCareOverlayService,
+                dispatcherQueue,
+                () => Settings.EyeCare,
+                s => SettingsStore.Save(s));
+
+            // Auto-start if enabled
+            if (Settings.EyeCare.Enabled)
+            {
+                _eyeCareScheduler.Start();
+            }
         }
     }
 }

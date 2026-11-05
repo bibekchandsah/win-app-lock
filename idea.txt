@@ -170,10 +170,10 @@ issue
 
 
 
--> enable/disable brightness
--> enable/disable blur 
+-> implemented - enable/disable brightness
+-> implemented - enable/disable blur 
 -> enable/disable eyecare
--> hotkey recording fixing
+-> fixed - hotkey recording fixing
 -> live blur/dim screen overlay
 -> if user haven't set lock on any app then can exit without password 
 

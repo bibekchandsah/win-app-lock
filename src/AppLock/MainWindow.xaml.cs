@@ -696,6 +696,9 @@ public sealed partial class MainWindow : Window
         // Initialize global brightness hotkeys
         ServiceContainer.InitializeBrightnessHotkeys(DispatcherQueue);
 
+        // Initialize Eye Care scheduler
+        ServiceContainer.InitializeEyeCare(DispatcherQueue);
+
         // Safety net: restore all DWM thumbnails even on unexpected process exit
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {
