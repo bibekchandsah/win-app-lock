@@ -96,12 +96,15 @@ public sealed partial class ClipboardPopupWindow : Window
     }
 
     private bool _isWindowPinned = false;
+    private bool _isDragging = false;
+    private POINT _dragStartCursor;
+    private PointInt32 _dragStartWindowPos;
 
     private void ClipboardPopupWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            if (!_isWindowPinned)
+            if (!_isWindowPinned && !_isDragging)
             {
                 HidePopup();
             }
@@ -110,12 +113,43 @@ public sealed partial class ClipboardPopupWindow : Window
 
     private void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        var prop = e.GetCurrentPoint(sender as UIElement).Properties;
-        if (prop.IsLeftButtonPressed && _hwnd != nint.Zero)
+        var pt = e.GetCurrentPoint(sender as UIElement);
+        if (pt.Properties.IsLeftButtonPressed && _appWindow != null)
         {
-            ReleaseCapture();
-            SendMessage(_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+            _isDragging = true;
+            (sender as UIElement)?.CapturePointer(e.Pointer);
+            GetCursorPos(out _dragStartCursor);
+            _dragStartWindowPos = _appWindow.Position;
+            e.Handled = true;
         }
+    }
+
+    private void Header_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isDragging && _appWindow != null)
+        {
+            GetCursorPos(out POINT currentCursor);
+            int dx = currentCursor.x - _dragStartCursor.x;
+            int dy = currentCursor.y - _dragStartCursor.y;
+
+            _appWindow.Move(new PointInt32(_dragStartWindowPos.X + dx, _dragStartWindowPos.Y + dy));
+            e.Handled = true;
+        }
+    }
+
+    private void Header_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_isDragging)
+        {
+            _isDragging = false;
+            (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
+            e.Handled = true;
+        }
+    }
+
+    private void Header_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        _isDragging = false;
     }
 
     private void WindowPinButton_Click(object sender, RoutedEventArgs e)
@@ -131,6 +165,13 @@ public sealed partial class ClipboardPopupWindow : Window
     private void WindowCloseButton_Click(object sender, RoutedEventArgs e)
     {
         HidePopup();
+    }
+
+    private static bool IsAppLockWindow(nint hwnd)
+    {
+        if (hwnd == nint.Zero) return false;
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        return pid == (uint)Process.GetCurrentProcess().Id;
     }
 
     private nint GetExternalForegroundWindow()
@@ -681,6 +722,17 @@ public sealed partial class ClipboardPopupWindow : Window
     private async Task ExecutePasteAsync(ClipboardItemViewModel vm, bool plainTextOnly = false, bool copyOnly = false)
     {
         nint target = _prevForegroundHwnd;
+        if (target == nint.Zero || !IsWindow(target) || IsAppLockWindow(target))
+        {
+            target = GetExternalForegroundWindow();
+        }
+
+        // Restore focus while AppLock is still active so Windows grants foreground transition
+        if (target != nint.Zero && IsWindow(target))
+        {
+            ClipboardPasteService.RestoreFocus(target);
+        }
+
         HidePopup();
 
         await ServiceContainer.ClipboardPasteService.PasteItemAsync(
@@ -696,6 +748,16 @@ public sealed partial class ClipboardPopupWindow : Window
         if (selectedList.Count == 0) return;
 
         nint target = _prevForegroundHwnd;
+        if (target == nint.Zero || !IsWindow(target) || IsAppLockWindow(target))
+        {
+            target = GetExternalForegroundWindow();
+        }
+
+        if (target != nint.Zero && IsWindow(target))
+        {
+            ClipboardPasteService.RestoreFocus(target);
+        }
+
         HidePopup();
 
         await ServiceContainer.ClipboardPasteService.PasteMergedAsync(
@@ -957,6 +1019,46 @@ public sealed partial class ClipboardPopupWindow : Window
         }
     }
 
+    private void ItemOpenDirectLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm)
+        {
+            string raw = (vm.Model.ContentString ?? vm.PreviewText).Trim();
+            string targetUrl;
+
+            if (vm.IsLink)
+            {
+                targetUrl = raw.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                    ? "https://" + raw
+                    : raw;
+
+                if (!targetUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                    !targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetUrl = "https://" + targetUrl;
+                }
+            }
+            else
+            {
+                targetUrl = "https://www.google.com/search?q=" + Uri.EscapeDataString(raw);
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(targetUrl) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClipboardPopup] Open direct link error: {ex.Message}");
+            }
+
+            if (!_isWindowPinned)
+            {
+                HidePopup();
+            }
+        }
+    }
+
     private ClipboardItemViewModel? _customSearchTargetItem;
 
     private void BrowserSearch_Click(object sender, RoutedEventArgs e)
@@ -998,15 +1100,17 @@ public sealed partial class ClipboardPopupWindow : Window
         else
         {
             string raw = (vm.Model.ContentString ?? vm.PreviewText).Trim();
-            if (vm.IsLink && (engine == "google" || engine == "bing"))
+            if (vm.IsLink)
             {
                 string linkUrl = raw.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
                     ? "https://" + raw
                     : raw;
-                if (Uri.TryCreate(linkUrl, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                if (!linkUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                    !linkUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
-                    targetUrl = linkUrl;
+                    linkUrl = "https://" + linkUrl;
                 }
+                targetUrl = linkUrl;
             }
 
             if (string.IsNullOrEmpty(targetUrl))

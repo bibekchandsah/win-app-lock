@@ -69,39 +69,6 @@
                     </TabViewItem.IconSource>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,16,16,16">
                         <StackPanel Spacing="12" MaxWidth="800" HorizontalAlignment="Left">
-                            <!-- Milestone 1 Debug Card -->
-                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Spacing="4">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE7BE;" FontSize="16" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                            <TextBlock Text="Milestone 1 Preview Test" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                        </StackPanel>
-                                        <TextBlock x:Name="DebugStatusText"
-                                                   Text="Stored items: 0 | Current limit: 100"
-                                                   FontSize="12"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="1"
-                                            x:Name="AddTestItemsButton"
-                                            Click="AddTestItemsButton_Click"
-                                            VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon Glyph="&#xE710;" FontSize="12"/>
-                                            <TextBlock Text="Add 5 test items"/>
-                                        </StackPanel>
-                                    </Button>
-                                </Grid>
-                            </Border>
-
                             <!-- Enable Switch -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -286,33 +253,6 @@
                                                   MinWidth="0"
                                                   OffContent=""
                                                   OnContent=""/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Theme -->
-                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                        <TextBlock Text="Theme" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                        <TextBlock Text="Choose Light, Dark, or follow Windows system theme" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    </StackPanel>
-                                    <ComboBox Grid.Column="1"
-                                              x:Name="ThemeCombo"
-                                              SelectionChanged="ThemeCombo_SelectionChanged"
-                                              MinWidth="160"
-                                              VerticalAlignment="Center">
-                                        <ComboBoxItem Content="System default" Tag="System"/>
-                                        <ComboBoxItem Content="Light" Tag="Light"/>
-                                        <ComboBoxItem Content="Dark" Tag="Dark"/>
-                                    </ComboBox>
                                 </Grid>
                             </Border>
                         </StackPanel>
@@ -697,63 +637,156 @@
                         <FontIconSource Glyph="&#xE8D2;"/>
                     </TabViewItem.IconSource>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,16,16,16">
-                        <StackPanel Spacing="16" MaxWidth="800" HorizontalAlignment="Left">
+                        <StackPanel Spacing="14" MaxWidth="800" HorizontalAlignment="Left">
+                            <!-- Snippets Header Card -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
-                                <StackPanel Spacing="12">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Reusable Snippets" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                            <TextBlock Text="Save frequently used text templates with titles and quick abbreviation triggers." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <Border Width="40" Height="40" CornerRadius="8"
+                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                            <FontIcon Glyph="&#xE8D2;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="Reusable Snippets" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                <TextBlock x:Name="SnippetsCountText" Text="0 snippets saved" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="Save frequently used text templates with titles and quick abbreviation triggers."
+                                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="+ Add Snippet" Click="AddSnippet_Click" Style="{StaticResource AccentButtonStyle}"/>
-                                    </Grid>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Click="AddSnippet_Click" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                                            <TextBlock Text="Add Snippet"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
 
-                                    <!-- Snippets List -->
-                                    <ListView x:Name="SnippetsListView"
-                                              MaxHeight="360"
-                                              BorderThickness="1"
-                                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                              CornerRadius="6">
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ClipboardItemViewModel">
-                                                <Grid Padding="4,8" ColumnSpacing="12">
+                            <!-- Snippets List -->
+                            <ListView x:Name="SnippetsListView"
+                                      SelectionMode="None"
+                                      IsItemClickEnabled="False">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0,4"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ClipboardItemViewModel">
+                                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="14,12">
+                                            <Grid RowSpacing="8">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <!-- Top Row: Icon, Title, Abbreviation, and Action Buttons -->
+                                                <Grid Grid.Row="0">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <StackPanel Grid.Column="0" Spacing="2" MinWidth="130">
-                                                        <TextBlock Text="{x:Bind SnippetTitle}" FontWeight="SemiBold" FontSize="13"/>
-                                                        <TextBlock Text="{x:Bind SnippetAbbreviation}" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    <!-- Left: Title & Abbreviation pill -->
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE8D2;" FontSize="13" Foreground="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{x:Bind SnippetTitle}" FontWeight="SemiBold" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+                                                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="4"
+                                                                Padding="6,2"
+                                                                Visibility="{x:Bind AbbreviationVisibility, Mode=OneWay}"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{x:Bind SnippetAbbreviation}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                        </Border>
                                                     </StackPanel>
 
-                                                    <TextBlock Grid.Column="1" Text="{x:Bind PreviewText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="2" VerticalAlignment="Center"/>
-
-                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                        <Button Content="Edit" Click="EditSnippet_Click" Tag="{x:Bind}" Padding="8,4" FontSize="11"/>
-                                                        <Button Content="Delete" Click="DeleteSnippet_Click" Tag="{x:Bind}" Padding="8,4" FontSize="11"/>
+                                                    <!-- Right: Edit & Delete Buttons -->
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                        <Button Click="EditSnippet_Click"
+                                                                Tag="{x:Bind}"
+                                                                AutomationProperties.Name="Edit snippet"
+                                                                ToolTipService.ToolTip="Edit snippet"
+                                                                Padding="6,4"
+                                                                Background="Transparent"
+                                                                BorderThickness="0">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <FontIcon Glyph="&#xE70F;" FontSize="11"/>
+                                                                <TextBlock Text="Edit" FontSize="11"/>
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Click="DeleteSnippet_Click"
+                                                                Tag="{x:Bind}"
+                                                                AutomationProperties.Name="Delete snippet"
+                                                                ToolTipService.ToolTip="Delete snippet"
+                                                                Padding="6,4"
+                                                                Background="Transparent"
+                                                                BorderThickness="0">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                                <TextBlock Text="Delete" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                            </StackPanel>
+                                                        </Button>
                                                     </StackPanel>
                                                 </Grid>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
 
-                                    <!-- Empty state -->
-                                    <TextBlock x:Name="SnippetsEmptyText"
-                                               Text="No snippets created yet. Click '+ Add Snippet' to create one."
+                                                <!-- Bottom Row: Preview content box -->
+                                                <Border Grid.Row="1"
+                                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="10,8">
+                                                    <TextBlock Text="{x:Bind PreviewText}"
+                                                               FontSize="12"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                               TextWrapping="Wrap"
+                                                               MaxLines="4"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+
+                            <!-- Empty state panel -->
+                            <Border x:Name="SnippetsEmptyPanel"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="32,28">
+                                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8D2;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="No snippets yet" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Create reusable text templates for quick pasting across your favorite applications."
                                                FontSize="12"
-                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                HorizontalAlignment="Center"
-                                               Margin="0,8,0,0"/>
+                                               TextAlignment="Center"
+                                               MaxWidth="420"/>
+                                    <Button Content="+ Create Your First Snippet"
+                                            Click="AddSnippet_Click"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,6,0,0"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

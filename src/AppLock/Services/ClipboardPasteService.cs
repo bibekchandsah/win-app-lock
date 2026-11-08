@@ -73,30 +73,16 @@ public class ClipboardPasteService
                 RestoreFocus(targetHwnd);
             }
 
-            // 4. Check for UIPI (Elevation / Admin Target)
-            if (targetHwnd != nint.Zero && IsProcessElevated(targetHwnd))
-            {
-                result.Success = true;
-                result.PastedViaSendInput = false;
-                result.TargetIsElevated = true;
-                result.Message = "Copied to clipboard. Press Ctrl+V to paste (target is running as Administrator).";
+            // 4. Wait ~180ms for target window (especially Chromium / Electron apps like WhatsApp) to settle focus
+            await Task.Delay(180);
 
-                // Surface fallback toast
-                FallbackToastRequested?.Invoke(this, "Copied to clipboard. Press Ctrl+V to paste.");
-                ServiceContainer.NotificationService.ShowInfo("Clipboard", "Copied to clipboard. Press Ctrl+V to paste.");
-                return result;
-            }
-
-            // 5. Wait ~200ms for target window (especially Chromium / Electron apps like WhatsApp) to settle focus
-            await Task.Delay(200);
-
-            // 6. Release any held modifier keys so Shift/Alt/Ctrl/Win don't corrupt the paste
+            // 5. Release any held modifier keys so Shift/Alt/Ctrl/Win don't corrupt the paste
             ReleaseHeldModifiers();
 
             // Brief pause before SendInput
-            await Task.Delay(30);
+            await Task.Delay(25);
 
-            // 7. Send Ctrl + V using SendInput
+            // 6. Send Ctrl + V using keybd_event with scan codes
             bool sent = SendCtrlV();
             result.Success = true;
             result.PastedViaSendInput = sent;
@@ -197,21 +183,9 @@ public class ClipboardPasteService
                 RestoreFocus(targetHwnd);
             }
 
-            // UIPI check
-            if (targetHwnd != nint.Zero && IsProcessElevated(targetHwnd))
-            {
-                result.Success = true;
-                result.PastedViaSendInput = false;
-                result.TargetIsElevated = true;
-                result.Message = "Merged items copied. Press Ctrl+V to paste.";
-                FallbackToastRequested?.Invoke(this, "Copied to clipboard. Press Ctrl+V to paste.");
-                ServiceContainer.NotificationService.ShowInfo("Clipboard", "Copied to clipboard. Press Ctrl+V to paste.");
-                return result;
-            }
-
-            await Task.Delay(200);
+            await Task.Delay(180);
             ReleaseHeldModifiers();
-            await Task.Delay(30);
+            await Task.Delay(25);
 
             bool sent = SendCtrlV();
             result.Success = true;
@@ -497,7 +471,7 @@ public class ClipboardPasteService
     }
 
     /// <summary>
-    /// Brings target window to foreground reliably using SwitchToThisWindow, AttachThreadInput, and BringWindowToTop.
+    /// Brings target window to foreground reliably without destroying child edit caret focus.
     /// </summary>
     public static void RestoreFocus(nint targetHwnd)
     {
@@ -508,23 +482,30 @@ public class ClipboardPasteService
             ShowWindow(targetHwnd, SW_RESTORE);
         }
 
-        uint targetThread = GetWindowThreadProcessId(targetHwnd, out _);
+        uint targetThread = GetWindowThreadProcessId(targetHwnd, out uint targetPid);
         uint currentThread = GetCurrentThreadId();
 
-        if (targetThread != currentThread)
+        AllowSetForegroundWindow(targetPid != 0 ? targetPid : ASFW_ANY);
+
+        nint fg = GetForegroundWindow();
+        uint fgThread = fg != nint.Zero ? GetWindowThreadProcessId(fg, out _) : 0;
+
+        if (fgThread != 0 && fgThread != targetThread)
         {
+            AttachThreadInput(fgThread, targetThread, true);
             AttachThreadInput(currentThread, targetThread, true);
-            SetForegroundWindow(targetHwnd);
+
             BringWindowToTop(targetHwnd);
-            SetFocus(targetHwnd);
+            SetForegroundWindow(targetHwnd);
             SwitchToThisWindow(targetHwnd, true);
+
             AttachThreadInput(currentThread, targetThread, false);
+            AttachThreadInput(fgThread, targetThread, false);
         }
         else
         {
-            SetForegroundWindow(targetHwnd);
             BringWindowToTop(targetHwnd);
-            SetFocus(targetHwnd);
+            SetForegroundWindow(targetHwnd);
             SwitchToThisWindow(targetHwnd, true);
         }
     }
@@ -754,6 +735,14 @@ public class ClipboardPasteService
 
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, nuint dwExtraInfo);
+
+    private const uint ASFW_ANY = 0xFFFFFFFF;
+
+    [DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
 
     [DllImport("user32.dll")]
     private static extern bool BringWindowToTop(nint hWnd);

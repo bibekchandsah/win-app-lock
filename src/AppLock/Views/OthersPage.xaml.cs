@@ -90,7 +90,7 @@ public sealed partial class OthersPage : Page
             Title = "Clipboard",
             Description = "Persistent clipboard history with custom hotkey and search",
             Status = ServiceContainer.Settings.Clipboard.Enabled ? "Capturing" : "Disabled",
-            StatusVisibility = Visibility.Visible,
+            StatusVisibility = Visibility.Collapsed,
             BrightnessHotkeysEnabled = false,
             BlurHotkeyEnabled = false,
             EyeCareEnabled = false,

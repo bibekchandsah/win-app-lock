@@ -28,7 +28,6 @@ public sealed partial class ClipboardSettingsPage : Page
         LoadSettings();
         _ = RefreshDataTabAsync();
         _ = RefreshSnippetsTabAsync();
-        _ = UpdateDebugStatusAsync();
     }
 
     private void ClipboardSettingsPage_Unloaded(object sender, RoutedEventArgs e)
@@ -42,7 +41,6 @@ public sealed partial class ClipboardSettingsPage : Page
         {
             _ = RefreshDataTabAsync();
             _ = RefreshSnippetsTabAsync();
-            _ = UpdateDebugStatusAsync();
         });
     }
 
@@ -131,20 +129,6 @@ public sealed partial class ClipboardSettingsPage : Page
 
             StartWithWindowsToggle.IsOn = ServiceContainer.StartupService.IsStartupEnabled() || settings.StartWithWindows;
 
-            // Theme
-            foreach (ComboBoxItem item in ThemeCombo.Items)
-            {
-                if (item.Tag?.ToString() == settings.ThemeMode)
-                {
-                    ThemeCombo.SelectedItem = item;
-                    break;
-                }
-            }
-            if (ThemeCombo.SelectedItem == null && ThemeCombo.Items.Count > 0)
-            {
-                ThemeCombo.SelectedIndex = 0;
-            }
-
             // Capture tab
             CaptureTextToggle.IsOn = settings.CaptureText;
             CaptureImagesToggle.IsOn = settings.CaptureImages;
@@ -223,7 +207,6 @@ public sealed partial class ClipboardSettingsPage : Page
 
             SaveSettings();
             await ServiceContainer.ClipboardStore.EnforceLimitAsync(ServiceContainer.Settings.Clipboard.MaxItems);
-            await UpdateDebugStatusAsync();
         }
     }
 
@@ -236,7 +219,6 @@ public sealed partial class ClipboardSettingsPage : Page
             ServiceContainer.Settings.Clipboard.MaxItems = val;
             SaveSettings();
             await ServiceContainer.ClipboardStore.EnforceLimitAsync(val);
-            await UpdateDebugStatusAsync();
         }
     }
 
@@ -288,28 +270,6 @@ public sealed partial class ClipboardSettingsPage : Page
         ServiceContainer.Settings.Clipboard.StartWithWindows = isEnabled;
         SaveSettings();
         ServiceContainer.StartupService.SetStartupEnabled(isEnabled);
-    }
-
-    private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isInitializing) return;
-        if (ThemeCombo.SelectedItem is ComboBoxItem item)
-        {
-            string theme = item.Tag?.ToString() ?? "System";
-            ServiceContainer.Settings.Clipboard.ThemeMode = theme;
-            SaveSettings();
-
-            // Apply theme dynamically to root element
-            if (this.XamlRoot?.Content is FrameworkElement root)
-            {
-                root.RequestedTheme = theme switch
-                {
-                    "Light" => ElementTheme.Light,
-                    "Dark" => ElementTheme.Dark,
-                    _ => ElementTheme.Default
-                };
-            }
-        }
     }
 
     private void CaptureToggle_Toggled(object sender, RoutedEventArgs e)
@@ -440,7 +400,6 @@ public sealed partial class ClipboardSettingsPage : Page
             await ServiceContainer.ClipboardStore.ClearHistoryAsync(includePinned);
             await RefreshDataTabAsync();
             await RefreshSnippetsTabAsync();
-            await UpdateDebugStatusAsync();
         }
     }
 
@@ -451,7 +410,9 @@ public sealed partial class ClipboardSettingsPage : Page
             var rawSnippets = await ServiceContainer.ClipboardStore.GetSnippetsAsync();
             var list = rawSnippets.Select(s => new ClipboardItemViewModel(s)).ToList();
             SnippetsListView.ItemsSource = list;
-            SnippetsEmptyText.Visibility = list.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            SnippetsEmptyPanel.Visibility = list.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            SnippetsListView.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            SnippetsCountText.Text = list.Count == 1 ? "1 snippet saved" : $"{list.Count} snippets saved";
         }
         catch (Exception ex)
         {
@@ -596,7 +557,6 @@ public sealed partial class ClipboardSettingsPage : Page
                 BackupStatusText.Text = $"Successfully imported {count} items from {file.Name}";
                 await RefreshDataTabAsync();
                 await RefreshSnippetsTabAsync();
-                await UpdateDebugStatusAsync();
             }
         }
         catch (Exception ex)
@@ -617,35 +577,6 @@ public sealed partial class ClipboardSettingsPage : Page
         catch (Exception ex)
         {
             Debug.WriteLine($"Error calculating storage usage: {ex.Message}");
-        }
-    }
-
-    private async Task UpdateDebugStatusAsync()
-    {
-        try
-        {
-            int count = await ServiceContainer.ClipboardStore.GetItemCountAsync();
-            int limit = ServiceContainer.Settings.Clipboard.MaxItems;
-            DebugStatusText.Text = $"Stored items: {count} | Current limit: {limit}";
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Error updating debug status: {ex.Message}");
-        }
-    }
-
-    private async void AddTestItemsButton_Click(object sender, RoutedEventArgs e)
-    {
-        AddTestItemsButton.IsEnabled = false;
-        try
-        {
-            await ServiceContainer.ClipboardStore.AddDebugItemsAsync(5, ServiceContainer.Settings.Clipboard.MaxItems);
-            await UpdateDebugStatusAsync();
-            await RefreshDataTabAsync();
-        }
-        finally
-        {
-            AddTestItemsButton.IsEnabled = true;
         }
     }
 

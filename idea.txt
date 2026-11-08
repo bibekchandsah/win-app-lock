@@ -202,6 +202,19 @@ fixed - clipboard window draggable (header drag grip with WM_NCLBUTTONDOWN HTCAP
 fixed - open in browser > google, bing, more, custom (image search via Lens & Bing Visual Search)
 fixed - instead of showing two pin icon only show one pin icon which is next to copy icon, if pinned then show color with accent color filled pinned icon and if normal show in outline icon and clicking accent color pinned icon is clicked then make it unpinned with normal icon.
 
+fixed - url isn't directly opening as it opens in default browser as there is no need of google, bing. (direct open in browser button + menu item; search engines only for general text/images)
+fixed - window drag, pin isn't working smoothly it's getting stuck or freezeed (non-blocking pointer capture with AppWindow.Move and isolated pin/close buttons)
+fixed - pasting text or images isn't working in whatsapp and other applications (AppContainer sandbox access-denied fix, focus restoration without stealing caret, thread input attach)
+fixed - for text we can disable the option "save image as, copy as png"
+fixed - for image we can disable the option "Text Actions,  Edit Text before pasting (Ctrl+E),  Save as Snippet ..."
+fixed - for url we can disable the dropdown of browsers and can directly make "open in browser" clickable to search
+fixed - remove "capturin/disable" status from the card as we have enable and disable in collapsable for it 
+fixed - in quick setting callablable only show the toggle and below it remove : items, storage, open, pause, setting, add + test items
+fixed - in setting page > general: remove milestone 1 preview test row 
+fixed - adjust the spacing of hot key value and keyboard icon
+fixed - remove theme row as it's directly effected from setting page theme option
+fixed - snippets: make snippets page professional with modern cards, icon badges, abbreviation pills, formatted preview and rich empty state 
+
 
 
 

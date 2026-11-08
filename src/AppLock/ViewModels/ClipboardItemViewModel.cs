@@ -174,11 +174,13 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
                            PreviewText.StartsWith("www.", StringComparison.OrdinalIgnoreCase));
 
     public Microsoft.UI.Xaml.Visibility LinkVisibility => IsLink ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public Microsoft.UI.Xaml.Visibility NonLinkSearchVisibility => (!IsLink && (IsText || IsImage)) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public bool IsSnippet => _item.IsSnippet;
     public Microsoft.UI.Xaml.Visibility SnippetBadgeVisibility => IsSnippet ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     public string SnippetTitle => _item.Label ?? string.Empty;
     public string SnippetAbbreviation => _item.SourceTitle ?? string.Empty;
+    public Microsoft.UI.Xaml.Visibility AbbreviationVisibility => !string.IsNullOrWhiteSpace(SnippetAbbreviation) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     private Microsoft.UI.Xaml.Media.SolidColorBrush? _colorBrush;
     private bool _colorChecked;
