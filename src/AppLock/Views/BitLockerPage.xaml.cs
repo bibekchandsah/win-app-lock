@@ -151,8 +151,18 @@ public sealed partial class BitLockerPage : Page
             Width = 300
         };
         AutomationProperties.SetName(passwordBox, "Enter BitLocker password");
+        var saveCheckBox = new CheckBox
+        {
+            Content = "Save password for this drive",
+            FontSize = 12,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+        AutomationProperties.SetName(saveCheckBox, "Save password for this drive");
+        ToolTipService.SetToolTip(saveCheckBox, "Password encrypted with DPAPI and stored locally");
+
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(passwordBox);
+        panel.Children.Add(saveCheckBox);
         var dialog = new ContentDialog
         {
             Title = $"Unlock drive {drive.DisplayName}",
@@ -167,10 +177,36 @@ public sealed partial class BitLockerPage : Page
         if (result == ContentDialogResult.Primary)
         {
             var pwd = passwordBox.Password;
+            var shouldSave = saveCheckBox.IsChecked == true;
             passwordBox.Password = string.Empty;
             if (!string.IsNullOrEmpty(pwd))
             {
-                await ViewModel.UnlockWithPassphraseAsync(pwd);
+                var unlockResult = await ViewModel.UnlockWithPassphraseAsync(pwd);
+                if (unlockResult.Success && shouldSave)
+                {
+                    var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
+                    if (auth)
+                    {
+                        if (ViewModel.NeedsSavedPasswordNotice)
+                        {
+                            var noticeDialog = new ContentDialog
+                            {
+                                Title = "BitLocker Saved Passwords Notice",
+                                Content = new TextBlock
+                                {
+                                    Text = "Saving a password allows anyone using this Windows account to unlock this drive with one click.\n\nThe password is encrypted using Windows DPAPI specifically for your user profile and stored on this computer only.",
+                                    TextWrapping = TextWrapping.Wrap
+                                },
+                                CloseButtonText = "I understand",
+                                DefaultButton = ContentDialogButton.Close
+                            };
+                            ConfigureDialog(noticeDialog);
+                            await noticeDialog.ShowAsync();
+                            ViewModel.MarkSavedPasswordNoticeShown();
+                        }
+                        await ViewModel.SavePassphraseForSelectedAsync(pwd);
+                    }
+                }
             }
         }
         else if (result == ContentDialogResult.Secondary)
