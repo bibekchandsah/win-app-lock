@@ -1233,6 +1233,44 @@ All services compile successfully. Ready for integration testing once build envi
   - All 52 unit tests pass in `AppLock.Tests`.
   - Release build (`dotnet build src/AppLock/AppLock.csproj -c Release`) passes clean with 0 errors.
 
+---
+
+## BitLocker Feature — Milestone 8: Recovery Key View/Backup, Usage Dialog, Diagnostics, and Settings (2026-11-08)
+
+### Implementation Completed
+- **Recovery Key View & Backup**:
+  - Security-gated access with `BitLockerSecurityGate.EnsureAuthenticatedAsync(XamlRoot)`.
+  - Retrieves all 48-digit numerical recovery passwords for the selected volume via `GetRecoveryKeyAsync`.
+  - If a drive lacks a recovery protector, warns the user and offers to generate/add one immediately.
+  - **Copy key**: Copies to clipboard and, when `AutoClearClipboard` is enabled, triggers a 60-second auto-clear timer that clears clipboard if the key is still present.
+  - **Save to file (.txt)**: Saves formatted recovery text file to Desktop with volume label, timestamp, protector GUID, and 48-digit key.
+- **Drive Usage Dialog (`CheckUsageButton_Click`)**:
+  - Shows storage breakdown for the selected unlocked drive via `System.IO.DriveInfo`.
+  - Progress bar showing used vs free space with percentage.
+  - Displays used/free capacity, file system type, BitLocker conversion status, encryption percent, and encryption algorithm.
+  - If locked, explains that file system details are protected until unlocked.
+  - Quick action to open drive root in File Explorer.
+- **Diagnostics Dialog (`DiagnosticsButton_Click`)**:
+  - Full diagnostic report generator (`GenerateDiagnosticsReportAsync`):
+    - System environment (architecture, OS version, elevation, BitLocker support).
+    - Task Scheduler startup task status (state, last run time, result).
+    - Per-drive raw BitLocker attributes (drive letter, volume GUID, type, protection status, lock state, conversion, cipher algorithm, protector list).
+    - Recent action logs from `BitLockerLogger`.
+  - "Copy report" button copies full markdown diagnostic report to clipboard.
+  - "Open logs folder" opens `%LocalAppData%\AppLock\Logs` in File Explorer.
+- **Redacted Action Logger (`BitLockerLogger`)**:
+  - In-memory ring buffer holding last 200 sanitized log entries and writing to `%LocalAppData%\AppLock\Logsitlocker.log`.
+  - Strict regex redactor that strips out 48-digit recovery keys, passwords, or passphrases before storing.
+- **BitLocker Settings**:
+  - Added new settings in `AppSettings`: `BitLockerToastNotifications`, `BitLockerRefreshIntervalSeconds`, `BitLockerAutoClearClipboard`.
+  - Added "BitLocker settings" dialog accessible from the secondary command bar.
+  - Configurable options: Open drive in File Explorer after unlock, Auto-unlock saved drives when AppLock opens, Toast notifications, Auto-clear clipboard (60s), and Drive list refresh interval (5s / 10s / 30s).
+  - Dynamically updates `_refreshTimer.Interval` when refresh frequency is modified.
+- **Testing & Verification**:
+  - Added unit tests for `GetRecoveryKeyAsync`, `BitLockerLogger.Sanitize`, `GenerateDiagnosticsReportAsync`, and `BitLockerSettings` sync.
+  - 69/69 unit tests pass in `AppLock.Tests`.
+  - Release build (`dotnet build src/AppLock/AppLock.csproj -c Release`) passes clean with 0 errors.
+
 
 ## Connection Firewall Feature (Milestone 1)
 

@@ -90,6 +90,15 @@ public partial class BitLockerViewModel : ObservableObject
     private string _lastUnlockedSummary = "Not recorded";
 
     [ObservableProperty]
+    private bool _toastNotifications = true;
+
+    [ObservableProperty]
+    private int _refreshIntervalSeconds = 5;
+
+    [ObservableProperty]
+    private bool _autoClearClipboard = true;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedDriveAutoUnlockDisplay))]
     private bool _isSelectedDriveAutoUnlock;
 
@@ -169,6 +178,9 @@ public partial class BitLockerViewModel : ObservableObject
         {
             _openDriveAfterUnlock = _settings.BitLockerOpenDriveAfterUnlock;
             _autoUnlockOnAppOpen = _settings.BitLockerAutoUnlockOnAppOpen;
+            _toastNotifications = _settings.BitLockerToastNotifications;
+            _refreshIntervalSeconds = _settings.BitLockerRefreshIntervalSeconds > 0 ? _settings.BitLockerRefreshIntervalSeconds : 5;
+            _autoClearClipboard = _settings.BitLockerAutoClearClipboard;
             if (!string.IsNullOrEmpty(_settings.BitLockerLastUnlockedSummary))
             {
                 _lastUnlockedSummary = _settings.BitLockerLastUnlockedSummary;
@@ -396,6 +408,33 @@ public partial class BitLockerViewModel : ObservableObject
         }
     }
 
+    partial void OnToastNotificationsChanged(bool value)
+    {
+        if (_settings != null)
+        {
+            _settings.BitLockerToastNotifications = value;
+            try { _saveSettings?.Invoke(_settings); } catch { }
+        }
+    }
+
+    partial void OnRefreshIntervalSecondsChanged(int value)
+    {
+        if (_settings != null && value > 0)
+        {
+            _settings.BitLockerRefreshIntervalSeconds = value;
+            try { _saveSettings?.Invoke(_settings); } catch { }
+        }
+    }
+
+    partial void OnAutoClearClipboardChanged(bool value)
+    {
+        if (_settings != null)
+        {
+            _settings.BitLockerAutoClearClipboard = value;
+            try { _saveSettings?.Invoke(_settings); } catch { }
+        }
+    }
+
     public void RecordFailedAttempt(string? customError = null)
     {
         FailedUnlockAttempts++;
@@ -571,6 +610,81 @@ public partial class BitLockerViewModel : ObservableObject
     public async Task<string?> GenerateRecoveryPasswordAsync(string driveLetter)
     {
         return await _bitLockerService.GenerateRecoveryPasswordAsync(driveLetter);
+    }
+
+    public async Task<string?> GetRecoveryKeyAsync(string protectorId, CancellationToken ct = default)
+    {
+        if (SelectedDrive == null || string.IsNullOrWhiteSpace(protectorId)) return null;
+        var key = await _bitLockerService.GetRecoveryKeyAsync(SelectedDrive.DriveLetter, protectorId, ct);
+        if (!string.IsNullOrEmpty(key))
+        {
+            BitLockerLogger.Log($"Retrieved recovery key for protector {protectorId}", SelectedDrive.DriveLetter);
+        }
+        return key;
+    }
+
+    public async Task<string> GenerateDiagnosticsReportAsync(CancellationToken ct = default)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# AppLock BitLocker Diagnostic Report");
+        sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine();
+        sb.AppendLine("## System & Environment");
+        sb.AppendLine($"- OS Architecture: {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}");
+        sb.AppendLine($"- OS Description: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}");
+        sb.AppendLine($"- Is Elevated (Admin): {IsElevated}");
+        sb.AppendLine($"- BitLocker Supported: {IsSupported}");
+
+        var taskInfo = await GetStartupTaskStatusAsync(ct);
+        sb.AppendLine($"- Scheduled Task Exists: {taskInfo.Exists}");
+        sb.AppendLine($"- Scheduled Task State: {taskInfo.State}");
+        sb.AppendLine($"- Scheduled Task Last Run: {taskInfo.LastRunTime}");
+        sb.AppendLine($"- Scheduled Task Last Result: {taskInfo.LastResult}");
+        sb.AppendLine();
+
+        sb.AppendLine("## Detected Drives");
+        if (Drives.Count == 0)
+        {
+            sb.AppendLine("No drives detected.");
+        }
+        else
+        {
+            foreach (var d in Drives)
+            {
+                sb.AppendLine($"### Drive {d.DisplayName}");
+                sb.AppendLine($"- Drive Letter: {d.DriveLetter}");
+                sb.AppendLine($"- Volume GUID: {d.VolumeGuid}");
+                sb.AppendLine($"- Drive Type: {d.DriveTypeDisplay}");
+                sb.AppendLine($"- Protection Status: {d.ProtectionStatusDisplay}");
+                sb.AppendLine($"- Lock Status: {d.LockStatusDisplay}");
+                sb.AppendLine($"- Conversion Status: {d.ConversionStatus}");
+                sb.AppendLine($"- Encryption Percent: {d.EncryptionPercent}%");
+                sb.AppendLine($"- Encryption Method: {d.EncryptionMethod}");
+                sb.AppendLine($"- Capacity: {d.CapacityDisplay}");
+                sb.AppendLine($"- Key Protectors ({d.KeyProtectors.Count}):");
+                foreach (var p in d.KeyProtectors)
+                {
+                    sb.AppendLine($"  - [{p.TypeCode}] {p.TypeName}: {p.Id}");
+                }
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine("## Recent BitLocker Action Logs (Sanitized)");
+        var logs = BitLockerLogger.GetRecentLogs();
+        if (logs.Count == 0)
+        {
+            sb.AppendLine("No actions logged yet.");
+        }
+        else
+        {
+            foreach (var line in logs)
+            {
+                sb.AppendLine(line);
+            }
+        }
+
+        return sb.ToString();
     }
 
     public async Task<BitLockerActionResult> TurnOnBitLockerAsync(BitLockerTurnOnRequest request, CancellationToken ct = default)

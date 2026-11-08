@@ -468,5 +468,91 @@ public class BitLockerDriveTests
         var delRes = await vm.DeleteKeyProtectorAsync(protectors[0].Id);
         Assert.True(delRes.Success);
     }
+
+    [Fact]
+    public async Task GetRecoveryKey_ViewModel_ReturnsExpectedKey()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var drive = new BitLockerDrive { DriveLetter = "D:", ProtectionStatus = ProtectionStatus.On };
+        fakeService.DrivesToReturn.Add(drive);
+        vm.SelectedDrive = new DriveItemViewModel(drive);
+
+        var key = await vm.GetRecoveryKeyAsync("{22222222-2222-2222-2222-222222222222}");
+        Assert.NotNull(key);
+        Assert.Equal("111111-222222-333333-444444-555555-666666-123456-654321", key);
+    }
+
+    [Fact]
+    public void BitLockerLogger_SanitizesSensitiveData()
+    {
+        var rawLog = "User entered recovery key 111111-222222-333333-444444-555555-666666-123456-654321 with password: SecretPassword123";
+        var sanitized = BitLockerLogger.Sanitize(rawLog);
+
+        Assert.DoesNotContain("111111-222222-333333-444444-555555-666666-123456-654321", sanitized);
+        Assert.DoesNotContain("SecretPassword123", sanitized);
+        Assert.Contains("[REDACTED-KEY]", sanitized);
+        Assert.Contains("[REDACTED]", sanitized);
+    }
+
+    [Fact]
+    public async Task DiagnosticsReport_GeneratesAllSectionsProperly()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        var drive = new BitLockerDrive
+        {
+            DriveLetter = "D:",
+            VolumeLabel = "DataDrive",
+            ProtectionStatus = ProtectionStatus.On,
+            LockStatus = LockStatus.Unlocked,
+            EncryptionPercent = 100,
+            EncryptionMethod = "XTS-AES 128"
+        };
+        fakeService.DrivesToReturn.Add(drive);
+        await vm.RefreshDrivesAsync();
+
+        BitLockerLogger.Log("Test diagnostics log entry", "D:");
+
+        var report = await vm.GenerateDiagnosticsReportAsync();
+        Assert.Contains("# AppLock BitLocker Diagnostic Report", report);
+        Assert.Contains("## System & Environment", report);
+        Assert.Contains("## Detected Drives", report);
+        Assert.Contains("Drive D: (DataDrive)", report);
+        Assert.Contains("## Recent BitLocker Action Logs", report);
+        Assert.Contains("Test diagnostics log entry", report);
+    }
+
+    [Fact]
+    public void BitLockerSettings_PropertiesNotifyAndSync()
+    {
+        var settings = new AppSettings();
+        var savedCount = 0;
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService();
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(
+            supportService,
+            fakeService,
+            watcher,
+            settings,
+            s => savedCount++);
+
+        vm.RefreshIntervalSeconds = 10;
+        Assert.Equal(10, settings.BitLockerRefreshIntervalSeconds);
+        Assert.True(savedCount > 0);
+
+        vm.AutoClearClipboard = false;
+        Assert.False(settings.BitLockerAutoClearClipboard);
+
+        vm.ToastNotifications = false;
+        Assert.False(settings.BitLockerToastNotifications);
+    }
 }
 

@@ -71,6 +71,8 @@
                 <AppBarButton Label="Manage saved passwords" Click="ManageSavedPasswordsButton_Click"/>
                 <AppBarSeparator/>
                 <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"/>
+                <AppBarSeparator/>
+                <AppBarButton Label="BitLocker settings" Click="BitLockerSettingsButton_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
         <!-- Elevation InfoBar -->

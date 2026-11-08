@@ -50,6 +50,9 @@ public class AppSettings
     public bool BitLockerAutoUnlockOnAppOpen { get; set; } = false;
     public List<string> BitLockerAutoUnlockVolumeGuids { get; set; } = new();
     public string BitLockerLastUnlockedSummary { get; set; } = string.Empty;
+    public bool BitLockerToastNotifications { get; set; } = true;
+    public int BitLockerRefreshIntervalSeconds { get; set; } = 5;
+    public bool BitLockerAutoClearClipboard { get; set; } = true;
     
     // Brightness
     public BrightnessSettings Brightness { get; set; } = new();

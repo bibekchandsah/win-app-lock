@@ -5,6 +5,8 @@ using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 namespace AppLock.Views;
 /// <summary>Converts bool to "Yes" / "No" string for the Saved Password indicator in the details pane.</summary>
@@ -33,7 +35,7 @@ public sealed partial class BitLockerPage : Page
         InitializeComponent();
         _refreshTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(5)
+            Interval = TimeSpan.FromSeconds(ViewModel.RefreshIntervalSeconds > 0 ? ViewModel.RefreshIntervalSeconds : 5)
         };
         _refreshTimer.Tick += RefreshTimer_Tick;
         ViewModel.OnCooldownStarted = StartCooldownUiTimer;
@@ -615,7 +617,147 @@ public sealed partial class BitLockerPage : Page
         }
     }
 
-    private void BackupKeyButton_Click(object sender, RoutedEventArgs e) { /* M8 */ }
+    private async void BackupKeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var drive = ViewModel.SelectedDrive;
+        if (drive == null) return;
+
+        var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
+        if (!auth) return;
+
+        await ShowRecoveryKeyBackupDialogAsync(drive);
+    }
+
+    private async Task ShowRecoveryKeyBackupDialogAsync(DriveItemViewModel drive)
+    {
+        var protectors = await ViewModel.GetKeyProtectorsAsync();
+        var recoveryProtectors = protectors.Where(p => p.TypeCode == 3).ToList();
+
+        if (recoveryProtectors.Count == 0)
+        {
+            var noKeyDialog = new ContentDialog
+            {
+                Title = $"No Recovery Key - {drive.DisplayName}",
+                Content = new TextBlock
+                {
+                    Text = $"Drive {drive.DisplayName} does not currently have a BitLocker numerical recovery password protector.\n\nWithout a recovery key, your data cannot be recovered if you forget your password or the TPM resets. Would you like to add one now?",
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Add recovery key",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot
+            };
+
+            var res = await noKeyDialog.ShowAsync();
+            if (res == ContentDialogResult.Primary)
+            {
+                var newKey = await ViewModel.GenerateRecoveryPasswordAsync(drive.DriveLetter);
+                if (!string.IsNullOrEmpty(newKey))
+                {
+                    await ViewModel.AddRecoveryPasswordProtectorAsync(newKey);
+                    await ShowRecoveryKeyBackupDialogAsync(drive);
+                }
+            }
+            return;
+        }
+
+        var panel = new StackPanel { Spacing = 14, MinWidth = 440 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"BitLocker numerical recovery key for {drive.DisplayName}. Store this key in a secure location separate from this computer:",
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+
+        foreach (var p in recoveryProtectors)
+        {
+            var key = await ViewModel.GetRecoveryKeyAsync(p.Id) ?? "Key retrieval unavailable";
+
+            var card = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 12, 14, 12)
+            };
+
+            var cardStack = new StackPanel { Spacing = 8 };
+            cardStack.Children.Add(new TextBlock
+            {
+                Text = $"Protector ID: {p.Id}",
+                FontSize = 11,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+            });
+
+            var keyBox = new TextBox
+            {
+                Text = key,
+                IsReadOnly = true,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                FontSize = 14,
+                TextWrapping = TextWrapping.Wrap
+            };
+            cardStack.Children.Add(keyBox);
+
+            var actionsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var copyBtn = new Button
+            {
+                Content = "Copy key",
+                FontSize = 12
+            };
+            var saveFileBtn = new Button
+            {
+                Content = "Save to file (.txt)",
+                FontSize = 12
+            };
+            var feedbackText = new TextBlock
+            {
+                Text = "",
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"]
+            };
+
+            var capturedKey = key;
+            var capturedId = p.Id;
+            copyBtn.Click += (s, e) =>
+            {
+                CopyRecoveryKeyWithAutoClear(capturedKey, ViewModel.AutoClearClipboard);
+                feedbackText.Text = ViewModel.AutoClearClipboard ? "Copied! (Auto-clears in 60s)" : "Copied to clipboard!";
+            };
+
+            saveFileBtn.Click += async (s, e) =>
+            {
+                var filePath = await SaveRecoveryKeyToFileAsync(drive.DriveLetter, drive.VolumeLabel, capturedId, capturedKey);
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    feedbackText.Text = $"Saved to Desktop: {Path.GetFileName(filePath)}";
+                }
+            };
+
+            actionsPanel.Children.Add(copyBtn);
+            actionsPanel.Children.Add(saveFileBtn);
+            actionsPanel.Children.Add(feedbackText);
+            cardStack.Children.Add(actionsPanel);
+
+            card.Child = cardStack;
+            panel.Children.Add(card);
+        }
+
+        var backupDialog = new ContentDialog
+        {
+            Title = $"BitLocker Recovery Key - {drive.DisplayName}",
+            Content = new ScrollViewer { Content = panel, MaxHeight = 440 },
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        await backupDialog.ShowAsync();
+    }
 
     private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1026,7 +1168,176 @@ public sealed partial class BitLockerPage : Page
             await ViewModel.AddRecoveryPasswordProtectorAsync(key);
         }
     }
-    private void CheckUsageButton_Click(object sender, RoutedEventArgs e) { /* M8 */ }
+    private async void CheckUsageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var drive = ViewModel.SelectedDrive;
+        if (drive == null) return;
+
+        await ShowUsageDialogAsync(drive);
+    }
+
+    private async Task ShowUsageDialogAsync(DriveItemViewModel drive)
+    {
+        var panel = new StackPanel { Spacing = 14, MinWidth = 380 };
+
+        if (drive.IsLocked)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"Drive {drive.DisplayName} is currently locked.\n\nFile system details and storage usage are only available once the drive has been unlocked.",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            });
+
+            var lockedCard = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 12, 14, 12)
+            };
+
+            var lockedStack = new StackPanel { Spacing = 6 };
+            lockedStack.Children.Add(new TextBlock { Text = $"Total Volume Capacity: {drive.CapacityDisplay}", FontSize = 13 });
+            lockedStack.Children.Add(new TextBlock { Text = $"BitLocker Status: {drive.ProtectionStatusDisplay} ({drive.ConversionStatus})", FontSize = 12 });
+            lockedStack.Children.Add(new TextBlock { Text = $"Encryption Method: {drive.EncryptionMethod}", FontSize = 12 });
+            lockedCard.Child = lockedStack;
+            panel.Children.Add(lockedCard);
+        }
+        else
+        {
+            long total = drive.TotalBytes;
+            long free = drive.FreeBytes;
+            long used = total - free;
+            double usedPct = drive.CapacityUsedPercent;
+            string fs = "Unknown";
+
+            try
+            {
+                var di = new DriveInfo(drive.DriveLetter);
+                if (di.IsReady)
+                {
+                    total = di.TotalSize;
+                    free = di.AvailableFreeSpace;
+                    used = total - free;
+                    usedPct = total > 0 ? ((double)used / total) * 100.0 : 0;
+                    fs = di.DriveFormat;
+                }
+            }
+            catch { }
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"Storage usage breakdown for {drive.DisplayName}:",
+                FontSize = 13,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            });
+
+            var barStack = new StackPanel { Spacing = 6 };
+            var barGrid = new Grid();
+            barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var usedLabel = new TextBlock
+            {
+                Text = $"{FormatBytes(used)} used of {FormatBytes(total)}",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontSize = 13
+            };
+            var pctLabel = new TextBlock
+            {
+                Text = $"{usedPct:F1}%",
+                FontSize = 13,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+            };
+            Grid.SetColumn(usedLabel, 0); Grid.SetColumn(pctLabel, 1);
+            barGrid.Children.Add(usedLabel); barGrid.Children.Add(pctLabel);
+            barStack.Children.Add(barGrid);
+
+            var progressBar = new ProgressBar
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = usedPct,
+                Height = 8,
+                CornerRadius = new CornerRadius(4),
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+            };
+            barStack.Children.Add(progressBar);
+            panel.Children.Add(barStack);
+
+            var card = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 12, 14, 12)
+            };
+
+            var grid = new Grid { RowSpacing = 6 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            void AddRow(int row, string title, string val)
+            {
+                var t = new TextBlock { Text = title, FontSize = 12, Margin = new Thickness(0,0,16,0), Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                var v = new TextBlock { Text = val, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+                Grid.SetRow(t, row); Grid.SetColumn(t, 0);
+                Grid.SetRow(v, row); Grid.SetColumn(v, 1);
+                grid.Children.Add(t); grid.Children.Add(v);
+            }
+
+            AddRow(0, "Free space:", FormatBytes(free));
+            AddRow(1, "File system:", fs);
+            AddRow(2, "Protection status:", drive.ProtectionStatusDisplay);
+            AddRow(3, "BitLocker encryption:", $"{drive.ConversionStatus} ({drive.EncryptionPercent}%)");
+            AddRow(4, "Encryption algorithm:", drive.EncryptionMethod);
+
+            card.Child = grid;
+            panel.Children.Add(card);
+
+            var openBtn = new Button
+            {
+                Content = "Open in File Explorer",
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            openBtn.Click += (s, e) => BitLockerViewModel.TryOpenDriveInExplorer(drive.DriveLetter);
+            panel.Children.Add(openBtn);
+        }
+
+        var usageDialog = new ContentDialog
+        {
+            Title = $"Drive Usage - {drive.DisplayName}",
+            Content = panel,
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        await usageDialog.ShowAsync();
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] suffixes = { "B", "KB", "MB", "GB", "TB", "PB" };
+        int counter = 0;
+        decimal number = bytes;
+        while (Math.Round(number / 1024) >= 1)
+        {
+            number /= 1024;
+            counter++;
+        }
+        return $"{number:n1} {suffixes[counter]}";
+    }
     private void IncludeInAutoUnlockCheckBox_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.SetSelectedDriveAutoUnlock(IncludeInAutoUnlockCheckBox.IsChecked == true);
@@ -1166,7 +1477,256 @@ public sealed partial class BitLockerPage : Page
 
         await dialog.ShowAsync();
     }
-    private void DiagnosticsButton_Click(object sender, RoutedEventArgs e) { /* M8 */ }
+    private async void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowDiagnosticsDialogAsync();
+    }
+
+    private async Task ShowDiagnosticsDialogAsync()
+    {
+        var report = await ViewModel.GenerateDiagnosticsReportAsync();
+
+        var panel = new StackPanel { Spacing = 12, MinWidth = 460 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "BitLocker environment, drive states, and recent action logs (all passwords and keys are strictly redacted):",
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+
+        var reportBox = new TextBox
+        {
+            Text = report,
+            IsReadOnly = true,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Height = 320
+        };
+        panel.Children.Add(reportBox);
+
+        var actionsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var copyBtn = new Button { Content = "Copy report", FontSize = 12 };
+        var openLogsBtn = new Button { Content = "Open logs folder", FontSize = 12 };
+        var feedbackText = new TextBlock
+        {
+            Text = "",
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"]
+        };
+
+        copyBtn.Click += (s, e) =>
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(report);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            feedbackText.Text = "Report copied to clipboard!";
+        };
+
+        openLogsBtn.Click += (s, e) =>
+        {
+            try
+            {
+                var dir = BitLockerLogger.LogsDirectory;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{dir}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        };
+
+        actionsPanel.Children.Add(copyBtn);
+        actionsPanel.Children.Add(openLogsBtn);
+        actionsPanel.Children.Add(feedbackText);
+        panel.Children.Add(actionsPanel);
+
+        var diagDialog = new ContentDialog
+        {
+            Title = "BitLocker Diagnostics",
+            Content = panel,
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        await diagDialog.ShowAsync();
+    }
+
+    private async void BitLockerSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowBitLockerSettingsDialogAsync();
+    }
+
+    private async Task ShowBitLockerSettingsDialogAsync()
+    {
+        var panel = new StackPanel { Spacing = 14, MinWidth = 380 };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Configure preferences for BitLocker drive management, auto-unlock, and security:",
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+        });
+
+        var card = new Border
+        {
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14, 12, 14, 12)
+        };
+
+        var stack = new StackPanel { Spacing = 12 };
+
+        var openExplorerToggle = new ToggleSwitch
+        {
+            Header = "Open drive in File Explorer after unlock",
+            IsOn = ViewModel.OpenDriveAfterUnlock
+        };
+
+        var autoUnlockToggle = new ToggleSwitch
+        {
+            Header = "Auto-unlock saved drives when AppLock opens",
+            IsOn = ViewModel.AutoUnlockOnAppOpen
+        };
+
+        var toastToggle = new ToggleSwitch
+        {
+            Header = "Show toast notifications for BitLocker events",
+            IsOn = ViewModel.ToastNotifications
+        };
+
+        var autoClearToggle = new ToggleSwitch
+        {
+            Header = "Auto-clear clipboard 60s after copying a recovery key",
+            IsOn = ViewModel.AutoClearClipboard
+        };
+
+        var intervalStack = new StackPanel { Spacing = 4 };
+        intervalStack.Children.Add(new TextBlock { Text = "Drive list refresh interval:", FontSize = 12 });
+        var intervalCombo = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        intervalCombo.Items.Add(new ComboBoxItem { Content = "5 seconds (Default)", Tag = 5 });
+        intervalCombo.Items.Add(new ComboBoxItem { Content = "10 seconds", Tag = 10 });
+        intervalCombo.Items.Add(new ComboBoxItem { Content = "30 seconds", Tag = 30 });
+
+        intervalCombo.SelectedIndex = ViewModel.RefreshIntervalSeconds switch
+        {
+            10 => 1,
+            30 => 2,
+            _ => 0
+        };
+
+        intervalStack.Children.Add(intervalCombo);
+
+        stack.Children.Add(openExplorerToggle);
+        stack.Children.Add(autoUnlockToggle);
+        stack.Children.Add(toastToggle);
+        stack.Children.Add(autoClearToggle);
+        stack.Children.Add(intervalStack);
+
+        card.Child = stack;
+        panel.Children.Add(card);
+
+        var dialog = new ContentDialog
+        {
+            Title = "BitLocker Settings",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot
+        };
+
+        var res = await dialog.ShowAsync();
+        if (res == ContentDialogResult.Primary)
+        {
+            ViewModel.OpenDriveAfterUnlock = openExplorerToggle.IsOn;
+            ViewModel.AutoUnlockOnAppOpen = autoUnlockToggle.IsOn;
+            ViewModel.ToastNotifications = toastToggle.IsOn;
+            ViewModel.AutoClearClipboard = autoClearToggle.IsOn;
+
+            var selectedTag = (intervalCombo.SelectedItem as ComboBoxItem)?.Tag;
+            int seconds = selectedTag is int s ? s : 5;
+            ViewModel.RefreshIntervalSeconds = seconds;
+            _refreshTimer.Interval = TimeSpan.FromSeconds(seconds);
+
+            ViewModel.StatusMessage = "BitLocker settings saved.";
+            ViewModel.StatusSeverity = BitLockerStatusSeverity.Success;
+        }
+    }
+
+    private static void CopyRecoveryKeyWithAutoClear(string key, bool autoClear)
+    {
+        var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        dp.SetText(key);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+
+        if (autoClear)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(60));
+                try
+                {
+                    var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    if (content != null && content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                    {
+                        var text = await content.GetTextAsync();
+                        if (string.Equals(text, key, StringComparison.Ordinal))
+                        {
+                            Windows.ApplicationModel.DataTransfer.Clipboard.Clear();
+                        }
+                    }
+                }
+                catch { }
+            });
+        }
+    }
+
+    private static async Task<string?> SaveRecoveryKeyToFileAsync(string driveLetter, string volumeLabel, string protectorId, string key)
+    {
+        try
+        {
+            var cleanLetter = driveLetter.TrimEnd(':');
+            var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var filename = $"BitLocker_RecoveryKey_{cleanLetter}_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+            var fullPath = Path.Combine(desktopPath, filename);
+
+            var content = $@"================================================================================
+BitLocker Drive Encryption Recovery Key
+================================================================================
+Drive:            {driveLetter} {(string.IsNullOrEmpty(volumeLabel) ? "" : $"({volumeLabel})")}
+Created:          {DateTime.Now:yyyy-MM-dd HH:mm:ss}
+Key Protector ID: {protectorId}
+
+Recovery Key:
+{key}
+
+To unlock this drive in Windows recovery or recovery prompt:
+1. When prompted for BitLocker recovery, enter the 48-digit numerical key above.
+2. Store this file in a secure location separate from this computer.
+================================================================================
+";
+            await File.WriteAllTextAsync(fullPath, content);
+            return fullPath;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to save recovery key file: {ex.Message}");
+            return null;
+        }
+    }
     private async void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
     {
         try
