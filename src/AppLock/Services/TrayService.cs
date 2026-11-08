@@ -109,19 +109,29 @@ public sealed class TrayService : IDisposable
                             {
                                 if (subItem is MenuFlyoutItem smi)
                                 {
-                                    var st = smi.Text ?? "";
-                                    // Check 15 minutes BEFORE 5 minutes — "15 minutes".Contains("5 minutes") is true!
-                                    if (smi.Name == "ClipboardPause15mItem" || st.Contains("15 minutes", StringComparison.OrdinalIgnoreCase))
+                                    var st = (smi.Text ?? "").Trim();
+                                    // Match 15 minutes specifically before 5 minutes to avoid substring collision
+                                    if (smi.Name == "ClipboardPause15mItem" || st.Equals("Pause for 15 minutes", StringComparison.OrdinalIgnoreCase) || st.Contains("15 min", StringComparison.OrdinalIgnoreCase))
                                         _clipboardPause15mItem = smi;
-                                    else if (smi.Name == "ClipboardPause5mItem" || (st.Contains("5 minutes", StringComparison.OrdinalIgnoreCase) && !st.Contains("15", StringComparison.OrdinalIgnoreCase)))
+                                    else if (smi.Name == "ClipboardPause5mItem" || st.Equals("Pause for 5 minutes", StringComparison.OrdinalIgnoreCase) || (st.Contains("5 min", StringComparison.OrdinalIgnoreCase) && !st.Contains("15")))
                                         _clipboardPause5mItem = smi;
-                                    else if (smi.Name == "ClipboardPause1hItem" || st.Contains("1 hour", StringComparison.OrdinalIgnoreCase))
+                                    else if (smi.Name == "ClipboardPause1hItem" || st.Equals("Pause for 1 hour", StringComparison.OrdinalIgnoreCase) || st.Contains("1 hour", StringComparison.OrdinalIgnoreCase))
                                         _clipboardPause1hItem = smi;
                                     else if (smi.Name == "ClipboardPauseIndefiniteItem" || st.Contains("until resumed", StringComparison.OrdinalIgnoreCase))
                                         _clipboardPauseIndefiniteItem = smi;
                                     else if (smi.Name == "ClipboardResumeItem" || st.Contains("Resume", StringComparison.OrdinalIgnoreCase))
                                         _clipboardResumeItem = smi;
                                 }
+                            }
+
+                            // Positional fallback to guarantee correct binding even if XAML text or name differs
+                            if (_clipboardPauseSubItem.Items.Count >= 6)
+                            {
+                                _clipboardPause5mItem ??= _clipboardPauseSubItem.Items[0] as MenuFlyoutItem;
+                                _clipboardPause15mItem ??= _clipboardPauseSubItem.Items[1] as MenuFlyoutItem;
+                                _clipboardPause1hItem ??= _clipboardPauseSubItem.Items[2] as MenuFlyoutItem;
+                                _clipboardPauseIndefiniteItem ??= _clipboardPauseSubItem.Items[3] as MenuFlyoutItem;
+                                _clipboardResumeItem ??= _clipboardPauseSubItem.Items[5] as MenuFlyoutItem;
                             }
                         }
                     }
@@ -199,6 +209,7 @@ public sealed class TrayService : IDisposable
                 {
                     Action pause5m = () =>
                     {
+                        System.Diagnostics.Debug.WriteLine("[TrayService] Pause for 5 minutes executed!");
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(5));
                         UpdateClipboardMenuItems();
                     };
@@ -210,6 +221,7 @@ public sealed class TrayService : IDisposable
                 {
                     Action pause15m = () =>
                     {
+                        System.Diagnostics.Debug.WriteLine("[TrayService] Pause for 15 minutes executed!");
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(15));
                         UpdateClipboardMenuItems();
                     };
@@ -221,6 +233,7 @@ public sealed class TrayService : IDisposable
                 {
                     Action pause1h = () =>
                     {
+                        System.Diagnostics.Debug.WriteLine("[TrayService] Pause for 1 hour executed!");
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromHours(1));
                         UpdateClipboardMenuItems();
                     };
@@ -232,6 +245,7 @@ public sealed class TrayService : IDisposable
                 {
                     Action pauseIndefinite = () =>
                     {
+                        System.Diagnostics.Debug.WriteLine("[TrayService] Pause indefinite executed!");
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromDays(365));
                         UpdateClipboardMenuItems();
                     };
@@ -243,6 +257,7 @@ public sealed class TrayService : IDisposable
                 {
                     Action resume = () =>
                     {
+                        System.Diagnostics.Debug.WriteLine("[TrayService] Resume capture executed!");
                         ServiceContainer.ClipboardMonitor.Resume();
                         UpdateClipboardMenuItems();
                     };
