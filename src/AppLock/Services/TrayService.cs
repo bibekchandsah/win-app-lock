@@ -173,76 +173,80 @@ public sealed class TrayService : IDisposable
 
                 if (_clipboardToggleMenuItem != null)
                 {
-                    _clipboardToggleMenuItem.Command = new RelayCommand(() =>
+                    Action toggleClipboard = () =>
                     {
-                        var settings = _settingsStore.Load();
-                        bool newEnabled = !settings.Clipboard.Enabled;
-                        settings.Clipboard.Enabled = newEnabled;
-                        _settingsStore.Save(settings);
-                        if (newEnabled)
-                        {
-                            ServiceContainer.ClipboardMonitor.Start();
-                        }
-                        else
-                        {
-                            ServiceContainer.ClipboardMonitor.Stop();
-                        }
+                        bool newEnabled = !ServiceContainer.Settings.Clipboard.Enabled;
+                        ServiceContainer.SetClipboardEnabled(newEnabled);
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardToggleMenuItem.Click += (s, e) => toggleClipboard();
+                    _clipboardToggleMenuItem.Command = new RelayCommand(toggleClipboard);
                 }
 
                 if (_clipboardHistoryMenuItem != null)
                 {
-                    _clipboardHistoryMenuItem.Command = new RelayCommand(() =>
+                    Action openHistory = () =>
                     {
                         var dispatcher = _dispatcherQueue ?? _trayIcon.DispatcherQueue;
                         dispatcher?.TryEnqueue(() => ClipboardPopupWindow.Toggle());
-                    });
+                    };
+                    _clipboardHistoryMenuItem.Click += (s, e) => openHistory();
+                    _clipboardHistoryMenuItem.Command = new RelayCommand(openHistory);
                 }
 
                 if (_clipboardPause5mItem != null)
                 {
-                    _clipboardPause5mItem.Command = new RelayCommand(() =>
+                    Action pause5m = () =>
                     {
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(5));
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardPause5mItem.Click += (s, e) => pause5m();
+                    _clipboardPause5mItem.Command = new RelayCommand(pause5m);
                 }
 
                 if (_clipboardPause15mItem != null)
                 {
-                    _clipboardPause15mItem.Command = new RelayCommand(() =>
+                    Action pause15m = () =>
                     {
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(15));
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardPause15mItem.Click += (s, e) => pause15m();
+                    _clipboardPause15mItem.Command = new RelayCommand(pause15m);
                 }
 
                 if (_clipboardPause1hItem != null)
                 {
-                    _clipboardPause1hItem.Command = new RelayCommand(() =>
+                    Action pause1h = () =>
                     {
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromHours(1));
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardPause1hItem.Click += (s, e) => pause1h();
+                    _clipboardPause1hItem.Command = new RelayCommand(pause1h);
                 }
 
                 if (_clipboardPauseIndefiniteItem != null)
                 {
-                    _clipboardPauseIndefiniteItem.Command = new RelayCommand(() =>
+                    Action pauseIndefinite = () =>
                     {
                         ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromDays(365));
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardPauseIndefiniteItem.Click += (s, e) => pauseIndefinite();
+                    _clipboardPauseIndefiniteItem.Command = new RelayCommand(pauseIndefinite);
                 }
 
                 if (_clipboardResumeItem != null)
                 {
-                    _clipboardResumeItem.Command = new RelayCommand(() =>
+                    Action resume = () =>
                     {
                         ServiceContainer.ClipboardMonitor.Resume();
                         UpdateClipboardMenuItems();
-                    });
+                    };
+                    _clipboardResumeItem.Click += (s, e) => resume();
+                    _clipboardResumeItem.Command = new RelayCommand(resume);
                 }
                 
                 if (_brightnessHotkeysMenuItem != null)
@@ -295,6 +299,9 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
             ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
+
+            ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+            ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -444,12 +451,17 @@ public sealed class TrayService : IDisposable
         dispatcher?.TryEnqueue(UpdateClipboardMenuItems);
     }
 
+    private void OnClipboardEnabledChanged(object? sender, bool enabled)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateClipboardMenuItems);
+    }
+
     public void UpdateClipboardMenuItems()
     {
         try
         {
-            var settings = _settingsStore.Load();
-            bool enabled = settings.Clipboard.Enabled;
+            bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
             bool isPaused = ServiceContainer.ClipboardMonitor.IsPaused;
 
             if (_clipboardToggleMenuItem != null)
@@ -702,6 +714,7 @@ public sealed class TrayService : IDisposable
     public void Dispose()
     {
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+        ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
 
         if (_isVolumeWatcherSubscribed)
         {

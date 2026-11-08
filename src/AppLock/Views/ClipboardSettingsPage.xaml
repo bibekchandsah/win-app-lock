@@ -69,6 +69,33 @@
                     </TabViewItem.IconSource>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,16,16,16">
                         <StackPanel Spacing="12" MaxWidth="800" HorizontalAlignment="Left">
+                            <!-- Pause / Status Banner -->
+                            <Border x:Name="SettingsPauseBanner"
+                                    Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                                    BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14,10"
+                                    Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <FontIcon x:Name="SettingsPauseIcon" Glyph="&#xE769;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+                                        <TextBlock x:Name="SettingsPauseText" Text="Clipboard capture is temporarily paused" FontSize="13" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+                                    </StackPanel>
+                                    <Button x:Name="SettingsResumeButton"
+                                            Grid.Column="1"
+                                            Content="Resume Now"
+                                            Click="ResumeFromSettings_Click"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            Padding="12,4"
+                                            FontSize="12"/>
+                                </Grid>
+                            </Border>
+
                             <!-- Enable Switch -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"

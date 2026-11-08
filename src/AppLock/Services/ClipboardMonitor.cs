@@ -53,6 +53,7 @@ public sealed class ClipboardMonitor : IDisposable
     private uint _lastSequenceNumber;
     private bool _ignoreNext;
     private DateTime? _pausedUntil;
+    private Timer? _pauseExpiryTimer;
     private bool _isRunning;
     private bool _isHotkeyRegistered;
     private volatile bool _isSessionLocked;
@@ -191,7 +192,27 @@ public sealed class ClipboardMonitor : IDisposable
     {
         lock (_stateLock)
         {
-            _pausedUntil = duration == TimeSpan.MaxValue ? DateTime.MaxValue : DateTime.Now.Add(duration);
+            _pauseExpiryTimer?.Dispose();
+            _pauseExpiryTimer = null;
+
+            if (duration == TimeSpan.MaxValue || duration >= TimeSpan.FromDays(300))
+            {
+                _pausedUntil = DateTime.MaxValue;
+            }
+            else
+            {
+                _pausedUntil = DateTime.Now.Add(duration);
+                _pauseExpiryTimer = new Timer(_ =>
+                {
+                    lock (_stateLock)
+                    {
+                        _pausedUntil = null;
+                        _pauseExpiryTimer?.Dispose();
+                        _pauseExpiryTimer = null;
+                    }
+                    PauseStateChanged?.Invoke(this, EventArgs.Empty);
+                }, null, duration, Timeout.InfiniteTimeSpan);
+            }
         }
         PauseStateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -200,6 +221,8 @@ public sealed class ClipboardMonitor : IDisposable
     {
         lock (_stateLock)
         {
+            _pauseExpiryTimer?.Dispose();
+            _pauseExpiryTimer = null;
             _pausedUntil = null;
         }
         PauseStateChanged?.Invoke(this, EventArgs.Empty);

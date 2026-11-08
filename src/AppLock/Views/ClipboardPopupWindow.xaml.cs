@@ -47,6 +47,8 @@ public sealed partial class ClipboardPopupWindow : Window
 
         this.Activated += ClipboardPopupWindow_Activated;
         ServiceContainer.ClipboardStore.DataChanged += OnClipboardDataChanged;
+        ServiceContainer.ClipboardEnabledChanged += (s, enabled) => DispatcherQueue.TryEnqueue(UpdateStatusBadges);
+        ServiceContainer.ClipboardMonitor.PauseStateChanged += (s, e) => DispatcherQueue.TryEnqueue(UpdateStatusBadges);
     }
 
     private void SetupWindow()
@@ -416,21 +418,71 @@ public sealed partial class ClipboardPopupWindow : Window
         _appWindow?.Move(new PointInt32(x, y));
     }
 
+    private void UpdateStatusBadges()
+    {
+        if (PausedBadge == null || PausedBadgeText == null || PausedBadgeIcon == null) return;
+
+        bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
+        bool isPaused = ServiceContainer.ClipboardMonitor.IsPaused;
+
+        if (!enabled)
+        {
+            PausedBadge.Visibility = Visibility.Visible;
+            PausedBadgeText.Text = "Disabled";
+            PausedBadgeIcon.Glyph = "\uE711";
+            PausedBadge.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBackgroundBrush"];
+            PausedBadge.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            PausedBadgeText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            PausedBadgeIcon.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            ToolTipService.SetToolTip(PausedBadge, "Clipboard capture is disabled. Click to enable.");
+        }
+        else if (isPaused)
+        {
+            PausedBadge.Visibility = Visibility.Visible;
+            var until = ServiceContainer.ClipboardMonitor.PausedUntil;
+            if (until.HasValue && until.Value < DateTime.Now.AddYears(1))
+            {
+                var rem = until.Value - DateTime.Now;
+                string remText = rem.TotalMinutes >= 1 ? $"{(int)Math.Ceiling(rem.TotalMinutes)}m" : "<1m";
+                PausedBadgeText.Text = $"Paused ({remText})";
+                ToolTipService.SetToolTip(PausedBadge, $"Clipboard capture is paused until {until.Value:t}. Click to resume.");
+            }
+            else
+            {
+                PausedBadgeText.Text = "Paused";
+                ToolTipService.SetToolTip(PausedBadge, "Clipboard capture is paused until resumed. Click to resume.");
+            }
+            PausedBadgeIcon.Glyph = "\uE769";
+            PausedBadge.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBackgroundBrush"];
+            PausedBadge.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+            PausedBadgeText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+            PausedBadgeIcon.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+        }
+        else
+        {
+            PausedBadge.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void PausedBadge_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
+        if (!enabled)
+        {
+            ServiceContainer.SetClipboardEnabled(true);
+        }
+        else if (ServiceContainer.ClipboardMonitor.IsPaused)
+        {
+            ServiceContainer.ClipboardMonitor.Resume();
+        }
+        UpdateStatusBadges();
+    }
+
     private async Task RefreshItemsAsync()
     {
         try
         {
-            // Update Pause badge
-            if (ServiceContainer.ClipboardMonitor.IsPaused)
-            {
-                var until = ServiceContainer.ClipboardMonitor.PausedUntil;
-                PausedBadgeText.Text = until.HasValue ? $"Paused until {until.Value:HH:mm}" : "Paused";
-                PausedBadge.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                PausedBadge.Visibility = Visibility.Collapsed;
-            }
+            UpdateStatusBadges();
 
             var rawItems = await ServiceContainer.ClipboardStore.GetItemsAsync(
                 limit: 100,

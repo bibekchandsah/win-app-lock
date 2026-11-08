@@ -465,6 +465,25 @@ public static class ServiceContainer
         }
     }
 
+    public static event EventHandler<bool>? ClipboardEnabledChanged;
+
+    public static void SetClipboardEnabled(bool enabled)
+    {
+        Settings.Clipboard.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            ClipboardMonitor.Start();
+        }
+        else
+        {
+            ClipboardMonitor.Stop();
+        }
+
+        ClipboardEnabledChanged?.Invoke(null, enabled);
+    }
+
     public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         if (_eyeCareOverlayService == null)

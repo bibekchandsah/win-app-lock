@@ -13,6 +13,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -83,8 +84,33 @@
             </StackPanel>
         </Grid>
 
+        <!-- Status Banner (Shown when paused or disabled) -->
+        <Border x:Name="StatusBanner"
+                Grid.Row="2"
+                Margin="0,0,0,16"
+                CornerRadius="8"
+                Padding="14,10"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <FontIcon x:Name="StatusBannerIcon" Glyph="&#xE769;" FontSize="14"/>
+                    <TextBlock x:Name="StatusBannerText" Text="Clipboard capture is temporarily paused" FontSize="13" FontWeight="SemiBold"/>
+                </StackPanel>
+                <Button x:Name="StatusBannerActionButton"
+                        Grid.Column="1"
+                        Content="Resume Capture"
+                        Click="StatusBannerActionButton_Click"
+                        Padding="12,4"
+                        FontSize="12"/>
+            </Grid>
+        </Border>
+
         <!-- Search and Filter Bar -->
-        <Grid Grid.Row="2" Margin="0,0,0,12" ColumnSpacing="12">
+        <Grid Grid.Row="3" Margin="0,0,0,12" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -114,7 +140,7 @@
         </Grid>
 
         <!-- Main Items List -->
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="4">
             <!-- Empty State -->
             <StackPanel x:Name="EmptyStatePanel"
                         Spacing="12"

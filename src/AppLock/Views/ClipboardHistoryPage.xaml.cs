@@ -30,12 +30,87 @@ public sealed partial class ClipboardHistoryPage : Page
     private void ClipboardHistoryPage_Loaded(object sender, RoutedEventArgs e)
     {
         ServiceContainer.ClipboardStore.DataChanged += OnClipboardDataChanged;
+        ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
+
+        UpdateStatusBanner();
         _ = LoadItemsAsync();
     }
 
     private void ClipboardHistoryPage_Unloaded(object sender, RoutedEventArgs e)
     {
         ServiceContainer.ClipboardStore.DataChanged -= OnClipboardDataChanged;
+        ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+    }
+
+    private void OnClipboardEnabledChanged(object? sender, bool enabled)
+    {
+        DispatcherQueue.TryEnqueue(UpdateStatusBanner);
+    }
+
+    private void OnClipboardPauseStateChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(UpdateStatusBanner);
+    }
+
+    private void UpdateStatusBanner()
+    {
+        if (StatusBanner == null) return;
+
+        bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
+        bool isPaused = ServiceContainer.ClipboardMonitor.IsPaused;
+
+        if (!enabled)
+        {
+            StatusBanner.Visibility = Visibility.Visible;
+            StatusBannerText.Text = "Clipboard capture is disabled";
+            StatusBannerIcon.Glyph = "\uE711";
+            StatusBannerActionButton.Content = "Enable Clipboard";
+            StatusBanner.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBackgroundBrush"];
+            StatusBanner.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            StatusBannerText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+            StatusBannerIcon.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+        }
+        else if (isPaused)
+        {
+            StatusBanner.Visibility = Visibility.Visible;
+            var until = ServiceContainer.ClipboardMonitor.PausedUntil;
+            if (until.HasValue && until.Value < DateTime.Now.AddYears(1))
+            {
+                var rem = until.Value - DateTime.Now;
+                string remText = rem.TotalMinutes >= 1 ? $"{(int)Math.Ceiling(rem.TotalMinutes)}m" : "<1m";
+                StatusBannerText.Text = $"Clipboard capture is paused for ~{remText} (until {until.Value:t})";
+            }
+            else
+            {
+                StatusBannerText.Text = "Clipboard capture is paused until resumed";
+            }
+            StatusBannerIcon.Glyph = "\uE769";
+            StatusBannerActionButton.Content = "Resume Capture";
+            StatusBanner.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBackgroundBrush"];
+            StatusBanner.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+            StatusBannerText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+            StatusBannerIcon.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"];
+        }
+        else
+        {
+            StatusBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void StatusBannerActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
+        if (!enabled)
+        {
+            ServiceContainer.SetClipboardEnabled(true);
+        }
+        else if (ServiceContainer.ClipboardMonitor.IsPaused)
+        {
+            ServiceContainer.ClipboardMonitor.Resume();
+        }
+        UpdateStatusBanner();
     }
 
     private void OnClipboardDataChanged(object? sender, EventArgs e)

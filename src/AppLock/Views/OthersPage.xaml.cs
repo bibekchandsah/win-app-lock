@@ -53,6 +53,35 @@ public sealed partial class OthersPage : Page
     {
         LoadUtilityCards();
         this.InitializeComponent();
+        this.Loaded += OthersPage_Loaded;
+        this.Unloaded += OthersPage_Unloaded;
+    }
+
+    private void OthersPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
+        UpdateClipboardCardState();
+    }
+
+    private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+    }
+
+    private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
+    private void OnClipboardPauseStateChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
+
+    private void UpdateClipboardCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "clipboard");
+        if (card != null)
+        {
+            card.ClipboardEnabled = ServiceContainer.Settings.Clipboard.Enabled;
+        }
     }
 
     private void LoadUtilityCards()

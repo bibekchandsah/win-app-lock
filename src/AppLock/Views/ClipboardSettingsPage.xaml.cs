@@ -27,7 +27,11 @@ public sealed partial class ClipboardSettingsPage : Page
     private void ClipboardSettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
         ServiceContainer.ClipboardStore.DataChanged += OnClipboardDataChanged;
+        ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
+
         LoadSettings();
+        UpdatePauseBanner();
         _ = RefreshDataTabAsync();
         _ = RefreshSnippetsTabAsync();
     }
@@ -35,6 +39,66 @@ public sealed partial class ClipboardSettingsPage : Page
     private void ClipboardSettingsPage_Unloaded(object sender, RoutedEventArgs e)
     {
         ServiceContainer.ClipboardStore.DataChanged -= OnClipboardDataChanged;
+        ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+        ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+    }
+
+    private void OnClipboardEnabledChanged(object? sender, bool enabled)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _isInitializing = true;
+            try
+            {
+                if (EnableClipboardToggle.IsOn != enabled)
+                {
+                    EnableClipboardToggle.IsOn = enabled;
+                }
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+            UpdatePauseBanner();
+        });
+    }
+
+    private void OnClipboardPauseStateChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(UpdatePauseBanner);
+    }
+
+    private void UpdatePauseBanner()
+    {
+        if (SettingsPauseBanner == null) return;
+        bool enabled = ServiceContainer.Settings.Clipboard.Enabled;
+        bool isPaused = enabled && ServiceContainer.ClipboardMonitor.IsPaused;
+
+        if (isPaused)
+        {
+            SettingsPauseBanner.Visibility = Visibility.Visible;
+            var until = ServiceContainer.ClipboardMonitor.PausedUntil;
+            if (until.HasValue && until.Value < DateTime.Now.AddYears(1))
+            {
+                var rem = until.Value - DateTime.Now;
+                string remText = rem.TotalMinutes >= 1 ? $"{(int)Math.Ceiling(rem.TotalMinutes)}m" : "<1m";
+                SettingsPauseText.Text = $"Clipboard capture is paused for ~{remText} (until {until.Value:t})";
+            }
+            else
+            {
+                SettingsPauseText.Text = "Clipboard capture is paused until resumed";
+            }
+        }
+        else
+        {
+            SettingsPauseBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void ResumeFromSettings_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.ClipboardMonitor.Resume();
+        UpdatePauseBanner();
     }
 
     private void OnClipboardDataChanged(object? sender, EventArgs e)
@@ -175,21 +239,8 @@ public sealed partial class ClipboardSettingsPage : Page
     private void EnableClipboardToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (_isInitializing) return;
-        ServiceContainer.Settings.Clipboard.Enabled = EnableClipboardToggle.IsOn;
-        if (EnableClipboardToggle.IsOn)
-        {
-            ServiceContainer.ClipboardMonitor.Start();
-        }
-        else
-        {
-            ServiceContainer.ClipboardMonitor.Stop();
-        }
-        SaveSettings();
-        try
-        {
-            ServiceContainer.TrayService.UpdateClipboardMenuItems();
-        }
-        catch { }
+        ServiceContainer.SetClipboardEnabled(EnableClipboardToggle.IsOn);
+        UpdatePauseBanner();
     }
 
     private async void HistoryLimitCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
