@@ -9,12 +9,10 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
-using Windows.Storage;
-using Windows.Storage.Streams;
 using Windows.System;
 using WinRT.Interop;
+using AppLock.Models;
 using AppLock.Services;
 using AppLock.ViewModels;
 
@@ -121,6 +119,8 @@ public sealed partial class ClipboardPopupWindow : Window
         ApplyTheme();
         _currentSearch = string.Empty;
         SearchBox.Text = string.Empty;
+        ItemsListView.SelectedItems.Clear();
+        UpdateSelectionUi();
 
         PositionWindow();
 
@@ -209,10 +209,18 @@ public sealed partial class ClipboardPopupWindow : Window
                 search: _currentSearch);
 
             Items.Clear();
-            foreach (var item in rawItems)
+            for (int i = 0; i < rawItems.Count; i++)
             {
+                var item = rawItems[i];
                 var vm = new ClipboardItemViewModel(item);
                 if (_currentFilter == "Links" && !vm.IsLink) continue;
+
+                // Set quick paste badge 1-9 when search is empty
+                if (string.IsNullOrEmpty(_currentSearch) && Items.Count < 9)
+                {
+                    vm.QuickPasteBadge = (Items.Count + 1).ToString();
+                }
+
                 Items.Add(vm);
             }
 
@@ -222,6 +230,8 @@ public sealed partial class ClipboardPopupWindow : Window
 
             EmptyStatePanel.Visibility = Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             EmptyStateText.Text = string.IsNullOrEmpty(_currentSearch) ? "Nothing copied yet" : "No matching items";
+
+            UpdateSelectionUi();
         }
         catch (Exception ex)
         {
@@ -237,130 +247,340 @@ public sealed partial class ClipboardPopupWindow : Window
 
     private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        // 1-9 quick paste when search box is empty
+        if (string.IsNullOrEmpty(_currentSearch) && !IsControlDown() && !IsShiftDown())
+        {
+            int quickIndex = -1;
+            if (e.Key >= VirtualKey.Number1 && e.Key <= VirtualKey.Number9)
+            {
+                quickIndex = (int)e.Key - (int)VirtualKey.Number1;
+            }
+            else if (e.Key >= VirtualKey.NumberPad1 && e.Key <= VirtualKey.NumberPad9)
+            {
+                quickIndex = (int)e.Key - (int)VirtualKey.NumberPad1;
+            }
+
+            if (quickIndex >= 0 && quickIndex < Items.Count)
+            {
+                e.Handled = true;
+                _ = ExecutePasteAsync(Items[quickIndex], plainTextOnly: false);
+                return;
+            }
+        }
+
         if (e.Key == VirtualKey.Escape)
         {
-            HidePopup();
+            if (ItemsListView.SelectedItems.Count > 1)
+            {
+                ItemsListView.SelectedItems.Clear();
+                UpdateSelectionUi();
+            }
+            else
+            {
+                HidePopup();
+            }
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Down)
         {
-            if (Items.Count > 0)
-            {
-                ItemsListView.SelectedIndex = 0;
-                ItemsListView.Focus(FocusState.Programmatic);
-                e.Handled = true;
-            }
+            MoveSelection(1);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Up)
+        {
+            MoveSelection(-1);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.PageDown)
+        {
+            MoveSelection(5);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.PageUp)
+        {
+            MoveSelection(-5);
+            e.Handled = true;
         }
         else if (e.Key == VirtualKey.Enter)
         {
-            if (Items.Count > 0)
+            bool plainText = IsShiftDown();
+
+            if (ItemsListView.SelectedItems.Count > 1)
             {
-                SelectAndCopyItem(Items[0]);
+                _ = ExecutePasteMergedAsync(plainTextOnly: plainText);
+            }
+            else
+            {
+                var targetItem = ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+                if (targetItem != null)
+                {
+                    _ = ExecutePasteAsync(targetItem, plainTextOnly: plainText);
+                }
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Delete)
+        {
+            var targetItem = ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+            if (targetItem != null)
+            {
+                _ = DeleteItemAsync(targetItem);
                 e.Handled = true;
             }
         }
+        else if (e.Key == VirtualKey.P && IsControlDown())
+        {
+            var targetItem = ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+            if (targetItem != null)
+            {
+                _ = TogglePinAsync(targetItem);
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == VirtualKey.C && IsControlDown())
+        {
+            var targetItem = ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+            if (targetItem != null)
+            {
+                _ = ExecutePasteAsync(targetItem, copyOnly: true);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        if (Items.Count == 0) return;
+
+        int currentIndex = ItemsListView.SelectedIndex;
+        int newIndex = currentIndex < 0 ? (delta > 0 ? 0 : Items.Count - 1) : currentIndex + delta;
+
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= Items.Count) newIndex = Items.Count - 1;
+
+        ItemsListView.SelectedIndex = newIndex;
+        ItemsListView.ScrollIntoView(Items[newIndex]);
     }
 
     private void ItemsListView_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == VirtualKey.Escape)
         {
-            HidePopup();
+            if (ItemsListView.SelectedItems.Count > 1)
+            {
+                ItemsListView.SelectedItems.Clear();
+                UpdateSelectionUi();
+            }
+            else
+            {
+                HidePopup();
+            }
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Enter)
         {
-            if (ItemsListView.SelectedItem is ClipboardItemViewModel selected)
+            bool plainText = IsShiftDown();
+            if (ItemsListView.SelectedItems.Count > 1)
             {
-                SelectAndCopyItem(selected);
-                e.Handled = true;
+                _ = ExecutePasteMergedAsync(plainTextOnly: plainText);
             }
+            else if (ItemsListView.SelectedItem is ClipboardItemViewModel selected)
+            {
+                _ = ExecutePasteAsync(selected, plainTextOnly: plainText);
+            }
+            e.Handled = true;
         }
         else if (e.Key == VirtualKey.Delete)
         {
+            if (ItemsListView.SelectedItems.Count > 1)
+            {
+                _ = DeleteSelectedItemsAsync();
+            }
+            else if (ItemsListView.SelectedItem is ClipboardItemViewModel selected)
+            {
+                _ = DeleteItemAsync(selected);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.P && IsControlDown())
+        {
             if (ItemsListView.SelectedItem is ClipboardItemViewModel selected)
             {
-                _ = ServiceContainer.ClipboardStore.DeleteItemAsync(selected.Id);
+                _ = TogglePinAsync(selected);
                 e.Handled = true;
             }
+        }
+        else if (e.Key == VirtualKey.C && IsControlDown())
+        {
+            if (ItemsListView.SelectedItems.Count > 1)
+            {
+                _ = ExecutePasteMergedAsync(copyOnly: true);
+            }
+            else if (ItemsListView.SelectedItem is ClipboardItemViewModel selected)
+            {
+                _ = ExecutePasteAsync(selected, copyOnly: true);
+            }
+            e.Handled = true;
         }
     }
 
     private void ItemsListView_ItemClick(object sender, ItemClickEventArgs e)
     {
+        if (IsControlDown())
+        {
+            // Ctrl+Click multi-select
+            return;
+        }
+
         if (e.ClickedItem is ClipboardItemViewModel vm)
         {
-            SelectAndCopyItem(vm);
+            bool plainText = IsShiftDown();
+            _ = ExecutePasteAsync(vm, plainTextOnly: plainText);
         }
     }
 
-    private async void SelectAndCopyItem(ClipboardItemViewModel vm)
+    private void ItemsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        try
-        {
-            ServiceContainer.ClipboardMonitor.IgnoreNext();
+        UpdateSelectionUi();
+    }
 
-            if (vm.IsImage)
-            {
-                if (!string.IsNullOrEmpty(vm.ImagePath) && File.Exists(vm.ImagePath))
-                {
-                    var file = await StorageFile.GetFileFromPathAsync(vm.ImagePath);
-                    var dp = new DataPackage();
-                    dp.SetBitmap(RandomAccessStreamReference.CreateFromFile(file));
-                    Clipboard.SetContent(dp);
-                }
-            }
-            else if (vm.IsFiles)
-            {
-                if (vm.FilePaths.Count > 0)
-                {
-                    var storageItems = new List<IStorageItem>();
-                    foreach (var path in vm.FilePaths)
-                    {
-                        if (File.Exists(path)) storageItems.Add(await StorageFile.GetFileFromPathAsync(path));
-                        else if (Directory.Exists(path)) storageItems.Add(await StorageFolder.GetFolderFromPathAsync(path));
-                    }
-                    if (storageItems.Count > 0)
-                    {
-                        var dp = new DataPackage();
-                        dp.SetStorageItems(storageItems);
-                        Clipboard.SetContent(dp);
-                    }
-                }
-            }
-            else
-            {
-                string? text = vm.Model.ContentString ?? vm.PreviewText;
-                if (!string.IsNullOrEmpty(text))
-                {
-                    var dp = new DataPackage();
-                    dp.SetText(text);
-                    Clipboard.SetContent(dp);
-                }
-            }
-        }
-        catch (Exception ex)
+    private void UpdateSelectionUi()
+    {
+        int selectedCount = ItemsListView.SelectedItems.Count;
+        if (selectedCount > 1)
         {
-            System.Diagnostics.Debug.WriteLine($"[ClipboardPopupWindow] Error copying: {ex.Message}");
+            MultiSelectBar.Visibility = Visibility.Visible;
+            NormalFooter.Visibility = Visibility.Collapsed;
+            MultiSelectCountText.Text = $"{selectedCount} items selected";
         }
+        else
+        {
+            MultiSelectBar.Visibility = Visibility.Collapsed;
+            NormalFooter.Visibility = Visibility.Visible;
+        }
+    }
 
+    private void MultiSelectToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemsListView.SelectedItems.Count > 0)
+        {
+            ItemsListView.SelectedItems.Clear();
+        }
+        else if (Items.Count > 0)
+        {
+            ItemsListView.SelectedItems.Add(Items[0]);
+            if (Items.Count > 1) ItemsListView.SelectedItems.Add(Items[1]);
+        }
+        UpdateSelectionUi();
+    }
+
+    private async Task ExecutePasteAsync(ClipboardItemViewModel vm, bool plainTextOnly = false, bool copyOnly = false)
+    {
+        nint target = _prevForegroundHwnd;
         HidePopup();
+
+        await ServiceContainer.ClipboardPasteService.PasteItemAsync(
+            vm.Model,
+            target,
+            plainTextOnly: plainTextOnly,
+            copyOnly: copyOnly);
+    }
+
+    private async Task ExecutePasteMergedAsync(string separator = "\r\n", bool plainTextOnly = false, bool copyOnly = false)
+    {
+        var selectedList = ItemsListView.SelectedItems.OfType<ClipboardItemViewModel>().Select(x => x.Model).ToList();
+        if (selectedList.Count == 0) return;
+
+        nint target = _prevForegroundHwnd;
+        HidePopup();
+
+        await ServiceContainer.ClipboardPasteService.PasteMergedAsync(
+            selectedList,
+            target,
+            separator: separator,
+            plainTextOnly: plainTextOnly,
+            copyOnly: copyOnly);
+    }
+
+    private void PasteMerged_Click(object sender, RoutedEventArgs e)
+    {
+        _ = ExecutePasteMergedAsync(separator: "\r\n");
+    }
+
+    private void PasteMergedWithSeparator_Click(object sender, RoutedEventArgs e)
+    {
+        string sep = "\r\n";
+        if (sender is MenuFlyoutItem item && item.Tag is string tag)
+        {
+            sep = tag switch
+            {
+                "comma" => ", ",
+                "space" => " ",
+                _ => "\r\n"
+            };
+        }
+        _ = ExecutePasteMergedAsync(separator: sep);
+    }
+
+    private void MultiCopy_Click(object sender, RoutedEventArgs e)
+    {
+        _ = ExecutePasteMergedAsync(copyOnly: true);
+    }
+
+    private async void MultiDelete_Click(object sender, RoutedEventArgs e)
+    {
+        await DeleteSelectedItemsAsync();
+    }
+
+    private void MultiCancel_Click(object sender, RoutedEventArgs e)
+    {
+        ItemsListView.SelectedItems.Clear();
+        UpdateSelectionUi();
+    }
+
+    private async Task DeleteSelectedItemsAsync()
+    {
+        var selectedIds = ItemsListView.SelectedItems.OfType<ClipboardItemViewModel>().Select(x => x.Id).ToList();
+        if (selectedIds.Count > 0)
+        {
+            await ServiceContainer.ClipboardStore.DeleteItemsAsync(selectedIds);
+            _ = RefreshItemsAsync();
+        }
+    }
+
+    private async Task DeleteItemAsync(ClipboardItemViewModel vm)
+    {
+        await ServiceContainer.ClipboardStore.DeleteItemAsync(vm.Id);
+        _ = RefreshItemsAsync();
+    }
+
+    private async Task TogglePinAsync(ClipboardItemViewModel vm)
+    {
+        await ServiceContainer.ClipboardStore.TogglePinAsync(vm.Id);
+        _ = RefreshItemsAsync();
     }
 
     private void ItemCopy_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
         {
-            SelectAndCopyItem(vm);
+            _ = ExecutePasteAsync(vm, copyOnly: true);
         }
     }
 
-    private async void ItemDelete_Click(object sender, RoutedEventArgs e)
+    private void ItemDelete_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
         {
-            await ServiceContainer.ClipboardStore.DeleteItemAsync(vm.Id);
-            _ = RefreshItemsAsync();
+            _ = DeleteItemAsync(vm);
+        }
+    }
+
+    private void ItemPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
+        {
+            _ = TogglePinAsync(vm);
         }
     }
 
@@ -408,6 +628,16 @@ public sealed partial class ClipboardPopupWindow : Window
             if (sub != null) return sub;
         }
         return null;
+    }
+
+    private static bool IsShiftDown()
+    {
+        return (GetAsyncKeyState(0x10) & 0x8000) != 0 || (GetKeyState(0x10) & 0x8000) != 0;
+    }
+
+    private static bool IsControlDown()
+    {
+        return (GetAsyncKeyState(0x11) & 0x8000) != 0 || (GetKeyState(0x11) & 0x8000) != 0;
     }
 
     #region Win32 Interop
@@ -474,6 +704,11 @@ public sealed partial class ClipboardPopupWindow : Window
     [DllImport("user32.dll")]
     private static extern bool ClientToScreen(nint hWnd, ref POINT lpPoint);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int vKey);
+
     #endregion
 }
-

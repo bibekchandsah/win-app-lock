@@ -45,6 +45,15 @@ public partial class App : Application
             });
         };
 
+        // Wire clipboard UIPI fallback toast
+        AppLock.Services.ServiceContainer.ClipboardPasteService.FallbackToastRequested += (s, msg) =>
+        {
+            _mainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                AppLock.Views.ClipboardToastWindow.ShowToast(msg);
+            });
+        };
+
         // BitLocker auto-unlock on launch if enabled
         if (AppLock.Services.ServiceContainer.Settings.BitLockerAutoUnlockOnAppOpen &&
             AppLock.Services.ServiceContainer.BitLockerSupportService.IsSupported)

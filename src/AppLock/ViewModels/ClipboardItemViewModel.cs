@@ -38,6 +38,27 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public long LastUsedAt => _item.LastUsedAt;
     public int UseCount => _item.UseCount;
     public bool Pinned => _item.Pinned;
+    public bool IsPinned => _item.Pinned;
+    public string PinGlyph => Pinned ? "\uE840" : "\uE718";
+    public string PinToolTip => Pinned ? "Unpin (Ctrl+P)" : "Pin (Ctrl+P)";
+    public Microsoft.UI.Xaml.Visibility PinVisibility => Pinned ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    private string _quickPasteBadge = string.Empty;
+    public string QuickPasteBadge
+    {
+        get => _quickPasteBadge;
+        set
+        {
+            if (_quickPasteBadge != value)
+            {
+                _quickPasteBadge = value;
+                OnPropertyChanged(nameof(QuickPasteBadge));
+                OnPropertyChanged(nameof(QuickPasteVisibility));
+            }
+        }
+    }
+    public Microsoft.UI.Xaml.Visibility QuickPasteVisibility => !string.IsNullOrEmpty(_quickPasteBadge) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
     public bool IsSensitive => _item.IsSensitive;
 
     public string? ImagePath => _item.ImagePath;

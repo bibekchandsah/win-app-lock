@@ -37,6 +37,7 @@ public static class ServiceContainer
     private static AppLock.Services.EyeCare.EyeCareOverlayService? _eyeCareOverlayService;
     private static ClipboardStore? _clipboardStore;
     private static ClipboardMonitor? _clipboardMonitor;
+    private static ClipboardPasteService? _clipboardPasteService;
 
     public static NotificationService NotificationService
     {
@@ -436,6 +437,18 @@ public static class ServiceContainer
                 _clipboardMonitor = new ClipboardMonitor();
             }
             return _clipboardMonitor;
+        }
+    }
+
+    public static ClipboardPasteService ClipboardPasteService
+    {
+        get
+        {
+            if (_clipboardPasteService == null)
+            {
+                _clipboardPasteService = new ClipboardPasteService();
+            }
+            return _clipboardPasteService;
         }
     }
 

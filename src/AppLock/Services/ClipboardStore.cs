@@ -434,6 +434,119 @@ LIMIT @limit;
         return list;
     }
 
+    public async Task<bool> TogglePinAsync(long id)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        bool newPinned = false;
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE items SET pinned = CASE WHEN pinned = 1 THEN 0 ELSE 1 END WHERE id = @id;";
+                cmd.Parameters.AddWithValue("@id", id);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            using (var checkCmd = conn.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT pinned FROM items WHERE id = @id;";
+                checkCmd.Parameters.AddWithValue("@id", id);
+                var res = await checkCmd.ExecuteScalarAsync();
+                if (res != null && res != DBNull.Value)
+                {
+                    newPinned = Convert.ToInt32(res) == 1;
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+        return newPinned;
+    }
+
+    public async Task UpdateUsageAsync(long id)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+UPDATE items 
+SET use_count = use_count + 1, 
+    last_used_at = @now 
+WHERE id = @id;
+";
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            cmd.Parameters.AddWithValue("@id", id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardStore] Error updating usage for {id}: {ex.Message}");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task DeleteItemsAsync(IEnumerable<long> ids)
+    {
+        var idList = ids.ToList();
+        if (idList.Count == 0) return;
+
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        var filesToDelete = new List<string>();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            string inClause = string.Join(",", idList);
+            using (var findCmd = conn.CreateCommand())
+            {
+                findCmd.CommandText = $"SELECT image_path, thumb_path FROM items WHERE id IN ({inClause});";
+                using var reader = await findCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (!reader.IsDBNull(0)) filesToDelete.Add(reader.GetString(0));
+                    if (!reader.IsDBNull(1)) filesToDelete.Add(reader.GetString(1));
+                }
+            }
+
+            using (var delCmd = conn.CreateCommand())
+            {
+                delCmd.CommandText = $"DELETE FROM items WHERE id IN ({inClause});";
+                await delCmd.ExecuteNonQueryAsync();
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        foreach (var path in filesToDelete)
+        {
+            DeleteFileSafe(path);
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task DeleteItemAsync(long id)
     {
         await InitializeAsync();
