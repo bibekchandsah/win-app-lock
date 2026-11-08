@@ -1561,3 +1561,21 @@ SetWindowDisplayAffinity(mainWindowHandle, WDA_EXCLUDEFROMCAPTURE);
 
 **Milestone 7 Implementation: 100% COMPLETE ✅**  
 **Ready for build, test, and commit.**
+
+---
+
+## BitLocker Integration & Hardening
+
+### Milestones 1–9 Completed
+- **Architecture**: Decoupled `IBitLockerService` and WMI query layer via `BitLockerSupportService` and `VolumeWatcher` (WM_DEVICECHANGE + Timer poll).
+- **Security**: DPAPI encryption for saved passphrases (`SavedPasswordStore`), 2-minute cached auth gate (`BitLockerSecurityGate`), and Windows Hello biometric integration (`HelloService`).
+- **Safety Protection**: Prevents locking OS drive and application self-drive (AppLock drive).
+- **Auto-Unlock & Scheduled Task**: 
+  - XML-based scheduled task with `<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>`, `<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>`, and `<StartWhenAvailable>true</StartWhenAvailable>`.
+  - Auto task setup when toggling "Auto-unlock saved drives when AppLock opens".
+  - Windows Hello enforcement prior to headless auto-unlock and on "Run now".
+- **Dynamic Drive Actions & Active Process Detection**:
+  - Command bar labels display "Lock D:" and "Unlock D:" dynamically according to the selected drive.
+  - Active applications running on the target drive (`BitLockerService.GetProcessesOnDrive`) are surfaced in the Lock Confirmation Dialog and Drive Usage Dialog.
+  - In-place observable collection refresh without UI flicker, maintaining visual selection and card state.
+
