@@ -215,6 +215,11 @@ fixed - adjust the spacing of hot key value and keyboard icon
 fixed - remove theme row as it's directly effected from setting page theme option
 fixed - snippets: make snippets page professional with modern cards, icon badges, abbreviation pills, formatted preview and rich empty state 
 
+fixed - remove web icon from clipboard from url instead of it we can directly open it by clicking in link icon which will looks more professional 
+fixed - remove "capturing/disabled"status from the card quick setting toggle, as we can know it from enabled/disabled state of toggle
+fixed - when user is in clipboard page then make the others navigation active 
+fixed - make others page responsive that is wrapped when window width is resized (custom controls:WrapPanel with auto-wrap on resize) 
+
 
 
 

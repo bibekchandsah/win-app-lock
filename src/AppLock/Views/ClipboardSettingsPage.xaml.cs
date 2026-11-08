@@ -14,10 +14,12 @@ public sealed partial class ClipboardSettingsPage : Page
 {
     private bool _isInitializing = true;
     private readonly ObservableCollection<string> _ignoredApps = new();
+    public ObservableCollection<ClipboardItemViewModel> Snippets { get; } = new();
 
     public ClipboardSettingsPage()
     {
         this.InitializeComponent();
+        SnippetsListView.ItemsSource = Snippets;
         this.Loaded += ClipboardSettingsPage_Loaded;
         this.Unloaded += ClipboardSettingsPage_Unloaded;
     }
@@ -377,6 +379,19 @@ public sealed partial class ClipboardSettingsPage : Page
         }
     }
 
+    private void ConfigureDialog(ContentDialog dialog)
+    {
+        dialog.XamlRoot = this.XamlRoot;
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            dialog.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            dialog.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
+    }
+
     private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
     {
         bool includePinned = IncludePinnedCheckBox.IsChecked ?? false;
@@ -390,9 +405,9 @@ public sealed partial class ClipboardSettingsPage : Page
             Content = msg,
             PrimaryButtonText = "Clear History",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(dialog);
 
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
@@ -408,11 +423,39 @@ public sealed partial class ClipboardSettingsPage : Page
         try
         {
             var rawSnippets = await ServiceContainer.ClipboardStore.GetSnippetsAsync();
-            var list = rawSnippets.Select(s => new ClipboardItemViewModel(s)).ToList();
-            SnippetsListView.ItemsSource = list;
-            SnippetsEmptyPanel.Visibility = list.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            SnippetsListView.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            SnippetsCountText.Text = list.Count == 1 ? "1 snippet saved" : $"{list.Count} snippets saved";
+            var newItems = rawSnippets.Select(s => new ClipboardItemViewModel(s)).ToList();
+
+            // Smooth in-place collection synchronization to eliminate UI flicker (as in ProtectionPage)
+            int i = 0;
+            while (i < Snippets.Count)
+            {
+                var existing = Snippets[i];
+                var match = newItems.FirstOrDefault(n => n.Id == existing.Id);
+                if (match == null)
+                {
+                    Snippets.RemoveAt(i);
+                }
+                else
+                {
+                    if (existing.SnippetTitle != match.SnippetTitle ||
+                        existing.SnippetAbbreviation != match.SnippetAbbreviation ||
+                        existing.PreviewText != match.PreviewText)
+                    {
+                        Snippets[i] = match;
+                    }
+                    newItems.Remove(match);
+                    i++;
+                }
+            }
+
+            foreach (var item in newItems)
+            {
+                Snippets.Add(item);
+            }
+
+            SnippetsEmptyPanel.Visibility = Snippets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            SnippetsListView.Visibility = Snippets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            SnippetsCountText.Text = Snippets.Count == 1 ? "1 snippet saved" : $"{Snippets.Count} snippets saved";
         }
         catch (Exception ex)
         {
@@ -446,42 +489,56 @@ public sealed partial class ClipboardSettingsPage : Page
     {
         var titleBox = new TextBox
         {
-            Header = "Title",
-            PlaceholderText = "e.g. Standard Greeting or Code Template",
+            Header = "Snippet Title",
+            PlaceholderText = "e.g. Work Signature, Canned Reply, Code Template",
             Text = existing?.SnippetTitle ?? string.Empty
         };
 
         var abbrevBox = new TextBox
         {
-            Header = "Abbreviation (optional trigger)",
-            PlaceholderText = "e.g. /greet",
+            Header = "Abbreviation / Trigger (optional)",
+            PlaceholderText = "e.g. /sig, !hello, #code",
             Text = existing?.SnippetAbbreviation ?? string.Empty
+        };
+
+        var abbrevHint = new TextBlock
+        {
+            Text = "Type this keyword in clipboard search to find this snippet instantly.",
+            FontSize = 11,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+            Margin = new Thickness(0, -6, 0, 0)
         };
 
         var contentBox = new TextBox
         {
-            Header = "Snippet Text",
-            PlaceholderText = "Enter reusable snippet content...",
+            Header = "Snippet Content",
+            PlaceholderText = "Enter or paste reusable snippet text...",
             Text = existing?.Model.ContentString ?? existing?.PreviewText ?? string.Empty,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            MinHeight = 120
+            MinHeight = 140
         };
 
-        var stack = new StackPanel { Spacing = 10 };
+        var stack = new StackPanel
+        {
+            Spacing = 12,
+            Width = 420
+        };
         stack.Children.Add(titleBox);
         stack.Children.Add(abbrevBox);
+        stack.Children.Add(abbrevHint);
         stack.Children.Add(contentBox);
 
         var dialog = new ContentDialog
         {
-            Title = existing == null ? "Add Reusable Snippet" : "Edit Snippet",
+            Title = existing == null ? "New Reusable Snippet" : "Edit Snippet",
             Content = stack,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+
+        ConfigureDialog(dialog);
 
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)

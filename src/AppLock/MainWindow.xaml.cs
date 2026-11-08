@@ -304,7 +304,11 @@ public sealed partial class MainWindow : Window
         bool isSettings = pageType == typeof(SettingsPage);
         bool isBitLocker = pageType == typeof(BitLockerPage);
         bool isInternetAccess = pageType == typeof(InternetAccessPage);
-        bool isOthers = pageType == typeof(OthersPage) || pageType == typeof(BrightnessPage);
+        bool isOthers = pageType == typeof(OthersPage) ||
+                        pageType == typeof(BrightnessPage) ||
+                        pageType == typeof(EyeCarePage) ||
+                        pageType == typeof(ClipboardSettingsPage) ||
+                        pageType == typeof(ClipboardHistoryPage);
 
         bool isDark = IsDarkMode;
         var windowAccentColor = GetWindowAccentColor();

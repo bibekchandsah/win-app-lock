@@ -12,16 +12,11 @@
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-            <TextBlock Text="Clipboard History"
-                       FontSize="13"
-                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-            <TextBlock x:Name="StatusText"
-                       Text="Disabled"
-                       FontSize="11"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextWrapping="Wrap"/>
-        </StackPanel>
+        <TextBlock Grid.Column="0"
+                   Text="Clipboard History"
+                   FontSize="13"
+                   VerticalAlignment="Center"
+                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
         <ToggleSwitch Grid.Column="1"
                       x:Name="EnableToggle"
                       Toggled="EnableToggle_Toggled"

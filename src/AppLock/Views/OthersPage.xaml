@@ -118,12 +118,12 @@
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
 
-        <!-- Cards Grid -->
+        <!-- Responsive Cards Grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{x:Bind Cards, Mode=OneTime}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="16"/>
+                        <controls:WrapPanel HorizontalSpacing="16" VerticalSpacing="16"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 

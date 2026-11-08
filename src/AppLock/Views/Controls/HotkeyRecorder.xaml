@@ -34,6 +34,7 @@
                                Text="Ctrl+Shift+V"
                                FontSize="13"
                                FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>

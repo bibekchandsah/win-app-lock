@@ -41,15 +41,16 @@ public sealed partial class HotkeyRecorder : UserControl
 
     private void UpdateDisplay()
     {
+        HotkeyDisplayText.ClearValue(TextBlock.ForegroundProperty);
         if (string.IsNullOrWhiteSpace(_currentHotkey))
         {
             HotkeyDisplayText.Text = "None (Click to record)";
-            HotkeyDisplayText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+            HotkeyDisplayText.Opacity = 0.6;
         }
         else
         {
             HotkeyDisplayText.Text = _currentHotkey;
-            HotkeyDisplayText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            HotkeyDisplayText.Opacity = 1.0;
         }
     }
 
@@ -70,6 +71,7 @@ public sealed partial class HotkeyRecorder : UserControl
         _isRecording = true;
         ErrorTextBlock.Visibility = Visibility.Collapsed;
         HotkeyDisplayText.Text = "Press shortcut keys...";
+        HotkeyDisplayText.Opacity = 1.0;
         HotkeyDisplayText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
         RecordButton.Focus(FocusState.Programmatic);
     }
