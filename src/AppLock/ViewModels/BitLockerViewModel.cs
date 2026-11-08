@@ -262,6 +262,35 @@ public partial class BitLockerViewModel : ObservableObject
     {
         _ = RefreshHasSavedPasswordAsync();
         UpdateSelectedDriveAutoUnlockStatus();
+        NotifySelectedDriveStateChanged();
+    }
+
+    /// <summary>Forces notification of all command bar and detail pane properties that depend on SelectedDrive.</summary>
+    public void NotifySelectedDriveStateChanged()
+    {
+        OnPropertyChanged(nameof(SelectedDrive));
+        OnPropertyChanged(nameof(HasSelectedDrive));
+        OnPropertyChanged(nameof(CanLockSelected));
+        OnPropertyChanged(nameof(CanUnlockSelected));
+        OnPropertyChanged(nameof(CanAttemptUnlock));
+        OnPropertyChanged(nameof(IsSelectedDriveLocked));
+        OnPropertyChanged(nameof(QuickUnlockTitle));
+        OnPropertyChanged(nameof(LockLabel));
+        OnPropertyChanged(nameof(UnlockLabel));
+        OnPropertyChanged(nameof(LockTooltip));
+        OnPropertyChanged(nameof(UnlockTooltip));
+        OnPropertyChanged(nameof(CanTurnOnSelected));
+        OnPropertyChanged(nameof(CanTurnOffSelected));
+        OnPropertyChanged(nameof(CanSuspendSelected));
+        OnPropertyChanged(nameof(CanSuspendOrResumeSelected));
+        OnPropertyChanged(nameof(SuspendButtonLabel));
+        OnPropertyChanged(nameof(SuspendButtonGlyph));
+        OnPropertyChanged(nameof(CanBackupSelected));
+        OnPropertyChanged(nameof(CanChangePasswordSelected));
+        OnPropertyChanged(nameof(CanManageProtectorsSelected));
+        OnPropertyChanged(nameof(CanOpenInExplorerSelected));
+        OnPropertyChanged(nameof(HasSavedPasswordForSelected));
+        OnPropertyChanged(nameof(SelectedDriveAutoUnlockDisplay));
     }
 
     private void UpdateSelectedDriveAutoUnlockStatus()
@@ -1212,6 +1241,7 @@ public partial class BitLockerViewModel : ObservableObject
             }
 
             SelectedDrive = newSelected ?? Drives.FirstOrDefault();
+            NotifySelectedDriveStateChanged();
 
             HasDrives = Drives.Count > 0;
             IsEmpty = Drives.Count == 0;

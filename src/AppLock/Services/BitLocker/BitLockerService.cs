@@ -1382,38 +1382,63 @@ public class BitLockerService : IBitLockerService
         return false;
     }
 
+    public static Task<IReadOnlyList<string>> GetProcessesOnDriveAsync(string driveLetter) =>
+        Task.Run(() => GetProcessesOnDrive(driveLetter));
+
     public static IReadOnlyList<string> GetProcessesOnDrive(string driveLetter)
     {
         var result = new List<string>();
         if (string.IsNullOrWhiteSpace(driveLetter)) return result;
 
         var prefix = NormalizeDriveLetter(driveLetter) + "\\";
+#if !APPLOCK_TESTS
         try
         {
-            foreach (var p in Process.GetProcesses())
+            var processes = Process.GetProcesses();
+            foreach (var p in processes)
             {
+                int pid = p.Id;
+                string procName = p.ProcessName;
+                p.Dispose();
+
+                if (pid <= 4) continue; // Skip System and Idle
+
                 try
                 {
-                    var mainModulePath = p.MainModule?.FileName;
-                    if (!string.IsNullOrEmpty(mainModulePath) &&
-                        mainModulePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    using var hProcess = Windows.Win32.PInvoke.OpenProcess_SafeHandle(
+                        Windows.Win32.System.Threading.PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
+                        false,
+                        (uint)pid);
+
+                    if (hProcess.IsInvalid) continue;
+
+                    var pathBuffer = new char[512];
+                    uint size = (uint)pathBuffer.Length;
+                    unsafe
                     {
-                        result.Add($"{p.ProcessName} (PID {p.Id})");
+                        fixed (char* pPath = pathBuffer)
+                        {
+                            if (Windows.Win32.PInvoke.QueryFullProcessImageName(hProcess, 0, new Windows.Win32.Foundation.PWSTR(pPath), ref size))
+                            {
+                                var path = new string(pathBuffer, 0, (int)size);
+                                if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    result.Add($"{procName} (PID {pid})");
+                                }
+                            }
+                        }
                     }
                 }
                 catch
                 {
-                    // Access denied on system/protected processes
-                }
-                finally
-                {
-                    p.Dispose();
+                    // Access denied or process exited
                 }
             }
         }
         catch
         {
         }
+#endif
         return result;
     }
 

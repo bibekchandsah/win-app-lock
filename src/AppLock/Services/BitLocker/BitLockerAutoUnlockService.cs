@@ -133,6 +133,29 @@ public sealed class BitLockerAutoUnlockService
             var settingsStore = new SettingsStore();
             var settings = settingsStore.Load();
 
+            var bitLockerService = new BitLockerService(support);
+            var savedStore = new SavedPasswordStore();
+
+            // First check if there are any eligible locked drives that actually need unlocking
+            var drives = await bitLockerService.GetDrivesAsync();
+            var savedPasswords = await savedStore.GetAllAsync();
+            if (savedPasswords.Count == 0) return;
+
+            bool hasEligibleLockedDrives = drives.Any(d =>
+                d.LockStatus == LockStatus.Locked &&
+                (settings.BitLockerAutoUnlockVolumeGuids.Count == 0 ||
+                 (!string.IsNullOrEmpty(d.VolumeGuid) && settings.BitLockerAutoUnlockVolumeGuids.Contains(d.VolumeGuid, StringComparer.OrdinalIgnoreCase)) ||
+                 (!string.IsNullOrEmpty(d.DriveLetter) && settings.BitLockerAutoUnlockVolumeGuids.Contains(d.DriveLetter, StringComparer.OrdinalIgnoreCase))) &&
+                savedPasswords.Any(p => p.IsValid && (
+                    (!string.IsNullOrEmpty(d.VolumeGuid) && string.Equals(p.VolumeGuid, d.VolumeGuid, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(d.DriveLetter) && string.Equals(p.DriveLetter, d.DriveLetter, StringComparison.OrdinalIgnoreCase)))));
+
+            if (!hasEligibleLockedDrives)
+            {
+                BitLockerLogger.Log("Headless auto-unlock: No eligible locked drives found. Skipping.");
+                return;
+            }
+
             // If user configured to require Windows Hello before auto-unlocking, prompt for Hello:
             if (settings.BitLockerRequireHelloOnAppStart)
             {
@@ -164,8 +187,6 @@ public sealed class BitLockerAutoUnlockService
                 BitLockerLogger.Log("Headless auto-unlock: Windows Hello verified successfully.");
             }
 
-            var bitLockerService = new BitLockerService(support);
-            var savedStore = new SavedPasswordStore();
             var notificationService = new NotificationService();
 
             var service = new BitLockerAutoUnlockService(

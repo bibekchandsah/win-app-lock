@@ -175,18 +175,18 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <!-- Drive Icon -->
-                                        <FontIcon Glyph="{x:Bind DriveIconGlyph}"
+                                        <FontIcon Glyph="{x:Bind DriveIconGlyph, Mode=OneWay}"
                                                   FontSize="24"
                                                   Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,12,0"/>
                                         <!-- Drive Label & Letter -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock Text="{x:Bind DisplayName}"
+                                            <TextBlock Text="{x:Bind DisplayName, Mode=OneWay}"
                                                        FontWeight="SemiBold"
                                                        FontSize="15"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{x:Bind VolumeGuid}"
+                                            <TextBlock Text="{x:Bind VolumeGuid, Mode=OneWay}"
                                                        FontSize="10"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                                        TextTrimming="CharacterEllipsis"/>
@@ -199,7 +199,7 @@
                                                     BorderThickness="1"
                                                     CornerRadius="4"
                                                     Padding="6,2">
-                                                <TextBlock Text="{x:Bind DriveTypeDisplay}"
+                                                <TextBlock Text="{x:Bind DriveTypeDisplay, Mode=OneWay}"
                                                            FontSize="11"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                             </Border>
@@ -210,11 +210,11 @@
                                                     CornerRadius="4"
                                                     Padding="6,2">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <FontIcon Glyph="{x:Bind ProtectionGlyph}"
+                                                    <FontIcon Glyph="{x:Bind ProtectionGlyph, Mode=OneWay}"
                                                               FontSize="10"
                                                               VerticalAlignment="Center"
                                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                                    <TextBlock Text="{x:Bind ProtectionStatusDisplay}"
+                                                    <TextBlock Text="{x:Bind ProtectionStatusDisplay, Mode=OneWay}"
                                                                FontSize="11"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                                 </StackPanel>
@@ -226,10 +226,10 @@
                                                     CornerRadius="4"
                                                     Padding="6,2">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <FontIcon Glyph="{x:Bind LockIconGlyph}"
+                                                    <FontIcon Glyph="{x:Bind LockIconGlyph, Mode=OneWay}"
                                                               FontSize="10"
                                                               VerticalAlignment="Center"/>
-                                                    <TextBlock Text="{x:Bind LockStatusDisplay}"
+                                                    <TextBlock Text="{x:Bind LockStatusDisplay, Mode=OneWay}"
                                                                FontSize="11"
                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                                 </StackPanel>
@@ -248,13 +248,13 @@
                                                 <TextBlock Text="Encryption Status:"
                                                            FontSize="11"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                <TextBlock Text="{x:Bind ConversionStatus}"
+                                                <TextBlock Text="{x:Bind ConversionStatus, Mode=OneWay}"
                                                            FontSize="11"
                                                            FontWeight="SemiBold"
                                                            HorizontalAlignment="Right"/>
                                             </Grid>
-                                            <ProgressBar Value="{x:Bind EncryptionPercent}" Maximum="100"/>
-                                            <TextBlock Text="{x:Bind EncryptionMethod}"
+                                            <ProgressBar Value="{x:Bind EncryptionPercent, Mode=OneWay}" Maximum="100"/>
+                                            <TextBlock Text="{x:Bind EncryptionMethod, Mode=OneWay}"
                                                        FontSize="10"
                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         </StackPanel>
@@ -264,11 +264,11 @@
                                                 <TextBlock Text="Capacity:"
                                                            FontSize="11"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                <TextBlock Text="{x:Bind CapacityDisplay}"
+                                                <TextBlock Text="{x:Bind CapacityDisplay, Mode=OneWay}"
                                                            FontSize="11"
                                                            HorizontalAlignment="Right"/>
                                             </Grid>
-                                            <ProgressBar Value="{x:Bind CapacityUsedPercent}" Maximum="100"/>
+                                            <ProgressBar Value="{x:Bind CapacityUsedPercent, Mode=OneWay}" Maximum="100"/>
                                         </StackPanel>
                                     </Grid>
                                     <!-- Row 2: Protectors Summary -->
@@ -276,7 +276,7 @@
                                         <TextBlock Text="Key Protectors:"
                                                    FontSize="11"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Text="{x:Bind ProtectorsSummary}"
+                                        <TextBlock Text="{x:Bind ProtectorsSummary, Mode=OneWay}"
                                                    FontSize="11"
                                                    FontWeight="Medium"
                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>

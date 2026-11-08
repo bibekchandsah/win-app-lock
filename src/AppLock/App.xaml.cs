@@ -37,6 +37,23 @@ public partial class App : Application
             _ = Task.Run(async () =>
             {
                 await Task.Delay(1000);
+
+                var bitLocker = AppLock.Services.ServiceContainer.BitLockerService;
+                var drives = await bitLocker.GetDrivesAsync();
+                var savedPasswords = await AppLock.Services.ServiceContainer.SavedPasswordStore.GetAllAsync();
+                var settings = AppLock.Services.ServiceContainer.Settings;
+
+                bool hasLocked = drives.Any(d =>
+                    d.LockStatus == AppLock.Models.LockStatus.Locked &&
+                    (settings.BitLockerAutoUnlockVolumeGuids.Count == 0 ||
+                     (!string.IsNullOrEmpty(d.VolumeGuid) && settings.BitLockerAutoUnlockVolumeGuids.Contains(d.VolumeGuid, StringComparer.OrdinalIgnoreCase)) ||
+                     (!string.IsNullOrEmpty(d.DriveLetter) && settings.BitLockerAutoUnlockVolumeGuids.Contains(d.DriveLetter, StringComparer.OrdinalIgnoreCase))) &&
+                    savedPasswords.Any(p => p.IsValid && (
+                        (!string.IsNullOrEmpty(d.VolumeGuid) && string.Equals(p.VolumeGuid, d.VolumeGuid, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(d.DriveLetter) && string.Equals(p.DriveLetter, d.DriveLetter, StringComparison.OrdinalIgnoreCase)))));
+
+                if (!hasLocked) return;
+
                 if (AppLock.Services.ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
                 {
                     _mainWindow.DispatcherQueue.TryEnqueue(async () =>

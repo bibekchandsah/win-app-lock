@@ -97,21 +97,6 @@ public sealed partial class BitLockerPage : Page
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            if (ViewModel.AutoUnlockOnAppOpen)
-            {
-                if (ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
-                {
-                    var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
-                    if (auth)
-                    {
-                        await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
-                    }
-                }
-                else
-                {
-                    await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
-                }
-            }
             await ViewModel.RefreshDrivesAsync();
         });
     }
@@ -132,8 +117,6 @@ public sealed partial class BitLockerPage : Page
         var drive = ViewModel.SelectedDrive;
         if (drive == null || !ViewModel.CanLockSelected) return;
 
-        var procs = BitLockerService.GetProcessesOnDrive(drive.DriveLetter);
-
         var stack = new StackPanel { Spacing = 10, MinWidth = 360 };
         stack.Children.Add(new TextBlock
         {
@@ -141,44 +124,57 @@ public sealed partial class BitLockerPage : Page
             TextWrapping = TextWrapping.Wrap
         });
 
-        if (procs.Count > 0)
+        var warnBorder = new Border
         {
-            var warnBorder = new Border
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(12, 10, 12, 10),
+            Visibility = Visibility.Collapsed
+        };
+        var warnStack = new StackPanel { Spacing = 6 };
+        warnBorder.Child = warnStack;
+        stack.Children.Add(warnBorder);
+
+        // Scan for running processes in background so dialog opens instantaneously
+        var driveLetter = drive.DriveLetter;
+        _ = Task.Run(() =>
+        {
+            var procs = BitLockerService.GetProcessesOnDrive(driveLetter);
+            if (procs.Count > 0)
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(12, 10, 12, 10)
-            };
-            var warnStack = new StackPanel { Spacing = 6 };
-            warnStack.Children.Add(new TextBlock
-            {
-                Text = $"Active applications on {drive.DriveLetter} ({procs.Count}):",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                FontSize = 12
-            });
-            foreach (var p in procs.Take(8))
-            {
-                warnStack.Children.Add(new TextBlock
+                DispatcherQueue.TryEnqueue(() =>
                 {
-                    Text = $"• {p}",
-                    FontSize = 12,
-                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                    warnStack.Children.Clear();
+                    warnStack.Children.Add(new TextBlock
+                    {
+                        Text = $"Active applications on {driveLetter} ({procs.Count}):",
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        FontSize = 12
+                    });
+                    foreach (var p in procs.Take(8))
+                    {
+                        warnStack.Children.Add(new TextBlock
+                        {
+                            Text = $"• {p}",
+                            FontSize = 12,
+                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        });
+                    }
+                    if (procs.Count > 8)
+                    {
+                        warnStack.Children.Add(new TextBlock
+                        {
+                            Text = $"...and {procs.Count - 8} more",
+                            FontSize = 11,
+                            FontStyle = Windows.UI.Text.FontStyle.Italic
+                        });
+                    }
+                    warnBorder.Visibility = Visibility.Visible;
                 });
             }
-            if (procs.Count > 8)
-            {
-                warnStack.Children.Add(new TextBlock
-                {
-                    Text = $"...and {procs.Count - 8} more",
-                    FontSize = 11,
-                    FontStyle = Windows.UI.Text.FontStyle.Italic
-                });
-            }
-            warnBorder.Child = warnStack;
-            stack.Children.Add(warnBorder);
-        }
+        });
 
         // Confirmation dialog
         var dialog = new ContentDialog
@@ -1454,45 +1450,56 @@ public sealed partial class BitLockerPage : Page
             card.Child = grid;
             panel.Children.Add(card);
 
-            var procs = BitLockerService.GetProcessesOnDrive(drive.DriveLetter);
-            if (procs.Count > 0)
+            var procCard = new Border
             {
-                var procCard = new Border
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 10, 14, 10),
+                Visibility = Visibility.Collapsed
+            };
+            var procStack = new StackPanel { Spacing = 6 };
+            procCard.Child = procStack;
+            panel.Children.Add(procCard);
+
+            var usageDriveLetter = drive.DriveLetter;
+            _ = Task.Run(() =>
+            {
+                var procs = BitLockerService.GetProcessesOnDrive(usageDriveLetter);
+                if (procs.Count > 0)
                 {
-                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                    BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(14, 10, 14, 10)
-                };
-                var procStack = new StackPanel { Spacing = 6 };
-                procStack.Children.Add(new TextBlock
-                {
-                    Text = $"Running applications on this drive ({procs.Count}):",
-                    FontSize = 12,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-                });
-                foreach (var p in procs.Take(8))
-                {
-                    procStack.Children.Add(new TextBlock
+                    DispatcherQueue.TryEnqueue(() =>
                     {
-                        Text = $"• {p}",
-                        FontSize = 12,
-                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        procStack.Children.Clear();
+                        procStack.Children.Add(new TextBlock
+                        {
+                            Text = $"Running applications on this drive ({procs.Count}):",
+                            FontSize = 12,
+                            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                        });
+                        foreach (var p in procs.Take(8))
+                        {
+                            procStack.Children.Add(new TextBlock
+                            {
+                                Text = $"• {p}",
+                                FontSize = 12,
+                                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                            });
+                        }
+                        if (procs.Count > 8)
+                        {
+                            procStack.Children.Add(new TextBlock
+                            {
+                                Text = $"...and {procs.Count - 8} more",
+                                FontSize = 11,
+                                FontStyle = Windows.UI.Text.FontStyle.Italic
+                            });
+                        }
+                        procCard.Visibility = Visibility.Visible;
                     });
                 }
-                if (procs.Count > 8)
-                {
-                    procStack.Children.Add(new TextBlock
-                    {
-                        Text = $"...and {procs.Count - 8} more",
-                        FontSize = 11,
-                        FontStyle = Windows.UI.Text.FontStyle.Italic
-                    });
-                }
-                procCard.Child = procStack;
-                panel.Children.Add(procCard);
-            }
+            });
 
             var openBtn = new Button
             {
@@ -1644,17 +1651,34 @@ public sealed partial class BitLockerPage : Page
 
         runNowBtn.Click += async (s, e) =>
         {
+            dialog.Hide();
+
+            // Check if there are any locked drives
+            var hasLocked = ViewModel.Drives.Any(d => d.IsLocked);
+            if (!hasLocked)
+            {
+                ViewModel.StatusMessage = "All BitLocker drives are already unlocked.";
+                ViewModel.StatusSeverity = BitLockerStatusSeverity.Informational;
+                return;
+            }
+
             if (ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
             {
                 var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
-                if (!auth) return;
+                if (!auth)
+                {
+                    ViewModel.StatusMessage = "Auto-unlock cancelled (Authentication required).";
+                    ViewModel.StatusSeverity = BitLockerStatusSeverity.Warning;
+                    return;
+                }
             }
 
-            runNowBtn.IsEnabled = false;
-            var ok = await ViewModel.RunStartupTaskNowAsync();
-            ViewModel.StatusMessage = ok ? "Auto-unlock task started." : "Failed to run scheduled task.";
-            ViewModel.StatusSeverity = ok ? BitLockerStatusSeverity.Success : BitLockerStatusSeverity.Error;
-            dialog.Hide();
+            var unlockedCount = await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+            await ViewModel.RefreshDrivesAsync();
+            ViewModel.StatusMessage = unlockedCount > 0
+                ? $"Successfully auto-unlocked {unlockedCount} drive{(unlockedCount == 1 ? "" : "s")}."
+                : "No saved password matched the locked drive(s).";
+            ViewModel.StatusSeverity = unlockedCount > 0 ? BitLockerStatusSeverity.Success : BitLockerStatusSeverity.Warning;
         };
 
         createBtn.Click += async (s, e) =>
