@@ -14,9 +14,11 @@ public sealed class ClipboardMonitor : IDisposable
 {
     private const uint WM_CLIPBOARDUPDATE = 0x031D;
     private const uint WM_TIMER = 0x0113;
+    private const uint WM_HOTKEY = 0x0312;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DESTROY = 0x0002;
     private const nuint DEBOUNCE_TIMER_ID = 42;
+    private const int POPUP_HOTKEY_ID = 9001;
     private const uint CF_UNICODETEXT = 13;
     private const uint CF_DIB = 8;
     private const uint CF_DIBV5 = 17;
@@ -29,6 +31,7 @@ public sealed class ClipboardMonitor : IDisposable
     private bool _ignoreNext;
     private DateTime? _pausedUntil;
     private bool _isRunning;
+    private bool _isHotkeyRegistered;
     private readonly object _stateLock = new();
 
     private uint _cfHtml;
@@ -38,6 +41,7 @@ public sealed class ClipboardMonitor : IDisposable
     private uint _cfCanUpload;
 
     public event EventHandler<ClipboardItem>? ItemCaptured;
+    public event EventHandler? HotkeyTriggered;
 
     public bool IsRunning => _isRunning;
 
@@ -123,6 +127,11 @@ public sealed class ClipboardMonitor : IDisposable
 
             if (_hwnd != nint.Zero)
             {
+                if (_isHotkeyRegistered)
+                {
+                    UnregisterHotKey(_hwnd, POPUP_HOTKEY_ID);
+                    _isHotkeyRegistered = false;
+                }
                 PostMessage(_hwnd, WM_CLOSE, nint.Zero, nint.Zero);
             }
 
@@ -155,6 +164,51 @@ public sealed class ClipboardMonitor : IDisposable
         lock (_stateLock)
         {
             _ignoreNext = true;
+        }
+    }
+
+    public bool RegisterHotkey(string hotkeyText)
+    {
+        lock (_stateLock)
+        {
+            if (_hwnd == nint.Zero)
+            {
+                return HotkeyParser.TryParse(hotkeyText, out _, out _);
+            }
+            return RegisterHotkeyInternal(hotkeyText);
+        }
+    }
+
+    private bool RegisterHotkeyInternal(string hotkeyText)
+    {
+        if (_isHotkeyRegistered && _hwnd != nint.Zero)
+        {
+            UnregisterHotKey(_hwnd, POPUP_HOTKEY_ID);
+            _isHotkeyRegistered = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(hotkeyText))
+        {
+            return true;
+        }
+
+        if (!HotkeyParser.TryParse(hotkeyText, out uint mods, out uint vk))
+        {
+            return false;
+        }
+
+        bool success = RegisterHotKey(_hwnd, POPUP_HOTKEY_ID, mods | HotkeyParser.MOD_NOREPEAT, vk);
+        if (success)
+        {
+            _isHotkeyRegistered = true;
+            Debug.WriteLine($"[ClipboardMonitor] Registered global hotkey: {hotkeyText}");
+            return true;
+        }
+        else
+        {
+            int err = Marshal.GetLastWin32Error();
+            Debug.WriteLine($"[ClipboardMonitor] Failed to register hotkey '{hotkeyText}', error: {err}");
+            return false;
         }
     }
 
@@ -208,6 +262,13 @@ public sealed class ClipboardMonitor : IDisposable
 
         _lastSequenceNumber = GetClipboardSequenceNumber();
 
+        // Register initial hotkey
+        var settings = ServiceContainer.Settings.Clipboard;
+        if (!string.IsNullOrEmpty(settings.Hotkey))
+        {
+            RegisterHotkeyInternal(settings.Hotkey);
+        }
+
         readyEvent.Set();
 
         while (GetMessage(out MSG msg, nint.Zero, 0, 0) > 0)
@@ -226,6 +287,14 @@ public sealed class ClipboardMonitor : IDisposable
             case WM_CLIPBOARDUPDATE:
                 OnClipboardUpdate();
                 return nint.Zero;
+
+            case WM_HOTKEY:
+                if (wParam == (nint)POPUP_HOTKEY_ID)
+                {
+                    HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                    return nint.Zero;
+                }
+                break;
 
             case WM_TIMER:
                 if (wParam == (nint)DEBOUNCE_TIMER_ID)
@@ -878,6 +947,12 @@ public sealed class ClipboardMonitor : IDisposable
 
     [DllImport("kernel32.dll")]
     private static extern nuint GlobalSize(nint hMem);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(nint hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(nint hWnd, int id);
 
     #endregion
 }

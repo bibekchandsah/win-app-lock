@@ -36,6 +36,15 @@ public partial class App : Application
             AppLock.Services.ServiceContainer.ClipboardMonitor.Start();
         }
 
+        // Wire clipboard global hotkey to popup window
+        AppLock.Services.ServiceContainer.ClipboardMonitor.HotkeyTriggered += (s, e) =>
+        {
+            _mainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                AppLock.Views.ClipboardPopupWindow.Toggle();
+            });
+        };
+
         // BitLocker auto-unlock on launch if enabled
         if (AppLock.Services.ServiceContainer.Settings.BitLockerAutoUnlockOnAppOpen &&
             AppLock.Services.ServiceContainer.BitLockerSupportService.IsSupported)

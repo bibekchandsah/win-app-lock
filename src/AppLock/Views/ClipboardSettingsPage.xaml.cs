@@ -93,7 +93,7 @@ public sealed partial class ClipboardSettingsPage : Page
                 }
             }
 
-            HotkeyDisplayButton.Content = string.IsNullOrEmpty(settings.Hotkey) ? "None (Click to record)" : settings.Hotkey;
+            ClipboardHotkeyRecorder.Hotkey = settings.Hotkey;
             OverrideWinVCheckBox.IsChecked = settings.OverrideWinV;
 
             // Popup position
@@ -234,35 +234,6 @@ public sealed partial class ClipboardSettingsPage : Page
             await ServiceContainer.ClipboardStore.EnforceLimitAsync(val);
             await UpdateDebugStatusAsync();
         }
-    }
-
-    private void HotkeyDisplayButton_Click(object sender, RoutedEventArgs e)
-    {
-        // Full HotkeyRecorder control in Milestone 4. For now, show info flyout.
-        var flyout = new Flyout
-        {
-            Content = new TextBlock
-            {
-                Text = "Interactive Hotkey Recorder with conflict detection will be activated in Milestone 4. Current hotkey is: " + ServiceContainer.Settings.Clipboard.Hotkey,
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 260
-            }
-        };
-        flyout.ShowAt(HotkeyDisplayButton);
-    }
-
-    private void ResetHotkeyButton_Click(object sender, RoutedEventArgs e)
-    {
-        ServiceContainer.Settings.Clipboard.Hotkey = "Ctrl+Shift+V";
-        HotkeyDisplayButton.Content = "Ctrl+Shift+V";
-        SaveSettings();
-    }
-
-    private void ClearHotkeyButton_Click(object sender, RoutedEventArgs e)
-    {
-        ServiceContainer.Settings.Clipboard.Hotkey = "";
-        HotkeyDisplayButton.Content = "None (Click to record)";
-        SaveSettings();
     }
 
     private void OverrideWinVCheckBox_Changed(object sender, RoutedEventArgs e)

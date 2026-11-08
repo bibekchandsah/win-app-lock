@@ -1,0 +1,68 @@
+<UserControl
+    x:Class="AppLock.Views.Controls.HotkeyRecorder"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="8">
+        <Grid ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Record Key Button -->
+            <Button x:Name="RecordButton"
+                    Grid.Column="0"
+                    Click="RecordButton_Click"
+                    KeyDown="RecordButton_KeyDown"
+                    KeyUp="RecordButton_KeyUp"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
+                    Padding="12,8"
+                    ToolTipService.ToolTip="Click and press key combination">
+                <Grid HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="HotkeyDisplayText"
+                               Text="Ctrl+Shift+V"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <FontIcon x:Name="RecordIcon"
+                              Grid.Column="1"
+                              Glyph="&#xE765;"
+                              FontSize="13"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              VerticalAlignment="Center"/>
+                </Grid>
+            </Button>
+
+            <!-- Reset Button -->
+            <Button Grid.Column="1"
+                    Content="Reset"
+                    Click="ResetButton_Click"
+                    ToolTipService.ToolTip="Reset to default (Ctrl+Shift+V)"/>
+
+            <!-- Clear Button -->
+            <Button Grid.Column="2"
+                    Content="Clear"
+                    Click="ClearButton_Click"
+                    ToolTipService.ToolTip="Disable shortcut"/>
+        </Grid>
+
+        <!-- Inline Error / Warning message -->
+        <TextBlock x:Name="ErrorTextBlock"
+                   Text="This shortcut is used by another app. Choose a different one."
+                   FontSize="12"
+                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed"/>
+    </StackPanel>
+</UserControl>
+

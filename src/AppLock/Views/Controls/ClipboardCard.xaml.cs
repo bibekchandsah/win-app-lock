@@ -112,8 +112,7 @@ public sealed partial class ClipboardCard : UserControl
 
     private void OpenHistoryButton_Click(object sender, RoutedEventArgs e)
     {
-        var frame = FindParentFrame(this);
-        frame?.Navigate(typeof(ClipboardHistoryPage));
+        ClipboardPopupWindow.Toggle();
     }
 
     private void Pause5_Click(object sender, RoutedEventArgs e) => SetPause(TimeSpan.FromMinutes(5));
