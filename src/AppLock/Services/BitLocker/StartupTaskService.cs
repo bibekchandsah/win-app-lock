@@ -112,6 +112,7 @@ public sealed class StartupTaskService
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
     <AllowStartOnDemand>true</AllowStartOnDemand>
     <Enabled>true</Enabled>
+    <StartWhenAvailable>true</StartWhenAvailable>
     <IdleSettings>
       <StopOnIdleEnd>false</StopOnIdleEnd>
       <RestartOnIdle>false</RestartOnIdle>

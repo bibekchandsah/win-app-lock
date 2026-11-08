@@ -55,6 +55,8 @@ public partial class BitLockerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SuspendTooltip))]
     [NotifyPropertyChangedFor(nameof(BackupKeyTooltip))]
     [NotifyPropertyChangedFor(nameof(HasSavedPasswordForSelected))]
+    [NotifyPropertyChangedFor(nameof(LockLabel))]
+    [NotifyPropertyChangedFor(nameof(UnlockLabel))]
     private DriveItemViewModel? _selectedDrive;
 
     [ObservableProperty]
@@ -141,6 +143,14 @@ public partial class BitLockerViewModel : ObservableObject
     public bool CanChangePasswordSelected => SelectedDrive != null && SelectedDrive.HasPasswordProtector && IsElevated;
     public bool CanManageProtectorsSelected => SelectedDrive != null && SelectedDrive.ProtectionStatus != ProtectionStatus.Off && IsElevated;
     public bool CanOpenInExplorerSelected => SelectedDrive != null && !SelectedDrive.IsLocked;
+
+    public string LockLabel => SelectedDrive != null && !string.IsNullOrEmpty(SelectedDrive.DriveLetter)
+        ? $"Lock {SelectedDrive.DriveLetter}"
+        : "Lock";
+
+    public string UnlockLabel => SelectedDrive != null && !string.IsNullOrEmpty(SelectedDrive.DriveLetter)
+        ? $"Unlock {SelectedDrive.DriveLetter}"
+        : "Unlock";
 
     public string LockTooltip
     {
@@ -288,6 +298,21 @@ public partial class BitLockerViewModel : ObservableObject
             {
                 Debug.WriteLine($"Failed to save BitLockerAutoUnlockOnAppOpen: {ex.Message}");
             }
+        }
+
+        if (value && _startupTaskService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _startupTaskService.CreateOrUpdateTaskAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[BitLockerViewModel] Auto setup startup task failed: {ex.Message}");
+                }
+            });
         }
     }
 
@@ -1135,28 +1160,57 @@ public partial class BitLockerViewModel : ObservableObject
 
             var rawDrives = await _bitLockerService.GetDrivesAsync();
 
-            Drives.Clear();
-            DriveItemViewModel? newSelected = null;
-
+            var currentByKey = new Dictionary<string, BitLockerDrive>(StringComparer.OrdinalIgnoreCase);
             foreach (var d in rawDrives)
             {
-                var vm = new DriveItemViewModel(d);
-                Drives.Add(vm);
-
-                if (newSelected == null)
+                var key = !string.IsNullOrEmpty(d.DriveLetter) ? d.DriveLetter : d.VolumeGuid;
+                if (!string.IsNullOrEmpty(key))
                 {
-                    if (!string.IsNullOrEmpty(selectedLetter) && string.Equals(vm.DriveLetter, selectedLetter, StringComparison.OrdinalIgnoreCase))
-                    {
-                        newSelected = vm;
-                    }
-                    else if (!string.IsNullOrEmpty(selectedGuid) && string.Equals(vm.VolumeGuid, selectedGuid, StringComparison.OrdinalIgnoreCase))
-                    {
-                        newSelected = vm;
-                    }
+                    currentByKey[key] = d;
                 }
             }
 
-            // Default to first drive if nothing previously selected or match lost
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. In-place update existing items, or remove if no longer detected (avoids UI flicker and rebuilds)
+            for (int i = Drives.Count - 1; i >= 0; i--)
+            {
+                var vm = Drives[i];
+                var key = !string.IsNullOrEmpty(vm.DriveLetter) ? vm.DriveLetter : vm.VolumeGuid;
+
+                if (!string.IsNullOrEmpty(key) && currentByKey.TryGetValue(key, out var updatedModel))
+                {
+                    seenKeys.Add(key);
+                    vm.Model = updatedModel;
+                }
+                else
+                {
+                    Drives.RemoveAt(i);
+                }
+            }
+
+            // 2. Add newly attached drives
+            foreach (var d in rawDrives)
+            {
+                var key = !string.IsNullOrEmpty(d.DriveLetter) ? d.DriveLetter : d.VolumeGuid;
+                if (string.IsNullOrEmpty(key) || !seenKeys.Contains(key))
+                {
+                    var vm = new DriveItemViewModel(d);
+                    Drives.Add(vm);
+                }
+            }
+
+            // 3. Preserve selected drive
+            DriveItemViewModel? newSelected = null;
+            if (!string.IsNullOrEmpty(selectedLetter))
+            {
+                newSelected = Drives.FirstOrDefault(d => string.Equals(d.DriveLetter, selectedLetter, StringComparison.OrdinalIgnoreCase));
+            }
+            if (newSelected == null && !string.IsNullOrEmpty(selectedGuid))
+            {
+                newSelected = Drives.FirstOrDefault(d => string.Equals(d.VolumeGuid, selectedGuid, StringComparison.OrdinalIgnoreCase));
+            }
+
             SelectedDrive = newSelected ?? Drives.FirstOrDefault();
 
             HasDrives = Drives.Count > 0;

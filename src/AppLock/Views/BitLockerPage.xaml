@@ -26,13 +26,13 @@
                 </AppBarButton.KeyboardAccelerators>
             </AppBarButton>
             <AppBarSeparator/>
-            <AppBarButton x:Name="LockButton" Label="Lock" Click="LockButton_Click"
+            <AppBarButton x:Name="LockButton" Label="{x:Bind ViewModel.LockLabel, Mode=OneWay}" Click="LockButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanLockSelected, Mode=OneWay}"
                           ToolTipService.ToolTip="{x:Bind ViewModel.LockTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Lock selected drive">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE72E;"/></AppBarButton.Icon>
             </AppBarButton>
-            <AppBarButton x:Name="UnlockButton" Label="Unlock" Click="UnlockButton_Click"
+            <AppBarButton x:Name="UnlockButton" Label="{x:Bind ViewModel.UnlockLabel, Mode=OneWay}" Click="UnlockButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanUnlockSelected, Mode=OneWay}"
                           ToolTipService.ToolTip="{x:Bind ViewModel.UnlockTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Unlock selected drive">

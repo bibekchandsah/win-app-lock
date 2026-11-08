@@ -41,6 +41,12 @@ public partial class App : Application
                 {
                     _mainWindow.DispatcherQueue.TryEnqueue(async () =>
                     {
+                        int retries = 0;
+                        while (_mainWindow.Content?.XamlRoot == null && retries++ < 25)
+                        {
+                            await Task.Delay(200);
+                        }
+
                         if (_mainWindow.Content?.XamlRoot != null)
                         {
                             var auth = await AppLock.Services.BitLocker.BitLockerSecurityGate.EnsureAuthenticatedAsync(_mainWindow.Content.XamlRoot);

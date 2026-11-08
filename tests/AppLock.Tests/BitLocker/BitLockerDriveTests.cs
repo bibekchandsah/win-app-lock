@@ -759,5 +759,54 @@ public class BitLockerDriveTests
         Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive with saved password""", xaml);
         Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive with recovery key""", xaml);
     }
+
+    [Fact]
+    public async Task RefreshDrivesAsync_PreservesDriveItemInstancesAndUpdatesProperties()
+    {
+        var fakeService = new FakeBitLockerService
+        {
+            DrivesToReturn = new List<BitLockerDrive>
+            {
+                new BitLockerDrive
+                {
+                    DriveLetter = "E:",
+                    VolumeLabel = "WorkData",
+                    LockStatus = LockStatus.Locked,
+                    ProtectionStatus = ProtectionStatus.On
+                }
+            }
+        };
+
+        var support = new BitLockerSupportService(isSupported: true, isElevated: true, isWmiAvailable: true);
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(support, fakeService, watcher);
+
+        await vm.RefreshDrivesAsync();
+
+        Assert.Single(vm.Drives);
+        var initialItem = vm.Drives[0];
+        Assert.Equal(LockStatus.Locked, initialItem.LockStatus);
+
+        // Simulate drive unlocking
+        fakeService.DrivesToReturn = new List<BitLockerDrive>
+        {
+            new BitLockerDrive
+            {
+                DriveLetter = "E:",
+                VolumeLabel = "WorkData",
+                LockStatus = LockStatus.Unlocked,
+                ProtectionStatus = ProtectionStatus.On
+            }
+        };
+
+        await vm.RefreshDrivesAsync();
+
+        Assert.Single(vm.Drives);
+        // The exact same ViewModel instance should be preserved (no flicker / rebuild)
+        Assert.Same(initialItem, vm.Drives[0]);
+        // And its property was updated in-place
+        Assert.Equal(LockStatus.Unlocked, vm.Drives[0].LockStatus);
+        Assert.True(vm.Drives[0].IsUnlocked);
+    }
 }
 

@@ -132,6 +132,38 @@ public sealed class BitLockerAutoUnlockService
 
             var settingsStore = new SettingsStore();
             var settings = settingsStore.Load();
+
+            // If user configured to require Windows Hello before auto-unlocking, prompt for Hello:
+            if (settings.BitLockerRequireHelloOnAppStart)
+            {
+                BitLockerLogger.Log("Headless auto-unlock: Windows Hello verification required by user settings.");
+                var hello = new HelloService();
+                bool verified = false;
+                try
+                {
+                    if (await hello.IsAvailableAsync())
+                    {
+                        verified = await hello.RequestVerificationAsync("Unlock BitLocker drives");
+                    }
+                    else
+                    {
+                        BitLockerLogger.Log("Headless auto-unlock: Windows Hello is not available.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    BitLockerLogger.Log($"Headless auto-unlock: Hello verification error: {ex.Message}");
+                }
+
+                if (!verified)
+                {
+                    BitLockerLogger.Log("Headless auto-unlock aborted: Windows Hello verification was not successful.");
+                    return;
+                }
+
+                BitLockerLogger.Log("Headless auto-unlock: Windows Hello verified successfully.");
+            }
+
             var bitLockerService = new BitLockerService(support);
             var savedStore = new SavedPasswordStore();
             var notificationService = new NotificationService();

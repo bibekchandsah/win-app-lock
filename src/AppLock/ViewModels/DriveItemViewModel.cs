@@ -8,6 +8,41 @@ public partial class DriveItemViewModel : ObservableObject
     [ObservableProperty]
     private BitLockerDrive _model;
 
+    partial void OnModelChanged(BitLockerDrive value)
+    {
+        OnPropertyChanged(nameof(DriveLetter));
+        OnPropertyChanged(nameof(VolumeLabel));
+        OnPropertyChanged(nameof(VolumeGuid));
+        OnPropertyChanged(nameof(DriveType));
+        OnPropertyChanged(nameof(ProtectionStatus));
+        OnPropertyChanged(nameof(LockStatus));
+        OnPropertyChanged(nameof(EncryptionPercent));
+        OnPropertyChanged(nameof(ConversionStatus));
+        OnPropertyChanged(nameof(EncryptionMethod));
+        OnPropertyChanged(nameof(KeyProtectors));
+        OnPropertyChanged(nameof(TotalBytes));
+        OnPropertyChanged(nameof(FreeBytes));
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(DriveTypeDisplay));
+        OnPropertyChanged(nameof(DriveIconGlyph));
+        OnPropertyChanged(nameof(ProtectionStatusDisplay));
+        OnPropertyChanged(nameof(ProtectionGlyph));
+        OnPropertyChanged(nameof(LockStatusDisplay));
+        OnPropertyChanged(nameof(LockIconGlyph));
+        OnPropertyChanged(nameof(IsLocked));
+        OnPropertyChanged(nameof(IsUnlocked));
+        OnPropertyChanged(nameof(CanLock));
+        OnPropertyChanged(nameof(CanUnlock));
+        OnPropertyChanged(nameof(LockDisabledReason));
+        OnPropertyChanged(nameof(HasCapacity));
+        OnPropertyChanged(nameof(CapacityUsedPercent));
+        OnPropertyChanged(nameof(CapacityDisplay));
+        OnPropertyChanged(nameof(HasProtectors));
+        OnPropertyChanged(nameof(HasPasswordProtector));
+        OnPropertyChanged(nameof(HasRecoveryPasswordProtector));
+        OnPropertyChanged(nameof(ProtectorsSummary));
+    }
+
     public DriveItemViewModel(BitLockerDrive model)
     {
         _model = model;

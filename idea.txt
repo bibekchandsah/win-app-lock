@@ -158,24 +158,32 @@ issue
 -> implemented - self-discipline with Daily usage quota, Scheduled lock, Auto-relock  on timeout
 -> fixed - emergency lock input resetting
 -> fixed - daily quot:count extended time as usage, always show quota overlay after limit
--> background mica background effect, curved sidebar with title bar
--> high priority for launching app on start up that is boot 
--> bit locker -> lock/unlock, refresh drive list, check current usage, 
--> app internet connection enable disable
--> protect eye with custom message and custom duration 
--> brightness shortcut key according to brightness percentage 0% ctrl+shift+0, 10% ctrl+sft+1., 20% ctrl+shift+2, 100% ctrl+shift+f..... (custom hotkey)
+-> implemented - bit locker -> lock/unlock, refresh drive list, check current usage, 
+-> implemented - app internet connection enable disable
+-> implemented - brightness shortcut key according to brightness percentage 0% ctrl+shift+0, 10% ctrl+sft+1., 20% ctrl+shift+2, 100% ctrl+shift+f..... (custom hotkey)
    blur overlay on screen ctrl+shift+b (custom blur intensity) (custom hotkey)
--> volume mixture 
--> app icon in installed app list in network connection
-
-
-
+-> fixed - app icon in installed app list in network connection
 -> implemented - enable/disable brightness
 -> implemented - enable/disable blur 
--> enable/disable eyecare
+-> implemented - enable/disable eyecare
 -> fixed - hotkey recording fixing
--> live blur/dim screen overlay
+-> fixed - live blur/dim screen overlay
+-> rounded corner for installed app list
+-> high priority for launching app on start up that is boot 
+-> background mica background effect, curved sidebar with title bar
+-> protect eye with custom message and custom duration 
+-> volume mixture 
 -> if user haven't set lock on any app then can exit without password 
+
+-> optimize drive refresh like in protection page
+-> add run task as soon as possible after a scheduled task is missed
+-> in locking dialog show the running task list of the selected disk
+-> in check usage also show the running task list of the selected disk
+-> auto setup start task when user enable "Auto-unlock saved drives when AppLock opens"
+-> add lock/unlock drive "x"
+
+
+
 
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe
