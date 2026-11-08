@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="using:AppLock.Views"
+    xmlns:controls="using:AppLock.Views.Controls"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
@@ -88,10 +89,16 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Clipboard Card Template -->
+        <DataTemplate x:Key="ClipboardTemplate" x:DataType="local:UtilityCard">
+            <controls:ClipboardCard Margin="0,4,0,0"/>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
-                                           EyeCareTemplate="{StaticResource EyeCareTemplate}"/>
+                                           EyeCareTemplate="{StaticResource EyeCareTemplate}"
+                                           ClipboardTemplate="{StaticResource ClipboardTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

@@ -55,13 +55,20 @@ public class SettingsStore
 
     private void MigrateSettings(AppSettings settings, bool forceSave = false)
     {
+        bool modified = forceSave;
+
         if (settings.LockRules == null)
         {
             settings.LockRules = new List<LockRule>();
-            return;
         }
 
-        bool modified = forceSave;
+        if (settings.Clipboard == null)
+        {
+            settings.Clipboard = new ClipboardSettings();
+            modified = true;
+        }
+        settings.Clipboard.Clamp();
+
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         foreach (var rule in settings.LockRules)

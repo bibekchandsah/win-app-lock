@@ -30,6 +30,12 @@ public partial class App : Application
         AppLock.Services.ProcessProtectionService.ProtectCurrentProcess();
         AppLock.Services.ProcessProtectionService.StartWatchdog();
 
+        // Start clipboard monitor if enabled
+        if (AppLock.Services.ServiceContainer.Settings.Clipboard.Enabled)
+        {
+            AppLock.Services.ServiceContainer.ClipboardMonitor.Start();
+        }
+
         // BitLocker auto-unlock on launch if enabled
         if (AppLock.Services.ServiceContainer.Settings.BitLockerAutoUnlockOnAppOpen &&
             AppLock.Services.ServiceContainer.BitLockerSupportService.IsSupported)

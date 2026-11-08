@@ -35,6 +35,8 @@ public static class ServiceContainer
     private static AppLock.Services.Brightness.BrightnessHotkeyManager? _brightnessHotkeyManager;
     private static AppLock.Services.EyeCare.EyeCareScheduler? _eyeCareScheduler;
     private static AppLock.Services.EyeCare.EyeCareOverlayService? _eyeCareOverlayService;
+    private static ClipboardStore? _clipboardStore;
+    private static ClipboardMonitor? _clipboardMonitor;
 
     public static NotificationService NotificationService
     {
@@ -412,6 +414,30 @@ public static class ServiceContainer
 
     public static AppLock.Services.EyeCare.EyeCareOverlayService? EyeCareOverlayService => _eyeCareOverlayService;
     public static AppLock.Services.EyeCare.EyeCareScheduler? EyeCareScheduler => _eyeCareScheduler;
+
+    public static ClipboardStore ClipboardStore
+    {
+        get
+        {
+            if (_clipboardStore == null)
+            {
+                _clipboardStore = new ClipboardStore();
+            }
+            return _clipboardStore;
+        }
+    }
+
+    public static ClipboardMonitor ClipboardMonitor
+    {
+        get
+        {
+            if (_clipboardMonitor == null)
+            {
+                _clipboardMonitor = new ClipboardMonitor();
+            }
+            return _clipboardMonitor;
+        }
+    }
 
     public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {

@@ -61,6 +61,9 @@ public class AppSettings
     // Eye Care
     public EyeCareSettings EyeCare { get; set; } = new();
     
+    // Clipboard
+    public ClipboardSettings Clipboard { get; set; } = new();
+    
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

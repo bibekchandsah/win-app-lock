@@ -12,6 +12,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
 {
     public DataTemplate? BrightnessTemplate { get; set; }
     public DataTemplate? EyeCareTemplate { get; set; }
+    public DataTemplate? ClipboardTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -25,6 +26,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
             {
                 "brightness" => BrightnessTemplate,
                 "eyecare" => EyeCareTemplate,
+                "clipboard" => ClipboardTemplate,
                 _ => null
             };
             
@@ -80,6 +82,20 @@ public sealed partial class OthersPage : Page
             BlurHotkeyEnabled = false,
             EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled
         });
+
+        Cards.Add(new UtilityCard
+        {
+            Id = "clipboard",
+            Icon = "\uE8C8", // Paste / Clipboard icon
+            Title = "Clipboard",
+            Description = "Persistent clipboard history with custom hotkey and search",
+            Status = ServiceContainer.Settings.Clipboard.Enabled ? "Capturing" : "Disabled",
+            StatusVisibility = Visibility.Visible,
+            BrightnessHotkeysEnabled = false,
+            BlurHotkeyEnabled = false,
+            EyeCareEnabled = false,
+            ClipboardEnabled = ServiceContainer.Settings.Clipboard.Enabled
+        });
     }
 
     private void UtilityCard_Click(object sender, RoutedEventArgs e)
@@ -96,6 +112,11 @@ public sealed partial class OthersPage : Page
             {
                 // Navigate to EyeCarePage
                 Frame.Navigate(typeof(EyeCarePage));
+            }
+            else if (card.Id == "clipboard")
+            {
+                // Navigate to ClipboardSettingsPage
+                Frame.Navigate(typeof(ClipboardSettingsPage));
             }
         }
     }
@@ -122,10 +143,10 @@ public sealed partial class OthersPage : Page
 
     private void CardExpander_Loaded(object sender, RoutedEventArgs e)
     {
-        // Show expander for both brightness and eyecare cards
+        // Show expander for brightness, eyecare, and clipboard cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare") 
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard") 
                 ? Visibility.Visible 
                 : Visibility.Collapsed;
         }
@@ -219,9 +240,11 @@ public class UtilityCard : INotifyPropertyChanged
     // Visibility helpers - computed based on Id
     public bool IsBrightnessCard => Id == "brightness";
     public bool IsEyeCareCard => Id == "eyecare";
+    public bool IsClipboardCard => Id == "clipboard";
     
     public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ClipboardContentVisibility => IsClipboardCard ? Visibility.Visible : Visibility.Collapsed;
     
     public string Status
     {
@@ -272,6 +295,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_eyeCareEnabled != value)
             {
                 _eyeCareEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _clipboardEnabled;
+    public bool ClipboardEnabled
+    {
+        get => _clipboardEnabled;
+        set
+        {
+            if (_clipboardEnabled != value)
+            {
+                _clipboardEnabled = value;
                 OnPropertyChanged();
             }
         }
