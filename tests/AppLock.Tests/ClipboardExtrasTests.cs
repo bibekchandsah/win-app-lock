@@ -87,4 +87,34 @@ public class ClipboardExtrasTests
         Assert.Equal("JS Log", snippet.Label);
         Assert.Equal("console.log('test');", snippet.ContentString);
     }
+
+    [Fact]
+    public void LargeDataset_1000Items_PerformanceTest()
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var items = new System.Collections.Generic.List<ClipboardItem>(1000);
+        for (int i = 0; i < 1000; i++)
+        {
+            items.Add(new ClipboardItem
+            {
+                Id = i + 1,
+                Type = (i % 5 == 0) ? "image" : "text",
+                ContentString = $"Test item content {i}",
+                PreviewString = $"Test item content {i}",
+                Pinned = (i % 20 == 0),
+                CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (i * 1000)
+            });
+        }
+
+        // Test filtering
+        var textItems = items.FindAll(x => x.Type == "text");
+        var pinnedItems = items.FindAll(x => x.Pinned);
+        sw.Stop();
+
+        Assert.Equal(1000, items.Count);
+        Assert.Equal(800, textItems.Count);
+        Assert.Equal(50, pinnedItems.Count);
+        // Ensure processing 1000 items is instantaneous (< 100ms)
+        Assert.True(sw.ElapsedMilliseconds < 100, $"Elapsed was {sw.ElapsedMilliseconds} ms");
+    }
 }

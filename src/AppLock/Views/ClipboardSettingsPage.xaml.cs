@@ -129,7 +129,7 @@ public sealed partial class ClipboardSettingsPage : Page
                 PasteBehaviorCombo.SelectedIndex = 0;
             }
 
-            StartWithWindowsToggle.IsOn = settings.StartWithWindows;
+            StartWithWindowsToggle.IsOn = ServiceContainer.StartupService.IsStartupEnabled() || settings.StartWithWindows;
 
             // Theme
             foreach (ComboBoxItem item in ThemeCombo.Items)
@@ -243,8 +243,10 @@ public sealed partial class ClipboardSettingsPage : Page
     private void OverrideWinVCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         if (_isInitializing) return;
-        ServiceContainer.Settings.Clipboard.OverrideWinV = OverrideWinVCheckBox.IsChecked ?? false;
+        bool isChecked = OverrideWinVCheckBox.IsChecked ?? false;
+        ServiceContainer.Settings.Clipboard.OverrideWinV = isChecked;
         SaveSettings();
+        ServiceContainer.ClipboardMonitor.UpdateWinVHook(isChecked);
     }
 
     private async void OpenWindowsClipboardSettings_Click(object sender, RoutedEventArgs e)
@@ -282,8 +284,10 @@ public sealed partial class ClipboardSettingsPage : Page
     private void StartWithWindowsToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (_isInitializing) return;
-        ServiceContainer.Settings.Clipboard.StartWithWindows = StartWithWindowsToggle.IsOn;
+        bool isEnabled = StartWithWindowsToggle.IsOn;
+        ServiceContainer.Settings.Clipboard.StartWithWindows = isEnabled;
         SaveSettings();
+        ServiceContainer.StartupService.SetStartupEnabled(isEnabled);
     }
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

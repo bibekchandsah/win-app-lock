@@ -126,6 +126,11 @@ public sealed partial class ClipboardPopupWindow : Window
 
     public void ShowPopup()
     {
+        if (ServiceContainer.ClipboardMonitor.IsSessionLocked)
+        {
+            return;
+        }
+
         _prevForegroundHwnd = GetForegroundWindow();
         ApplyTheme();
         ApplyScreenCaptureExclusion();

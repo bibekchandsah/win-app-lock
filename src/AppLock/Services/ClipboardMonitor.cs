@@ -17,6 +17,26 @@ public sealed class ClipboardMonitor : IDisposable
     private const uint WM_HOTKEY = 0x0312;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DESTROY = 0x0002;
+    private const uint WM_WTSSESSION_CHANGE = 0x02B1;
+    private const uint WM_POWERBROADCAST = 0x0218;
+    private const uint WM_APP_INSTALL_WINV = 0x8001;
+    private const uint WM_APP_UNINSTALL_WINV = 0x8002;
+
+    private const int NOTIFY_FOR_THIS_SESSION = 0;
+    private const int WTS_SESSION_LOCK = 0x7;
+    private const int WTS_SESSION_UNLOCK = 0x8;
+    private const int PBT_APMRESUMEAUTOMATIC = 0x0012;
+    private const int PBT_APMRESUMESUSPEND = 0x0007;
+
+    private const int WH_KEYBOARD_LL = 13;
+    private const uint WM_KEYDOWN = 0x0100;
+    private const uint WM_SYSKEYDOWN = 0x0104;
+    private const int VK_LWIN = 0x5B;
+    private const int VK_RWIN = 0x5C;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_MENU = 0x12; // Alt
+    private const int VK_V = 0x56;
+
     private const nuint DEBOUNCE_TIMER_ID = 42;
     private const int POPUP_HOTKEY_ID = 9001;
     private const uint CF_UNICODETEXT = 13;
@@ -32,6 +52,10 @@ public sealed class ClipboardMonitor : IDisposable
     private DateTime? _pausedUntil;
     private bool _isRunning;
     private bool _isHotkeyRegistered;
+    private volatile bool _isSessionLocked;
+    private nint _llHook = nint.Zero;
+    private LowLevelKeyboardProc? _llProc;
+    private static Mutex? _singleInstanceMutex;
     private readonly object _stateLock = new();
 
     private uint _cfHtml;
@@ -42,7 +66,9 @@ public sealed class ClipboardMonitor : IDisposable
 
     public event EventHandler<ClipboardItem>? ItemCaptured;
     public event EventHandler? HotkeyTriggered;
+    public event EventHandler<bool>? SessionLockChanged;
 
+    public bool IsSessionLocked => _isSessionLocked;
     public bool IsRunning => _isRunning;
 
     public bool IsPaused
@@ -86,6 +112,18 @@ public sealed class ClipboardMonitor : IDisposable
         {
             if (_isRunning) return;
             _isRunning = true;
+
+            try
+            {
+                if (_singleInstanceMutex == null)
+                {
+                    _singleInstanceMutex = new Mutex(false, @"Local\AppLock_ClipboardManager_Mutex");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClipboardMonitor] Single-instance mutex check: {ex.Message}");
+            }
 
             var readyEvent = new ManualResetEventSlim(false);
 
@@ -132,6 +170,7 @@ public sealed class ClipboardMonitor : IDisposable
                     UnregisterHotKey(_hwnd, POPUP_HOTKEY_ID);
                     _isHotkeyRegistered = false;
                 }
+                UninstallWinVHook();
                 PostMessage(_hwnd, WM_CLOSE, nint.Zero, nint.Zero);
             }
 
@@ -176,6 +215,14 @@ public sealed class ClipboardMonitor : IDisposable
                 return HotkeyParser.TryParse(hotkeyText, out _, out _);
             }
             return RegisterHotkeyInternal(hotkeyText);
+        }
+    }
+
+    public void UpdateWinVHook(bool enable)
+    {
+        if (_hwnd != nint.Zero)
+        {
+            PostMessage(_hwnd, enable ? WM_APP_INSTALL_WINV : WM_APP_UNINSTALL_WINV, nint.Zero, nint.Zero);
         }
     }
 
@@ -269,6 +316,13 @@ public sealed class ClipboardMonitor : IDisposable
             RegisterHotkeyInternal(settings.Hotkey);
         }
 
+        if (settings.OverrideWinV)
+        {
+            InstallWinVHook();
+        }
+
+        WTSRegisterSessionNotification(_hwnd, NOTIFY_FOR_THIS_SESSION);
+
         readyEvent.Set();
 
         while (GetMessage(out MSG msg, nint.Zero, 0, 0) > 0)
@@ -277,6 +331,8 @@ public sealed class ClipboardMonitor : IDisposable
             DispatchMessage(ref msg);
         }
 
+        WTSUnRegisterSessionNotification(_hwnd);
+        UninstallWinVHook();
         RemoveClipboardFormatListener(_hwnd);
     }
 
@@ -291,10 +347,56 @@ public sealed class ClipboardMonitor : IDisposable
             case WM_HOTKEY:
                 if (wParam == (nint)POPUP_HOTKEY_ID)
                 {
-                    HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                    if (!_isSessionLocked)
+                    {
+                        HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                    }
                     return nint.Zero;
                 }
                 break;
+
+            case WM_WTSSESSION_CHANGE:
+                if (wParam == (nint)WTS_SESSION_LOCK)
+                {
+                    _isSessionLocked = true;
+                    Debug.WriteLine("[ClipboardMonitor] Session locked - pausing capture & hiding popup");
+                    SessionLockChanged?.Invoke(this, true);
+                }
+                else if (wParam == (nint)WTS_SESSION_UNLOCK)
+                {
+                    _isSessionLocked = false;
+                    Debug.WriteLine("[ClipboardMonitor] Session unlocked - resuming capture");
+                    SessionLockChanged?.Invoke(this, false);
+                }
+                return nint.Zero;
+
+            case WM_POWERBROADCAST:
+                if (wParam == (nint)PBT_APMRESUMEAUTOMATIC || wParam == (nint)PBT_APMRESUMESUSPEND)
+                {
+                    Debug.WriteLine("[ClipboardMonitor] Power resume detected, refreshing listeners");
+                    RemoveClipboardFormatListener(_hwnd);
+                    AddClipboardFormatListener(_hwnd);
+                    _lastSequenceNumber = GetClipboardSequenceNumber();
+
+                    var s = ServiceContainer.Settings.Clipboard;
+                    if (!string.IsNullOrEmpty(s.Hotkey))
+                    {
+                        RegisterHotkeyInternal(s.Hotkey);
+                    }
+                    if (s.OverrideWinV)
+                    {
+                        InstallWinVHook();
+                    }
+                }
+                return nint.Zero;
+
+            case WM_APP_INSTALL_WINV:
+                InstallWinVHook();
+                return nint.Zero;
+
+            case WM_APP_UNINSTALL_WINV:
+                UninstallWinVHook();
+                return nint.Zero;
 
             case WM_TIMER:
                 if (wParam == (nint)DEBOUNCE_TIMER_ID)
@@ -335,7 +437,7 @@ public sealed class ClipboardMonitor : IDisposable
         }
 
         var settings = ServiceContainer.Settings.Clipboard;
-        if (!settings.Enabled || IsPaused)
+        if (!settings.Enabled || IsPaused || _isSessionLocked)
         {
             return;
         }
@@ -979,6 +1081,138 @@ public sealed class ClipboardMonitor : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(nint hWnd, int id);
+
+    private delegate nint LowLevelKeyboardProc(int nCode, nint wParam, nint lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public InputUnion u;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)]
+        public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, nint hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(nint hhk);
+
+    [DllImport("user32.dll")]
+    private static extern nint CallNextHookEx(nint hhk, int nCode, nint wParam, nint lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern nint GetModuleHandle(string? lpModuleName);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
+
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSRegisterSessionNotification(nint hWnd, int dwFlags);
+
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSUnRegisterSessionNotification(nint hWnd);
+
+    private void InstallWinVHook()
+    {
+        if (_llHook != nint.Zero) return;
+        _llProc = LowLevelKeyboardHookCallback;
+        using var curProcess = Process.GetCurrentProcess();
+        using var curModule = curProcess.MainModule;
+        nint hMod = curModule != null ? GetModuleHandle(curModule.ModuleName) : nint.Zero;
+        _llHook = SetWindowsHookEx(WH_KEYBOARD_LL, _llProc, hMod, 0);
+        Debug.WriteLine($"[ClipboardMonitor] Win+V low-level hook installed: {_llHook != nint.Zero}");
+    }
+
+    private void UninstallWinVHook()
+    {
+        if (_llHook != nint.Zero)
+        {
+            UnhookWindowsHookEx(_llHook);
+            _llHook = nint.Zero;
+            _llProc = null;
+            Debug.WriteLine("[ClipboardMonitor] Win+V low-level hook uninstalled");
+        }
+    }
+
+    private nint LowLevelKeyboardHookCallback(int nCode, nint wParam, nint lParam)
+    {
+        if (nCode >= 0 && (wParam == (nint)WM_KEYDOWN || wParam == (nint)WM_SYSKEYDOWN))
+        {
+            var kb = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            if (kb.vkCode == (uint)VK_V)
+            {
+                bool lWin = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0;
+                bool rWin = (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                if (lWin || rWin)
+                {
+                    bool ctrl = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                    bool alt = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                    if (!ctrl && !alt)
+                    {
+                        // Spec: Inject dummy key (VK 0xFF down/up) before release to prevent Start menu opening
+                        SendDummyKey();
+
+                        if (!_isSessionLocked)
+                        {
+                            HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                        }
+
+                        // Swallow key event
+                        return (nint)1;
+                    }
+                }
+            }
+        }
+        return CallNextHookEx(_llHook, nCode, wParam, lParam);
+    }
+
+    private static void SendDummyKey()
+    {
+        try
+        {
+            INPUT[] inputs = new INPUT[2];
+            inputs[0].type = 1; // INPUT_KEYBOARD
+            inputs[0].u.ki.wVk = 0xFF;
+            inputs[1].type = 1; // INPUT_KEYBOARD
+            inputs[1].u.ki.wVk = 0xFF;
+            inputs[1].u.ki.dwFlags = 0x0002; // KEYEVENTF_KEYUP
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ClipboardMonitor] SendDummyKey error: {ex.Message}");
+        }
+    }
 
     #endregion
 }

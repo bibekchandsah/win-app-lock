@@ -28,6 +28,7 @@
                     <TextBox x:Name="SearchBox"
                              Grid.Row="0"
                              PlaceholderText="Search clipboard (1-9 quick paste)..."
+                             AutomationProperties.Name="Search clipboard history"
                              TextChanged="SearchBox_TextChanged"
                              KeyDown="SearchBox_KeyDown">
                         <TextBox.Header>
@@ -43,12 +44,12 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                            <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}"/>
-                            <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text"/>
-                            <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images"/>
-                            <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links"/>
-                            <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned"/>
-                            <Button x:Name="FilterSnippetsButton" Content="Snippets" Click="FilterButton_Click" Tag="Snippets"/>
+                            <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Show all items" ToolTipService.ToolTip="Show all items"/>
+                            <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text" AutomationProperties.Name="Show text items" ToolTipService.ToolTip="Show text items"/>
+                            <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images" AutomationProperties.Name="Show images" ToolTipService.ToolTip="Show images"/>
+                            <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links" AutomationProperties.Name="Show links" ToolTipService.ToolTip="Show links"/>
+                            <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned" AutomationProperties.Name="Show pinned items" ToolTipService.ToolTip="Show pinned items"/>
+                            <Button x:Name="FilterSnippetsButton" Content="Snippets" Click="FilterButton_Click" Tag="Snippets" AutomationProperties.Name="Show snippets" ToolTipService.ToolTip="Show snippets"/>
                         </StackPanel>
 
                         <!-- Right Actions: Pause Indicator & Multi-Select -->
@@ -71,6 +72,7 @@
                             <!-- Multi-select toggle button -->
                             <Button x:Name="MultiSelectToggleButton"
                                     Click="MultiSelectToggle_Click"
+                                    AutomationProperties.Name="Toggle Multi-Select"
                                     ToolTipService.ToolTip="Toggle Multi-Select"
                                     Padding="6,4"
                                     Background="Transparent"
@@ -195,6 +197,7 @@
                                                     <Button Click="ItemReveal_Click"
                                                             Tag="{x:Bind}"
                                                             ToolTipService.ToolTip="{x:Bind RevealToolTip, Mode=OneWay}"
+                                                            AutomationProperties.Name="{x:Bind RevealToolTip, Mode=OneWay}"
                                                             Visibility="{x:Bind RevealButtonVisibility, Mode=OneWay}"
                                                             Padding="4"
                                                             Background="Transparent"
@@ -202,15 +205,15 @@
                                                         <FontIcon Glyph="{x:Bind RevealGlyph, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
                                                     </Button>
 
-                                                    <Button Click="ItemPin_Click" Tag="{x:Bind}" ToolTipService.ToolTip="{x:Bind PinToolTip, Mode=OneWay}" Padding="4" Background="Transparent" BorderThickness="0">
+                                                    <Button Click="ItemPin_Click" Tag="{x:Bind}" AutomationProperties.Name="Pin or unpin item" ToolTipService.ToolTip="{x:Bind PinToolTip, Mode=OneWay}" Padding="4" Background="Transparent" BorderThickness="0">
                                                         <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="11"/>
                                                     </Button>
-                                                    <Button Click="ItemCopy_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Copy only (Ctrl+C)" Padding="4" Background="Transparent" BorderThickness="0">
+                                                    <Button Click="ItemCopy_Click" Tag="{x:Bind}" AutomationProperties.Name="Copy to clipboard" ToolTipService.ToolTip="Copy only (Ctrl+C)" Padding="4" Background="Transparent" BorderThickness="0">
                                                         <FontIcon Glyph="&#xE8C8;" FontSize="11"/>
                                                     </Button>
 
                                                     <!-- More Flyout (...) -->
-                                                    <DropDownButton ToolTipService.ToolTip="More actions" Padding="4" Background="Transparent" BorderThickness="0">
+                                                    <DropDownButton AutomationProperties.Name="More actions" ToolTipService.ToolTip="More actions" Padding="4" Background="Transparent" BorderThickness="0">
                                                         <DropDownButton.Content>
                                                             <FontIcon Glyph="&#xE712;" FontSize="11"/>
                                                         </DropDownButton.Content>
@@ -244,7 +247,7 @@
                                                         </DropDownButton.Flyout>
                                                     </DropDownButton>
 
-                                                    <Button Click="ItemDelete_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete (Del)" Padding="4" Background="Transparent" BorderThickness="0">
+                                                    <Button Click="ItemDelete_Click" Tag="{x:Bind}" AutomationProperties.Name="Delete item" ToolTipService.ToolTip="Delete (Del)" Padding="4" Background="Transparent" BorderThickness="0">
                                                         <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                                     </Button>
                                                 </StackPanel>
@@ -340,7 +343,7 @@
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <!-- Pause DropDown Button -->
-                            <DropDownButton x:Name="FooterPauseButton" ToolTipService.ToolTip="Pause capture" Padding="6,4">
+                            <DropDownButton x:Name="FooterPauseButton" AutomationProperties.Name="Pause clipboard capture" ToolTipService.ToolTip="Pause capture" Padding="6,4">
                                 <DropDownButton.Content>
                                     <FontIcon Glyph="&#xE769;" FontSize="11"/>
                                 </DropDownButton.Content>
@@ -356,8 +359,8 @@
                                 </DropDownButton.Flyout>
                             </DropDownButton>
 
-                            <Button x:Name="FooterClearAllButton" Content="Clear" Click="FooterClearAll_Click" Padding="8,4" FontSize="11"/>
-                            <Button x:Name="FooterSettingsButton" Content="Settings" Click="FooterSettings_Click" Padding="8,4" FontSize="11"/>
+                            <Button x:Name="FooterClearAllButton" AutomationProperties.Name="Clear unpinned items" ToolTipService.ToolTip="Clear unpinned items" Content="Clear" Click="FooterClearAll_Click" Padding="8,4" FontSize="11"/>
+                            <Button x:Name="FooterSettingsButton" AutomationProperties.Name="Open clipboard settings" ToolTipService.ToolTip="Open settings" Content="Settings" Click="FooterSettings_Click" Padding="8,4" FontSize="11"/>
                         </StackPanel>
                     </Grid>
                 </Grid>

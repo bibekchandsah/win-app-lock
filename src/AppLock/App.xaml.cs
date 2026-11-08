@@ -39,10 +39,27 @@ public partial class App : Application
         // Wire clipboard global hotkey to popup window
         AppLock.Services.ServiceContainer.ClipboardMonitor.HotkeyTriggered += (s, e) =>
         {
+            if (AppLock.Services.ServiceContainer.ClipboardMonitor.IsSessionLocked)
+            {
+                return;
+            }
+
             _mainWindow?.DispatcherQueue.TryEnqueue(() =>
             {
                 AppLock.Views.ClipboardPopupWindow.Toggle();
             });
+        };
+
+        // Wire session lock change to dismiss popup immediately on lock screen
+        AppLock.Services.ServiceContainer.ClipboardMonitor.SessionLockChanged += (s, isLocked) =>
+        {
+            if (isLocked)
+            {
+                _mainWindow?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    AppLock.Views.ClipboardPopupWindow.Instance.HidePopup();
+                });
+            }
         };
 
         // Wire clipboard UIPI fallback toast
