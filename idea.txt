@@ -171,9 +171,18 @@ issue
 -> rounded corner for installed app list
 -> high priority for launching app on start up that is boot 
 -> background mica background effect, curved sidebar with title bar
--> protect eye with custom message and custom duration 
+-> fixed - protect eye with custom message and custom duration 
 -> volume mixture 
 -> if user haven't set lock on any app then can exit without password 
+
+system tray menu: with window UI sync
+enable/disabel eyecare
+remainder interval > 1 minute
+                     20 minutes
+                     25 minutes
+                     30 minutes
+                     60 minutes
+                     Custom...
 
 -> fixed - optimize drive refresh like in protection page
 -> implemented - add run task as soon as possible after a scheduled task is missed

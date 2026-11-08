@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Views;
@@ -16,21 +17,22 @@ public sealed class EyeCareOverlayService
     private readonly DispatcherQueue _dispatcher;
     private readonly Func<EyeCareSettings> _getSettings;
     private readonly List<EyeCareOverlayWindow> _activeWindows = new();
-    
+    private TaskCompletionSource? _overlayClosedTcs;
+
     private static readonly string AppDataPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AppLock", "EyeCare");
-    
+
     private static readonly string TemplatesPath = Path.Combine(AppDataPath, "templates");
     private static readonly string RenderPath = Path.Combine(AppDataPath, ".render");
-    private static readonly string BuiltInTemplatePath = 
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "EyeCare", "index.html");
+
+    public bool IsVisible => _activeWindows.Count > 0;
 
     public EyeCareOverlayService(DispatcherQueue dispatcher, Func<EyeCareSettings> getSettings)
     {
         _dispatcher = dispatcher;
         _getSettings = getSettings;
-        
+
         EnsureDirectoriesExist();
         CopyBuiltInTemplateIfNeeded();
     }
@@ -41,15 +43,41 @@ public sealed class EyeCareOverlayService
         Directory.CreateDirectory(RenderPath);
     }
 
+    public string GetBuiltInTemplatePath()
+    {
+        string[] candidates =
+        [
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "EyeCare", "index.html"),
+            Path.Combine(AppContext.BaseDirectory, "Assets", "EyeCare", "index.html"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Assets", "EyeCare", "index.html"),
+            Path.Combine(TemplatesPath, "default.html")
+        ];
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return candidates[0];
+    }
+
     private void CopyBuiltInTemplateIfNeeded()
     {
         try
         {
             var defaultTemplatePath = Path.Combine(TemplatesPath, "default.html");
-            if (!File.Exists(defaultTemplatePath) && File.Exists(BuiltInTemplatePath))
+            var builtInPath = GetBuiltInTemplatePath();
+
+            if (File.Exists(builtInPath))
             {
-                File.Copy(BuiltInTemplatePath, defaultTemplatePath, overwrite: false);
-                System.Diagnostics.Debug.WriteLine("[EyeCare] Copied built-in template to templates folder");
+                if (!File.Exists(defaultTemplatePath))
+                {
+                    File.Copy(builtInPath, defaultTemplatePath, overwrite: false);
+                    System.Diagnostics.Debug.WriteLine("[EyeCare] Copied built-in template to templates folder");
+                }
             }
         }
         catch (Exception ex)
@@ -66,122 +94,94 @@ public sealed class EyeCareOverlayService
             return;
         }
 
+        _overlayClosedTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         try
         {
             var settings = _getSettings();
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] Got settings");
-            
+            var message = string.IsNullOrWhiteSpace(settings.Message)
+                ? EyeCareSettings.DefaultMessage
+                : settings.Message;
+
             var renderedPath = await RenderTemplateAsync(settings);
             System.Diagnostics.Debug.WriteLine($"[EyeCare] Template rendered to: {renderedPath}");
 
-            // Get all displays
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] About to call DisplayArea.FindAll()...");
-            
-            IReadOnlyList<DisplayArea>? displays = null;
+            // Enumerate displays safely
+            var displayList = new List<DisplayArea>();
             try
             {
-                displays = DisplayArea.FindAll();
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] DisplayArea.FindAll() returned successfully");
+                var displays = DisplayArea.FindAll();
+                if (displays != null)
+                {
+                    for (int i = 0; i < displays.Count; i++)
+                    {
+                        try
+                        {
+                            displayList.Add(displays[i]);
+                        }
+                        catch { }
+                    }
+                }
             }
-            catch (InvalidCastException ice)
+            catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] InvalidCastException in DisplayArea.FindAll()!");
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {ice.Message}");
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] HResult: 0x{ice.HResult:X8}");
-                throw;
+                System.Diagnostics.Debug.WriteLine($"[EyeCare] DisplayArea.FindAll fallback: {ex.Message}");
             }
-            
-            if (displays == null || displays.Count == 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] No displays found!");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] Creating overlay on {displays.Count} display(s)");
 
-            // Convert to list to avoid WinRT interop issues with IReadOnlyList enumeration
-            var displayList = new List<DisplayArea>();
-            for (int i = 0; i < displays.Count; i++)
+            if (displayList.Count == 0)
             {
                 try
                 {
-                    var display = displays[i];
-                    displayList.Add(display);
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Display {i}: {display.OuterBounds}");
+                    var primary = DisplayArea.Primary;
+                    if (primary != null)
+                    {
+                        displayList.Add(primary);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Failed to access display {i}: {ex.Message}");
-                }
+                catch { }
             }
+
+            if (displayList.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine("[EyeCare] No display found to show overlay");
+                _overlayClosedTcs?.TrySetResult();
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Creating overlay on {displayList.Count} display(s)");
 
             foreach (var display in displayList)
             {
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] About to create EyeCareOverlayWindow...");
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Rendered path: {renderedPath}");
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Duration: {settings.DurationSeconds}");
-                    
-                    EyeCareOverlayWindow? window = null;
-                    
-                    try
-                    {
-                        window = new EyeCareOverlayWindow(renderedPath, settings.DurationSeconds, CloseAll);
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Window object created");
-                    }
-                    catch (InvalidCastException ice)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] InvalidCastException during window creation!");
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {ice.Message}");
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Source: {ice.Source}");
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] HResult: 0x{ice.HResult:X8}");
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace:\n{ice.StackTrace}");
-                        if (ice.InnerException != null)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner: {ice.InnerException.GetType().Name} - {ice.InnerException.Message}");
-                            System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner stack:\n{ice.InnerException.StackTrace}");
-                        }
-                        throw;
-                    }
-                    
-                    if (window == null)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Window is null after creation!");
-                        continue;
-                    }
-                    
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window created successfully, about to activate");
-                    
-                    // Activate first to ensure window handle is valid
-                    window.Activate();
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window activated");
-                    
+                    var window = new EyeCareOverlayWindow(
+                        renderedPath,
+                        settings.DurationSeconds,
+                        message,
+                        CloseAll);
+
                     _activeWindows.Add(window);
-                    
-                    // Position on specific display after activation
-                    if (window.AppWindow != null)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Moving window to display bounds: {display.OuterBounds}");
-                        window.AppWindow.MoveAndResize(display.OuterBounds);
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] WARNING: Cannot position window - AppWindow is null");
-                    }
+
+                    // Show window
+                    window.Activate();
+
+                    // Position and enforce topmost on the display
+                    window.MakeTopMostAndPosition(display.OuterBounds);
                 }
-                catch (Exception innerEx)
+                catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window creation failed: {innerEx.GetType().Name}");
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Message: {innerEx.Message}");
-                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace: {innerEx.StackTrace}");
-                    if (innerEx.InnerException != null)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[EyeCare] Inner exception: {innerEx.InnerException.GetType().Name} - {innerEx.InnerException.Message}");
-                    }
-                    throw;
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Window creation failed: {ex.Message}");
                 }
             }
+
+            if (_activeWindows.Count == 0)
+            {
+                _overlayClosedTcs?.TrySetResult();
+                return;
+            }
+
+            // Wait until closed
+            await _overlayClosedTcs.Task;
         }
         catch (Exception ex)
         {
@@ -192,22 +192,26 @@ public sealed class EyeCareOverlayService
 
     private void CloseAll()
     {
-        System.Diagnostics.Debug.WriteLine($"[EyeCare] Closing {_activeWindows.Count} window(s)");
-        
-        foreach (var window in _activeWindows.ToList())
+        _dispatcher.TryEnqueue(() =>
         {
-            try
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Closing {_activeWindows.Count} window(s)");
+
+            foreach (var window in _activeWindows.ToList())
             {
-                window.Close();
+                try
+                {
+                    window.Close();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Error closing window: {ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[EyeCare] Error closing window: {ex.Message}");
-            }
-        }
-        
-        _activeWindows.Clear();
-        CleanupRenderedFiles();
+
+            _activeWindows.Clear();
+            _overlayClosedTcs?.TrySetResult();
+            CleanupRenderedFiles();
+        });
     }
 
     private async Task<string> RenderTemplateAsync(EyeCareSettings settings)
@@ -218,34 +222,82 @@ public sealed class EyeCareOverlayService
         {
             templatePath = settings.TemplatePath;
         }
-        else if (File.Exists(BuiltInTemplatePath))
-        {
-            templatePath = BuiltInTemplatePath;
-        }
         else
         {
-            throw new FileNotFoundException("No valid template found");
+            templatePath = GetBuiltInTemplatePath();
+            if (!File.Exists(templatePath))
+            {
+                templatePath = Path.Combine(TemplatesPath, "default.html");
+            }
+        }
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException($"No valid template found at {templatePath}");
         }
 
         // Read template
         var templateContent = await File.ReadAllTextAsync(templatePath);
 
         // Get message
-        var message = string.IsNullOrWhiteSpace(settings.Message) 
-            ? EyeCareSettings.DefaultMessage 
+        var message = string.IsNullOrWhiteSpace(settings.Message)
+            ? EyeCareSettings.DefaultMessage
             : settings.Message;
 
-        // Replace placeholders with HTML-encoded values
-        var rendered = templateContent
-            .Replace("{{REMINDER_MESSAGE}}", WebUtility.HtmlEncode(message))
-            .Replace("{{DURATION}}", settings.DurationSeconds.ToString());
+        // Replace placeholders case-insensitively with HTML-encoded values
+        var rendered = Regex.Replace(
+            templateContent,
+            @"\{\{REMINDER_MESSAGE\}\}",
+            WebUtility.HtmlEncode(message),
+            RegexOptions.IgnoreCase);
+
+        rendered = Regex.Replace(
+            rendered,
+            @"\{\{DURATION\}\}",
+            settings.DurationSeconds.ToString(),
+            RegexOptions.IgnoreCase);
+
+        // Ensure clean render directory
+        Directory.CreateDirectory(RenderPath);
+
+        // Copy any sibling assets (images, css, js) from the template folder to RenderPath
+        var sourceDir = Path.GetDirectoryName(templatePath);
+        if (!string.IsNullOrEmpty(sourceDir) && Directory.Exists(sourceDir))
+        {
+            CopySiblingAssets(sourceDir, RenderPath, Path.GetFileName(templatePath));
+        }
 
         // Write rendered file
         var renderedPath = Path.Combine(RenderPath, "rendered.html");
         await File.WriteAllTextAsync(renderedPath, rendered);
 
-        System.Diagnostics.Debug.WriteLine($"[EyeCare] Rendered template: {templatePath}");
+        System.Diagnostics.Debug.WriteLine($"[EyeCare] Rendered template '{templatePath}' to '{renderedPath}'");
         return renderedPath;
+    }
+
+    private void CopySiblingAssets(string sourceDir, string targetDir, string mainHtmlFileName)
+    {
+        try
+        {
+            foreach (var file in Directory.GetFiles(sourceDir))
+            {
+                var fileName = Path.GetFileName(file);
+                // Do not overwrite rendered.html or copy unrelated html
+                if (string.Equals(fileName, "rendered.html", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var dest = Path.Combine(targetDir, fileName);
+                try
+                {
+                    File.Copy(file, dest, overwrite: true);
+                }
+                catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] CopySiblingAssets error: {ex.Message}");
+        }
     }
 
     private void CleanupRenderedFiles()
@@ -278,8 +330,17 @@ public sealed class EyeCareOverlayService
         {
             if (Directory.Exists(TemplatesPath))
             {
-                var files = Directory.GetFiles(TemplatesPath, "*.html");
-                templates.AddRange(files.Select(Path.GetFileName).Where(f => f != null).Cast<string>());
+                var files = Directory.GetFiles(TemplatesPath, "*.html")
+                    .Concat(Directory.GetFiles(TemplatesPath, "*.htm"));
+
+                foreach (var file in files)
+                {
+                    var name = Path.GetFileName(file);
+                    if (!string.IsNullOrEmpty(name) && !templates.Contains(name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        templates.Add(name);
+                    }
+                }
             }
         }
         catch (Exception ex)

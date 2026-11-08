@@ -268,29 +268,35 @@
         /* Custom Context Menu */
         .context-menu {
             position: fixed;
-            background: white;
-            border: 2px solid #333;
-            border-radius: 5px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            background: #2b2b2b;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
             display: none;
             z-index: 999999;
-            min-width: 120px;
+            min-width: 140px;
+            padding: 4px;
             pointer-events: auto;
-        }
-
-        .context-menu-item {
-            padding: 12px 24px;
-            cursor: pointer;
-            color: #333;
-            font-size: 16px;
-            font-weight: bold;
-            font-family: Arial, sans-serif;
             user-select: none;
         }
 
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s ease;
+        }
+
         .context-menu-item:hover {
-            background: #e0e0e0;
-            color: #000;
+            background: #0078d4;
+            color: #ffffff;
         }
     </style>
 </head>
@@ -315,18 +321,23 @@
 
     <!-- Custom Context Menu -->
     <div id="contextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="closeWindow()">Close</div>
+        <div class="context-menu-item" onclick="closeWindow()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            Close
+        </div>
     </div>
 
     <script>
         // Countdown timer
         let countdown = {{DURATION}};
         const countdownElement = document.querySelector('.title');
-        const originalMessage = countdownElement.textContent;
+        const originalMessage = countdownElement ? countdownElement.textContent : '';
         
         function updateCountdown() {
             if (countdown > 0) {
-                countdownElement.innerHTML = `${originalMessage}<br><span style="font-size: 48px; margin-top: 20px; display: inline-block;">${countdown}</span>`;
+                if (countdownElement) {
+                    countdownElement.innerHTML = `${originalMessage}<br><span style="font-size: 48px; margin-top: 20px; display: inline-block;">${countdown}</span>`;
+                }
                 countdown--;
                 setTimeout(updateCountdown, 1000);
             } else {
@@ -341,9 +352,8 @@
 
         // Close window function for WebView2
         function closeWindow() {
-            console.log('closeWindow called');
             if (document.fullscreenElement) {
-                document.exitFullscreen();
+                try { document.exitFullscreen(); } catch (e) {}
             }
             if (window.chrome && window.chrome.webview) {
                 window.chrome.webview.postMessage('close');
@@ -352,33 +362,34 @@
             }
         }
         
-        // Exit on any key press
-        // document.addEventListener('keydown', function() {
-        //     closeWindow();
-        // });
+        // Exit on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeWindow();
+            }
+        });
 
         // Show custom context menu on right-click
         const contextMenu = document.getElementById('contextMenu');
-        console.log('Context menu element:', contextMenu);
         
-        // Ensure context menu starts hidden
         if (contextMenu) {
             contextMenu.style.display = 'none';
         }
         
         document.addEventListener('contextmenu', function(e) {
-            console.log('Right-click detected at:', e.pageX, e.pageY);
             e.preventDefault();
             e.stopPropagation();
             
-            // Show context menu at cursor position
             if (contextMenu) {
                 contextMenu.style.display = 'block';
-                contextMenu.style.left = e.pageX + 'px';
-                contextMenu.style.top = e.pageY + 'px';
-                console.log('Context menu displayed');
-            } else {
-                console.error('Context menu element not found');
+                const menuWidth = contextMenu.offsetWidth || 140;
+                const menuHeight = contextMenu.offsetHeight || 40;
+                let x = e.clientX;
+                let y = e.clientY;
+                if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+                if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
             }
             
             return false;
@@ -386,14 +397,11 @@
 
         // Handle clicks - only to hide context menu, not close window
         document.addEventListener('click', function(e) {
-            // If clicking on context menu item, let it handle the close
             if (e.target.closest('.context-menu-item')) {
-                console.log('Context menu item clicked');
                 closeWindow();
                 return;
             }
             
-            // Hide context menu if it's visible
             if (contextMenu && contextMenu.style.display === 'block') {
                 contextMenu.style.display = 'none';
             }

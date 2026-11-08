@@ -1,6 +1,9 @@
 using System;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
-using Microsoft.UI.Input;
+using System.Threading.Tasks;
+using AppLock.Models;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -12,30 +15,46 @@ public sealed partial class EyeCareOverlayWindow : Window
 {
     private readonly string _htmlPath;
     private readonly int _durationSeconds;
+    private readonly string _reminderMessage;
     private readonly Action _closeAllCallback;
     private Timer? _autoCloseTimer;
-    private AppWindow? _appWindow;
+    private int _remainingSeconds;
+    private Timer? _fallbackTicker;
 
-    public AppWindow? AppWindow => _appWindow;
+    private const nint HWND_TOPMOST = -1;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_SHOWWINDOW = 0x0040;
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TOPMOST = 0x00000008;
 
-    public EyeCareOverlayWindow(string htmlPath, int durationSeconds, Action closeAllCallback)
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern nint GetWindowLongPtr(nint hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
+
+    public EyeCareOverlayWindow(string htmlPath, int durationSeconds, string reminderMessage, Action closeAllCallback)
     {
-        System.Diagnostics.Debug.WriteLine("[EyeCare] Constructor called");
-        
         this.InitializeComponent();
-        
-        System.Diagnostics.Debug.WriteLine("[EyeCare] InitializeComponent completed");
-        
+
         _htmlPath = htmlPath;
-        _durationSeconds = durationSeconds;
+        _durationSeconds = durationSeconds > 0 ? durationSeconds : 20;
+        _remainingSeconds = _durationSeconds;
+        _reminderMessage = string.IsNullOrWhiteSpace(reminderMessage) ? EyeCareSettings.DefaultMessage : reminderMessage;
         _closeAllCallback = closeAllCallback;
 
         SetupWindow();
-        
-        // Temporarily disabled for testing - no WebView in XAML
-        // _ = InitializeWebViewAsync();
-        
-        // Start auto-close timer for testing
+        _ = InitializeWebViewAsync();
         StartAutoCloseTimer();
     }
 
@@ -43,92 +62,161 @@ public sealed partial class EyeCareOverlayWindow : Window
     {
         try
         {
-            // Get AppWindow
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-            var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
-            
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] Window handle: {hWnd}, WindowId: {windowId.Value}");
-            
-            var appWindow = AppWindow.GetFromWindowId(windowId);
+            var appWindow = AppWindow;
 
             if (appWindow != null)
             {
-                _appWindow = appWindow;
-                System.Diagnostics.Debug.WriteLine("[EyeCare] AppWindow obtained successfully");
-
                 // Hide from taskbar and task switcher
                 appWindow.IsShownInSwitchers = false;
 
-                // Fullscreen
-                appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-
-                // Always on top (if available in FullScreen, otherwise handled by Z-order)
-                var presenter = appWindow.Presenter;
-                if (presenter is OverlappedPresenter overlapped)
-                {
-                    overlapped.IsAlwaysOnTop = true;
-                }
-                
-                System.Diagnostics.Debug.WriteLine("[EyeCare] Window configured successfully");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("[EyeCare] WARNING: AppWindow is null!");
+                // Use OverlappedPresenter configured for fullscreen borderless topmost
+                var presenter = OverlappedPresenter.Create();
+                presenter.IsAlwaysOnTop = true;
+                presenter.IsResizable = false;
+                presenter.IsMinimizable = false;
+                presenter.IsMaximizable = false;
+                presenter.SetBorderAndTitleBar(false, false);
+                appWindow.SetPresenter(presenter);
             }
 
             // Remove title bar
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(null);
+
+            // Win32 TopMost style enforcement
+            if (hWnd != 0)
+            {
+                var exStyle = (int)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+                exStyle |= WS_EX_TOPMOST;
+                SetWindowLongPtr(hWnd, GWL_EXSTYLE, (nint)exStyle);
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[EyeCare] Window setup error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
         }
     }
 
-    private async System.Threading.Tasks.Task InitializeWebViewAsync()
+    public void MakeTopMostAndPosition(Windows.Graphics.RectInt32 bounds)
     {
-        // Temporarily disabled for testing - WebView removed from XAML
-        /*
         try
         {
-            await WebView.EnsureCoreWebView2Async();
-            
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd != 0)
+            {
+                SetWindowPos(
+                    hWnd,
+                    HWND_TOPMOST,
+                    bounds.X,
+                    bounds.Y,
+                    bounds.Width,
+                    bounds.Height,
+                    SWP_SHOWWINDOW);
+
+                BringWindowToTop(hWnd);
+                SetForegroundWindow(hWnd);
+            }
+
+            if (AppWindow != null)
+            {
+                AppWindow.MoveAndResize(bounds);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] MakeTopMostAndPosition error: {ex.Message}");
+        }
+    }
+
+    private async Task InitializeWebViewAsync()
+    {
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var webViewDataFolder = Path.Combine(localAppData, "AppLock", "WebView2");
+            Directory.CreateDirectory(webViewDataFolder);
+            var env = await CoreWebView2Environment.CreateWithOptionsAsync(string.Empty, webViewDataFolder, null);
+
+            await WebView.EnsureCoreWebView2Async(env);
+
             var core = WebView.CoreWebView2;
-            
-            // Security settings
-            core.Settings.AreDefaultContextMenusEnabled = false;
+            if (core == null)
+            {
+                throw new InvalidOperationException("CoreWebView2 is null after EnsureCoreWebView2Async");
+            }
+
+            // Security and UI settings
+            core.Settings.AreDefaultContextMenusEnabled = true;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
             core.Settings.AreDefaultScriptDialogsEnabled = false;
 
+            // Context menu handler: provide a "Close" menu item for all pages
+            core.ContextMenuRequested += (s, args) =>
+            {
+                args.MenuItems.Clear();
+                try
+                {
+                    var closeItem = core.Environment.CreateContextMenuItem(
+                        "Close",
+                        null,
+                        CoreWebView2ContextMenuItemKind.Command);
+
+                    closeItem.CustomItemSelected += (itemSender, itemArgs) =>
+                    {
+                        DispatcherQueue.TryEnqueue(() => _closeAllCallback());
+                    };
+
+                    args.MenuItems.Add(closeItem);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] ContextMenuRequested error: {ex.Message}");
+                }
+            };
+
+            // Global Esc key listener injected into any page
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(@"
+                window.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        if (window.chrome && window.chrome.webview) {
+                            window.chrome.webview.postMessage('close');
+                        }
+                    }
+                });
+            ");
+
             // Virtual host mapping for local file access
-            var renderFolder = System.IO.Path.GetDirectoryName(_htmlPath);
-            if (!string.IsNullOrEmpty(renderFolder))
+            var renderFolder = Path.GetDirectoryName(_htmlPath);
+            if (!string.IsNullOrEmpty(renderFolder) && Directory.Exists(renderFolder))
             {
                 core.SetVirtualHostNameToFolderMapping(
-                    "eyecare.local", 
-                    renderFolder, 
+                    "eyecare.local",
+                    renderFolder,
                     CoreWebView2HostResourceAccessKind.Allow);
             }
 
             // Handle close message from HTML
             core.WebMessageReceived += (s, e) =>
             {
-                var message = e.TryGetWebMessageAsString();
-                if (message == "close")
+                try
                 {
-                    System.Diagnostics.Debug.WriteLine("[EyeCare] Close message received from WebView");
-                    DispatcherQueue.TryEnqueue(() => _closeAllCallback());
+                    var message = e.TryGetWebMessageAsString();
+                    if (message == "close")
+                    {
+                        System.Diagnostics.Debug.WriteLine("[EyeCare] Close message received from WebView");
+                        DispatcherQueue.TryEnqueue(() => _closeAllCallback());
+                    }
                 }
+                catch { }
             };
 
             // Block navigation away from eyecare.local
             core.NavigationStarting += (s, e) =>
             {
-                if (!e.Uri.Contains("eyecare.local") && !e.Uri.StartsWith("file://"))
+                if (!e.Uri.Contains("eyecare.local") && !e.Uri.StartsWith("file://") && !e.Uri.StartsWith("about:blank"))
                 {
                     e.Cancel = true;
                 }
@@ -141,22 +229,49 @@ public sealed partial class EyeCareOverlayWindow : Window
             };
 
             // Navigate to rendered HTML
-            var fileName = System.IO.Path.GetFileName(_htmlPath);
+            var fileName = Path.GetFileName(_htmlPath);
             core.Navigate($"https://eyecare.local/{fileName}");
 
-            System.Diagnostics.Debug.WriteLine($"[EyeCare] WebView initialized, navigating to {fileName}");
-
-            // Start auto-close timer
-            StartAutoCloseTimer();
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] WebView initialized, navigated to https://eyecare.local/{fileName}");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[EyeCare] WebView initialization error: {ex.Message}");
-            // Fallback: close immediately if WebView fails
-            DispatcherQueue.TryEnqueue(() => _closeAllCallback());
+            System.Diagnostics.Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
+
+            // Show native fallback UI if WebView2 fails
+            ShowFallbackUI();
         }
-        */
-        await System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    private void ShowFallbackUI()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            WebView.Visibility = Visibility.Collapsed;
+            FallbackPanel.Visibility = Visibility.Visible;
+            FallbackMessageText.Text = _reminderMessage;
+            FallbackCountdownText.Text = $"{_remainingSeconds}s";
+
+            _fallbackTicker?.Dispose();
+            _fallbackTicker = new Timer(_ =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    _remainingSeconds--;
+                    if (_remainingSeconds <= 0)
+                    {
+                        _fallbackTicker?.Dispose();
+                        _fallbackTicker = null;
+                        _closeAllCallback();
+                    }
+                    else
+                    {
+                        FallbackCountdownText.Text = $"{_remainingSeconds}s";
+                    }
+                });
+            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        });
     }
 
     private void StartAutoCloseTimer()
@@ -179,11 +294,24 @@ public sealed partial class EyeCareOverlayWindow : Window
         }
     }
 
+    private void MenuFlyoutClose_Click(object sender, RoutedEventArgs e)
+    {
+        _closeAllCallback();
+    }
+
+    private void FallbackClose_Click(object sender, RoutedEventArgs e)
+    {
+        _closeAllCallback();
+    }
+
     public new void Close()
     {
         _autoCloseTimer?.Dispose();
         _autoCloseTimer = null;
-        
+
+        _fallbackTicker?.Dispose();
+        _fallbackTicker = null;
+
         try
         {
             base.Close();

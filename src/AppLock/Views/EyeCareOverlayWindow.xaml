@@ -6,11 +6,48 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="Black" KeyDown="Grid_KeyDown">
-        <TextBlock Text="Eye Care Reminder Test" 
-                   Foreground="White" 
-                   FontSize="48"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"/>
+    <Grid Background="#212121" KeyDown="Grid_KeyDown">
+        <Grid.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem Text="Close" Click="MenuFlyoutClose_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE711;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+            </MenuFlyout>
+        </Grid.ContextFlyout>
+
+        <WebView2 x:Name="WebView" 
+                  HorizontalAlignment="Stretch" 
+                  VerticalAlignment="Stretch"/>
+
+        <!-- Fallback display if WebView2 is missing or fails to initialize -->
+        <StackPanel x:Name="FallbackPanel"
+                    Visibility="Collapsed"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="24"
+                    Padding="32">
+            <FontIcon Glyph="&#xE7B3;" FontSize="72" Foreground="#0078D4" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="FallbackMessageText"
+                       Text="Rest your eyes"
+                       Foreground="White"
+                       FontSize="36"
+                       FontWeight="SemiBold"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="800"/>
+            <TextBlock x:Name="FallbackCountdownText"
+                       Text=""
+                       Foreground="#A0A0A0"
+                       FontSize="24"
+                       TextAlignment="Center"/>
+            <Button Content="Close"
+                    HorizontalAlignment="Center"
+                    Click="FallbackClose_Click"
+                    Padding="36,10"
+                    FontSize="16"
+                    Style="{ThemeResource AccentButtonStyle}"/>
+        </StackPanel>
     </Grid>
 </Window>

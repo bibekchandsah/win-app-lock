@@ -31,6 +31,7 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
     private int _selectedTemplateIndex;
     private bool _isCustomIntervalMode;
     private int _customInterval;
+    private bool _isRefreshingTemplates;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -149,7 +150,11 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
             {
                 _selectedTemplateIndex = value;
                 OnPropertyChanged();
-                UpdateTemplate(value);
+                
+                if (!_isRefreshingTemplates)
+                {
+                    UpdateTemplate(value);
+                }
             }
         }
     }
@@ -235,26 +240,42 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
 
     private void RefreshTemplateList()
     {
-        AvailableTemplates.Clear();
-        var templates = _overlayService.GetAvailableTemplates();
-        foreach (var template in templates)
+        _isRefreshingTemplates = true;
+        try
         {
-            AvailableTemplates.Add(template);
-        }
+            AvailableTemplates.Clear();
+            var templates = _overlayService.GetAvailableTemplates();
 
-        // Select current template
-        var settings = ServiceContainer.Settings.EyeCare;
-        if (string.IsNullOrEmpty(settings.TemplatePath))
-        {
-            _selectedTemplateIndex = 0; // Default
+            var settings = ServiceContainer.Settings.EyeCare;
+            if (!string.IsNullOrEmpty(settings.TemplatePath) && File.Exists(settings.TemplatePath))
+            {
+                var fileName = Path.GetFileName(settings.TemplatePath);
+                if (!templates.Contains(fileName, StringComparer.OrdinalIgnoreCase))
+                {
+                    templates.Add(fileName);
+                }
+            }
+
+            foreach (var template in templates)
+            {
+                AvailableTemplates.Add(template);
+            }
+
+            int targetIndex = 0;
+            if (!string.IsNullOrEmpty(settings.TemplatePath))
+            {
+                var fileName = Path.GetFileName(settings.TemplatePath);
+                var index = AvailableTemplates.ToList().FindIndex(t => string.Equals(t, fileName, StringComparison.OrdinalIgnoreCase));
+                targetIndex = index >= 0 ? index : 0;
+            }
+
+            _selectedTemplateIndex = targetIndex;
+            OnPropertyChanged(nameof(SelectedTemplateIndex));
         }
-        else
+        finally
         {
-            var fileName = Path.GetFileName(settings.TemplatePath);
-            var index = templates.FindIndex(t => t == fileName);
-            _selectedTemplateIndex = index >= 0 ? index : 0;
+            _isRefreshingTemplates = false;
         }
-        OnPropertyChanged(nameof(SelectedTemplateIndex));
     }
 
     private void UpdateEnabled(bool value)
@@ -335,6 +356,9 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
 
     private void UpdateTemplate(int index)
     {
+        if (_isRefreshingTemplates)
+            return;
+
         if (index < 0 || index >= AvailableTemplates.Count)
             return;
 
@@ -346,7 +370,21 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
         else
         {
             var templatesFolder = _overlayService.GetTemplatesFolder();
-            ServiceContainer.Settings.EyeCare.TemplatePath = Path.Combine(templatesFolder, selected);
+            var inFolder = Path.Combine(templatesFolder, selected);
+            if (File.Exists(inFolder))
+            {
+                ServiceContainer.Settings.EyeCare.TemplatePath = inFolder;
+            }
+            else if (!string.IsNullOrEmpty(ServiceContainer.Settings.EyeCare.TemplatePath) &&
+                     string.Equals(Path.GetFileName(ServiceContainer.Settings.EyeCare.TemplatePath), selected, StringComparison.OrdinalIgnoreCase) &&
+                     File.Exists(ServiceContainer.Settings.EyeCare.TemplatePath))
+            {
+                // Retain current valid custom path
+            }
+            else
+            {
+                ServiceContainer.Settings.EyeCare.TemplatePath = inFolder;
+            }
         }
         SaveSettings();
     }
@@ -359,6 +397,7 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
             
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             picker.FileTypeFilter.Add(".html");
+            picker.FileTypeFilter.Add(".htm");
             
             Debug.WriteLine($"[EyeCare] App.MainWindowInstance is null: {App.MainWindowInstance == null}");
             
@@ -379,7 +418,24 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
             
             if (file != null)
             {
-                ServiceContainer.Settings.EyeCare.TemplatePath = file.Path;
+                var templatesFolder = _overlayService.GetTemplatesFolder();
+                Directory.CreateDirectory(templatesFolder);
+                var targetPath = Path.Combine(templatesFolder, file.Name);
+
+                try
+                {
+                    if (!string.Equals(file.Path, targetPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(file.Path, targetPath, overwrite: true);
+                    }
+                    ServiceContainer.Settings.EyeCare.TemplatePath = targetPath;
+                }
+                catch (Exception copyEx)
+                {
+                    Debug.WriteLine($"[EyeCare] Failed to copy to templates folder: {copyEx.Message}");
+                    ServiceContainer.Settings.EyeCare.TemplatePath = file.Path;
+                }
+
                 SaveSettings();
                 RefreshTemplateList();
                 Debug.WriteLine("[EyeCare] Template path saved and list refreshed");

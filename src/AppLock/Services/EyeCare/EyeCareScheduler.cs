@@ -98,7 +98,7 @@ public sealed class EyeCareScheduler : IDisposable
                 }
 
                 // Skip if overlay already visible
-                if (_isOverlayVisible)
+                if (_isOverlayVisible || _overlayService.IsVisible)
                 {
                     System.Diagnostics.Debug.WriteLine("[EyeCare] Skipping reminder: overlay already visible");
                     RearmTimer();
