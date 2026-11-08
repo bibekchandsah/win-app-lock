@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using AppLock.Services;
 using AppLock.ViewModels;
 
@@ -66,7 +70,6 @@ public sealed partial class ClipboardHistoryPage : Page
             Items.Clear();
             foreach (var item in rawItems)
             {
-                // In Milestone 2, filter "Links" manually if filter is Links
                 var vm = new ClipboardItemViewModel(item);
                 if (_currentFilter == "Links" && !vm.IsLink)
                 {
@@ -90,7 +93,7 @@ public sealed partial class ClipboardHistoryPage : Page
                 else
                 {
                     EmptyStateTitle.Text = "No clipboard history yet";
-                    EmptyStateMessage.Text = "Copy text or data in any application (e.g. Notepad, browser, Word) to see it appear here.";
+                    EmptyStateMessage.Text = "Copy text, images, or files in any application to see them appear here.";
                 }
             }
             else
@@ -119,26 +122,83 @@ public sealed partial class ClipboardHistoryPage : Page
         }
     }
 
-    private void CopyItemButton_Click(object sender, RoutedEventArgs e)
+    private async void CopyItemButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
         {
-            string? text = vm.Model.ContentString ?? vm.PreviewText;
-            if (!string.IsNullOrEmpty(text))
+            try
             {
-                ServiceContainer.ClipboardMonitor.IgnoreNext();
-                var dataPackage = new DataPackage();
-                dataPackage.SetText(text);
-                Clipboard.SetContent(dataPackage);
-
-                // Show notification flyout
-                var flyout = new Flyout
+                if (vm.IsImage)
                 {
-                    Content = new TextBlock { Text = "Copied to clipboard!" }
-                };
-                flyout.ShowAt(btn);
+                    if (!string.IsNullOrEmpty(vm.ImagePath) && File.Exists(vm.ImagePath))
+                    {
+                        ServiceContainer.ClipboardMonitor.IgnoreNext();
+                        var storageFile = await StorageFile.GetFileFromPathAsync(vm.ImagePath);
+                        var dp = new DataPackage();
+                        dp.SetBitmap(RandomAccessStreamReference.CreateFromFile(storageFile));
+                        Clipboard.SetContent(dp);
+                        ShowCopyFlyout(btn, "Image copied to clipboard!");
+                    }
+                    else
+                    {
+                        ShowCopyFlyout(btn, "Image file not found on disk.");
+                    }
+                }
+                else if (vm.IsFiles)
+                {
+                    if (vm.FilePaths.Count > 0)
+                    {
+                        ServiceContainer.ClipboardMonitor.IgnoreNext();
+                        var storageItems = new List<IStorageItem>();
+                        foreach (var path in vm.FilePaths)
+                        {
+                            if (File.Exists(path))
+                            {
+                                storageItems.Add(await StorageFile.GetFileFromPathAsync(path));
+                            }
+                            else if (Directory.Exists(path))
+                            {
+                                storageItems.Add(await StorageFolder.GetFolderFromPathAsync(path));
+                            }
+                        }
+
+                        if (storageItems.Count > 0)
+                        {
+                            var dp = new DataPackage();
+                            dp.SetStorageItems(storageItems);
+                            Clipboard.SetContent(dp);
+                            ShowCopyFlyout(btn, $"{storageItems.Count} file(s) copied!");
+                        }
+                    }
+                }
+                else
+                {
+                    string? text = vm.Model.ContentString ?? vm.PreviewText;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        ServiceContainer.ClipboardMonitor.IgnoreNext();
+                        var dp = new DataPackage();
+                        dp.SetText(text);
+                        Clipboard.SetContent(dp);
+                        ShowCopyFlyout(btn, "Text copied to clipboard!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ClipboardHistoryPage] Error copying item: {ex.Message}");
+                ShowCopyFlyout(btn, "Copy failed.");
             }
         }
+    }
+
+    private static void ShowCopyFlyout(FrameworkElement target, string message)
+    {
+        var flyout = new Flyout
+        {
+            Content = new TextBlock { Text = message }
+        };
+        flyout.ShowAt(target);
     }
 
     private async void DeleteItemButton_Click(object sender, RoutedEventArgs e)
@@ -155,7 +215,7 @@ public sealed partial class ClipboardHistoryPage : Page
         var dialog = new ContentDialog
         {
             Title = "Clear All Clipboard History",
-            Content = "Are you sure you want to clear clipboard history? Pinned items will be preserved.",
+            Content = "Are you sure you want to clear clipboard history? Pinned items will be preserved, and associated images on disk will be deleted.",
             PrimaryButtonText = "Clear History",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -175,4 +235,3 @@ public sealed partial class ClipboardHistoryPage : Page
         Frame.Navigate(typeof(ClipboardSettingsPage));
     }
 }
-

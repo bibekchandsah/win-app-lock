@@ -106,6 +106,8 @@
                       SelectionChanged="FilterComboBox_SelectionChanged">
                 <ComboBoxItem Content="All Items" Tag="All"/>
                 <ComboBoxItem Content="Text Only" Tag="Text"/>
+                <ComboBoxItem Content="Images" Tag="Images"/>
+                <ComboBoxItem Content="Files" Tag="Files"/>
                 <ComboBoxItem Content="Links" Tag="Links"/>
                 <ComboBoxItem Content="Pinned" Tag="Pinned"/>
             </ComboBox>
@@ -127,7 +129,7 @@
                            HorizontalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 <TextBlock x:Name="EmptyStateMessage"
-                           Text="Copy text or data in any application (e.g. Notepad, browser, Word) to see it appear here."
+                           Text="Copy text, images, or files in any application to see them appear here."
                            FontSize="12"
                            TextWrapping="Wrap"
                            MaxWidth="360"
@@ -161,7 +163,7 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Meta line: Source App + Relative Time + Actions -->
-                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
@@ -176,6 +178,10 @@
                                         <TextBlock Text="{x:Bind RelativeTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Text="•" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         <TextBlock Text="{x:Bind FormattedSize}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        <TextBlock Text="{x:Bind DimensionsText}" 
+                                                   FontSize="11" 
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                   Visibility="{x:Bind ImageVisibility, Mode=OneWay}"/>
                                     </StackPanel>
 
                                     <!-- Action buttons -->
@@ -199,16 +205,40 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Content Preview -->
-                                <TextBlock Grid.Row="1"
-                                           Text="{x:Bind PreviewText}"
-                                           FontSize="13"
-                                           MaxLines="3"
-                                           TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                           LineHeight="18"
-                                           IsTextSelectionEnabled="True"/>
+                                <!-- Content by Type -->
+                                <Grid Grid.Row="1">
+                                    <!-- 1. Text Content -->
+                                    <TextBlock Text="{x:Bind PreviewText}"
+                                               FontSize="13"
+                                               MaxLines="3"
+                                               TextWrapping="Wrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               LineHeight="18"
+                                               IsTextSelectionEnabled="True"
+                                               Visibility="{x:Bind TextVisibility, Mode=OneWay}"/>
+
+                                    <!-- 2. Image Content -->
+                                    <StackPanel Visibility="{x:Bind ImageVisibility, Mode=OneWay}" Spacing="6">
+                                        <!-- Normal Thumbnail -->
+                                        <Border CornerRadius="4" 
+                                                BorderThickness="1" 
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                HorizontalAlignment="Left"
+                                                Background="{ThemeResource LayerFillColorDefaultBrush}">
+                                            <Image Source="{x:Bind ThumbnailImage, Mode=OneWay}"
+                                                   MaxHeight="120"
+                                                   MaxWidth="240"
+                                                   Stretch="Uniform"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- 3. Files Content -->
+                                    <StackPanel Visibility="{x:Bind FilesVisibility, Mode=OneWay}" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                        <TextBlock Text="{x:Bind PreviewText}" FontSize="13" FontWeight="Normal" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -217,4 +247,3 @@
         </Grid>
     </Grid>
 </Page>
-

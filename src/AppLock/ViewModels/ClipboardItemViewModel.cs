@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml.Media.Imaging;
 using AppLock.Models;
@@ -12,11 +14,22 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     private readonly ClipboardItem _item;
     private BitmapImage? _sourceIcon;
     private bool _iconLoaded;
+    private BitmapImage? _thumbnailImage;
+    private bool _thumbnailLoaded;
+    private List<string>? _filePaths;
 
     public ClipboardItem Model => _item;
 
     public long Id => _item.Id;
     public string Type => _item.Type;
+    public bool IsText => Type == "text";
+    public bool IsImage => Type == "image";
+    public bool IsFiles => Type == "files";
+
+    public Microsoft.UI.Xaml.Visibility TextVisibility => IsText ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public Microsoft.UI.Xaml.Visibility ImageVisibility => IsImage ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public Microsoft.UI.Xaml.Visibility FilesVisibility => IsFiles ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
     public string PreviewText => _item.PreviewString ?? string.Empty;
     public string SourceProcess => _item.SourceProcess ?? "Unknown";
     public string SourceTitle => _item.SourceTitle ?? string.Empty;
@@ -26,6 +39,36 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public int UseCount => _item.UseCount;
     public bool Pinned => _item.Pinned;
     public bool IsSensitive => _item.IsSensitive;
+
+    public string? ImagePath => _item.ImagePath;
+    public string? ThumbPath => _item.ThumbPath;
+    public int? Width => _item.Width;
+    public int? Height => _item.Height;
+
+    public string DimensionsText => (Width.HasValue && Height.HasValue) ? $"{Width} × {Height}" : string.Empty;
+
+    public bool IsImageMissing => IsImage && 
+        (!string.IsNullOrEmpty(ThumbPath) && !File.Exists(ThumbPath)) && 
+        (!string.IsNullOrEmpty(ImagePath) && !File.Exists(ImagePath));
+
+    public List<string> FilePaths
+    {
+        get
+        {
+            if (_filePaths == null && IsFiles && !string.IsNullOrEmpty(_item.ContentString))
+            {
+                try
+                {
+                    _filePaths = JsonSerializer.Deserialize<List<string>>(_item.ContentString) ?? new List<string>();
+                }
+                catch
+                {
+                    _filePaths = new List<string>();
+                }
+            }
+            return _filePaths ??= new List<string>();
+        }
+    }
 
     public string FormattedSize
     {
@@ -72,9 +115,50 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
         }
     }
 
+    public BitmapImage? ThumbnailImage
+    {
+        get
+        {
+            if (!_thumbnailLoaded)
+            {
+                _thumbnailLoaded = true;
+                LoadThumbnail();
+            }
+            return _thumbnailImage;
+        }
+    }
+
     public ClipboardItemViewModel(ClipboardItem item)
     {
         _item = item;
+    }
+
+    private void LoadThumbnail()
+    {
+        if (!IsImage) return;
+
+        try
+        {
+            string? pathToLoad = null;
+            if (!string.IsNullOrEmpty(ThumbPath) && File.Exists(ThumbPath))
+            {
+                pathToLoad = ThumbPath;
+            }
+            else if (!string.IsNullOrEmpty(ImagePath) && File.Exists(ImagePath))
+            {
+                pathToLoad = ImagePath;
+            }
+
+            if (pathToLoad != null)
+            {
+                _thumbnailImage = new BitmapImage(new Uri(pathToLoad));
+                OnPropertyChanged(nameof(ThumbnailImage));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardItemViewModel] Error loading thumbnail: {ex.Message}");
+        }
     }
 
     private void LoadSourceIcon()
@@ -84,7 +168,6 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
 
         try
         {
-            // Try resolving full path if available or search common paths
             string proc = _item.SourceProcess;
             string? fullPath = null;
 
@@ -94,7 +177,6 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
             }
             else
             {
-                // Check System32
                 string sys32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), proc);
                 if (File.Exists(sys32))
                 {
@@ -102,7 +184,6 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
                 }
                 else
                 {
-                    // Check ProgramFiles
                     string prog = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), proc);
                     if (File.Exists(prog)) fullPath = prog;
                 }
@@ -130,4 +211,3 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
         return dt.ToString("M");
     }
 }
-
