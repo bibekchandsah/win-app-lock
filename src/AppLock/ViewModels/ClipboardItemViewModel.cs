@@ -156,7 +156,78 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
 
     public bool IsLink => !string.IsNullOrEmpty(PreviewText) && 
                           (PreviewText.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
-                           PreviewText.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+                           PreviewText.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                           PreviewText.StartsWith("www.", StringComparison.OrdinalIgnoreCase));
+
+    public Microsoft.UI.Xaml.Visibility LinkVisibility => IsLink ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public bool IsSnippet => _item.IsSnippet;
+    public Microsoft.UI.Xaml.Visibility SnippetBadgeVisibility => IsSnippet ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public string SnippetTitle => _item.Label ?? string.Empty;
+    public string SnippetAbbreviation => _item.SourceTitle ?? string.Empty;
+
+    private Microsoft.UI.Xaml.Media.SolidColorBrush? _colorBrush;
+    private bool _colorChecked;
+
+    public bool HasColorSwatch
+    {
+        get
+        {
+            EnsureColorChecked();
+            return _colorBrush != null;
+        }
+    }
+
+    public Microsoft.UI.Xaml.Visibility ColorSwatchVisibility => HasColorSwatch ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public Microsoft.UI.Xaml.Media.SolidColorBrush? ColorBrush
+    {
+        get
+        {
+            EnsureColorChecked();
+            return _colorBrush;
+        }
+    }
+
+    private void EnsureColorChecked()
+    {
+        if (_colorChecked) return;
+        _colorChecked = true;
+
+        if (!IsText || string.IsNullOrWhiteSpace(PreviewText)) return;
+        string trimmed = PreviewText.Trim();
+
+        if (trimmed.StartsWith('#') && (trimmed.Length == 4 || trimmed.Length == 7 || trimmed.Length == 9))
+        {
+            try
+            {
+                string hex = trimmed[1..];
+                byte a = 255, r = 0, g = 0, b = 0;
+                if (hex.Length == 3)
+                {
+                    r = Convert.ToByte(new string(hex[0], 2), 16);
+                    g = Convert.ToByte(new string(hex[1], 2), 16);
+                    b = Convert.ToByte(new string(hex[2], 2), 16);
+                }
+                else if (hex.Length == 6)
+                {
+                    r = Convert.ToByte(hex[..2], 16);
+                    g = Convert.ToByte(hex[2..4], 16);
+                    b = Convert.ToByte(hex[4..6], 16);
+                }
+                else if (hex.Length == 8)
+                {
+                    a = Convert.ToByte(hex[..2], 16);
+                    r = Convert.ToByte(hex[2..4], 16);
+                    g = Convert.ToByte(hex[4..6], 16);
+                    b = Convert.ToByte(hex[6..8], 16);
+                }
+
+                _colorBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
+            }
+            catch { }
+        }
+    }
 
     public bool IsCodeLike
     {
@@ -173,6 +244,10 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
                    PreviewText.StartsWith("\t");
         }
     }
+
+    public Microsoft.UI.Xaml.Media.FontFamily PreviewFontFamily => IsCodeLike 
+        ? new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code, Consolas, Courier New") 
+        : new Microsoft.UI.Xaml.Media.FontFamily("Segoe UI");
 
     public BitmapImage? SourceIcon
     {

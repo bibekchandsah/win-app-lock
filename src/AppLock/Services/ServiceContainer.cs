@@ -38,6 +38,7 @@ public static class ServiceContainer
     private static ClipboardStore? _clipboardStore;
     private static ClipboardMonitor? _clipboardMonitor;
     private static ClipboardPasteService? _clipboardPasteService;
+    private static ClipboardExportService? _clipboardExportService;
 
     public static NotificationService NotificationService
     {
@@ -449,6 +450,18 @@ public static class ServiceContainer
                 _clipboardPasteService = new ClipboardPasteService();
             }
             return _clipboardPasteService;
+        }
+    }
+
+    public static ClipboardExportService ClipboardExportService
+    {
+        get
+        {
+            if (_clipboardExportService == null)
+            {
+                _clipboardExportService = new ClipboardExportService();
+            }
+            return _clipboardExportService;
         }
     }
 

@@ -35,12 +35,13 @@ public sealed class ClipboardStore
 
     public ClipboardStore()
     {
-        // Periodic check to delete expired sensitive items every 10 seconds
+        // Periodic check to delete expired sensitive items and enforce storage cap / auto-delete
         _expireTimer = new Timer(async _ =>
         {
             try
             {
                 await DeleteExpiredItemsAsync();
+                await EnforceStorageCapAndAutoDeleteAsync();
             }
             catch { }
         }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
@@ -392,14 +393,21 @@ LIMIT @excess;
             using var cmd = conn.CreateCommand();
 
             var whereClauses = new List<string>();
-            whereClauses.Add("is_snippet = 0");
-
-            if (!string.IsNullOrEmpty(filter) && filter != "All")
+            if (filter == "Snippets")
             {
-                if (filter == "Text") whereClauses.Add("type = 'text'");
-                else if (filter == "Images") whereClauses.Add("type = 'image'");
-                else if (filter == "Files") whereClauses.Add("type = 'files'");
-                else if (filter == "Pinned") whereClauses.Add("pinned = 1");
+                whereClauses.Add("is_snippet = 1");
+            }
+            else
+            {
+                whereClauses.Add("is_snippet = 0");
+
+                if (!string.IsNullOrEmpty(filter) && filter != "All")
+                {
+                    if (filter == "Text") whereClauses.Add("type = 'text'");
+                    else if (filter == "Images") whereClauses.Add("type = 'image'");
+                    else if (filter == "Files") whereClauses.Add("type = 'files'");
+                    else if (filter == "Pinned") whereClauses.Add("pinned = 1");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -904,6 +912,231 @@ WHERE id = @id;
                data[1] == s_dpapiHeader[1] &&
                data[2] == s_dpapiHeader[2] &&
                data[3] == s_dpapiHeader[3];
+    }
+
+    public async Task<List<ClipboardItem>> GetSnippetsAsync()
+    {
+        return await GetItemsAsync(limit: 500, filter: "Snippets");
+    }
+
+    public async Task<long> SaveSnippetAsync(string title, string text, string? abbreviation = null, long id = 0)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        long snippetId = id;
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            bool encrypt = ServiceContainer.Settings.Clipboard.EncryptHistory;
+            byte[] textBytes = System.Text.Encoding.UTF8.GetBytes(text);
+            byte[] contentBytes = encrypt ? EncryptBytes(textBytes) : textBytes;
+            string prev = text.Length > 200 ? text[..200] : text;
+            byte[] previewBytes = encrypt ? EncryptBytes(System.Text.Encoding.UTF8.GetBytes(prev)) : System.Text.Encoding.UTF8.GetBytes(prev);
+
+            using var sha = SHA256.Create();
+            string hash = Convert.ToHexString(sha.ComputeHash(textBytes)).ToLowerInvariant();
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            if (id > 0)
+            {
+                using var updateCmd = conn.CreateCommand();
+                updateCmd.CommandText = @"
+UPDATE items 
+SET label = @title,
+    content = @content,
+    preview = @preview,
+    source_title = @abbrev,
+    last_used_at = @now,
+    size_bytes = @size
+WHERE id = @id;
+";
+                updateCmd.Parameters.AddWithValue("@title", title);
+                updateCmd.Parameters.AddWithValue("@content", (object?)contentBytes ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@preview", (object?)previewBytes ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@abbrev", (object?)abbreviation ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@now", now);
+                updateCmd.Parameters.AddWithValue("@size", textBytes.Length);
+                updateCmd.Parameters.AddWithValue("@id", id);
+                await updateCmd.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                using var insertCmd = conn.CreateCommand();
+                insertCmd.CommandText = @"
+INSERT INTO items (
+  type, content, preview, hash, size_bytes, source_process, source_title,
+  created_at, last_used_at, use_count, pinned, is_snippet, label
+) VALUES (
+  'text', @content, @preview, @hash, @size, 'Snippet', @abbrev,
+  @now, @now, 0, 1, 1, @title
+);
+SELECT last_insert_rowid();
+";
+                insertCmd.Parameters.AddWithValue("@content", (object?)contentBytes ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@preview", (object?)previewBytes ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@hash", hash);
+                insertCmd.Parameters.AddWithValue("@size", textBytes.Length);
+                insertCmd.Parameters.AddWithValue("@abbrev", (object?)abbreviation ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@now", now);
+                insertCmd.Parameters.AddWithValue("@title", title);
+
+                var res = await insertCmd.ExecuteScalarAsync();
+                snippetId = Convert.ToInt64(res);
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+        return snippetId;
+    }
+
+    public async Task DeleteSnippetAsync(long id)
+    {
+        await DeleteItemAsync(id);
+    }
+
+    public async Task UpdateTextItemContentAsync(long id, string newText)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            bool encrypt = ServiceContainer.Settings.Clipboard.EncryptHistory;
+            byte[] textBytes = System.Text.Encoding.UTF8.GetBytes(newText);
+            byte[] contentBytes = encrypt ? EncryptBytes(textBytes) : textBytes;
+            string previewStr = newText.Length > 200 ? newText[..200] : newText;
+            byte[] previewBytes = encrypt ? EncryptBytes(System.Text.Encoding.UTF8.GetBytes(previewStr)) : System.Text.Encoding.UTF8.GetBytes(previewStr);
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+UPDATE items 
+SET content = @content, 
+    preview = @preview, 
+    size_bytes = @size, 
+    last_used_at = @now 
+WHERE id = @id;
+";
+            cmd.Parameters.AddWithValue("@content", (object?)contentBytes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@preview", (object?)previewBytes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@size", textBytes.Length);
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            cmd.Parameters.AddWithValue("@id", id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task EnforceStorageCapAndAutoDeleteAsync()
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            var settings = ServiceContainer.Settings.Clipboard;
+
+            // 1. Auto-delete after N days (unpinned non-snippets only; 0 = never)
+            if (settings.AutoDeleteDays > 0)
+            {
+                long cutoff = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ((long)settings.AutoDeleteDays * 86400000L);
+                var filesToDelete = new List<string>();
+
+                using (var findCmd = conn.CreateCommand())
+                {
+                    findCmd.CommandText = "SELECT image_path, thumb_path FROM items WHERE pinned = 0 AND is_snippet = 0 AND last_used_at < @cutoff;";
+                    findCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    using var reader = await findCmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        if (!reader.IsDBNull(0)) filesToDelete.Add(reader.GetString(0));
+                        if (!reader.IsDBNull(1)) filesToDelete.Add(reader.GetString(1));
+                    }
+                }
+
+                using (var delCmd = conn.CreateCommand())
+                {
+                    delCmd.CommandText = "DELETE FROM items WHERE pinned = 0 AND is_snippet = 0 AND last_used_at < @cutoff;";
+                    delCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    await delCmd.ExecuteNonQueryAsync();
+                }
+
+                foreach (var file in filesToDelete)
+                {
+                    DeleteFileSafe(file);
+                }
+            }
+
+            // 2. Storage cap enforcement (MB)
+            if (settings.StorageCapMb > 0)
+            {
+                long capBytes = (long)settings.StorageCapMb * 1024 * 1024;
+                long currentUsage = await GetStorageSizeBytesAsync();
+
+                if (currentUsage > capBytes)
+                {
+                    var filesToDelete = new List<string>();
+                    var idsToDelete = new List<long>();
+
+                    using (var findCmd = conn.CreateCommand())
+                    {
+                        findCmd.CommandText = @"
+SELECT id, image_path, thumb_path, size_bytes 
+FROM items 
+WHERE pinned = 0 AND is_snippet = 0 
+ORDER BY last_used_at ASC;
+";
+                        using var reader = await findCmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync() && currentUsage > capBytes)
+                        {
+                            idsToDelete.Add(reader.GetInt64(0));
+                            if (!reader.IsDBNull(1)) filesToDelete.Add(reader.GetString(1));
+                            if (!reader.IsDBNull(2)) filesToDelete.Add(reader.GetString(2));
+                            long size = reader.GetInt64(3);
+                            currentUsage -= size;
+                        }
+                    }
+
+                    if (idsToDelete.Count > 0)
+                    {
+                        using (var delCmd = conn.CreateCommand())
+                        {
+                            delCmd.CommandText = $"DELETE FROM items WHERE id IN ({string.Join(",", idsToDelete)});";
+                            await delCmd.ExecuteNonQueryAsync();
+                        }
+
+                        foreach (var file in filesToDelete)
+                        {
+                            DeleteFileSafe(file);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardStore] Error enforcing cap/auto-delete: {ex.Message}");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static void DeleteFileSafe(string path)

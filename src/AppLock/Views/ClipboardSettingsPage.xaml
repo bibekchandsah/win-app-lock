@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:controls="using:AppLock.Views.Controls"
+    xmlns:vm="using:AppLock.ViewModels"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
@@ -695,17 +696,68 @@
                     <TabViewItem.IconSource>
                         <FontIconSource Glyph="&#xE8D2;"/>
                     </TabViewItem.IconSource>
-                    <Grid Padding="16">
-                        <StackPanel Spacing="16" MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE8D2;" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Reusable Snippets" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <TextBlock Text="Save frequently used text templates with titles and quick abbreviation triggers. Snippet management will be enabled in Milestone 7."
-                                       FontSize="13"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextAlignment="Center"
-                                       TextWrapping="Wrap"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,16,16,16">
+                        <StackPanel Spacing="16" MaxWidth="800" HorizontalAlignment="Left">
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel Spacing="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Reusable Snippets" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBlock Text="Save frequently used text templates with titles and quick abbreviation triggers." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="+ Add Snippet" Click="AddSnippet_Click" Style="{StaticResource AccentButtonStyle}"/>
+                                    </Grid>
+
+                                    <!-- Snippets List -->
+                                    <ListView x:Name="SnippetsListView"
+                                              MaxHeight="360"
+                                              BorderThickness="1"
+                                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                              CornerRadius="6">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ClipboardItemViewModel">
+                                                <Grid Padding="4,8" ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0" Spacing="2" MinWidth="130">
+                                                        <TextBlock Text="{x:Bind SnippetTitle}" FontWeight="SemiBold" FontSize="13"/>
+                                                        <TextBlock Text="{x:Bind SnippetAbbreviation}" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind PreviewText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxLines="2" VerticalAlignment="Center"/>
+
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <Button Content="Edit" Click="EditSnippet_Click" Tag="{x:Bind}" Padding="8,4" FontSize="11"/>
+                                                        <Button Content="Delete" Click="DeleteSnippet_Click" Tag="{x:Bind}" Padding="8,4" FontSize="11"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+
+                                    <!-- Empty state -->
+                                    <TextBlock x:Name="SnippetsEmptyText"
+                                               Text="No snippets created yet. Click '+ Add Snippet' to create one."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Grid>
+                    </ScrollViewer>
                 </TabViewItem>
 
                 <!-- Data Tab -->
@@ -765,11 +817,12 @@
                                     Padding="16">
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="Export / Import Backup" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="Export all clipboard items to a ZIP archive or restore from a previous backup (available in Milestone 7)." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="Export all clipboard items and images to a ZIP archive or restore from a previous backup." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Export history (ZIP)" IsEnabled="False"/>
-                                        <Button Content="Import history (ZIP)" IsEnabled="False"/>
+                                        <Button Content="Export history (ZIP)" Click="ExportHistory_Click"/>
+                                        <Button Content="Import history (ZIP)" Click="ImportHistory_Click"/>
                                     </StackPanel>
+                                    <TextBlock x:Name="BackupStatusText" Text="" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}" Visibility="Collapsed"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

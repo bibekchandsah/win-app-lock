@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using AppLock.Services;
+using AppLock.ViewModels;
 
 namespace AppLock.Views;
 
@@ -25,6 +27,7 @@ public sealed partial class ClipboardSettingsPage : Page
         ServiceContainer.ClipboardStore.DataChanged += OnClipboardDataChanged;
         LoadSettings();
         _ = RefreshDataTabAsync();
+        _ = RefreshSnippetsTabAsync();
         _ = UpdateDebugStatusAsync();
     }
 
@@ -38,6 +41,7 @@ public sealed partial class ClipboardSettingsPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             _ = RefreshDataTabAsync();
+            _ = RefreshSnippetsTabAsync();
             _ = UpdateDebugStatusAsync();
         });
     }
@@ -431,7 +435,170 @@ public sealed partial class ClipboardSettingsPage : Page
         {
             await ServiceContainer.ClipboardStore.ClearHistoryAsync(includePinned);
             await RefreshDataTabAsync();
+            await RefreshSnippetsTabAsync();
             await UpdateDebugStatusAsync();
+        }
+    }
+
+    private async Task RefreshSnippetsTabAsync()
+    {
+        try
+        {
+            var rawSnippets = await ServiceContainer.ClipboardStore.GetSnippetsAsync();
+            var list = rawSnippets.Select(s => new ClipboardItemViewModel(s)).ToList();
+            SnippetsListView.ItemsSource = list;
+            SnippetsEmptyText.Visibility = list.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error loading snippets: {ex.Message}");
+        }
+    }
+
+    private async void AddSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowSnippetDialogAsync(null);
+    }
+
+    private async void EditSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
+        {
+            await ShowSnippetDialogAsync(vm);
+        }
+    }
+
+    private async void DeleteSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
+        {
+            await ServiceContainer.ClipboardStore.DeleteSnippetAsync(vm.Id);
+            await RefreshSnippetsTabAsync();
+        }
+    }
+
+    private async Task ShowSnippetDialogAsync(ClipboardItemViewModel? existing)
+    {
+        var titleBox = new TextBox
+        {
+            Header = "Title",
+            PlaceholderText = "e.g. Standard Greeting or Code Template",
+            Text = existing?.SnippetTitle ?? string.Empty
+        };
+
+        var abbrevBox = new TextBox
+        {
+            Header = "Abbreviation (optional trigger)",
+            PlaceholderText = "e.g. /greet",
+            Text = existing?.SnippetAbbreviation ?? string.Empty
+        };
+
+        var contentBox = new TextBox
+        {
+            Header = "Snippet Text",
+            PlaceholderText = "Enter reusable snippet content...",
+            Text = existing?.Model.ContentString ?? existing?.PreviewText ?? string.Empty,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 120
+        };
+
+        var stack = new StackPanel { Spacing = 10 };
+        stack.Children.Add(titleBox);
+        stack.Children.Add(abbrevBox);
+        stack.Children.Add(contentBox);
+
+        var dialog = new ContentDialog
+        {
+            Title = existing == null ? "Add Reusable Snippet" : "Edit Snippet",
+            Content = stack,
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            string title = titleBox.Text.Trim();
+            if (string.IsNullOrEmpty(title)) title = "Snippet";
+            string abbrev = abbrevBox.Text.Trim();
+            string content = contentBox.Text;
+
+            await ServiceContainer.ClipboardStore.SaveSnippetAsync(
+                title,
+                content,
+                string.IsNullOrEmpty(abbrev) ? null : abbrev,
+                existing?.Id ?? 0);
+
+            await RefreshSnippetsTabAsync();
+        }
+    }
+
+    private async void ExportHistory_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileSavePicker();
+            var targetWin = App.MainWindowInstance ?? MainWindow.Instance;
+            if (targetWin != null)
+            {
+                nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWin);
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("ZIP Archive", new List<string> { ".zip" });
+            picker.SuggestedFileName = "AppLock_Clipboard_Backup_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                BackupStatusText.Text = "Exporting history...";
+                BackupStatusText.Visibility = Visibility.Visible;
+
+                bool ok = await ServiceContainer.ClipboardExportService.ExportToZipAsync(file.Path);
+                BackupStatusText.Text = ok ? $"Successfully exported history to {file.Name}" : "Export failed.";
+            }
+        }
+        catch (Exception ex)
+        {
+            BackupStatusText.Text = $"Export error: {ex.Message}";
+            BackupStatusText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void ImportHistory_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            var targetWin = App.MainWindowInstance ?? MainWindow.Instance;
+            if (targetWin != null)
+            {
+                nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWin);
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add(".zip");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                BackupStatusText.Text = "Importing history...";
+                BackupStatusText.Visibility = Visibility.Visible;
+
+                int count = await ServiceContainer.ClipboardExportService.ImportFromZipAsync(file.Path);
+                BackupStatusText.Text = $"Successfully imported {count} items from {file.Name}";
+                await RefreshDataTabAsync();
+                await RefreshSnippetsTabAsync();
+                await UpdateDebugStatusAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            BackupStatusText.Text = $"Import error: {ex.Message}";
+            BackupStatusText.Visibility = Visibility.Visible;
         }
     }
 

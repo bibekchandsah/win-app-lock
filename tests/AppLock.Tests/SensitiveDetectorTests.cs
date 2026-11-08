@@ -57,3 +57,4 @@ public class SensitiveDetectorTests
         Assert.False(SensitiveDetector.IsSensitive("public static void Main(string[] args)"));
     }
 }
+

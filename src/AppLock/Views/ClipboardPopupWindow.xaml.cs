@@ -28,6 +28,8 @@ public sealed partial class ClipboardPopupWindow : Window
     private string _currentFilter = "All";
     private string _currentSearch = string.Empty;
     private static DateTime? _lastHelloUnlockTime;
+    private ClipboardItemViewModel? _editingItem;
+    private ClipboardItemViewModel? _snippetSourceItem;
 
     public ObservableCollection<ClipboardItemViewModel> Items { get; } = new();
 
@@ -438,6 +440,15 @@ public sealed partial class ClipboardPopupWindow : Window
                 e.Handled = true;
             }
         }
+        else if (e.Key == VirtualKey.E && IsControlDown())
+        {
+            var targetItem = ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+            if (targetItem != null && targetItem.IsText)
+            {
+                OpenEditOverlay(targetItem);
+                e.Handled = true;
+            }
+        }
     }
 
     private void MoveSelection(int delta)
@@ -513,6 +524,14 @@ public sealed partial class ClipboardPopupWindow : Window
                 _ = ExecutePasteAsync(selected, copyOnly: true);
             }
             e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.E && IsControlDown())
+        {
+            if (ItemsListView.SelectedItem is ClipboardItemViewModel selected && selected.IsText)
+            {
+                OpenEditOverlay(selected);
+                e.Handled = true;
+            }
         }
     }
 
@@ -694,8 +713,236 @@ public sealed partial class ClipboardPopupWindow : Window
             FilterImagesButton.Style = filter == "Images" ? (Style)Application.Current.Resources["AccentButtonStyle"] : (Style)Application.Current.Resources["DefaultButtonStyle"];
             FilterLinksButton.Style = filter == "Links" ? (Style)Application.Current.Resources["AccentButtonStyle"] : (Style)Application.Current.Resources["DefaultButtonStyle"];
             FilterPinnedButton.Style = filter == "Pinned" ? (Style)Application.Current.Resources["AccentButtonStyle"] : (Style)Application.Current.Resources["DefaultButtonStyle"];
+            FilterSnippetsButton.Style = filter == "Snippets" ? (Style)Application.Current.Resources["AccentButtonStyle"] : (Style)Application.Current.Resources["DefaultButtonStyle"];
 
             _ = RefreshItemsAsync();
+        }
+    }
+
+    private void OpenEditOverlay(ClipboardItemViewModel vm)
+    {
+        _editingItem = vm;
+        EditTextTextBox.Text = vm.Model.ContentString ?? vm.PreviewText;
+        EditItemOverlay.Visibility = Visibility.Visible;
+        MainContentGrid.Visibility = Visibility.Collapsed;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            EditTextTextBox.Focus(FocusState.Programmatic);
+            EditTextTextBox.SelectAll();
+        });
+    }
+
+    private async void EditOverlayPaste_Click(object sender, RoutedEventArgs e)
+    {
+        if (_editingItem == null) return;
+        string newText = EditTextTextBox.Text;
+        nint target = _prevForegroundHwnd;
+
+        EditItemOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+        HidePopup();
+
+        var tempItem = new ClipboardItem
+        {
+            Id = _editingItem.Id,
+            Type = "text",
+            ContentString = newText,
+            PreviewString = newText.Length > 200 ? newText[..200] : newText,
+            Hash = _editingItem.Model.Hash,
+            SizeBytes = newText.Length
+        };
+
+        _ = ServiceContainer.ClipboardStore.UpdateTextItemContentAsync(_editingItem.Id, newText);
+        await ServiceContainer.ClipboardPasteService.PasteItemAsync(tempItem, target);
+    }
+
+    private async void EditOverlaySaveCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_editingItem == null) return;
+        string newText = EditTextTextBox.Text;
+
+        EditItemOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+
+        await ServiceContainer.ClipboardStore.UpdateTextItemContentAsync(_editingItem.Id, newText);
+        var tempItem = new ClipboardItem
+        {
+            Id = _editingItem.Id,
+            Type = "text",
+            ContentString = newText,
+            PreviewString = newText.Length > 200 ? newText[..200] : newText,
+            Hash = _editingItem.Model.Hash,
+            SizeBytes = newText.Length
+        };
+        await ServiceContainer.ClipboardPasteService.SetClipboardDataAsync(tempItem);
+        _ = RefreshItemsAsync();
+    }
+
+    private void EditOverlayCancel_Click(object sender, RoutedEventArgs e)
+    {
+        EditItemOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+        SearchBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OpenSaveSnippetOverlay(ClipboardItemViewModel vm)
+    {
+        _snippetSourceItem = vm;
+        SnippetTitleTextBox.Text = !string.IsNullOrEmpty(vm.SourceTitle) ? vm.SourceTitle : (!string.IsNullOrEmpty(vm.SourceProcess) ? vm.SourceProcess : "Snippet");
+        SnippetAbbrevTextBox.Text = string.Empty;
+        SaveSnippetOverlay.Visibility = Visibility.Visible;
+        MainContentGrid.Visibility = Visibility.Collapsed;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            SnippetTitleTextBox.Focus(FocusState.Programmatic);
+            SnippetTitleTextBox.SelectAll();
+        });
+    }
+
+    private async void SaveSnippetConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        if (_snippetSourceItem == null) return;
+        string title = SnippetTitleTextBox.Text.Trim();
+        if (string.IsNullOrEmpty(title)) title = "Snippet";
+        string abbrev = SnippetAbbrevTextBox.Text.Trim();
+        string text = _snippetSourceItem.Model.ContentString ?? _snippetSourceItem.PreviewText;
+
+        SaveSnippetOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+
+        await ServiceContainer.ClipboardStore.SaveSnippetAsync(title, text, string.IsNullOrEmpty(abbrev) ? null : abbrev);
+        _ = RefreshItemsAsync();
+    }
+
+    private void SaveSnippetCancel_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSnippetOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+        SearchBox.Focus(FocusState.Programmatic);
+    }
+
+    private void ItemEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm && vm.IsText)
+        {
+            OpenEditOverlay(vm);
+        }
+    }
+
+    private void ItemSaveAsSnippet_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm)
+        {
+            OpenSaveSnippetOverlay(vm);
+        }
+    }
+
+    private void ItemOpenLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm)
+        {
+            string url = vm.PreviewText.Trim();
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
+            }
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch { }
+            HidePopup();
+        }
+    }
+
+    private async void ItemSaveImageAs_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm && vm.IsImage && !string.IsNullOrEmpty(vm.ImagePath) && File.Exists(vm.ImagePath))
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileSavePicker();
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, _hwnd);
+                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
+                picker.FileTypeChoices.Add("PNG Image", new List<string> { ".png" });
+                picker.SuggestedFileName = "ClipboardImage_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                var file = await picker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    File.Copy(vm.ImagePath, file.Path, overwrite: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ClipboardPopup] Save image error: {ex.Message}");
+            }
+        }
+    }
+
+    private void ItemCopyPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetItemFromSender(sender) is ClipboardItemViewModel vm && vm.IsImage)
+        {
+            _ = ExecutePasteAsync(vm, copyOnly: true);
+        }
+    }
+
+    private async void TextAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string action && GetItemFromSender(menuItem) is ClipboardItemViewModel vm)
+        {
+            string text = vm.Model.ContentString ?? vm.PreviewText;
+            string transformed = action switch
+            {
+                "upper" => text.ToUpperInvariant(),
+                "lower" => text.ToLowerInvariant(),
+                "title" => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(text.ToLower()),
+                "trim" => text.Trim(),
+                "removelines" => text.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " "),
+                "urlencode" => Uri.EscapeDataString(text),
+                "urldecode" => Uri.UnescapeDataString(text),
+                "b64encode" => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text)),
+                "b64decode" => TryBase64Decode(text),
+                _ => text
+            };
+
+            nint target = _prevForegroundHwnd;
+            HidePopup();
+
+            var tempItem = new ClipboardItem
+            {
+                Id = vm.Id,
+                Type = "text",
+                ContentString = transformed,
+                PreviewString = transformed.Length > 200 ? transformed[..200] : transformed,
+                Hash = vm.Model.Hash,
+                SizeBytes = transformed.Length
+            };
+
+            await ServiceContainer.ClipboardPasteService.PasteItemAsync(tempItem, target);
+        }
+    }
+
+    private ClipboardItemViewModel? GetItemFromSender(object sender)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            if (fe.Tag is ClipboardItemViewModel tagVm) return tagVm;
+            if (fe.DataContext is ClipboardItemViewModel dcVm) return dcVm;
+        }
+        return ItemsListView.SelectedItem as ClipboardItemViewModel ?? Items.FirstOrDefault();
+    }
+
+    private static string TryBase64Decode(string input)
+    {
+        try
+        {
+            byte[] bytes = Convert.FromBase64String(input.Trim());
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return input;
         }
     }
 
