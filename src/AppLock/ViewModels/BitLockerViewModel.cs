@@ -106,6 +106,9 @@ public partial class BitLockerViewModel : ObservableObject
     private bool _autoClearClipboard = true;
 
     [ObservableProperty]
+    private bool _requireHelloOnAppStart;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedDriveAutoUnlockDisplay))]
     private bool _isSelectedDriveAutoUnlock;
 
@@ -236,6 +239,7 @@ public partial class BitLockerViewModel : ObservableObject
             _toastNotifications = _settings.BitLockerToastNotifications;
             _refreshIntervalSeconds = _settings.BitLockerRefreshIntervalSeconds > 0 ? _settings.BitLockerRefreshIntervalSeconds : 5;
             _autoClearClipboard = _settings.BitLockerAutoClearClipboard;
+            _requireHelloOnAppStart = _settings.BitLockerRequireHelloOnAppStart;
             if (!string.IsNullOrEmpty(_settings.BitLockerLastUnlockedSummary))
             {
                 _lastUnlockedSummary = _settings.BitLockerLastUnlockedSummary;
@@ -283,6 +287,22 @@ public partial class BitLockerViewModel : ObservableObject
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to save BitLockerAutoUnlockOnAppOpen: {ex.Message}");
+            }
+        }
+    }
+
+    partial void OnRequireHelloOnAppStartChanged(bool value)
+    {
+        if (_settings != null)
+        {
+            _settings.BitLockerRequireHelloOnAppStart = value;
+            try
+            {
+                _saveSettings?.Invoke(_settings);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save BitLockerRequireHelloOnAppStart: {ex.Message}");
             }
         }
     }

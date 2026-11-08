@@ -87,18 +87,54 @@ public sealed class StartupTaskService
         }
     }
 
-    /// <summary>Creates or updates the scheduled task with Highest privileges at ONLOGON.</summary>
+    /// <summary>Creates or updates the scheduled task with Highest privileges at ONLOGON and allows running on battery.</summary>
     public async Task<bool> CreateOrUpdateTaskAsync(CancellationToken ct = default)
     {
+        string? tempXmlPath = null;
         try
         {
             var exe = CurrentExePath;
-            var command = $"\"\"{exe}\" --bitlocker-autounlock\"";
+            var xmlContent = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <RegistrationInfo>
+    <Description>AppLock BitLocker Auto-Unlock</Description>
+    <URI>\{TaskName}</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id=""Author"">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+  </Settings>
+  <Triggers>
+    <LogonTrigger />
+  </Triggers>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>{exe}</Command>
+      <Arguments>--bitlocker-autounlock</Arguments>
+    </Exec>
+  </Actions>
+</Task>";
+
+            tempXmlPath = Path.Combine(Path.GetTempPath(), $"AppLock_Task_{Guid.NewGuid():N}.xml");
+            await File.WriteAllTextAsync(tempXmlPath, xmlContent, System.Text.Encoding.Unicode, ct);
 
             var psi = new ProcessStartInfo
             {
                 FileName = "schtasks.exe",
-                Arguments = $"/create /tn \"{TaskName}\" /tr {command} /sc ONLOGON /rl HIGHEST /f",
+                Arguments = $"/create /tn \"{TaskName}\" /xml \"{tempXmlPath}\" /f",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -106,15 +142,39 @@ public sealed class StartupTaskService
             };
 
             using var process = Process.Start(psi);
-            if (process == null) return false;
+            if (process != null)
+            {
+                await process.WaitForExitAsync(ct);
+                if (process.ExitCode == 0) return true;
+            }
 
-            await process.WaitForExitAsync(ct);
-            return process.ExitCode == 0;
+            // Fallback to command-line creation if XML import fails
+            var fallbackCommand = $"\"\"{exe}\" --bitlocker-autounlock\"";
+            var fallbackPsi = new ProcessStartInfo
+            {
+                FileName = "schtasks.exe",
+                Arguments = $"/create /tn \"{TaskName}\" /tr {fallbackCommand} /sc ONLOGON /rl HIGHEST /f",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var fallbackProc = Process.Start(fallbackPsi);
+            if (fallbackProc == null) return false;
+            await fallbackProc.WaitForExitAsync(ct);
+            return fallbackProc.ExitCode == 0;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[StartupTaskService] Error creating task: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            if (tempXmlPath != null && File.Exists(tempXmlPath))
+            {
+                try { File.Delete(tempXmlPath); } catch { }
+            }
         }
     }
 

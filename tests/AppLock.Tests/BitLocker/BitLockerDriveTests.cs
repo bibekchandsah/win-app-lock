@@ -553,6 +553,9 @@ public class BitLockerDriveTests
 
         vm.ToastNotifications = false;
         Assert.False(settings.BitLockerToastNotifications);
+
+        vm.RequireHelloOnAppStart = true;
+        Assert.True(settings.BitLockerRequireHelloOnAppStart);
     }
 
     [Fact]

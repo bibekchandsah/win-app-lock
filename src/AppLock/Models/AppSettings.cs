@@ -53,6 +53,7 @@ public class AppSettings
     public bool BitLockerToastNotifications { get; set; } = true;
     public int BitLockerRefreshIntervalSeconds { get; set; } = 5;
     public bool BitLockerAutoClearClipboard { get; set; } = true;
+    public bool BitLockerRequireHelloOnAppStart { get; set; } = false;
     
     // Brightness
     public BrightnessSettings Brightness { get; set; } = new();

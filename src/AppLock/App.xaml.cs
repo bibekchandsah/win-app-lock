@@ -37,7 +37,24 @@ public partial class App : Application
             _ = Task.Run(async () =>
             {
                 await Task.Delay(1000);
-                await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                if (AppLock.Services.ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
+                {
+                    _mainWindow.DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        if (_mainWindow.Content?.XamlRoot != null)
+                        {
+                            var auth = await AppLock.Services.BitLocker.BitLockerSecurityGate.EnsureAuthenticatedAsync(_mainWindow.Content.XamlRoot);
+                            if (auth)
+                            {
+                                await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                            }
+                        }
+                    });
+                }
+                else
+                {
+                    await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                }
             });
         }
     }

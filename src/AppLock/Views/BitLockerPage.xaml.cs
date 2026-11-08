@@ -99,7 +99,18 @@ public sealed partial class BitLockerPage : Page
         {
             if (ViewModel.AutoUnlockOnAppOpen)
             {
-                await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                if (ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
+                {
+                    var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
+                    if (auth)
+                    {
+                        await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                    }
+                }
+                else
+                {
+                    await ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
+                }
             }
             await ViewModel.RefreshDrivesAsync();
         });
@@ -1701,6 +1712,13 @@ public sealed partial class BitLockerPage : Page
         };
         AutomationProperties.SetName(autoUnlockToggle, "Auto-unlock saved drives when AppLock opens");
 
+        var requireHelloToggle = new ToggleSwitch
+        {
+            Header = "Require Windows Hello prompt before auto-unlocking on app start",
+            IsOn = ViewModel.RequireHelloOnAppStart
+        };
+        AutomationProperties.SetName(requireHelloToggle, "Require Windows Hello prompt before auto-unlocking on app start");
+
         var toastToggle = new ToggleSwitch
         {
             Header = "Show toast notifications for BitLocker events",
@@ -1737,6 +1755,7 @@ public sealed partial class BitLockerPage : Page
 
         stack.Children.Add(openExplorerToggle);
         stack.Children.Add(autoUnlockToggle);
+        stack.Children.Add(requireHelloToggle);
         stack.Children.Add(toastToggle);
         stack.Children.Add(autoClearToggle);
         stack.Children.Add(intervalStack);
@@ -1759,6 +1778,7 @@ public sealed partial class BitLockerPage : Page
         {
             ViewModel.OpenDriveAfterUnlock = openExplorerToggle.IsOn;
             ViewModel.AutoUnlockOnAppOpen = autoUnlockToggle.IsOn;
+            ViewModel.RequireHelloOnAppStart = requireHelloToggle.IsOn;
             ViewModel.ToastNotifications = toastToggle.IsOn;
             ViewModel.AutoClearClipboard = autoClearToggle.IsOn;
 
