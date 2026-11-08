@@ -72,9 +72,23 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public int UseCount => _item.UseCount;
     public bool Pinned => _item.Pinned;
     public bool IsPinned => _item.Pinned;
-    public string PinGlyph => Pinned ? "\uE840" : "\uE718";
+    public string PinGlyph => Pinned ? "\uE77A" : "\uE718";
     public string PinToolTip => Pinned ? "Unpin (Ctrl+P)" : "Pin (Ctrl+P)";
+    public Microsoft.UI.Xaml.Media.Brush PinBrush => Pinned
+        ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentFillColorDefaultBrush"]
+        : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextFillColorSecondaryBrush"];
     public Microsoft.UI.Xaml.Visibility PinVisibility => Pinned ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public void SetPinned(bool pinned)
+    {
+        _item.Pinned = pinned;
+        OnPropertyChanged(nameof(Pinned));
+        OnPropertyChanged(nameof(IsPinned));
+        OnPropertyChanged(nameof(PinGlyph));
+        OnPropertyChanged(nameof(PinToolTip));
+        OnPropertyChanged(nameof(PinBrush));
+        OnPropertyChanged(nameof(PinVisibility));
+    }
 
     private string _quickPasteBadge = string.Empty;
     public string QuickPasteBadge

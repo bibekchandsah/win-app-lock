@@ -21,6 +21,7 @@ public sealed class ClipboardMonitor : IDisposable
     private const uint WM_POWERBROADCAST = 0x0218;
     private const uint WM_APP_INSTALL_WINV = 0x8001;
     private const uint WM_APP_UNINSTALL_WINV = 0x8002;
+    private const uint WM_APP_REGISTER_HOTKEY = 0x8003;
 
     private const int NOTIFY_FOR_THIS_SESSION = 0;
     private const int WTS_SESSION_LOCK = 0x7;
@@ -30,7 +31,9 @@ public sealed class ClipboardMonitor : IDisposable
 
     private const int WH_KEYBOARD_LL = 13;
     private const uint WM_KEYDOWN = 0x0100;
+    private const uint WM_KEYUP = 0x0101;
     private const uint WM_SYSKEYDOWN = 0x0104;
+    private const uint WM_SYSKEYUP = 0x0105;
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
     private const int VK_CONTROL = 0x11;
@@ -55,6 +58,7 @@ public sealed class ClipboardMonitor : IDisposable
     private volatile bool _isSessionLocked;
     private nint _llHook = nint.Zero;
     private LowLevelKeyboardProc? _llProc;
+    private bool _winVTriggered;
     private static Mutex? _singleInstanceMutex;
     private readonly object _stateLock = new();
 
@@ -214,7 +218,18 @@ public sealed class ClipboardMonitor : IDisposable
             {
                 return HotkeyParser.TryParse(hotkeyText, out _, out _);
             }
-            return RegisterHotkeyInternal(hotkeyText);
+
+            if (string.IsNullOrWhiteSpace(hotkeyText))
+            {
+                return SendMessage(_hwnd, WM_APP_REGISTER_HOTKEY, nint.Zero, nint.Zero) != nint.Zero;
+            }
+
+            if (!HotkeyParser.TryParse(hotkeyText, out uint mods, out uint vk))
+            {
+                return false;
+            }
+
+            return SendMessage(_hwnd, WM_APP_REGISTER_HOTKEY, (nint)mods, (nint)vk) != nint.Zero;
         }
     }
 
@@ -226,7 +241,7 @@ public sealed class ClipboardMonitor : IDisposable
         }
     }
 
-    private bool RegisterHotkeyInternal(string hotkeyText)
+    private bool RegisterHotkeyInternal(uint mods, uint vk)
     {
         if (_isHotkeyRegistered && _hwnd != nint.Zero)
         {
@@ -234,27 +249,22 @@ public sealed class ClipboardMonitor : IDisposable
             _isHotkeyRegistered = false;
         }
 
-        if (string.IsNullOrWhiteSpace(hotkeyText))
+        if (mods == 0 && vk == 0)
         {
             return true;
-        }
-
-        if (!HotkeyParser.TryParse(hotkeyText, out uint mods, out uint vk))
-        {
-            return false;
         }
 
         bool success = RegisterHotKey(_hwnd, POPUP_HOTKEY_ID, mods | HotkeyParser.MOD_NOREPEAT, vk);
         if (success)
         {
             _isHotkeyRegistered = true;
-            Debug.WriteLine($"[ClipboardMonitor] Registered global hotkey: {hotkeyText}");
+            Debug.WriteLine($"[ClipboardMonitor] Registered global hotkey mods={mods}, vk={vk}");
             return true;
         }
         else
         {
             int err = Marshal.GetLastWin32Error();
-            Debug.WriteLine($"[ClipboardMonitor] Failed to register hotkey '{hotkeyText}', error: {err}");
+            Debug.WriteLine($"[ClipboardMonitor] Failed to register hotkey mods={mods}, vk={vk}, error: {err}");
             return false;
         }
     }
@@ -311,9 +321,9 @@ public sealed class ClipboardMonitor : IDisposable
 
         // Register initial hotkey
         var settings = ServiceContainer.Settings.Clipboard;
-        if (!string.IsNullOrEmpty(settings.Hotkey))
+        if (!string.IsNullOrEmpty(settings.Hotkey) && HotkeyParser.TryParse(settings.Hotkey, out uint mods, out uint vk))
         {
-            RegisterHotkeyInternal(settings.Hotkey);
+            RegisterHotkeyInternal(mods, vk);
         }
 
         if (settings.OverrideWinV)
@@ -379,9 +389,9 @@ public sealed class ClipboardMonitor : IDisposable
                     _lastSequenceNumber = GetClipboardSequenceNumber();
 
                     var s = ServiceContainer.Settings.Clipboard;
-                    if (!string.IsNullOrEmpty(s.Hotkey))
+                    if (!string.IsNullOrEmpty(s.Hotkey) && HotkeyParser.TryParse(s.Hotkey, out uint m, out uint v))
                     {
-                        RegisterHotkeyInternal(s.Hotkey);
+                        RegisterHotkeyInternal(m, v);
                     }
                     if (s.OverrideWinV)
                     {
@@ -389,6 +399,9 @@ public sealed class ClipboardMonitor : IDisposable
                     }
                 }
                 return nint.Zero;
+
+            case WM_APP_REGISTER_HOTKEY:
+                return RegisterHotkeyInternal((uint)wParam, (uint)lParam) ? (nint)1 : (nint)0;
 
             case WM_APP_INSTALL_WINV:
                 InstallWinVHook();
@@ -874,6 +887,8 @@ public sealed class ClipboardMonitor : IDisposable
                             nuint dibSize = GlobalSize(hDib);
                             if (dibSize >= 40)
                             {
+                                int biHeaderSize = Marshal.ReadInt32(pDib, 0);
+                                if (biHeaderSize <= 0) biHeaderSize = 40;
                                 int biBitCount = Marshal.ReadInt16(pDib, 14);
                                 int biCompression = Marshal.ReadInt32(pDib, 16);
                                 int biClrUsed = Marshal.ReadInt32(pDib, 32);
@@ -883,12 +898,12 @@ public sealed class ClipboardMonitor : IDisposable
                                 {
                                     colorTableSize = (biClrUsed != 0 ? biClrUsed : (1 << biBitCount)) * 4;
                                 }
-                                else if (biCompression == 3) // BI_BITFIELDS
+                                else if (biCompression == 3 && biHeaderSize == 40) // BI_BITFIELDS in BITMAPINFOHEADER only
                                 {
                                     colorTableSize = 12;
                                 }
 
-                                uint bOffBits = 14 + 40 + (uint)colorTableSize;
+                                uint bOffBits = 14 + (uint)biHeaderSize + (uint)colorTableSize;
                                 uint bTotalSize = 14 + (uint)dibSize;
 
                                 byte[] fullBmp = new byte[bTotalSize];
@@ -912,16 +927,20 @@ public sealed class ClipboardMonitor : IDisposable
             }
         }
 
-        // 3. Fallback to Windows Forms Clipboard on STA thread
-        try
+        // 3. Fallback to CF_BITMAP (HBITMAP)
+        const uint CF_BITMAP = 2;
+        if (IsClipboardFormatAvailable(CF_BITMAP))
         {
-            if (System.Windows.Forms.Clipboard.ContainsImage())
+            nint hBmp = GetClipboardData(CF_BITMAP);
+            if (hBmp != nint.Zero)
             {
-                var img = System.Windows.Forms.Clipboard.GetImage();
-                if (img != null) return new System.Drawing.Bitmap(img);
+                try
+                {
+                    return System.Drawing.Image.FromHbitmap(hBmp);
+                }
+                catch { }
             }
         }
-        catch { }
 
         return null;
     }
@@ -1119,6 +1138,9 @@ public sealed class ClipboardMonitor : IDisposable
     }
 
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern nint SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, nint hMod, uint dwThreadId);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -1166,10 +1188,12 @@ public sealed class ClipboardMonitor : IDisposable
 
     private nint LowLevelKeyboardHookCallback(int nCode, nint wParam, nint lParam)
     {
-        if (nCode >= 0 && (wParam == (nint)WM_KEYDOWN || wParam == (nint)WM_SYSKEYDOWN))
+        if (nCode >= 0)
         {
             var kb = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-            if (kb.vkCode == (uint)VK_V)
+            uint vk = kb.vkCode;
+
+            if (vk == (uint)VK_V)
             {
                 bool lWin = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0;
                 bool rWin = (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
@@ -1179,17 +1203,28 @@ public sealed class ClipboardMonitor : IDisposable
                     bool alt = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                     if (!ctrl && !alt)
                     {
-                        // Spec: Inject dummy key (VK 0xFF down/up) before release to prevent Start menu opening
-                        SendDummyKey();
-
-                        if (!_isSessionLocked)
+                        if (wParam == (nint)WM_KEYDOWN || wParam == (nint)WM_SYSKEYDOWN)
                         {
-                            HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                            _winVTriggered = true;
+                            SendDummyKey();
+
+                            if (!_isSessionLocked)
+                            {
+                                HotkeyTriggered?.Invoke(this, EventArgs.Empty);
+                            }
                         }
 
-                        // Swallow key event
+                        // Swallow both key down and key up for 'V'
                         return (nint)1;
                     }
+                }
+            }
+            else if ((vk == (uint)VK_LWIN || vk == (uint)VK_RWIN) && (wParam == (nint)WM_KEYUP || wParam == (nint)WM_SYSKEYUP))
+            {
+                if (_winVTriggered)
+                {
+                    _winVTriggered = false;
+                    SendDummyKey();
                 }
             }
         }
@@ -1200,12 +1235,15 @@ public sealed class ClipboardMonitor : IDisposable
     {
         try
         {
-            INPUT[] inputs = new INPUT[2];
+            INPUT[] inputs = new INPUT[3];
             inputs[0].type = 1; // INPUT_KEYBOARD
             inputs[0].u.ki.wVk = 0xFF;
             inputs[1].type = 1; // INPUT_KEYBOARD
             inputs[1].u.ki.wVk = 0xFF;
             inputs[1].u.ki.dwFlags = 0x0002; // KEYEVENTF_KEYUP
+            inputs[2].type = 1; // INPUT_KEYBOARD
+            inputs[2].u.ki.wVk = 0x11; // VK_CONTROL
+            inputs[2].u.ki.dwFlags = 0x0002; // KEYEVENTF_KEYUP
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
         }
         catch (Exception ex)

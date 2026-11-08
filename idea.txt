@@ -187,6 +187,20 @@ issue
      unlock Drive C
 
 
+search not working with copied text it's searching from app EXE name
+recording hotkey not working and shows assigned to other 
+pin/unpin/pinned icon shows same 
+make filter chip horizontally scrollable "snippets" isn't fully visible
+open in browser -> if url open accordingly 
+                   else search it
+clipboard isn't top above start menu and search
+when some image is copied in clipboard then it don't show like powertoy let user take snap by ctrl+6 and window clipboard shows it but ours don't 
+sometime win+v triggers start menu
+clipboard history is getting refreshed on any events like pin/unpin 
+show rounded corner on images
+pasting text or images isn't working in whatsapp and other applications 
+
+
 
 
 

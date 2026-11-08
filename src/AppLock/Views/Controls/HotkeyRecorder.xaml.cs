@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -104,13 +105,19 @@ public sealed partial class HotkeyRecorder : UserControl
         // Check modifiers
         uint modifiers = 0;
         var ctrlState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
-        if (ctrlState.HasFlag(CoreVirtualKeyStates.Down)) modifiers |= HotkeyParser.MOD_CONTROL;
+        bool isCtrl = ctrlState.HasFlag(CoreVirtualKeyStates.Down) || (GetAsyncKeyState(0x11) & 0x8000) != 0;
+        if (isCtrl) modifiers |= HotkeyParser.MOD_CONTROL;
 
         var altState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu);
-        if (altState.HasFlag(CoreVirtualKeyStates.Down)) modifiers |= HotkeyParser.MOD_ALT;
+        bool isAlt = altState.HasFlag(CoreVirtualKeyStates.Down) || (GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (isAlt) modifiers |= HotkeyParser.MOD_ALT;
 
         var shiftState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift);
-        if (shiftState.HasFlag(CoreVirtualKeyStates.Down)) modifiers |= HotkeyParser.MOD_SHIFT;
+        bool isShift = shiftState.HasFlag(CoreVirtualKeyStates.Down) || (GetAsyncKeyState(0x10) & 0x8000) != 0;
+        if (isShift) modifiers |= HotkeyParser.MOD_SHIFT;
+
+        bool isWin = (GetAsyncKeyState(0x5B) & 0x8000) != 0 || (GetAsyncKeyState(0x5C) & 0x8000) != 0;
+        if (isWin) modifiers |= HotkeyParser.MOD_WIN;
 
         uint vk = (uint)key;
         bool isFunctionKey = vk >= (uint)VirtualKey.F1 && vk <= (uint)VirtualKey.F24;
@@ -182,5 +189,8 @@ public sealed partial class HotkeyRecorder : UserControl
         UpdateDisplay();
         HotkeyChanged?.Invoke(this, string.Empty);
     }
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
 }
 

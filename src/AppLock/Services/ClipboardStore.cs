@@ -410,13 +410,9 @@ LIMIT @excess;
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                whereClauses.Add("(source_process LIKE @search OR source_title LIKE @search OR label LIKE @search)");
-                cmd.Parameters.AddWithValue("@search", $"%{search.Trim()}%");
-            }
-
             string where = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
+            int fetchLimit = string.IsNullOrWhiteSpace(search) ? limit : Math.Max(limit * 5, 500);
+
             cmd.CommandText = $@"
 SELECT id, type, content, preview, html, hash, image_path, thumb_path,
        width, height, size_bytes, source_process, source_title,
@@ -427,7 +423,7 @@ FROM items
 ORDER BY last_used_at DESC
 LIMIT @limit;
 ";
-            cmd.Parameters.AddWithValue("@limit", limit);
+            cmd.Parameters.AddWithValue("@limit", fetchLimit);
 
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
@@ -461,6 +457,23 @@ LIMIT @limit;
                     ExpiresAt = reader.IsDBNull(20) ? null : reader.GetInt64(20)
                 };
                 list.Add(item);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string s = search.Trim();
+                list = list.FindAll(item =>
+                    (item.PreviewString != null && item.PreviewString.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                    (item.ContentString != null && item.ContentString.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                    (item.SourceProcess != null && item.SourceProcess.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                    (item.SourceTitle != null && item.SourceTitle.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                    (item.Label != null && item.Label.Contains(s, StringComparison.OrdinalIgnoreCase))
+                );
+
+                if (list.Count > limit)
+                {
+                    list = list.Take(limit).ToList();
+                }
             }
         }
         finally

@@ -30,6 +30,7 @@ public sealed partial class ClipboardPopupWindow : Window
     private static DateTime? _lastHelloUnlockTime;
     private ClipboardItemViewModel? _editingItem;
     private ClipboardItemViewModel? _snippetSourceItem;
+    private bool _suppressDataChanged;
 
     public ObservableCollection<ClipboardItemViewModel> Items { get; } = new();
 
@@ -103,11 +104,15 @@ public sealed partial class ClipboardPopupWindow : Window
 
     private void OnClipboardDataChanged(object? sender, EventArgs e)
     {
+        if (_suppressDataChanged) return;
         if (_isVisible && HelloLockOverlay.Visibility != Visibility.Visible)
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                _ = RefreshItemsAsync();
+                if (!_suppressDataChanged)
+                {
+                    _ = RefreshItemsAsync();
+                }
             });
         }
     }
@@ -156,6 +161,15 @@ public sealed partial class ClipboardPopupWindow : Window
 
         this.Activate();
         _isVisible = true;
+
+        // Force topmost over Start Menu, taskbar, and search
+        const nint HWND_TOPMOST = -1;
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_SHOWWINDOW = 0x0040;
+        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        BringWindowToTop(_hwnd);
+        SetForegroundWindow(_hwnd);
 
         if (HelloLockOverlay.Visibility != Visibility.Visible)
         {
@@ -665,14 +679,40 @@ public sealed partial class ClipboardPopupWindow : Window
 
     private async Task DeleteItemAsync(ClipboardItemViewModel vm)
     {
-        await ServiceContainer.ClipboardStore.DeleteItemAsync(vm.Id);
-        _ = RefreshItemsAsync();
+        _suppressDataChanged = true;
+        try
+        {
+            Items.Remove(vm);
+            await ServiceContainer.ClipboardStore.DeleteItemAsync(vm.Id);
+            UpdateSelectionUi();
+            int count = await ServiceContainer.ClipboardStore.GetItemCountAsync();
+            int limit = ServiceContainer.Settings.Clipboard.MaxItems;
+            FooterStatsText.Text = $"{count} / {limit} items";
+            EmptyStatePanel.Visibility = Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            _suppressDataChanged = false;
+        }
     }
 
     private async Task TogglePinAsync(ClipboardItemViewModel vm)
     {
-        await ServiceContainer.ClipboardStore.TogglePinAsync(vm.Id);
-        _ = RefreshItemsAsync();
+        _suppressDataChanged = true;
+        try
+        {
+            bool newPinned = !vm.Pinned;
+            vm.SetPinned(newPinned);
+            await ServiceContainer.ClipboardStore.TogglePinAsync(vm.Id);
+            if (_currentFilter == "Pinned" && !newPinned)
+            {
+                Items.Remove(vm);
+            }
+        }
+        finally
+        {
+            _suppressDataChanged = false;
+        }
     }
 
     private void ItemReveal_Click(object sender, RoutedEventArgs e)
@@ -846,14 +886,26 @@ public sealed partial class ClipboardPopupWindow : Window
     {
         if (GetItemFromSender(sender) is ClipboardItemViewModel vm)
         {
-            string url = vm.PreviewText.Trim();
-            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            string raw = (vm.Model.ContentString ?? vm.PreviewText).Trim();
+            string targetUrl;
+            if (vm.IsLink)
             {
-                url = "https://" + url;
+                targetUrl = raw.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                    ? "https://" + raw
+                    : raw;
             }
+            else if (Uri.TryCreate(raw, UriKind.Absolute, out var parsedUri) && (parsedUri.Scheme == Uri.UriSchemeHttp || parsedUri.Scheme == Uri.UriSchemeHttps))
+            {
+                targetUrl = raw;
+            }
+            else
+            {
+                targetUrl = "https://www.google.com/search?q=" + Uri.EscapeDataString(raw);
+            }
+
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(targetUrl) { UseShellExecute = true });
             }
             catch { }
             HidePopup();
@@ -1053,6 +1105,15 @@ public sealed partial class ClipboardPopupWindow : Window
     }
 
     private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
 
     [DllImport("user32.dll")]
     private static extern nint GetForegroundWindow();

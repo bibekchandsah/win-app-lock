@@ -43,14 +43,20 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                            <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Show all items" ToolTipService.ToolTip="Show all items"/>
-                            <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text" AutomationProperties.Name="Show text items" ToolTipService.ToolTip="Show text items"/>
-                            <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images" AutomationProperties.Name="Show images" ToolTipService.ToolTip="Show images"/>
-                            <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links" AutomationProperties.Name="Show links" ToolTipService.ToolTip="Show links"/>
-                            <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned" AutomationProperties.Name="Show pinned items" ToolTipService.ToolTip="Show pinned items"/>
-                            <Button x:Name="FilterSnippetsButton" Content="Snippets" Click="FilterButton_Click" Tag="Snippets" AutomationProperties.Name="Show snippets" ToolTipService.ToolTip="Show snippets"/>
-                        </StackPanel>
+                        <ScrollViewer Grid.Column="0"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled"
+                                      VerticalScrollMode="Disabled">
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,8,0">
+                                <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}" AutomationProperties.Name="Show all items" ToolTipService.ToolTip="Show all items"/>
+                                <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text" AutomationProperties.Name="Show text items" ToolTipService.ToolTip="Show text items"/>
+                                <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images" AutomationProperties.Name="Show images" ToolTipService.ToolTip="Show images"/>
+                                <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links" AutomationProperties.Name="Show links" ToolTipService.ToolTip="Show links"/>
+                                <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned" AutomationProperties.Name="Show pinned items" ToolTipService.ToolTip="Show pinned items"/>
+                                <Button x:Name="FilterSnippetsButton" Content="Snippets" Click="FilterButton_Click" Tag="Snippets" AutomationProperties.Name="Show snippets" ToolTipService.ToolTip="Show snippets"/>
+                            </StackPanel>
+                        </ScrollViewer>
 
                         <!-- Right Actions: Pause Indicator & Multi-Select -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
@@ -206,7 +212,7 @@
                                                     </Button>
 
                                                     <Button Click="ItemPin_Click" Tag="{x:Bind}" AutomationProperties.Name="Pin or unpin item" ToolTipService.ToolTip="{x:Bind PinToolTip, Mode=OneWay}" Padding="4" Background="Transparent" BorderThickness="0">
-                                                        <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="11"/>
+                                                        <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="11" Foreground="{x:Bind PinBrush, Mode=OneWay}"/>
                                                     </Button>
                                                     <Button Click="ItemCopy_Click" Tag="{x:Bind}" AutomationProperties.Name="Copy to clipboard" ToolTipService.ToolTip="Copy only (Ctrl+C)" Padding="4" Background="Transparent" BorderThickness="0">
                                                         <FontIcon Glyph="&#xE8C8;" FontSize="11"/>
@@ -266,17 +272,21 @@
                                                            LineHeight="16"
                                                            Visibility="{x:Bind TextVisibility, Mode=OneWay}"/>
 
-                                                <!-- Image Preview -->
+                                                <!-- Image Preview with Rounded Corners -->
                                                 <Border Visibility="{x:Bind ImageVisibility, Mode=OneWay}"
-                                                        CornerRadius="4"
+                                                        CornerRadius="8"
                                                         BorderThickness="1"
                                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                                         HorizontalAlignment="Left"
-                                                        MaxHeight="100">
-                                                    <Image Source="{x:Bind ThumbnailImage, Mode=OneWay}"
-                                                           MaxHeight="100"
-                                                           MaxWidth="200"
-                                                           Stretch="Uniform"/>
+                                                        MaxHeight="110"
+                                                        Padding="2">
+                                                    <Border CornerRadius="6">
+                                                        <Image Source="{x:Bind ThumbnailImage, Mode=OneWay}"
+                                                               MaxHeight="106"
+                                                               MaxWidth="210"
+                                                               Stretch="Uniform"/>
+                                                    </Border>
                                                 </Border>
 
                                                 <!-- Files Preview -->
