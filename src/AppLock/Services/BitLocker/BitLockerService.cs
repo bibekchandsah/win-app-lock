@@ -1391,7 +1391,8 @@ public class BitLockerService : IBitLockerService
         if (string.IsNullOrWhiteSpace(driveLetter)) return result;
 
         var prefix = NormalizeDriveLetter(driveLetter) + "\\";
-#if !APPLOCK_TESTS
+        var seenPids = new HashSet<int>();
+
         try
         {
             var processes = Process.GetProcesses();
@@ -1399,46 +1400,97 @@ public class BitLockerService : IBitLockerService
             {
                 int pid = p.Id;
                 string procName = p.ProcessName;
-                p.Dispose();
 
-                if (pid <= 4) continue; // Skip System and Idle
+                if (pid <= 4 || seenPids.Contains(pid))
+                {
+                    p.Dispose();
+                    continue;
+                }
 
+                string? path = null;
+
+                // 1. First attempt: standard .NET MainModule
                 try
                 {
-                    using var hProcess = Windows.Win32.PInvoke.OpenProcess_SafeHandle(
-                        Windows.Win32.System.Threading.PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
-                        false,
-                        (uint)pid);
+                    path = p.MainModule?.FileName;
+                }
+                catch { }
 
-                    if (hProcess.IsInvalid) continue;
-
-                    var pathBuffer = new char[512];
-                    uint size = (uint)pathBuffer.Length;
-                    unsafe
+#if !APPLOCK_TESTS
+                // 2. Second attempt: Win32 QueryFullProcessImageName with PROCESS_QUERY_LIMITED_INFORMATION
+                if (string.IsNullOrEmpty(path))
+                {
+                    try
                     {
-                        fixed (char* pPath = pathBuffer)
+                        using var hProcess = Windows.Win32.PInvoke.OpenProcess_SafeHandle(
+                            Windows.Win32.System.Threading.PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION,
+                            false,
+                            (uint)pid);
+
+                        if (!hProcess.IsInvalid)
                         {
-                            if (Windows.Win32.PInvoke.QueryFullProcessImageName(hProcess, 0, new Windows.Win32.Foundation.PWSTR(pPath), ref size))
+                            var pathBuffer = new char[512];
+                            uint size = (uint)pathBuffer.Length;
+                            unsafe
                             {
-                                var path = new string(pathBuffer, 0, (int)size);
-                                if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                                fixed (char* pPath = pathBuffer)
                                 {
-                                    result.Add($"{procName} (PID {pid})");
+                                    if (Windows.Win32.PInvoke.QueryFullProcessImageName(hProcess, 0, new Windows.Win32.Foundation.PWSTR(pPath), ref size))
+                                    {
+                                        path = new string(pathBuffer, 0, (int)size);
+                                    }
                                 }
                             }
                         }
                     }
+                    catch { }
                 }
-                catch
+#endif
+
+                if (!string.IsNullOrEmpty(path) && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Access denied or process exited
+                    seenPids.Add(pid);
+                    result.Add($"{procName} (PID {pid})");
+                }
+
+                p.Dispose();
+            }
+
+            // Also check if any Windows Explorer window is currently browsing this drive
+            try
+            {
+                var shellType = Type.GetTypeFromProgID("Shell.Application");
+                if (shellType != null)
+                {
+                    dynamic? shell = Activator.CreateInstance(shellType);
+                    var windows = shell?.Windows();
+                    if (windows != null)
+                    {
+                        var prefixSlash = prefix.Replace('\\', '/');
+                        foreach (var win in windows)
+                        {
+                            try
+                            {
+                                string? url = win?.LocationURL as string;
+                                if (!string.IsNullOrEmpty(url) && 
+                                    (url.Contains(prefix, StringComparison.OrdinalIgnoreCase) || 
+                                     url.Contains(prefixSlash, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    result.Add("Windows Explorer (folder open on drive)");
+                                    break;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
                 }
             }
+            catch { }
         }
         catch
         {
         }
-#endif
+
         return result;
     }
 

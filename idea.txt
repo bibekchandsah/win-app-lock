@@ -175,11 +175,11 @@ issue
 -> volume mixture 
 -> if user haven't set lock on any app then can exit without password 
 
--> optimize drive refresh like in protection page
+-> fixed - optimize drive refresh like in protection page
 -> implemented - add run task as soon as possible after a scheduled task is missed
+-> implemented - auto setup start task when user enable "Auto-unlock saved drives when AppLock opens"
 -> in locking dialog show the running task list of the selected disk
 -> in check usage also show the running task list of the selected disk
--> implemented - auto setup start task when user enable "Auto-unlock saved drives when AppLock opens"
 -> add lock/unlock drive "x" in system tray menu
 -> in light mode text aren't visible that is it's in white color in dialogbox
 
