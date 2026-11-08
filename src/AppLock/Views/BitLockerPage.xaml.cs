@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -74,6 +75,64 @@ public sealed partial class BitLockerPage : Page
             dialog.RequestedTheme = ServiceContainer.CurrentTheme;
         }
     }
+
+    private bool IsDarkTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            return rootFe.ActualTheme == ElementTheme.Dark;
+        }
+        var current = ServiceContainer.CurrentTheme;
+        if (current != ElementTheme.Default)
+        {
+            return current == ElementTheme.Dark;
+        }
+        return Application.Current.RequestedTheme == ApplicationTheme.Dark;
+    }
+
+    private Brush GetCardBackgroundBrush() => GetCardBackgroundBrush(IsDarkTheme());
+    private static Brush GetCardBackgroundBrush(bool isDark) =>
+        isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 43, 43, 43))       // #2B2B2B
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 248, 249, 250));    // #F8F9FA
+
+    private Brush GetCardBorderBrush() => GetCardBorderBrush(IsDarkTheme());
+    private static Brush GetCardBorderBrush(bool isDark) =>
+        isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 60, 60, 60))       // #3C3C3C
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 226, 232, 240));   // #E2E8F0
+
+    private Brush GetAccentBrush() => GetAccentBrush(IsDarkTheme());
+    private static Brush GetAccentBrush(bool isDark) =>
+        isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 217, 160, 232))    // #D9A0E8 (Lilac)
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 142, 68, 173));    // #8E44AD (Purple with high contrast)
+
+    private Brush GetSuccessBrush() => GetSuccessBrush(IsDarkTheme());
+    private static Brush GetSuccessBrush(bool isDark) =>
+        isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 108, 203, 95))     // #6CCB5F
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 22, 134, 46));     // #16862E
+
+    private Brush GetCautionBrush() => GetCautionBrush(IsDarkTheme());
+    private static Brush GetCautionBrush(bool isDark) =>
+        isDark
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 252, 225, 0))      // #FCE100
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 157, 93, 0));      // #9D5D00
+
+    public static string FormatTaskResult(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || raw == "N/A") return "Never run";
+        var trimmed = raw.Trim();
+        if (trimmed == "0" || trimmed == "0x0") return "0 (Successful)";
+        if (trimmed == "1" || trimmed == "0x1") return "1 (Failed / Error)";
+        if (trimmed == "2" || trimmed == "0x2") return "2 (File not found)";
+        if (trimmed == "267009" || trimmed == "0x41301") return "Running";
+        if (trimmed == "267011" || trimmed == "0x41303") return "Never run";
+        if (trimmed == "267014" || trimmed == "0x41306") return "Terminated by user";
+        if (trimmed == "-2147024891" || trimmed == "2147942405" || trimmed.Contains("80070005")) return "Access denied";
+        return trimmed;
+    }
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         ElevationInfoBar.IsOpen = !ViewModel.IsElevated;
@@ -87,7 +146,6 @@ public sealed partial class BitLockerPage : Page
         _refreshTimer.Stop();
         StopCooldownUiTimer();
         ServiceContainer.VolumeWatcher.VolumeChanged -= OnVolumeWatcherChanged;
-        ServiceContainer.VolumeWatcher.Stop();
     }
     private void RefreshTimer_Tick(object? sender, object e)
     {
@@ -147,8 +205,8 @@ public sealed partial class BitLockerPage : Page
     {
         var card = new Border
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            Background = GetCardBackgroundBrush(),
+            BorderBrush = GetCardBorderBrush(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 10, 12, 10)
@@ -486,14 +544,14 @@ public sealed partial class BitLockerPage : Page
             Text = $"{passwords.Count} saved password(s). Passwords are encrypted with DPAPI (viewing is not permitted):",
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
         foreach (var pwd in passwords)
         {
             var card = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetCardBackgroundBrush(),
+                BorderBrush = GetCardBorderBrush(),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 10, 12, 10)
@@ -511,7 +569,7 @@ public sealed partial class BitLockerPage : Page
             {
                 Text = subText,
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+                Opacity = 0.6,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
             if (!pwd.IsValid)
@@ -520,7 +578,7 @@ public sealed partial class BitLockerPage : Page
                 {
                     Text = "⚠ Invalid: password changed or rejected",
                     FontSize = 11,
-                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
+                    Foreground = GetCautionBrush()
                 });
             }
             Grid.SetColumn(infoStack, 0);
@@ -669,7 +727,7 @@ public sealed partial class BitLockerPage : Page
         {
             Text = warningText,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
+            Foreground = GetCautionBrush()
         });
 
         var expectedLetter = drive.DriveLetter.TrimEnd(':').ToUpperInvariant();
@@ -751,7 +809,7 @@ public sealed partial class BitLockerPage : Page
                 Text = "Suspending BitLocker protection keeps data encrypted but allows the computer to start without prompting for PIN or USB keys. Ideal for firmware or BIOS updates.",
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Opacity = 0.75
             });
 
             panel.Children.Add(new TextBlock { Text = "Automatically resume protection after:", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
@@ -861,7 +919,7 @@ public sealed partial class BitLockerPage : Page
             Text = $"BitLocker numerical recovery key for {drive.DisplayName}. Store this key in a secure location separate from this computer:",
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         foreach (var p in recoveryProtectors)
@@ -870,8 +928,8 @@ public sealed partial class BitLockerPage : Page
 
             var card = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetCardBackgroundBrush(),
+                BorderBrush = GetCardBorderBrush(),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(14, 12, 14, 12)
@@ -882,7 +940,7 @@ public sealed partial class BitLockerPage : Page
             {
                 Text = $"Protector ID: {p.Id}",
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+                Opacity = 0.6
             });
 
             var keyBox = new TextBox
@@ -914,7 +972,7 @@ public sealed partial class BitLockerPage : Page
                 Text = "",
                 FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"]
+                Foreground = GetSuccessBrush()
             };
 
             var capturedKey = key;
@@ -974,7 +1032,7 @@ public sealed partial class BitLockerPage : Page
         {
             Text = $"Set a new BitLocker password for {drive.DisplayName}:",
             FontSize = 13,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         var oldPwdBox = new PasswordBox
@@ -1014,13 +1072,13 @@ public sealed partial class BitLockerPage : Page
         {
             Text = "",
             FontSize = 11,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+            Opacity = 0.6
         };
         var matchLabel = new TextBlock
         {
             Text = "",
             FontSize = 11,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
+            Foreground = GetCautionBrush()
         };
         panel.Children.Add(strengthBar);
         panel.Children.Add(strengthLabel);
@@ -1114,7 +1172,7 @@ public sealed partial class BitLockerPage : Page
             Text = $"Key protectors configured for {drive.DisplayName}. At least one key protector must remain on the volume at all times:",
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         // Add protector buttons toolbar
@@ -1142,8 +1200,8 @@ public sealed partial class BitLockerPage : Page
         {
             var card = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetCardBackgroundBrush(),
+                BorderBrush = GetCardBorderBrush(),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 10, 12, 10)
@@ -1160,7 +1218,7 @@ public sealed partial class BitLockerPage : Page
                 FontSize = 20,
                 Margin = new Thickness(0, 0, 12, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+                Foreground = GetAccentBrush()
             };
             Grid.SetColumn(icon, 0);
             grid.Children.Add(icon);
@@ -1176,7 +1234,7 @@ public sealed partial class BitLockerPage : Page
             {
                 Text = $"ID: {p.Id}",
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+                Opacity = 0.6,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
             Grid.SetColumn(info, 1);
@@ -1273,7 +1331,7 @@ public sealed partial class BitLockerPage : Page
         {
             Text = "",
             FontSize = 11,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
+            Foreground = GetCautionBrush()
         };
         panel.Children.Add(pwdBox);
         panel.Children.Add(confirmBox);
@@ -1394,13 +1452,13 @@ public sealed partial class BitLockerPage : Page
                 Text = $"Drive {drive.DisplayName} is currently locked.\n\nFile system details and storage usage are only available once the drive has been unlocked.",
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Opacity = 0.75
             });
 
             var lockedCard = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetCardBackgroundBrush(),
+                BorderBrush = GetCardBorderBrush(),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(14, 12, 14, 12)
@@ -1439,7 +1497,7 @@ public sealed partial class BitLockerPage : Page
             {
                 Text = $"Storage usage breakdown for {drive.DisplayName}:",
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Opacity = 0.75
             });
 
             var barStack = new StackPanel { Spacing = 6 };
@@ -1457,7 +1515,7 @@ public sealed partial class BitLockerPage : Page
             {
                 Text = $"{usedPct:F1}%",
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+                Foreground = GetAccentBrush()
             };
             Grid.SetColumn(usedLabel, 0); Grid.SetColumn(pctLabel, 1);
             barGrid.Children.Add(usedLabel); barGrid.Children.Add(pctLabel);
@@ -1470,7 +1528,7 @@ public sealed partial class BitLockerPage : Page
                 Value = usedPct,
                 Height = 8,
                 CornerRadius = new CornerRadius(4),
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+                Foreground = GetAccentBrush()
             };
             AutomationProperties.SetName(progressBar, "Drive storage capacity used");
             barStack.Children.Add(progressBar);
@@ -1478,8 +1536,8 @@ public sealed partial class BitLockerPage : Page
 
             var card = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetCardBackgroundBrush(),
+                BorderBrush = GetCardBorderBrush(),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(14, 12, 14, 12)
@@ -1496,7 +1554,7 @@ public sealed partial class BitLockerPage : Page
 
             void AddRow(int row, string title, string val)
             {
-                var t = new TextBlock { Text = title, FontSize = 12, Margin = new Thickness(0,0,16,0), Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+                var t = new TextBlock { Text = title, FontSize = 12, Margin = new Thickness(0,0,16,0), Opacity = 0.75 };
                 var v = new TextBlock { Text = val, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
                 Grid.SetRow(t, row); Grid.SetColumn(t, 0);
                 Grid.SetRow(v, row); Grid.SetColumn(v, 1);
@@ -1570,14 +1628,14 @@ public sealed partial class BitLockerPage : Page
             Text = "Configure a Windows Scheduled Task to automatically unlock your saved BitLocker drives when you log on, without displaying any windows or UAC prompts.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         // Status Card
         var statusCard = new Border
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            Background = GetCardBackgroundBrush(),
+            BorderBrush = GetCardBorderBrush(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(14, 12, 14, 12)
@@ -1597,10 +1655,12 @@ public sealed partial class BitLockerPage : Page
             Text = taskInfo.Exists ? taskInfo.State : "Not created",
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Foreground = taskInfo.Exists
-                ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"]
-                : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+            Opacity = taskInfo.Exists ? 1.0 : 0.6
         };
+        if (taskInfo.Exists)
+        {
+            stateVal.Foreground = GetSuccessBrush();
+        }
         Grid.SetRow(stateTitle, 0); Grid.SetColumn(stateTitle, 0);
         Grid.SetRow(stateVal, 0); Grid.SetColumn(stateVal, 1);
         statusGrid.Children.Add(stateTitle); statusGrid.Children.Add(stateVal);
@@ -1614,7 +1674,25 @@ public sealed partial class BitLockerPage : Page
 
         // Row 2: Last Result
         var resTitle = new TextBlock { Text = "Last Result:", FontSize = 12, Margin = new Thickness(0,0,12,0) };
-        var resVal = new TextBlock { Text = taskInfo.LastResult, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right };
+        var formattedResult = FormatTaskResult(taskInfo.LastResult);
+        var resVal = new TextBlock
+        {
+            Text = formattedResult,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        if (taskInfo.LastResult == "0" || taskInfo.LastResult == "0x0" || formattedResult.Contains("Successful"))
+        {
+            resVal.Foreground = GetSuccessBrush();
+        }
+        else if (formattedResult == "Never run")
+        {
+            resVal.Opacity = 0.6;
+        }
+        else
+        {
+            resVal.Foreground = GetCautionBrush();
+        }
         Grid.SetRow(resTitle, 2); Grid.SetColumn(resTitle, 0);
         Grid.SetRow(resVal, 2); Grid.SetColumn(resVal, 1);
         statusGrid.Children.Add(resTitle); statusGrid.Children.Add(resVal);
@@ -1729,7 +1807,7 @@ public sealed partial class BitLockerPage : Page
             Text = "BitLocker environment, drive states, and recent action logs (all passwords and keys are strictly redacted):",
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         var reportBox = new TextBox
@@ -1755,7 +1833,7 @@ public sealed partial class BitLockerPage : Page
             Text = "",
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorSuccessBrush"]
+            Foreground = GetSuccessBrush()
         };
 
         copyBtn.Click += (s, e) =>
@@ -1812,13 +1890,13 @@ public sealed partial class BitLockerPage : Page
             Text = "Configure preferences for BitLocker drive management, auto-unlock, and security:",
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            Opacity = 0.75
         });
 
         var card = new Border
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            Background = GetCardBackgroundBrush(),
+            BorderBrush = GetCardBorderBrush(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(14, 12, 14, 12)

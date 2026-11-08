@@ -1,15 +1,20 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using H.NotifyIcon;
 using AppLock.Models;
+using AppLock.Services.BitLocker;
+using AppLock.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AppLock.Services;
 
 /// <summary>
 /// Manages the system tray icon and its context menu.
-/// Provides: Open, Enable/Disable protection (with auth), Emergency lock, Exit (with auth)
+/// Provides: Open, Enable/Disable protection (with auth), Emergency lock, Exit (with auth), BitLocker drive locking/unlocking.
 /// </summary>
 public sealed class TrayService : IDisposable
 {
@@ -20,6 +25,10 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _brightnessHotkeysMenuItem;
     private MenuFlyoutItem? _blurHotkeyMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
+    
+    private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
+    private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+    private bool _isVolumeWatcherSubscribed;
     
     private readonly SettingsStore _settingsStore;
     private readonly AuthService _authService;
@@ -169,6 +178,17 @@ public sealed class TrayService : IDisposable
             UpdateTooltip();
             UpdateProtectionMenuItems();
             UpdateBrightnessMenuItems();
+
+            _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
+
+            // Wire up volume change listener to keep BitLocker tray actions synced
+            if (!_isVolumeWatcherSubscribed)
+            {
+                ServiceContainer.VolumeWatcher.VolumeChanged += OnVolumeWatcherChanged;
+                _isVolumeWatcherSubscribed = true;
+            }
+            ServiceContainer.VolumeWatcher.Start();
+            _ = UpdateBitLockerMenuItemsAsync();
             
             // IMPORTANT: Force create the tray icon - this makes it actually appear!
             _trayIcon.ForceCreate();
@@ -303,6 +323,193 @@ public sealed class TrayService : IDisposable
         }
     }
 
+    private void OnVolumeWatcherChanged(object? sender, EventArgs e)
+    {
+        _ = UpdateBitLockerMenuItemsAsync();
+    }
+
+    public async Task UpdateBitLockerMenuItemsAsync()
+    {
+        try
+        {
+            if (_trayIcon?.ContextFlyout is not MenuFlyout menuFlyout) return;
+
+            var support = ServiceContainer.BitLockerSupportService;
+            if (!support.IsSupported) return;
+
+            var service = ServiceContainer.BitLockerService;
+            var drives = await service.GetDrivesAsync();
+
+            var dispatcher = _dispatcherQueue ?? _trayIcon.DispatcherQueue;
+            if (dispatcher == null) return;
+
+            dispatcher.TryEnqueue(() =>
+            {
+                try
+                {
+                    // 1. Remove previous BitLocker items
+                    foreach (var oldItem in _bitLockerMenuItems)
+                    {
+                        menuFlyout.Items.Remove(oldItem);
+                    }
+                    _bitLockerMenuItems.Clear();
+
+                    // 2. Identify BitLocker drives to display:
+                    // - Locked drive: can be unlocked (e.g., "Unlock Drive C", "Unlock Drive D")
+                    // - Unlocked drive: non-OS BitLocker drive can be locked (e.g., "Lock Drive D")
+                    var actionableDrives = drives.Where(d =>
+                        d.LockStatus == LockStatus.Locked ||
+                        (d.LockStatus == LockStatus.Unlocked &&
+                         d.DriveType != AppLock.Models.DriveType.OperatingSystem &&
+                         d.ProtectionStatus != ProtectionStatus.Off)
+                    ).ToList();
+
+                    if (actionableDrives.Count == 0) return;
+
+                    // 3. Find insertion position (before BrightnessHotkeysMenuItem, or before Exit)
+                    int insertIndex = -1;
+                    if (_brightnessHotkeysMenuItem != null)
+                    {
+                        insertIndex = menuFlyout.Items.IndexOf(_brightnessHotkeysMenuItem);
+                        if (insertIndex > 0 && menuFlyout.Items[insertIndex - 1] is MenuFlyoutSeparator)
+                        {
+                            insertIndex--;
+                        }
+                    }
+                    else if (_exitMenuItem != null)
+                    {
+                        insertIndex = menuFlyout.Items.IndexOf(_exitMenuItem);
+                        if (insertIndex > 0 && menuFlyout.Items[insertIndex - 1] is MenuFlyoutSeparator)
+                        {
+                            insertIndex--;
+                        }
+                    }
+
+                    if (insertIndex < 0 || insertIndex > menuFlyout.Items.Count)
+                    {
+                        insertIndex = menuFlyout.Items.Count;
+                    }
+
+                    // 4. Insert separator
+                    var sep = new MenuFlyoutSeparator();
+                    menuFlyout.Items.Insert(insertIndex++, sep);
+                    _bitLockerMenuItems.Add(sep);
+
+                    // 5. Add actionable drive items
+                    foreach (var drive in actionableDrives)
+                    {
+                        var driveLetter = drive.DriveLetter;
+                        var cleanLetter = driveLetter.TrimEnd(':');
+
+                        if (drive.LockStatus == LockStatus.Locked)
+                        {
+                            var item = new MenuFlyoutItem
+                            {
+                                Text = $"Unlock Drive {cleanLetter}",
+                                Icon = new FontIcon { Glyph = "\uE785" },
+                                Command = new RelayCommand(async () => await HandleUnlockDriveFromTrayAsync(driveLetter))
+                            };
+                            menuFlyout.Items.Insert(insertIndex++, item);
+                            _bitLockerMenuItems.Add(item);
+                        }
+                        else
+                        {
+                            var item = new MenuFlyoutItem
+                            {
+                                Text = $"Lock Drive {cleanLetter}",
+                                Icon = new FontIcon { Glyph = "\uE72E" },
+                                Command = new RelayCommand(async () => await HandleLockDriveFromTrayAsync(driveLetter))
+                            };
+                            menuFlyout.Items.Insert(insertIndex++, item);
+                            _bitLockerMenuItems.Add(item);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TrayService] UI error updating BitLocker menu: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating BitLocker menu: {ex.Message}");
+        }
+    }
+
+    private async Task HandleLockDriveFromTrayAsync(string driveLetter)
+    {
+        try
+        {
+            var service = ServiceContainer.BitLockerService;
+            var result = await service.LockAsync(driveLetter, forceDismount: true);
+            if (result.Success)
+            {
+                ShowNotification("BitLocker", $"Drive {driveLetter} is now locked.");
+                await UpdateBitLockerMenuItemsAsync();
+            }
+            else
+            {
+                ShowNotification("BitLocker", $"Failed to lock drive {driveLetter}: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error locking drive {driveLetter}: {ex.Message}");
+        }
+    }
+
+    private async Task HandleUnlockDriveFromTrayAsync(string driveLetter)
+    {
+        try
+        {
+            // Check if there is a saved password for this drive
+            var savedStore = ServiceContainer.SavedPasswordStore;
+            var savedEntry = await savedStore.GetForDriveAsync(driveLetter);
+
+            if (savedEntry != null && savedEntry.IsValid)
+            {
+                var hello = new HelloService();
+                bool verified = false;
+                try
+                {
+                    if (await hello.IsAvailableAsync())
+                    {
+                        verified = await hello.RequestVerificationAsync($"Unlock BitLocker drive {driveLetter}");
+                    }
+                }
+                catch { }
+
+                if (verified)
+                {
+                    var passphrase = await savedStore.GetDecryptedPassphraseAsync(savedEntry.VolumeGuid, driveLetter);
+                    if (!string.IsNullOrEmpty(passphrase))
+                    {
+                        var unlockResult = await ServiceContainer.BitLockerService.UnlockWithPassphraseAsync(driveLetter, passphrase);
+                        if (unlockResult.Success)
+                        {
+                            ShowNotification("BitLocker", $"Drive {driveLetter} unlocked successfully.");
+                            if (ServiceContainer.Settings.BitLockerOpenDriveAfterUnlock)
+                            {
+                                BitLockerViewModel.TryOpenDriveInExplorer(driveLetter);
+                            }
+                            await UpdateBitLockerMenuItemsAsync();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Fallback: If no saved password or verification was not completed, open the main window
+            OpenMainWindowRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error unlocking drive {driveLetter}: {ex.Message}");
+            OpenMainWindowRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public void ShowNotification(string title, string message)
     {
         try
@@ -317,6 +524,12 @@ public sealed class TrayService : IDisposable
 
     public void Dispose()
     {
+        if (_isVolumeWatcherSubscribed)
+        {
+            ServiceContainer.VolumeWatcher.VolumeChanged -= OnVolumeWatcherChanged;
+            _isVolumeWatcherSubscribed = false;
+        }
+
         // Don't dispose the tray icon as it's managed by App.xaml resources
         _trayIcon = null;
     }

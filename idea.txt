@@ -178,10 +178,13 @@ issue
 -> fixed - optimize drive refresh like in protection page
 -> implemented - add run task as soon as possible after a scheduled task is missed
 -> implemented - auto setup start task when user enable "Auto-unlock saved drives when AppLock opens"
--> in locking dialog show the running task list of the selected disk
--> in check usage also show the running task list of the selected disk
--> add lock/unlock drive "x" in system tray menu
--> in light mode text aren't visible that is it's in white color in dialogbox
+-> fixed - in light mode text aren't visible that is it's in white color in dialogbox
+-> fixed - in locking dialog show the running task list of the selected disk
+-> fixed - in check usage also show the running task list of the selected disk
+-> implemented - human-readable task scheduler last result (0 (Successful)) with success color
+-> implemented - add lock/unlock drive "x" in system tray menu
+     lock Drive D 
+     unlock Drive C
 
 
 

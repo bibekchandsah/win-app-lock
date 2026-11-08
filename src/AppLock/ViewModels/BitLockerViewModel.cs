@@ -4,6 +4,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using AppLock.Models;
+using AppLock.Services;
 using AppLock.Services.BitLocker;
 
 namespace AppLock.ViewModels;
@@ -768,7 +769,7 @@ public partial class BitLockerViewModel : ObservableObject
         sb.AppendLine($"- Scheduled Task Exists: {taskInfo.Exists}");
         sb.AppendLine($"- Scheduled Task State: {taskInfo.State}");
         sb.AppendLine($"- Scheduled Task Last Run: {taskInfo.LastRunTime}");
-        sb.AppendLine($"- Scheduled Task Last Result: {taskInfo.LastResult}");
+        sb.AppendLine($"- Scheduled Task Last Result: {taskInfo.LastResultDisplay}");
         sb.AppendLine();
 
         sb.AppendLine("## Detected Drives");
@@ -1256,6 +1257,11 @@ public partial class BitLockerViewModel : ObservableObject
                     ? "No BitLocker-capable drives found."
                     : $"Ready • {Drives.Count} drive{(Drives.Count == 1 ? "" : "s")} detected.";
             }
+
+#if !APPLOCK_TESTS
+            // Sync tray menu with current drive lock/unlock states
+            _ = ServiceContainer.TrayService.UpdateBitLockerMenuItemsAsync();
+#endif
         }
         catch (Exception ex)
         {
