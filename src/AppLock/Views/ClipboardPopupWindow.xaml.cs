@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -94,12 +95,86 @@ public sealed partial class ClipboardPopupWindow : Window
         SetWindowDisplayAffinity(_hwnd, affinity);
     }
 
+    private bool _isWindowPinned = false;
+
     private void ClipboardPopupWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            HidePopup();
+            if (!_isWindowPinned)
+            {
+                HidePopup();
+            }
         }
+    }
+
+    private void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var prop = e.GetCurrentPoint(sender as UIElement).Properties;
+        if (prop.IsLeftButtonPressed && _hwnd != nint.Zero)
+        {
+            ReleaseCapture();
+            SendMessage(_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+    }
+
+    private void WindowPinButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isWindowPinned = !_isWindowPinned;
+        WindowPinIcon.Glyph = _isWindowPinned ? "\uE840" : "\uE718";
+        WindowPinIcon.Foreground = _isWindowPinned
+            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        ToolTipService.SetToolTip(WindowPinButton, _isWindowPinned ? "Unpin window" : "Pin window open (won't close on click outside)");
+    }
+
+    private void WindowCloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        HidePopup();
+    }
+
+    private nint GetExternalForegroundWindow()
+    {
+        uint currentPid = (uint)Process.GetCurrentProcess().Id;
+        nint fg = GetForegroundWindow();
+        if (fg != nint.Zero)
+        {
+            GetWindowThreadProcessId(fg, out uint pid);
+            if (pid != currentPid && pid != 0)
+            {
+                return fg;
+            }
+        }
+
+        if (_prevForegroundHwnd != nint.Zero && IsWindow(_prevForegroundHwnd))
+        {
+            GetWindowThreadProcessId(_prevForegroundHwnd, out uint prevPid);
+            if (prevPid != currentPid && prevPid != 0)
+            {
+                return _prevForegroundHwnd;
+            }
+        }
+
+        nint found = nint.Zero;
+        EnumWindows((hwnd, lParam) =>
+        {
+            if (IsWindowVisible(hwnd) && !IsIconic(hwnd))
+            {
+                GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid != currentPid && pid != 0)
+                {
+                    int len = GetWindowTextLength(hwnd);
+                    if (len > 0)
+                    {
+                        found = hwnd;
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }, nint.Zero);
+
+        return found;
     }
 
     private void OnClipboardDataChanged(object? sender, EventArgs e)
@@ -136,7 +211,7 @@ public sealed partial class ClipboardPopupWindow : Window
             return;
         }
 
-        _prevForegroundHwnd = GetForegroundWindow();
+        _prevForegroundHwnd = GetExternalForegroundWindow();
         ApplyTheme();
         ApplyScreenCaptureExclusion();
 
@@ -882,34 +957,127 @@ public sealed partial class ClipboardPopupWindow : Window
         }
     }
 
-    private void ItemOpenLink_Click(object sender, RoutedEventArgs e)
+    private ClipboardItemViewModel? _customSearchTargetItem;
+
+    private void BrowserSearch_Click(object sender, RoutedEventArgs e)
     {
-        if (GetItemFromSender(sender) is ClipboardItemViewModel vm)
+        if (sender is not MenuFlyoutItem menuItem || menuItem.Tag is not string engine) return;
+        if (GetItemFromSender(menuItem) is not ClipboardItemViewModel vm) return;
+
+        if (engine == "custom")
+        {
+            _customSearchTargetItem = vm;
+            CustomSearchUrlTextBox.Text = ServiceContainer.Settings.Clipboard.CustomSearchUrl ?? "https://www.google.com/search?q={query}";
+            CustomSearchOverlay.Visibility = Visibility.Visible;
+            MainContentGrid.Visibility = Visibility.Collapsed;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                CustomSearchUrlTextBox.Focus(FocusState.Programmatic);
+                CustomSearchUrlTextBox.SelectAll();
+            });
+            return;
+        }
+
+        OpenInBrowserWithEngine(vm, engine);
+    }
+
+    private void OpenInBrowserWithEngine(ClipboardItemViewModel vm, string engine)
+    {
+        string targetUrl = string.Empty;
+
+        if (vm.IsImage)
+        {
+            targetUrl = engine switch
+            {
+                "bing" => "https://www.bing.com/visualsearch",
+                "google" => "https://lens.google.com/",
+                "tineye" => "https://tineye.com/",
+                _ => "https://lens.google.com/"
+            };
+        }
+        else
         {
             string raw = (vm.Model.ContentString ?? vm.PreviewText).Trim();
-            string targetUrl;
-            if (vm.IsLink)
+            if (vm.IsLink && (engine == "google" || engine == "bing"))
             {
-                targetUrl = raw.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                string linkUrl = raw.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
                     ? "https://" + raw
                     : raw;
+                if (Uri.TryCreate(linkUrl, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                {
+                    targetUrl = linkUrl;
+                }
             }
-            else if (Uri.TryCreate(raw, UriKind.Absolute, out var parsedUri) && (parsedUri.Scheme == Uri.UriSchemeHttp || parsedUri.Scheme == Uri.UriSchemeHttps))
+
+            if (string.IsNullOrEmpty(targetUrl))
             {
-                targetUrl = raw;
+                string encoded = Uri.EscapeDataString(raw);
+                targetUrl = engine switch
+                {
+                    "bing" => "https://www.bing.com/search?q=" + encoded,
+                    "google" => "https://www.google.com/search?q=" + encoded,
+                    "duckduckgo" => "https://duckduckgo.com/?q=" + encoded,
+                    "yahoo" => "https://search.yahoo.com/search?p=" + encoded,
+                    "ecosia" => "https://www.ecosia.org/search?q=" + encoded,
+                    _ => "https://www.google.com/search?q=" + encoded
+                };
             }
-            else
+        }
+
+        if (!string.IsNullOrEmpty(targetUrl))
+        {
+            try
             {
-                targetUrl = "https://www.google.com/search?q=" + Uri.EscapeDataString(raw);
+                Process.Start(new ProcessStartInfo(targetUrl) { UseShellExecute = true });
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClipboardPopup] Open browser error: {ex.Message}");
+            }
+
+            if (!_isWindowPinned)
+            {
+                HidePopup();
+            }
+        }
+    }
+
+    private void CustomSearchConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        string urlTemplate = CustomSearchUrlTextBox.Text.Trim();
+        if (string.IsNullOrEmpty(urlTemplate)) return;
+
+        ServiceContainer.Settings.Clipboard.CustomSearchUrl = urlTemplate;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+        CustomSearchOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+
+        if (_customSearchTargetItem != null)
+        {
+            string raw = (_customSearchTargetItem.Model.ContentString ?? _customSearchTargetItem.PreviewText).Trim();
+            string finalUrl = urlTemplate.Contains("{query}")
+                ? urlTemplate.Replace("{query}", Uri.EscapeDataString(raw))
+                : (urlTemplate.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? urlTemplate : "https://" + urlTemplate);
 
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(targetUrl) { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo(finalUrl) { UseShellExecute = true });
             }
             catch { }
-            HidePopup();
+
+            if (!_isWindowPinned)
+            {
+                HidePopup();
+            }
         }
+    }
+
+    private void CustomSearchCancel_Click(object sender, RoutedEventArgs e)
+    {
+        CustomSearchOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+        SearchBox.Focus(FocusState.Programmatic);
     }
 
     private async void ItemSaveImageAs_Click(object sender, RoutedEventArgs e)
@@ -1144,6 +1312,32 @@ public sealed partial class ClipboardPopupWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
+
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
+
+    private const uint WM_NCLBUTTONDOWN = 0x00A1;
+    private const nint HTCAPTION = 2;
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(nint hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(nint hWnd);
+
+    private delegate bool EnumWindowsProc(nint hWnd, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
 
     #endregion
 }

@@ -28,6 +28,7 @@ public sealed class ClipboardSettings
     public bool StartWithWindows { get; set; } = false;
     public string ThemeMode { get; set; } = "System";   // Light | Dark | System
     public bool ExcludeFromScreenCapture { get; set; } = false;
+    public string CustomSearchUrl { get; set; } = "https://www.google.com/search?q={query}";
 
     public void Clamp()
     {

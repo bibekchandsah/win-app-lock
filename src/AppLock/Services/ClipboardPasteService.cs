@@ -87,14 +87,14 @@ public class ClipboardPasteService
                 return result;
             }
 
-            // 5. Wait ~120ms for target window (especially Chromium / Electron apps like WhatsApp) to settle focus
-            await Task.Delay(120);
+            // 5. Wait ~200ms for target window (especially Chromium / Electron apps like WhatsApp) to settle focus
+            await Task.Delay(200);
 
             // 6. Release any held modifier keys so Shift/Alt/Ctrl/Win don't corrupt the paste
             ReleaseHeldModifiers();
 
             // Brief pause before SendInput
-            await Task.Delay(20);
+            await Task.Delay(30);
 
             // 7. Send Ctrl + V using SendInput
             bool sent = SendCtrlV();
@@ -174,10 +174,7 @@ public class ClipboardPasteService
 
             // Set system clipboard with self-copy guard
             ServiceContainer.ClipboardMonitor.IgnoreNext();
-            var dp = new DataPackage();
-            dp.SetText(mergedText);
-            Clipboard.SetContent(dp);
-            Clipboard.Flush();
+            SetNativeText(mergedText);
 
             // Update usage for all items in DB
             foreach (var it in itemList)
@@ -212,9 +209,9 @@ public class ClipboardPasteService
                 return result;
             }
 
-            await Task.Delay(120);
+            await Task.Delay(200);
             ReleaseHeldModifiers();
-            await Task.Delay(20);
+            await Task.Delay(30);
 
             bool sent = SendCtrlV();
             result.Success = true;
@@ -232,9 +229,9 @@ public class ClipboardPasteService
     }
 
     /// <summary>
-    /// <summary>
-    /// Writes the given ClipboardItem into Windows Clipboard using both native Win32 clipboard (for WhatsApp/Electron/Win32)
-    /// and WinRT DataPackage (for UWP/modern apps).
+    /// Writes the given ClipboardItem into Windows Clipboard using native Win32 clipboard formats
+    /// (CF_UNICODETEXT, CF_TEXT, HTML Format, CF_DIB, PNG, and CF_HDROP) ensuring 100% compatibility
+    /// with WhatsApp, Chromium/Electron apps, Microsoft Office, and traditional desktop apps.
     /// </summary>
     public async Task<bool> SetClipboardDataAsync(ClipboardItem item, bool plainTextOnly = false)
     {
@@ -243,30 +240,17 @@ public class ClipboardPasteService
             // Activate self-copy guard
             ServiceContainer.ClipboardMonitor.IgnoreNext();
 
-            var dp = new DataPackage();
-
             if (item.Type == "text")
             {
                 string text = item.ContentString ?? item.PreviewString ?? string.Empty;
-                SetNativeText(text);
-                dp.SetText(text);
-
-                if (!plainTextOnly && !string.IsNullOrEmpty(item.HtmlString))
-                {
-                    dp.SetHtmlFormat(item.HtmlString);
-                }
+                string? html = (!plainTextOnly && !string.IsNullOrEmpty(item.HtmlString)) ? item.HtmlString : null;
+                SetNativeText(text, html);
             }
             else if (item.Type == "image")
             {
                 if (!string.IsNullOrEmpty(item.ImagePath) && File.Exists(item.ImagePath))
                 {
                     SetNativeImage(item.ImagePath);
-                    try
-                    {
-                        var file = await StorageFile.GetFileFromPathAsync(item.ImagePath);
-                        dp.SetBitmap(RandomAccessStreamReference.CreateFromFile(file));
-                    }
-                    catch { }
                 }
                 else
                 {
@@ -280,35 +264,12 @@ public class ClipboardPasteService
                     var paths = JsonSerializer.Deserialize<List<string>>(item.ContentString);
                     if (paths != null && paths.Count > 0)
                     {
-                        var storageItems = new List<IStorageItem>();
-                        foreach (var path in paths)
-                        {
-                            if (File.Exists(path))
-                            {
-                                storageItems.Add(await StorageFile.GetFileFromPathAsync(path));
-                            }
-                            else if (Directory.Exists(path))
-                            {
-                                storageItems.Add(await StorageFolder.GetFolderFromPathAsync(path));
-                            }
-                        }
-
-                        if (storageItems.Count > 0)
-                        {
-                            dp.SetStorageItems(storageItems);
-                        }
+                        SetNativeFiles(paths.ToArray());
                     }
                 }
             }
 
-            try
-            {
-                Clipboard.SetContent(dp);
-                Clipboard.Flush();
-            }
-            catch { }
-
-            return true;
+            return await Task.FromResult(true);
         }
         catch (Exception ex)
         {
@@ -317,15 +278,17 @@ public class ClipboardPasteService
         }
     }
 
-    private static void SetNativeText(string text)
+    public static void SetNativeText(string text, string? html = null)
     {
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 8; i++)
         {
             if (OpenClipboard(nint.Zero))
             {
                 try
                 {
                     EmptyClipboard();
+
+                    // 1. CF_UNICODETEXT (UTF-16)
                     byte[] bytes = Encoding.Unicode.GetBytes(text + "\0");
                     nint hMem = GlobalAlloc(GMEM_MOVEABLE, (nuint)bytes.Length);
                     if (hMem != nint.Zero)
@@ -338,6 +301,41 @@ public class ClipboardPasteService
                             SetClipboardData(CF_UNICODETEXT, hMem);
                         }
                     }
+
+                    // 2. CF_TEXT (ANSI fallback)
+                    byte[] ansiBytes = Encoding.Default.GetBytes(text + "\0");
+                    nint hAnsi = GlobalAlloc(GMEM_MOVEABLE, (nuint)ansiBytes.Length);
+                    if (hAnsi != nint.Zero)
+                    {
+                        nint pAnsi = GlobalLock(hAnsi);
+                        if (pAnsi != nint.Zero)
+                        {
+                            Marshal.Copy(ansiBytes, 0, pAnsi, ansiBytes.Length);
+                            GlobalUnlock(hAnsi);
+                            SetClipboardData(CF_TEXT, hAnsi);
+                        }
+                    }
+
+                    // 3. HTML Format (rich text)
+                    if (!string.IsNullOrEmpty(html))
+                    {
+                        uint cfHtml = RegisterClipboardFormatW("HTML Format");
+                        if (cfHtml != 0)
+                        {
+                            byte[] htmlBytes = Encoding.UTF8.GetBytes(html + "\0");
+                            nint hHtml = GlobalAlloc(GMEM_MOVEABLE, (nuint)htmlBytes.Length);
+                            if (hHtml != nint.Zero)
+                            {
+                                nint pHtml = GlobalLock(hHtml);
+                                if (pHtml != nint.Zero)
+                                {
+                                    Marshal.Copy(htmlBytes, 0, pHtml, htmlBytes.Length);
+                                    GlobalUnlock(hHtml);
+                                    SetClipboardData(cfHtml, hHtml);
+                                }
+                            }
+                        }
+                    }
                 }
                 finally
                 {
@@ -345,15 +343,15 @@ public class ClipboardPasteService
                 }
                 break;
             }
-            Thread.Sleep(20);
+            Thread.Sleep(25);
         }
     }
 
-    private static void SetNativeImage(string imagePath)
+    public static void SetNativeImage(string imagePath)
     {
         if (!File.Exists(imagePath)) return;
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 8; i++)
         {
             if (OpenClipboard(nint.Zero))
             {
@@ -361,7 +359,28 @@ public class ClipboardPasteService
                 {
                     EmptyClipboard();
 
-                    // 1. Write CF_DIB (skipping 14-byte BMP header)
+                    // 1. CF_HDROP (file drop list pointing to image file - primary format for WhatsApp, Telegram, Discord, Slack)
+                    SetClipboardFileDropInternal(new[] { imagePath });
+
+                    // 2. Registered "PNG" format
+                    uint cfPng = RegisterClipboardFormatW("PNG");
+                    if (cfPng != 0)
+                    {
+                        byte[] pngBytes = File.ReadAllBytes(imagePath);
+                        nint hPng = GlobalAlloc(GMEM_MOVEABLE, (nuint)pngBytes.Length);
+                        if (hPng != nint.Zero)
+                        {
+                            nint pPng = GlobalLock(hPng);
+                            if (pPng != nint.Zero)
+                            {
+                                Marshal.Copy(pngBytes, 0, pPng, pngBytes.Length);
+                                GlobalUnlock(hPng);
+                                SetClipboardData(cfPng, hPng);
+                            }
+                        }
+                    }
+
+                    // 3. CF_DIB (standard device-independent bitmap, skipping 14-byte BMP file header)
                     using (var bmp = new System.Drawing.Bitmap(imagePath))
                     {
                         using var ms = new MemoryStream();
@@ -383,24 +402,6 @@ public class ClipboardPasteService
                             }
                         }
                     }
-
-                    // 2. Write registered "PNG" format
-                    uint cfPng = RegisterClipboardFormatW("PNG");
-                    if (cfPng != 0)
-                    {
-                        byte[] pngBytes = File.ReadAllBytes(imagePath);
-                        nint hPng = GlobalAlloc(GMEM_MOVEABLE, (nuint)pngBytes.Length);
-                        if (hPng != nint.Zero)
-                        {
-                            nint pPng = GlobalLock(hPng);
-                            if (pPng != nint.Zero)
-                            {
-                                Marshal.Copy(pngBytes, 0, pPng, pngBytes.Length);
-                                GlobalUnlock(hPng);
-                                SetClipboardData(cfPng, hPng);
-                            }
-                        }
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -412,12 +413,91 @@ public class ClipboardPasteService
                 }
                 break;
             }
-            Thread.Sleep(20);
+            Thread.Sleep(25);
+        }
+    }
+
+    public static void SetNativeFiles(string[] filePaths)
+    {
+        if (filePaths == null || filePaths.Length == 0) return;
+
+        for (int i = 0; i < 8; i++)
+        {
+            if (OpenClipboard(nint.Zero))
+            {
+                try
+                {
+                    EmptyClipboard();
+                    SetClipboardFileDropInternal(filePaths);
+
+                    // Text fallback
+                    string text = string.Join(Environment.NewLine, filePaths);
+                    byte[] bytes = Encoding.Unicode.GetBytes(text + "\0");
+                    nint hMem = GlobalAlloc(GMEM_MOVEABLE, (nuint)bytes.Length);
+                    if (hMem != nint.Zero)
+                    {
+                        nint ptr = GlobalLock(hMem);
+                        if (ptr != nint.Zero)
+                        {
+                            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                            GlobalUnlock(hMem);
+                            SetClipboardData(CF_UNICODETEXT, hMem);
+                        }
+                    }
+                }
+                finally
+                {
+                    CloseClipboard();
+                }
+                break;
+            }
+            Thread.Sleep(25);
+        }
+    }
+
+    private static void SetClipboardFileDropInternal(string[] filePaths)
+    {
+        const int structSize = 20; // sizeof(DROPFILES)
+        int totalBytes = structSize;
+        foreach (var p in filePaths)
+        {
+            totalBytes += (p.Length + 1) * 2;
+        }
+        totalBytes += 2; // double null terminator
+
+        nint hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (nuint)totalBytes);
+        if (hGlobal == nint.Zero) return;
+
+        nint ptr = GlobalLock(hGlobal);
+        if (ptr == nint.Zero) return;
+
+        try
+        {
+            Marshal.WriteInt32(ptr, 0, structSize); // pFiles = 20
+            Marshal.WriteInt32(ptr, 4, 0);          // pt.x
+            Marshal.WriteInt32(ptr, 8, 0);          // pt.y
+            Marshal.WriteInt32(ptr, 12, 0);         // fNC
+            Marshal.WriteInt32(ptr, 16, 1);         // fWide = 1 (Unicode)
+
+            nint curr = ptr + structSize;
+            foreach (var p in filePaths)
+            {
+                byte[] b = Encoding.Unicode.GetBytes(p + "\0");
+                Marshal.Copy(b, 0, curr, b.Length);
+                curr += b.Length;
+            }
+            Marshal.WriteInt16(curr, 0); // extra null terminator
+
+            SetClipboardData(CF_HDROP, hGlobal);
+        }
+        finally
+        {
+            GlobalUnlock(hGlobal);
         }
     }
 
     /// <summary>
-    /// Brings target window to foreground reliably using SwitchToThisWindow and AttachThreadInput.
+    /// Brings target window to foreground reliably using SwitchToThisWindow, AttachThreadInput, and BringWindowToTop.
     /// </summary>
     public static void RestoreFocus(nint targetHwnd)
     {
@@ -428,8 +508,6 @@ public class ClipboardPasteService
             ShowWindow(targetHwnd, SW_RESTORE);
         }
 
-        SwitchToThisWindow(targetHwnd, true);
-
         uint targetThread = GetWindowThreadProcessId(targetHwnd, out _);
         uint currentThread = GetCurrentThreadId();
 
@@ -437,13 +515,17 @@ public class ClipboardPasteService
         {
             AttachThreadInput(currentThread, targetThread, true);
             SetForegroundWindow(targetHwnd);
+            BringWindowToTop(targetHwnd);
             SetFocus(targetHwnd);
+            SwitchToThisWindow(targetHwnd, true);
             AttachThreadInput(currentThread, targetThread, false);
         }
         else
         {
             SetForegroundWindow(targetHwnd);
+            BringWindowToTop(targetHwnd);
             SetFocus(targetHwnd);
+            SwitchToThisWindow(targetHwnd, true);
         }
     }
 
@@ -493,85 +575,38 @@ public class ClipboardPasteService
     }
 
     /// <summary>
-    /// Sends Ctrl+V keyboard shortcut via SendInput with valid hardware scan codes.
+    /// Sends Ctrl+V keyboard shortcut using keybd_event with hardware scan codes and discrete timing,
+    /// ensuring reliable reception by Chromium/Electron (WhatsApp, Slack, Discord), WPF, Win32, and UWP apps.
     /// </summary>
     public static bool SendCtrlV()
     {
-        ushort ctrlScan = (ushort)MapVirtualKey(VK_CONTROL, 0);
-        ushort vScan = (ushort)MapVirtualKey((uint)'V', 0);
-
-        INPUT[] inputs = new INPUT[4];
-
-        // 1. Ctrl Down
-        inputs[0] = new INPUT
+        try
         {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = VK_CONTROL,
-                    wScan = ctrlScan,
-                    dwFlags = 0,
-                    time = 0,
-                    dwExtraInfo = nint.Zero
-                }
-            }
-        };
+            ushort ctrlScan = (ushort)MapVirtualKey(VK_CONTROL, 0);
+            ushort vScan = (ushort)MapVirtualKey((uint)'V', 0);
 
-        // 2. V Down
-        inputs[1] = new INPUT
+            // 1. Ctrl Down
+            keybd_event((byte)VK_CONTROL, (byte)ctrlScan, 0, 0);
+            Thread.Sleep(20);
+
+            // 2. V Down
+            keybd_event((byte)'V', (byte)vScan, 0, 0);
+            Thread.Sleep(30);
+
+            // 3. V Up
+            keybd_event((byte)'V', (byte)vScan, KEYEVENTF_KEYUP, 0);
+            Thread.Sleep(20);
+
+            // 4. Ctrl Up
+            keybd_event((byte)VK_CONTROL, (byte)ctrlScan, KEYEVENTF_KEYUP, 0);
+
+            return true;
+        }
+        catch (Exception ex)
         {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = (ushort)'V',
-                    wScan = vScan,
-                    dwFlags = 0,
-                    time = 0,
-                    dwExtraInfo = nint.Zero
-                }
-            }
-        };
-
-        // 3. V Up
-        inputs[2] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = (ushort)'V',
-                    wScan = vScan,
-                    dwFlags = KEYEVENTF_KEYUP,
-                    time = 0,
-                    dwExtraInfo = nint.Zero
-                }
-            }
-        };
-
-        // 4. Ctrl Up
-        inputs[3] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = VK_CONTROL,
-                    wScan = ctrlScan,
-                    dwFlags = KEYEVENTF_KEYUP,
-                    time = 0,
-                    dwExtraInfo = nint.Zero
-                }
-            }
-        };
-
-        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
-        return sent == (uint)inputs.Length;
+            Debug.WriteLine($"[ClipboardPasteService] SendCtrlV error: {ex.Message}");
+            return false;
+        }
     }
 
     /// <summary>
@@ -711,8 +746,17 @@ public class ClipboardPasteService
     }
 
     private const uint GMEM_MOVEABLE = 0x0002;
-    private const uint CF_UNICODETEXT = 13;
+    private const uint GMEM_ZEROINIT = 0x0040;
+    private const uint CF_TEXT = 1;
     private const uint CF_DIB = 8;
+    private const uint CF_UNICODETEXT = 13;
+    private const uint CF_HDROP = 15;
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, nuint dwExtraInfo);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(nint hWnd);
 
     [DllImport("user32.dll")]
     private static extern void SwitchToThisWindow(nint hWnd, bool fAltTab);

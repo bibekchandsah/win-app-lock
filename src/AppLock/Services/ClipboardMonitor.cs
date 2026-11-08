@@ -467,14 +467,14 @@ public sealed class ClipboardMonitor : IDisposable
             if (!settings.Enabled || IsPaused) return;
 
             bool opened = false;
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 10; i++)
             {
                 if (OpenClipboard(_hwnd))
                 {
                     opened = true;
                     break;
                 }
-                Thread.Sleep(20);
+                Thread.Sleep(30);
             }
 
             if (!opened)
@@ -498,11 +498,9 @@ public sealed class ClipboardMonitor : IDisposable
                     return;
                 }
 
-                if (_cfCanUpload != 0 && IsClipboardFormatAvailable(_cfCanUpload) && GetDwordFormat(_cfCanUpload) == 0)
-                {
-                    Debug.WriteLine("[ClipboardMonitor] CanUploadToCloudClipboard = 0, skipping.");
-                    return;
-                }
+                // Note: _cfCanUpload (CanUploadToCloudClipboard = 0) is intentionally NOT checked here,
+                // because screen capture tools (Snipping Tool, Win+Shift+S, PowerToys) set CanUploadToCloudClipboard = 0
+                // so local screenshots do not sync to cloud, but they MUST still be saved locally.
 
                 // Identify source process
                 string sourceProcess = "Unknown";
@@ -556,8 +554,8 @@ public sealed class ClipboardMonitor : IDisposable
                     }
                 }
 
-                // 2. Images capture (CF_DIB, CF_DIBV5, PNG)
-                if (settings.CaptureImages && (IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5) || (_cfPng != 0 && IsClipboardFormatAvailable(_cfPng))))
+                // 2. Images capture (CF_DIB, CF_DIBV5, PNG, CF_BITMAP)
+                if (settings.CaptureImages && (IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5) || (_cfPng != 0 && IsClipboardFormatAvailable(_cfPng)) || IsClipboardFormatAvailable(2 /* CF_BITMAP */)))
                 {
                     if (TryCaptureImage(sourceProcess, sourceTitle, settings))
                     {
@@ -858,7 +856,8 @@ public sealed class ClipboardMonitor : IDisposable
                             byte[] raw = new byte[(int)size];
                             Marshal.Copy(pData, raw, 0, (int)size);
                             using var ms = new MemoryStream(raw);
-                            return new System.Drawing.Bitmap(ms);
+                            using var temp = new System.Drawing.Bitmap(ms);
+                            return new System.Drawing.Bitmap(temp);
                         }
                     }
                     catch { }
@@ -914,7 +913,8 @@ public sealed class ClipboardMonitor : IDisposable
                                 Marshal.Copy(pDib, fullBmp, 14, (int)dibSize);
 
                                 using var ms = new MemoryStream(fullBmp);
-                                return new System.Drawing.Bitmap(ms);
+                                using var temp = new System.Drawing.Bitmap(ms);
+                                return new System.Drawing.Bitmap(temp);
                             }
                         }
                         catch { }
@@ -1164,13 +1164,18 @@ public sealed class ClipboardMonitor : IDisposable
     [DllImport("wtsapi32.dll", SetLastError = true)]
     private static extern bool WTSUnRegisterSessionNotification(nint hWnd);
 
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, nuint dwExtraInfo);
+
+    private const byte VK_LCONTROL_BYTE = 0xA2;
+    private const byte SC_LCONTROL_BYTE = 0x1D;
+    private const uint KEYEVENTF_KEYUP_FLAG = 0x0002;
+
     private void InstallWinVHook()
     {
         if (_llHook != nint.Zero) return;
         _llProc = LowLevelKeyboardHookCallback;
-        using var curProcess = Process.GetCurrentProcess();
-        using var curModule = curProcess.MainModule;
-        nint hMod = curModule != null ? GetModuleHandle(curModule.ModuleName) : nint.Zero;
+        nint hMod = GetModuleHandle(null);
         _llHook = SetWindowsHookEx(WH_KEYBOARD_LL, _llProc, hMod, 0);
         Debug.WriteLine($"[ClipboardMonitor] Win+V low-level hook installed: {_llHook != nint.Zero}");
     }
@@ -1206,7 +1211,7 @@ public sealed class ClipboardMonitor : IDisposable
                         if (wParam == (nint)WM_KEYDOWN || wParam == (nint)WM_SYSKEYDOWN)
                         {
                             _winVTriggered = true;
-                            SendDummyKey();
+                            SuppressStartMenu();
 
                             if (!_isSessionLocked)
                             {
@@ -1224,31 +1229,26 @@ public sealed class ClipboardMonitor : IDisposable
                 if (_winVTriggered)
                 {
                     _winVTriggered = false;
-                    SendDummyKey();
+                    SuppressStartMenu();
                 }
             }
         }
         return CallNextHookEx(_llHook, nCode, wParam, lParam);
     }
 
-    private static void SendDummyKey()
+    private static void SuppressStartMenu()
     {
         try
         {
-            INPUT[] inputs = new INPUT[3];
-            inputs[0].type = 1; // INPUT_KEYBOARD
-            inputs[0].u.ki.wVk = 0xFF;
-            inputs[1].type = 1; // INPUT_KEYBOARD
-            inputs[1].u.ki.wVk = 0xFF;
-            inputs[1].u.ki.dwFlags = 0x0002; // KEYEVENTF_KEYUP
-            inputs[2].type = 1; // INPUT_KEYBOARD
-            inputs[2].u.ki.wVk = 0x11; // VK_CONTROL
-            inputs[2].u.ki.dwFlags = 0x0002; // KEYEVENTF_KEYUP
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            // Send synthetic Left-Control key-down and key-up with scan code 0x1D.
+            // This is the standard Windows Shell cancellation technique that prevents
+            // explorer.exe from interpreting Win key release as a Start Menu activation.
+            keybd_event(VK_LCONTROL_BYTE, SC_LCONTROL_BYTE, 0, 0);
+            keybd_event(VK_LCONTROL_BYTE, SC_LCONTROL_BYTE, KEYEVENTF_KEYUP_FLAG, 0);
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ClipboardMonitor] SendDummyKey error: {ex.Message}");
+            Debug.WriteLine($"[ClipboardMonitor] SuppressStartMenu error: {ex.Message}");
         }
     }
 

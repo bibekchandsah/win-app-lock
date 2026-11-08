@@ -72,7 +72,7 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public int UseCount => _item.UseCount;
     public bool Pinned => _item.Pinned;
     public bool IsPinned => _item.Pinned;
-    public string PinGlyph => Pinned ? "\uE77A" : "\uE718";
+    public string PinGlyph => Pinned ? "\uE840" : "\uE718";
     public string PinToolTip => Pinned ? "Unpin (Ctrl+P)" : "Pin (Ctrl+P)";
     public Microsoft.UI.Xaml.Media.Brush PinBrush => Pinned
         ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentFillColorDefaultBrush"]

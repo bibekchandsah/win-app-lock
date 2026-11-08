@@ -18,15 +18,55 @@
                 <!-- Main Content Grid -->
                 <Grid x:Name="MainContentGrid" RowSpacing="8">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Window Header / Drag Bar -->
                         <RowDefinition Height="Auto"/> <!-- Search Box -->
                         <RowDefinition Height="Auto"/> <!-- Filter Chips & Pause Status -->
                         <RowDefinition Height="*"/>    <!-- Items List -->
                         <RowDefinition Height="Auto"/> <!-- Multi-select Bar / Footer -->
                     </Grid.RowDefinitions>
 
+                    <!-- Window Header / Drag Bar -->
+                    <Grid Grid.Row="0"
+                          Background="Transparent"
+                          PointerPressed="Header_PointerPressed"
+                          Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                            <TextBlock Text="Clipboard" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="••••" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="2,0,0,0" ToolTipService.ToolTip="Drag window"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                            <!-- Pin Window (Keep open on click outside) -->
+                            <Button x:Name="WindowPinButton"
+                                    Click="WindowPinButton_Click"
+                                    ToolTipService.ToolTip="Pin window open"
+                                    AutomationProperties.Name="Pin window"
+                                    Padding="5,3"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <FontIcon x:Name="WindowPinIcon" Glyph="&#xE718;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Button>
+                            <!-- Close Window Button -->
+                            <Button Click="WindowCloseButton_Click"
+                                    ToolTipService.ToolTip="Close (Esc)"
+                                    AutomationProperties.Name="Close"
+                                    Padding="5,3"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- Search Box -->
                     <TextBox x:Name="SearchBox"
-                             Grid.Row="0"
+                             Grid.Row="1"
                              PlaceholderText="Search clipboard (1-9 quick paste)..."
                              AutomationProperties.Name="Search clipboard history"
                              TextChanged="SearchBox_TextChanged"
@@ -37,7 +77,7 @@
                     </TextBox>
 
                     <!-- Filter Chips & Status Bar -->
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -89,7 +129,7 @@
                     </Grid>
 
                     <!-- List Content -->
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="3">
                         <!-- Empty State -->
                         <StackPanel x:Name="EmptyStatePanel"
                                     Spacing="8"
@@ -189,12 +229,6 @@
                                                                    Visibility="{x:Bind ExpiresVisibility, Mode=OneWay}"/>
                                                     </StackPanel>
 
-                                                    <!-- Pinned Indicator Badge -->
-                                                    <FontIcon Glyph="&#xE840;"
-                                                              FontSize="10"
-                                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                                              Visibility="{x:Bind PinVisibility, Mode=OneWay}"
-                                                              ToolTipService.ToolTip="Pinned"/>
                                                 </StackPanel>
 
                                                 <!-- Row Action Buttons -->
@@ -243,7 +277,18 @@
 
                                                                 <MenuFlyoutItem Text="Edit Text before pasting (Ctrl+E)" Click="ItemEdit_Click"/>
                                                                 <MenuFlyoutItem Text="Save as Snippet..." Click="ItemSaveAsSnippet_Click"/>
-                                                                <MenuFlyoutItem Text="Open in Browser" Click="ItemOpenLink_Click"/>
+                                                                <!-- Open in Browser Submenu -->
+                                                                <MenuFlyoutSubItem Text="Open in Browser">
+                                                                    <MenuFlyoutItem Text="Google" Click="BrowserSearch_Click" Tag="google"/>
+                                                                    <MenuFlyoutItem Text="Bing" Click="BrowserSearch_Click" Tag="bing"/>
+                                                                    <MenuFlyoutSubItem Text="More">
+                                                                        <MenuFlyoutItem Text="DuckDuckGo" Click="BrowserSearch_Click" Tag="duckduckgo"/>
+                                                                        <MenuFlyoutItem Text="Yahoo" Click="BrowserSearch_Click" Tag="yahoo"/>
+                                                                        <MenuFlyoutItem Text="Ecosia" Click="BrowserSearch_Click" Tag="ecosia"/>
+                                                                        <MenuFlyoutItem Text="TinEye (Image)" Click="BrowserSearch_Click" Tag="tineye"/>
+                                                                    </MenuFlyoutSubItem>
+                                                                    <MenuFlyoutItem Text="Custom..." Click="BrowserSearch_Click" Tag="custom"/>
+                                                                </MenuFlyoutSubItem>
                                                                 <MenuFlyoutItem Text="Save Image As..." Click="ItemSaveImageAs_Click"/>
                                                                 <MenuFlyoutItem Text="Copy as PNG" Click="ItemCopyPng_Click"/>
                                                                 <MenuFlyoutSeparator/>
@@ -304,7 +349,7 @@
 
                     <!-- Multi-Select Action Bar (shown when multiple items selected) -->
                     <Border x:Name="MultiSelectBar"
-                            Grid.Row="3"
+                            Grid.Row="4"
                             Background="{ThemeResource LayerFillColorAltBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
@@ -340,7 +385,7 @@
                     </Border>
 
                     <!-- Normal Footer -->
-                    <Grid x:Name="NormalFooter" Grid.Row="3" Margin="0,2,0,0">
+                    <Grid x:Name="NormalFooter" Grid.Row="4" Margin="0,2,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -415,6 +460,24 @@
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,10,0,0">
                             <Button Content="Save Snippet" Click="SaveSnippetConfirm_Click" Style="{StaticResource AccentButtonStyle}"/>
                             <Button Content="Cancel" Click="SaveSnippetCancel_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Custom Search / URL Overlay -->
+                <Grid x:Name="CustomSearchOverlay"
+                      Background="{ThemeResource LayerFillColorDefaultBrush}"
+                      Visibility="Collapsed"
+                      Padding="16">
+                    <StackPanel VerticalAlignment="Center" Spacing="12">
+                        <TextBlock Text="Open in Browser (Custom)" FontSize="15" FontWeight="SemiBold"/>
+                        <TextBox x:Name="CustomSearchUrlTextBox"
+                                 Header="URL or Search Template"
+                                 PlaceholderText="https://example.com/search?q={query}"/>
+                        <TextBlock Text="Use {query} as placeholder for selected text" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <Button Content="Open" Click="CustomSearchConfirm_Click" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button Content="Cancel" Click="CustomSearchCancel_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
