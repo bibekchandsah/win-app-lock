@@ -585,33 +585,47 @@ public sealed partial class ClipboardSettingsPage : Page
 
         // CRITICAL: Configure AcceptsReturn and TextWrapping BEFORE assigning Text.
         // Assigning multi-line Text to a single-line TextBox truncates after the first newline!
+        // CRITICAL: AcceptsReturn and TextWrapping must be set BEFORE assigning Text
         var contentBox = new TextBox
         {
             Header = "Snippet Content",
             PlaceholderText = "Enter or paste reusable snippet text...",
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            MinHeight = 140,
-            MaxHeight = 280,
-            IsSpellCheckEnabled = false
+            MinHeight = 180,
+            MaxHeight = 320,
+            IsSpellCheckEnabled = false,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
+        // Assign text AFTER AcceptsReturn is set so multiline content is not truncated
         contentBox.Text = initialContent;
         ScrollViewer.SetVerticalScrollBarVisibility(contentBox, ScrollBarVisibility.Auto);
 
         var stack = new StackPanel
         {
             Spacing = 12,
-            Width = 420
+            Width = 440,
+            MinWidth = 380,
+            MaxWidth = 480
         };
         stack.Children.Add(titleBox);
         stack.Children.Add(abbrevBox);
         stack.Children.Add(abbrevHint);
         stack.Children.Add(contentBox);
 
+        // Wrap in ScrollViewer so the dialog is scrollable when content is tall
+        var scrollViewer = new ScrollViewer
+        {
+            Content = stack,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            MaxHeight = 500
+        };
+
         var dialog = new ContentDialog
         {
             Title = existing == null ? "New Reusable Snippet" : "Edit Snippet",
-            Content = stack,
+            Content = scrollViewer,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.None

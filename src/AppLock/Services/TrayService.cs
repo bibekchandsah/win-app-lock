@@ -110,10 +110,11 @@ public sealed class TrayService : IDisposable
                                 if (subItem is MenuFlyoutItem smi)
                                 {
                                     var st = smi.Text ?? "";
-                                    if (smi.Name == "ClipboardPause5mItem" || st.Contains("5 minutes", StringComparison.OrdinalIgnoreCase))
-                                        _clipboardPause5mItem = smi;
-                                    else if (smi.Name == "ClipboardPause15mItem" || st.Contains("15 minutes", StringComparison.OrdinalIgnoreCase))
+                                    // Check 15 minutes BEFORE 5 minutes — "15 minutes".Contains("5 minutes") is true!
+                                    if (smi.Name == "ClipboardPause15mItem" || st.Contains("15 minutes", StringComparison.OrdinalIgnoreCase))
                                         _clipboardPause15mItem = smi;
+                                    else if (smi.Name == "ClipboardPause5mItem" || (st.Contains("5 minutes", StringComparison.OrdinalIgnoreCase) && !st.Contains("15", StringComparison.OrdinalIgnoreCase)))
+                                        _clipboardPause5mItem = smi;
                                     else if (smi.Name == "ClipboardPause1hItem" || st.Contains("1 hour", StringComparison.OrdinalIgnoreCase))
                                         _clipboardPause1hItem = smi;
                                     else if (smi.Name == "ClipboardPauseIndefiniteItem" || st.Contains("until resumed", StringComparison.OrdinalIgnoreCase))
