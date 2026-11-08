@@ -163,7 +163,30 @@ public sealed partial class BitLockerPage : Page
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(passwordBox);
         panel.Children.Add(saveCheckBox);
-        var dialog = new ContentDialog
+
+        ContentDialog? dialog = null;
+
+        if (ViewModel.HasSavedPasswordForSelected)
+        {
+            var useSavedBtn = new HyperlinkButton
+            {
+                Content = "Unlock with saved password",
+                FontSize = 12,
+                Padding = new Thickness(0)
+            };
+            AutomationProperties.SetName(useSavedBtn, "Unlock with saved password");
+            useSavedBtn.Click += async (s, e) =>
+            {
+                dialog?.Hide();
+                var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
+                if (auth)
+                {
+                    await ViewModel.UnlockWithSavedPassphraseAsync();
+                }
+            };
+            panel.Children.Add(useSavedBtn);
+        }
+        dialog = new ContentDialog
         {
             Title = $"Unlock drive {drive.DisplayName}",
             Content = panel,
@@ -283,6 +306,9 @@ public sealed partial class BitLockerPage : Page
     private async void UseSavedPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.CanAttemptUnlock) return;
+        var auth = await BitLockerSecurityGate.EnsureAuthenticatedAsync(this.XamlRoot);
+        if (!auth) return;
+
         var found = await ViewModel.UnlockWithSavedPassphraseAsync();
         if (!found)
         {
