@@ -136,3 +136,4 @@ public sealed partial class ClipboardToastWindow : Window
 
     #endregion
 }
+

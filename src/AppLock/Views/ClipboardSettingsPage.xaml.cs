@@ -331,11 +331,20 @@ public sealed partial class ClipboardSettingsPage : Page
     {
         if (_isInitializing) return;
         var s = ServiceContainer.Settings.Clipboard;
+        bool prevEncrypt = s.EncryptHistory;
         s.EncryptHistory = EncryptHistoryToggle.IsOn;
         s.RequireHello = RequireHelloToggle.IsOn;
         s.DetectSensitive = DetectSensitiveToggle.IsOn;
         s.ExcludeFromScreenCapture = ExcludeScreenCaptureToggle.IsOn;
         SaveSettings();
+
+        if (prevEncrypt != s.EncryptHistory)
+        {
+            _ = Task.Run(async () =>
+            {
+                await ServiceContainer.ClipboardStore.ReEncryptAllAsync(s.EncryptHistory);
+            });
+        }
     }
 
     private void QuickAddApp_Click(object sender, RoutedEventArgs e)

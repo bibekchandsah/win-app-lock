@@ -30,7 +30,40 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public Microsoft.UI.Xaml.Visibility ImageVisibility => IsImage ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     public Microsoft.UI.Xaml.Visibility FilesVisibility => IsFiles ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
-    public string PreviewText => _item.PreviewString ?? string.Empty;
+    private bool _isRevealed;
+    public bool IsRevealed
+    {
+        get => _isRevealed;
+        set
+        {
+            if (_isRevealed != value)
+            {
+                _isRevealed = value;
+                OnPropertyChanged(nameof(IsRevealed));
+                OnPropertyChanged(nameof(PreviewText));
+                OnPropertyChanged(nameof(RevealGlyph));
+                OnPropertyChanged(nameof(RevealToolTip));
+            }
+        }
+    }
+
+    public void ToggleReveal()
+    {
+        IsRevealed = !IsRevealed;
+    }
+
+    public string PreviewText
+    {
+        get
+        {
+            if (IsSensitive && !_isRevealed)
+            {
+                return "•••••••••••••••• (Sensitive item masked)";
+            }
+            return _item.PreviewString ?? string.Empty;
+        }
+    }
+
     public string SourceProcess => _item.SourceProcess ?? "Unknown";
     public string SourceTitle => _item.SourceTitle ?? string.Empty;
     public long SizeBytes => _item.SizeBytes;
@@ -60,6 +93,24 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
     public Microsoft.UI.Xaml.Visibility QuickPasteVisibility => !string.IsNullOrEmpty(_quickPasteBadge) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public bool IsSensitive => _item.IsSensitive;
+    public long? ExpiresAt => _item.ExpiresAt;
+    public Microsoft.UI.Xaml.Visibility LockVisibility => IsSensitive ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public Microsoft.UI.Xaml.Visibility RevealButtonVisibility => (IsSensitive && IsText) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public string RevealGlyph => _isRevealed ? "\uED1A" : "\uE7B3";
+    public string RevealToolTip => _isRevealed ? "Hide" : "Reveal";
+
+    public string ExpiresText
+    {
+        get
+        {
+            if (!ExpiresAt.HasValue) return string.Empty;
+            long remainingMs = ExpiresAt.Value - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (remainingMs <= 0) return "Expired";
+            int sec = (int)(remainingMs / 1000);
+            return sec < 60 ? $"Expires in {sec}s" : $"Expires in {sec / 60}m";
+        }
+    }
+    public Microsoft.UI.Xaml.Visibility ExpiresVisibility => (IsSensitive && ExpiresAt.HasValue) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public string? ImagePath => _item.ImagePath;
     public string? ThumbPath => _item.ThumbPath;

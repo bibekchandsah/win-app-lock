@@ -42,6 +42,7 @@
     <Compile Include="..\..\src\AppLock\Models\BrightnessSettings.cs" Link="Models\BrightnessSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\EyeCareSettings.cs" Link="Models\EyeCareSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ClipboardSettings.cs" Link="Models\ClipboardSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Services\SensitiveDetector.cs" Link="Services\SensitiveDetector.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\IFirewallService.cs" Link="Services\Firewall\IFirewallService.cs" />

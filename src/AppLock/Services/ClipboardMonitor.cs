@@ -413,8 +413,20 @@ public sealed class ClipboardMonitor : IDisposable
                     }
                 }
 
-                // Check ignored apps
-                if (settings.IgnoredApps.Any(app => string.Equals(app, sourceProcess, StringComparison.OrdinalIgnoreCase)))
+                // Check ignored apps (normalize with/without .exe, trim, case-insensitive)
+                bool isIgnored = settings.IgnoredApps.Any(app =>
+                {
+                    if (string.IsNullOrWhiteSpace(app)) return false;
+                    string normApp = app.Trim().ToLowerInvariant();
+                    if (!normApp.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        normApp += ".exe";
+                    }
+                    string normSource = sourceProcess.Trim().ToLowerInvariant();
+                    return string.Equals(normApp, normSource, StringComparison.OrdinalIgnoreCase);
+                });
+
+                if (isIgnored)
                 {
                     Debug.WriteLine($"[ClipboardMonitor] Ignored app: {sourceProcess}, skipping.");
                     return;
@@ -654,6 +666,18 @@ public sealed class ClipboardMonitor : IDisposable
 
         string preview = text.Length > 200 ? text[..200] : text;
 
+        bool isSensitive = false;
+        long? expiresAt = null;
+
+        if (settings.DetectSensitive && SensitiveDetector.IsSensitive(text, sourceProcess, sourceTitle))
+        {
+            isSensitive = true;
+            if (settings.SensitiveExpireSeconds > 0)
+            {
+                expiresAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + (settings.SensitiveExpireSeconds * 1000L);
+            }
+        }
+
         var item = new ClipboardItem
         {
             Type = "text",
@@ -665,7 +689,9 @@ public sealed class ClipboardMonitor : IDisposable
             SourceProcess = sourceProcess,
             SourceTitle = sourceTitle,
             UseCount = 1,
-            Pinned = false
+            Pinned = false,
+            IsSensitive = isSensitive,
+            ExpiresAt = expiresAt
         };
 
         _ = Task.Run(async () =>

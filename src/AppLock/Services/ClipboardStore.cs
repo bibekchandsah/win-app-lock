@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
@@ -10,6 +12,9 @@ namespace AppLock.Services;
 
 public sealed class ClipboardStore
 {
+    private static readonly byte[] s_dpapiHeader = new byte[] { 0x44, 0x50, 0x41, 0x50 }; // "DPAP"
+    private static readonly byte[] s_optionalEntropy = new byte[] { 0x41, 0x70, 0x70, 0x4C, 0x6F, 0x63, 0x6B, 0x43, 0x6C, 0x69, 0x70 }; // "AppLockClip"
+
     private static readonly string BaseDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AppLock",
@@ -20,6 +25,7 @@ public sealed class ClipboardStore
     private static readonly string ThumbsDirectory = Path.Combine(BaseDirectory, "thumbs");
 
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly Timer _expireTimer;
     private bool _isInitialized;
 
     public string StoragePath => BaseDirectory;
@@ -29,6 +35,15 @@ public sealed class ClipboardStore
 
     public ClipboardStore()
     {
+        // Periodic check to delete expired sensitive items every 10 seconds
+        _expireTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await DeleteExpiredItemsAsync();
+            }
+            catch { }
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
     }
 
     public void EnsureDirectories()
@@ -215,6 +230,11 @@ WHERE id = @id;
 
             if (insertedId == 0)
             {
+                bool encrypt = ServiceContainer.Settings.Clipboard.EncryptHistory;
+                byte[]? contentBytes = encrypt && item.Content != null ? EncryptBytes(item.Content) : item.Content;
+                byte[]? previewBytes = encrypt && item.Preview != null ? EncryptBytes(item.Preview) : item.Preview;
+                byte[]? htmlBytes = encrypt && item.Html != null ? EncryptBytes(item.Html) : item.Html;
+
                 using var insertCmd = conn.CreateCommand();
                 insertCmd.CommandText = @"
 INSERT INTO items (
@@ -231,9 +251,9 @@ INSERT INTO items (
 SELECT last_insert_rowid();
 ";
                 insertCmd.Parameters.AddWithValue("@type", item.Type);
-                insertCmd.Parameters.AddWithValue("@content", (object?)item.Content ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue("@preview", (object?)item.Preview ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue("@html", (object?)item.Html ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@content", (object?)contentBytes ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@preview", (object?)previewBytes ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@html", (object?)htmlBytes ?? DBNull.Value);
                 insertCmd.Parameters.AddWithValue("@hash", item.Hash);
                 insertCmd.Parameters.AddWithValue("@image_path", (object?)item.ImagePath ?? DBNull.Value);
                 insertCmd.Parameters.AddWithValue("@thumb_path", (object?)item.ThumbPath ?? DBNull.Value);
@@ -365,6 +385,10 @@ LIMIT @excess;
         {
             using var conn = new SqliteConnection(GetConnectionString());
             await conn.OpenAsync();
+
+            // Purge expired sensitive items first
+            await DeleteExpiredInternalAsync(conn);
+
             using var cmd = conn.CreateCommand();
 
             var whereClauses = new List<string>();
@@ -400,13 +424,17 @@ LIMIT @limit;
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
+                byte[]? rawContent = reader.IsDBNull(2) ? null : (byte[])reader["content"];
+                byte[]? rawPreview = reader.IsDBNull(3) ? null : (byte[])reader["preview"];
+                byte[]? rawHtml = reader.IsDBNull(4) ? null : (byte[])reader["html"];
+
                 var item = new ClipboardItem
                 {
                     Id = reader.GetInt64(0),
                     Type = reader.GetString(1),
-                    Content = reader.IsDBNull(2) ? null : (byte[])reader["content"],
-                    Preview = reader.IsDBNull(3) ? null : (byte[])reader["preview"],
-                    Html = reader.IsDBNull(4) ? null : (byte[])reader["html"],
+                    Content = DecryptBytes(rawContent),
+                    Preview = DecryptBytes(rawPreview),
+                    Html = DecryptBytes(rawHtml),
                     Hash = reader.GetString(5),
                     ImagePath = reader.IsDBNull(6) ? null : reader.GetString(6),
                     ThumbPath = reader.IsDBNull(7) ? null : reader.GetString(7),
@@ -698,6 +726,184 @@ WHERE id = @id;
             // Brief pause between inserts so timestamps differ
             await Task.Delay(20);
         }
+    }
+
+    public async Task<int> DeleteExpiredItemsAsync()
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        int deleted = 0;
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+            deleted = await DeleteExpiredInternalAsync(conn);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardStore] Error deleting expired items: {ex.Message}");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        if (deleted > 0)
+        {
+            DataChanged?.Invoke(this, EventArgs.Empty);
+        }
+        return deleted;
+    }
+
+    private static async Task<int> DeleteExpiredInternalAsync(SqliteConnection conn)
+    {
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var filesToDelete = new List<string>();
+
+        using (var findCmd = conn.CreateCommand())
+        {
+            findCmd.CommandText = "SELECT image_path, thumb_path FROM items WHERE expires_at IS NOT NULL AND expires_at <= @now;";
+            findCmd.Parameters.AddWithValue("@now", now);
+            using var reader = await findCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (!reader.IsDBNull(0)) filesToDelete.Add(reader.GetString(0));
+                if (!reader.IsDBNull(1)) filesToDelete.Add(reader.GetString(1));
+            }
+        }
+
+        int deletedCount = 0;
+        using (var delCmd = conn.CreateCommand())
+        {
+            delCmd.CommandText = "DELETE FROM items WHERE expires_at IS NOT NULL AND expires_at <= @now;";
+            delCmd.Parameters.AddWithValue("@now", now);
+            deletedCount = await delCmd.ExecuteNonQueryAsync();
+        }
+
+        foreach (var path in filesToDelete)
+        {
+            DeleteFileSafe(path);
+        }
+
+        return deletedCount;
+    }
+
+    public async Task ReEncryptAllAsync(bool encrypt)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            var updates = new List<(long Id, byte[]? Content, byte[]? Preview, byte[]? Html)>();
+
+            using (var readCmd = conn.CreateCommand())
+            {
+                readCmd.CommandText = "SELECT id, content, preview, html FROM items;";
+                using var reader = await readCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    long id = reader.GetInt64(0);
+                    byte[]? content = reader.IsDBNull(1) ? null : (byte[])reader["content"];
+                    byte[]? preview = reader.IsDBNull(2) ? null : (byte[])reader["preview"];
+                    byte[]? html = reader.IsDBNull(3) ? null : (byte[])reader["html"];
+
+                    byte[]? newContent = content;
+                    byte[]? newPreview = preview;
+                    byte[]? newHtml = html;
+
+                    if (encrypt)
+                    {
+                        if (content != null && !IsEncrypted(content)) newContent = EncryptBytes(content);
+                        if (preview != null && !IsEncrypted(preview)) newPreview = EncryptBytes(preview);
+                        if (html != null && !IsEncrypted(html)) newHtml = EncryptBytes(html);
+                    }
+                    else
+                    {
+                        if (content != null && IsEncrypted(content)) newContent = DecryptBytes(content);
+                        if (preview != null && IsEncrypted(preview)) newPreview = DecryptBytes(preview);
+                        if (html != null && IsEncrypted(html)) newHtml = DecryptBytes(html);
+                    }
+
+                    updates.Add((id, newContent, newPreview, newHtml));
+                }
+            }
+
+            using var trans = conn.BeginTransaction();
+            foreach (var u in updates)
+            {
+                using var updateCmd = conn.CreateCommand();
+                updateCmd.Transaction = trans;
+                updateCmd.CommandText = "UPDATE items SET content = @c, preview = @p, html = @h WHERE id = @id;";
+                updateCmd.Parameters.AddWithValue("@c", (object?)u.Content ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@p", (object?)u.Preview ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@h", (object?)u.Html ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@id", u.Id);
+                await updateCmd.ExecuteNonQueryAsync();
+            }
+            await trans.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardStore] Re-encryption error: {ex.Message}");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        DataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public static byte[] EncryptBytes(byte[]? data)
+    {
+        if (data == null || data.Length == 0) return Array.Empty<byte>();
+        try
+        {
+            byte[] encrypted = ProtectedData.Protect(data, s_optionalEntropy, DataProtectionScope.CurrentUser);
+            byte[] result = new byte[s_dpapiHeader.Length + encrypted.Length];
+            Buffer.BlockCopy(s_dpapiHeader, 0, result, 0, s_dpapiHeader.Length);
+            Buffer.BlockCopy(encrypted, 0, result, s_dpapiHeader.Length, encrypted.Length);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ClipboardStore] DPAPI Protect error: {ex.Message}");
+            return data;
+        }
+    }
+
+    public static byte[] DecryptBytes(byte[]? data)
+    {
+        if (data == null || data.Length == 0) return Array.Empty<byte>();
+
+        if (IsEncrypted(data))
+        {
+            try
+            {
+                byte[] encrypted = new byte[data.Length - s_dpapiHeader.Length];
+                Buffer.BlockCopy(data, s_dpapiHeader.Length, encrypted, 0, encrypted.Length);
+                return ProtectedData.Unprotect(encrypted, s_optionalEntropy, DataProtectionScope.CurrentUser);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ClipboardStore] DPAPI Unprotect error: {ex.Message}");
+                return data;
+            }
+        }
+
+        return data;
+    }
+
+    public static bool IsEncrypted(byte[]? data)
+    {
+        if (data == null || data.Length <= s_dpapiHeader.Length) return false;
+        return data[0] == s_dpapiHeader[0] &&
+               data[1] == s_dpapiHeader[1] &&
+               data[2] == s_dpapiHeader[2] &&
+               data[3] == s_dpapiHeader[3];
     }
 
     private static void DeleteFileSafe(string path)

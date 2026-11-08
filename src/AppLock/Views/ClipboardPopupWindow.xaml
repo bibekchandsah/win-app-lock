@@ -14,230 +14,317 @@
                 CornerRadius="8"
                 Padding="12"
                 Background="{ThemeResource LayerFillColorDefaultBrush}">
-            <Grid RowSpacing="8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/> <!-- Search Box -->
-                    <RowDefinition Height="Auto"/> <!-- Filter Chips -->
-                    <RowDefinition Height="*"/>    <!-- Items List -->
-                    <RowDefinition Height="Auto"/> <!-- Multi-select Bar / Footer -->
-                </Grid.RowDefinitions>
+            <Grid>
+                <!-- Main Content Grid -->
+                <Grid x:Name="MainContentGrid" RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Search Box -->
+                        <RowDefinition Height="Auto"/> <!-- Filter Chips & Pause Status -->
+                        <RowDefinition Height="*"/>    <!-- Items List -->
+                        <RowDefinition Height="Auto"/> <!-- Multi-select Bar / Footer -->
+                    </Grid.RowDefinitions>
 
-                <!-- Search Box -->
-                <TextBox x:Name="SearchBox"
-                         Grid.Row="0"
-                         PlaceholderText="Search clipboard (1-9 quick paste)..."
-                         TextChanged="SearchBox_TextChanged"
-                         KeyDown="SearchBox_KeyDown">
-                    <TextBox.Header>
-                        <Grid/>
-                    </TextBox.Header>
-                </TextBox>
+                    <!-- Search Box -->
+                    <TextBox x:Name="SearchBox"
+                             Grid.Row="0"
+                             PlaceholderText="Search clipboard (1-9 quick paste)..."
+                             TextChanged="SearchBox_TextChanged"
+                             KeyDown="SearchBox_KeyDown">
+                        <TextBox.Header>
+                            <Grid/>
+                        </TextBox.Header>
+                    </TextBox>
 
-                <!-- Filter Chips -->
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                        <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}"/>
-                        <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text"/>
-                        <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images"/>
-                        <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links"/>
-                        <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned"/>
-                    </StackPanel>
-
-                    <!-- Multi-select toggle button -->
-                    <Button x:Name="MultiSelectToggleButton"
-                            Grid.Column="1"
-                            Click="MultiSelectToggle_Click"
-                            ToolTipService.ToolTip="Toggle Multi-Select"
-                            Padding="6,4"
-                            Background="Transparent"
-                            BorderThickness="0">
-                        <FontIcon Glyph="&#xE762;" FontSize="13"/>
-                    </Button>
-                </Grid>
-
-                <!-- List Content -->
-                <Grid Grid.Row="2">
-                    <!-- Empty State -->
-                    <StackPanel x:Name="EmptyStatePanel"
-                                Spacing="8"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Visibility="Collapsed">
-                        <FontIcon Glyph="&#xE8C8;" FontSize="32" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                        <TextBlock x:Name="EmptyStateText" Text="Nothing copied yet" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    </StackPanel>
-
-                    <ListView x:Name="ItemsListView"
-                              ItemsSource="{x:Bind Items}"
-                              SelectionMode="Extended"
-                              IsItemClickEnabled="True"
-                              ItemClick="ItemsListView_ItemClick"
-                              SelectionChanged="ItemsListView_SelectionChanged"
-                              KeyDown="ItemsListView_KeyDown">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0,2"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ClipboardItemViewModel">
-                                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="10,8"
-                                        Margin="0,2">
-                                    <Grid RowSpacing="6">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-
-                                        <!-- Meta Line -->
-                                        <Grid Grid.Row="0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                <!-- Quick Paste Badge 1-9 -->
-                                                <Border Background="{ThemeResource LayerFillColorAltBrush}"
-                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="5,1"
-                                                        Visibility="{x:Bind QuickPasteVisibility, Mode=OneWay}">
-                                                    <TextBlock Text="{x:Bind QuickPasteBadge, Mode=OneWay}"
-                                                               FontSize="10"
-                                                               FontWeight="Bold"
-                                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                                </Border>
-
-                                                <FontIcon Glyph="&#xE71D;" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                                <TextBlock Text="{x:Bind SourceProcess}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                                <TextBlock Text="•" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                                <TextBlock Text="{x:Bind RelativeTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                <TextBlock Text="{x:Bind DimensionsText}" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind ImageVisibility, Mode=OneWay}"/>
-
-                                                <!-- Pinned Indicator Badge -->
-                                                <FontIcon Glyph="&#xE840;"
-                                                          FontSize="10"
-                                                          Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                                          Visibility="{x:Bind PinVisibility, Mode=OneWay}"
-                                                          ToolTipService.ToolTip="Pinned"/>
-                                            </StackPanel>
-
-                                            <!-- Row Action Buttons -->
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                                                <Button Click="ItemPin_Click" Tag="{x:Bind}" ToolTipService.ToolTip="{x:Bind PinToolTip, Mode=OneWay}" Padding="4" Background="Transparent" BorderThickness="0">
-                                                    <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="11"/>
-                                                </Button>
-                                                <Button Click="ItemCopy_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Copy only (Ctrl+C)" Padding="4" Background="Transparent" BorderThickness="0">
-                                                    <FontIcon Glyph="&#xE8C8;" FontSize="11"/>
-                                                </Button>
-                                                <Button Click="ItemDelete_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete (Del)" Padding="4" Background="Transparent" BorderThickness="0">
-                                                    <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                                </Button>
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <!-- Preview -->
-                                        <Grid Grid.Row="1">
-                                            <!-- Text Preview -->
-                                            <TextBlock Text="{x:Bind PreviewText}"
-                                                       FontSize="12"
-                                                       MaxLines="3"
-                                                       TextWrapping="Wrap"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                       LineHeight="16"
-                                                       Visibility="{x:Bind TextVisibility, Mode=OneWay}"/>
-
-                                            <!-- Image Preview -->
-                                            <Border Visibility="{x:Bind ImageVisibility, Mode=OneWay}"
-                                                    CornerRadius="4"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                                    HorizontalAlignment="Left"
-                                                    MaxHeight="100">
-                                                <Image Source="{x:Bind ThumbnailImage, Mode=OneWay}"
-                                                       MaxHeight="100"
-                                                       MaxWidth="200"
-                                                       Stretch="Uniform"/>
-                                            </Border>
-
-                                            <!-- Files Preview -->
-                                            <StackPanel Visibility="{x:Bind FilesVisibility, Mode=OneWay}" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                                <TextBlock Text="{x:Bind PreviewText}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-
-                <!-- Multi-Select Action Bar (shown when multiple items selected) -->
-                <Border x:Name="MultiSelectBar"
-                        Grid.Row="3"
-                        Background="{ThemeResource LayerFillColorAltBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="10,6"
-                        Visibility="Collapsed">
-                    <Grid>
+                    <!-- Filter Chips & Status Bar -->
+                    <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <FontIcon Glyph="&#xE762;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                            <TextBlock x:Name="MultiSelectCountText" Text="2 items selected" FontSize="11" FontWeight="SemiBold"/>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="FilterAllButton" Content="All" Click="FilterButton_Click" Tag="All" Style="{StaticResource AccentButtonStyle}"/>
+                            <Button x:Name="FilterTextButton" Content="Text" Click="FilterButton_Click" Tag="Text"/>
+                            <Button x:Name="FilterImagesButton" Content="Images" Click="FilterButton_Click" Tag="Images"/>
+                            <Button x:Name="FilterLinksButton" Content="Links" Click="FilterButton_Click" Tag="Links"/>
+                            <Button x:Name="FilterPinnedButton" Content="Pinned" Click="FilterButton_Click" Tag="Pinned"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                            <DropDownButton x:Name="PasteMergedDropDown" Content="Paste Merged" Click="PasteMerged_Click" Style="{StaticResource AccentButtonStyle}" FontSize="11" Padding="8,4">
+                        <!-- Right Actions: Pause Indicator & Multi-Select -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <!-- Paused indicator badge -->
+                            <Border x:Name="PausedBadge"
+                                    Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                                    BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE769;" FontSize="10" Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+                                    <TextBlock x:Name="PausedBadgeText" Text="Paused" FontSize="10" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Multi-select toggle button -->
+                            <Button x:Name="MultiSelectToggleButton"
+                                    Click="MultiSelectToggle_Click"
+                                    ToolTipService.ToolTip="Toggle Multi-Select"
+                                    Padding="6,4"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <FontIcon Glyph="&#xE762;" FontSize="13"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- List Content -->
+                    <Grid Grid.Row="2">
+                        <!-- Empty State -->
+                        <StackPanel x:Name="EmptyStatePanel"
+                                    Spacing="8"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="32" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            <TextBlock x:Name="EmptyStateText" Text="Nothing copied yet" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <ListView x:Name="ItemsListView"
+                                  ItemsSource="{x:Bind Items}"
+                                  SelectionMode="Extended"
+                                  IsItemClickEnabled="True"
+                                  ItemClick="ItemsListView_ItemClick"
+                                  SelectionChanged="ItemsListView_SelectionChanged"
+                                  KeyDown="ItemsListView_KeyDown">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0,2"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ClipboardItemViewModel">
+                                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="10,8"
+                                            Margin="0,2">
+                                        <Grid RowSpacing="6">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Meta Line -->
+                                            <Grid Grid.Row="0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <!-- Quick Paste Badge 1-9 -->
+                                                    <Border Background="{ThemeResource LayerFillColorAltBrush}"
+                                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            Padding="5,1"
+                                                            Visibility="{x:Bind QuickPasteVisibility, Mode=OneWay}">
+                                                        <TextBlock Text="{x:Bind QuickPasteBadge, Mode=OneWay}"
+                                                                   FontSize="10"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    </Border>
+
+                                                    <FontIcon Glyph="&#xE71D;" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    <TextBlock Text="{x:Bind SourceProcess}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <TextBlock Text="•" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind RelativeTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind DimensionsText}" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind ImageVisibility, Mode=OneWay}"/>
+
+                                                    <!-- Sensitive Lock Icon & Expiry -->
+                                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind LockVisibility, Mode=OneWay}">
+                                                        <FontIcon Glyph="&#xE72E;"
+                                                                  FontSize="10"
+                                                                  Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                  ToolTipService.ToolTip="Sensitive item"/>
+                                                        <TextBlock Text="{x:Bind ExpiresText, Mode=OneWay}"
+                                                                   FontSize="10"
+                                                                   Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                   Visibility="{x:Bind ExpiresVisibility, Mode=OneWay}"/>
+                                                    </StackPanel>
+
+                                                    <!-- Pinned Indicator Badge -->
+                                                    <FontIcon Glyph="&#xE840;"
+                                                              FontSize="10"
+                                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                              Visibility="{x:Bind PinVisibility, Mode=OneWay}"
+                                                              ToolTipService.ToolTip="Pinned"/>
+                                                </StackPanel>
+
+                                                <!-- Row Action Buttons -->
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                                                    <!-- Reveal / Hide button for sensitive items -->
+                                                    <Button Click="ItemReveal_Click"
+                                                            Tag="{x:Bind}"
+                                                            ToolTipService.ToolTip="{x:Bind RevealToolTip, Mode=OneWay}"
+                                                            Visibility="{x:Bind RevealButtonVisibility, Mode=OneWay}"
+                                                            Padding="4"
+                                                            Background="Transparent"
+                                                            BorderThickness="0">
+                                                        <FontIcon Glyph="{x:Bind RevealGlyph, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    </Button>
+
+                                                    <Button Click="ItemPin_Click" Tag="{x:Bind}" ToolTipService.ToolTip="{x:Bind PinToolTip, Mode=OneWay}" Padding="4" Background="Transparent" BorderThickness="0">
+                                                        <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="11"/>
+                                                    </Button>
+                                                    <Button Click="ItemCopy_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Copy only (Ctrl+C)" Padding="4" Background="Transparent" BorderThickness="0">
+                                                        <FontIcon Glyph="&#xE8C8;" FontSize="11"/>
+                                                    </Button>
+                                                    <Button Click="ItemDelete_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete (Del)" Padding="4" Background="Transparent" BorderThickness="0">
+                                                        <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Preview -->
+                                            <Grid Grid.Row="1">
+                                                <!-- Text Preview -->
+                                                <TextBlock Text="{x:Bind PreviewText, Mode=OneWay}"
+                                                           FontSize="12"
+                                                           MaxLines="3"
+                                                           TextWrapping="Wrap"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                           LineHeight="16"
+                                                           Visibility="{x:Bind TextVisibility, Mode=OneWay}"/>
+
+                                                <!-- Image Preview -->
+                                                <Border Visibility="{x:Bind ImageVisibility, Mode=OneWay}"
+                                                        CornerRadius="4"
+                                                        BorderThickness="1"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        HorizontalAlignment="Left"
+                                                        MaxHeight="100">
+                                                    <Image Source="{x:Bind ThumbnailImage, Mode=OneWay}"
+                                                           MaxHeight="100"
+                                                           MaxWidth="200"
+                                                           Stretch="Uniform"/>
+                                                </Border>
+
+                                                <!-- Files Preview -->
+                                                <StackPanel Visibility="{x:Bind FilesVisibility, Mode=OneWay}" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    <TextBlock Text="{x:Bind PreviewText}" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <!-- Multi-Select Action Bar (shown when multiple items selected) -->
+                    <Border x:Name="MultiSelectBar"
+                            Grid.Row="3"
+                            Background="{ThemeResource LayerFillColorAltBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,6"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE762;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                <TextBlock x:Name="MultiSelectCountText" Text="2 items selected" FontSize="11" FontWeight="SemiBold"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                <DropDownButton x:Name="PasteMergedDropDown" Content="Paste Merged" Click="PasteMerged_Click" Style="{StaticResource AccentButtonStyle}" FontSize="11" Padding="8,4">
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Merge with Newlines" Click="PasteMergedWithSeparator_Click" Tag="newline"/>
+                                            <MenuFlyoutItem Text="Merge with Commas" Click="PasteMergedWithSeparator_Click" Tag="comma"/>
+                                            <MenuFlyoutItem Text="Merge with Spaces" Click="PasteMergedWithSeparator_Click" Tag="space"/>
+                                        </MenuFlyout>
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                                <Button Content="Copy" Click="MultiCopy_Click" FontSize="11" Padding="8,4" ToolTipService.ToolTip="Copy merged text"/>
+                                <Button Content="Delete" Click="MultiDelete_Click" FontSize="11" Padding="8,4" ToolTipService.ToolTip="Delete selected items"/>
+                                <Button Content="Cancel" Click="MultiCancel_Click" FontSize="11" Padding="8,4"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Normal Footer -->
+                    <Grid x:Name="NormalFooter" Grid.Row="3" Margin="0,2,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock x:Name="FooterStatsText" Text="0 / 100 items" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock Text="Enter paste • Shift+Enter plain • Del delete • Ctrl+P pin" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <!-- Pause DropDown Button -->
+                            <DropDownButton x:Name="FooterPauseButton" ToolTipService.ToolTip="Pause capture" Padding="6,4">
+                                <DropDownButton.Content>
+                                    <FontIcon Glyph="&#xE769;" FontSize="11"/>
+                                </DropDownButton.Content>
                                 <DropDownButton.Flyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="Merge with Newlines" Click="PasteMergedWithSeparator_Click" Tag="newline"/>
-                                        <MenuFlyoutItem Text="Merge with Commas" Click="PasteMergedWithSeparator_Click" Tag="comma"/>
-                                        <MenuFlyoutItem Text="Merge with Spaces" Click="PasteMergedWithSeparator_Click" Tag="space"/>
+                                        <MenuFlyoutItem Text="Pause for 5 minutes" Click="FooterPause5_Click"/>
+                                        <MenuFlyoutItem Text="Pause for 15 minutes" Click="FooterPause15_Click"/>
+                                        <MenuFlyoutItem Text="Pause for 1 hour" Click="FooterPause60_Click"/>
+                                        <MenuFlyoutItem Text="Pause until resumed" Click="FooterPauseIndefinite_Click"/>
+                                        <MenuFlyoutSeparator/>
+                                        <MenuFlyoutItem Text="Resume capture" Click="FooterResume_Click"/>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
-                            <Button Content="Copy" Click="MultiCopy_Click" FontSize="11" Padding="8,4" ToolTipService.ToolTip="Copy merged text"/>
-                            <Button Content="Delete" Click="MultiDelete_Click" FontSize="11" Padding="8,4" ToolTipService.ToolTip="Delete selected items"/>
-                            <Button Content="Cancel" Click="MultiCancel_Click" FontSize="11" Padding="8,4"/>
+
+                            <Button x:Name="FooterClearAllButton" Content="Clear" Click="FooterClearAll_Click" Padding="8,4" FontSize="11"/>
+                            <Button x:Name="FooterSettingsButton" Content="Settings" Click="FooterSettings_Click" Padding="8,4" FontSize="11"/>
                         </StackPanel>
                     </Grid>
-                </Border>
+                </Grid>
 
-                <!-- Normal Footer -->
-                <Grid x:Name="NormalFooter" Grid.Row="3" Margin="0,2,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock x:Name="FooterStatsText" Text="0 / 100 items" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <TextBlock Text="Enter paste • Shift+Enter plain • Del delete • Ctrl+P pin" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <Button x:Name="FooterClearAllButton" Content="Clear" Click="FooterClearAll_Click" Padding="8,4" FontSize="11"/>
-                        <Button x:Name="FooterSettingsButton" Content="Settings" Click="FooterSettings_Click" Padding="8,4" FontSize="11"/>
+                <!-- Windows Hello Lock Overlay -->
+                <Grid x:Name="HelloLockOverlay"
+                      Background="{ThemeResource LayerFillColorDefaultBrush}"
+                      Visibility="Collapsed">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="320">
+                        <FontIcon Glyph="&#xE8D7;" FontSize="44" Foreground="{ThemeResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Clipboard Locked" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Windows Hello authentication is required to access your clipboard history."
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"/>
+                        <Button x:Name="HelloUnlockButton"
+                                Content="Unlock with Windows Hello"
+                                Click="HelloUnlock_Click"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Center"
+                                Margin="0,8,0,0"/>
+                        <TextBlock x:Name="HelloErrorText"
+                                   Text=""
+                                   FontSize="11"
+                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                   HorizontalAlignment="Center"
+                                   Visibility="Collapsed"/>
                     </StackPanel>
                 </Grid>
             </Grid>

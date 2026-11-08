@@ -27,6 +27,7 @@ public sealed partial class ClipboardPopupWindow : Window
     private bool _isVisible;
     private string _currentFilter = "All";
     private string _currentSearch = string.Empty;
+    private static DateTime? _lastHelloUnlockTime;
 
     public ObservableCollection<ClipboardItemViewModel> Items { get; } = new();
 
@@ -82,6 +83,14 @@ public sealed partial class ClipboardPopupWindow : Window
         }
     }
 
+    private void ApplyScreenCaptureExclusion()
+    {
+        if (_hwnd == nint.Zero) return;
+        bool exclude = ServiceContainer.Settings.Clipboard.ExcludeFromScreenCapture;
+        uint affinity = exclude ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE;
+        SetWindowDisplayAffinity(_hwnd, affinity);
+    }
+
     private void ClipboardPopupWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated)
@@ -92,7 +101,7 @@ public sealed partial class ClipboardPopupWindow : Window
 
     private void OnClipboardDataChanged(object? sender, EventArgs e)
     {
-        if (_isVisible)
+        if (_isVisible && HelloLockOverlay.Visibility != Visibility.Visible)
         {
             DispatcherQueue.TryEnqueue(() =>
             {
@@ -117,6 +126,8 @@ public sealed partial class ClipboardPopupWindow : Window
     {
         _prevForegroundHwnd = GetForegroundWindow();
         ApplyTheme();
+        ApplyScreenCaptureExclusion();
+
         _currentSearch = string.Empty;
         SearchBox.Text = string.Empty;
         ItemsListView.SelectedItems.Clear();
@@ -124,15 +135,28 @@ public sealed partial class ClipboardPopupWindow : Window
 
         PositionWindow();
 
-        _ = RefreshItemsAsync();
+        // Check Windows Hello authentication
+        var settings = ServiceContainer.Settings.Clipboard;
+        if (settings.RequireHello && !IsHelloUnlockValid())
+        {
+            ShowHelloLock();
+        }
+        else
+        {
+            ShowMainContent();
+            _ = RefreshItemsAsync();
+        }
 
         this.Activate();
         _isVisible = true;
 
-        DispatcherQueue.TryEnqueue(() =>
+        if (HelloLockOverlay.Visibility != Visibility.Visible)
         {
-            SearchBox.Focus(FocusState.Programmatic);
-        });
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                SearchBox.Focus(FocusState.Programmatic);
+            });
+        }
     }
 
     public void HidePopup()
@@ -144,6 +168,62 @@ public sealed partial class ClipboardPopupWindow : Window
         {
             _appWindow.Hide();
         }
+    }
+
+    private static bool IsHelloUnlockValid()
+    {
+        return _lastHelloUnlockTime.HasValue && (DateTime.UtcNow - _lastHelloUnlockTime.Value) < TimeSpan.FromMinutes(1);
+    }
+
+    private void ShowHelloLock()
+    {
+        HelloLockOverlay.Visibility = Visibility.Visible;
+        MainContentGrid.Visibility = Visibility.Collapsed;
+        HelloErrorText.Visibility = Visibility.Collapsed;
+
+        // Auto-prompt Windows Hello
+        _ = TriggerHelloAuthAsync();
+    }
+
+    private void ShowMainContent()
+    {
+        HelloLockOverlay.Visibility = Visibility.Collapsed;
+        MainContentGrid.Visibility = Visibility.Visible;
+    }
+
+    private async Task TriggerHelloAuthAsync()
+    {
+        try
+        {
+            HelloUnlockButton.IsEnabled = false;
+            bool ok = await ServiceContainer.HelloService.RequestVerificationAsync("Unlock clipboard history");
+            if (ok)
+            {
+                _lastHelloUnlockTime = DateTime.UtcNow;
+                ShowMainContent();
+                await RefreshItemsAsync();
+                SearchBox.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                HelloErrorText.Text = "Authentication failed. Click Unlock to try again.";
+                HelloErrorText.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            HelloErrorText.Text = $"Authentication error: {ex.Message}";
+            HelloErrorText.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            HelloUnlockButton.IsEnabled = true;
+        }
+    }
+
+    private void HelloUnlock_Click(object sender, RoutedEventArgs e)
+    {
+        _ = TriggerHelloAuthAsync();
     }
 
     private void PositionWindow()
@@ -203,6 +283,18 @@ public sealed partial class ClipboardPopupWindow : Window
     {
         try
         {
+            // Update Pause badge
+            if (ServiceContainer.ClipboardMonitor.IsPaused)
+            {
+                var until = ServiceContainer.ClipboardMonitor.PausedUntil;
+                PausedBadgeText.Text = until.HasValue ? $"Paused until {until.Value:HH:mm}" : "Paused";
+                PausedBadge.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                PausedBadge.Visibility = Visibility.Collapsed;
+            }
+
             var rawItems = await ServiceContainer.ClipboardStore.GetItemsAsync(
                 limit: 100,
                 filter: _currentFilter,
@@ -428,7 +520,6 @@ public sealed partial class ClipboardPopupWindow : Window
     {
         if (IsControlDown())
         {
-            // Ctrl+Click multi-select
             return;
         }
 
@@ -560,6 +651,14 @@ public sealed partial class ClipboardPopupWindow : Window
         _ = RefreshItemsAsync();
     }
 
+    private void ItemReveal_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
+        {
+            vm.ToggleReveal();
+        }
+    }
+
     private void ItemCopy_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
@@ -598,6 +697,23 @@ public sealed partial class ClipboardPopupWindow : Window
 
             _ = RefreshItemsAsync();
         }
+    }
+
+    private void FooterPause5_Click(object sender, RoutedEventArgs e) => SetPause(TimeSpan.FromMinutes(5));
+    private void FooterPause15_Click(object sender, RoutedEventArgs e) => SetPause(TimeSpan.FromMinutes(15));
+    private void FooterPause60_Click(object sender, RoutedEventArgs e) => SetPause(TimeSpan.FromMinutes(60));
+    private void FooterPauseIndefinite_Click(object sender, RoutedEventArgs e) => SetPause(TimeSpan.FromDays(365));
+
+    private void SetPause(TimeSpan duration)
+    {
+        ServiceContainer.ClipboardMonitor.SetPause(duration);
+        _ = RefreshItemsAsync();
+    }
+
+    private void FooterResume_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.ClipboardMonitor.Resume();
+        _ = RefreshItemsAsync();
     }
 
     private async void FooterClearAll_Click(object sender, RoutedEventArgs e)
@@ -641,6 +757,9 @@ public sealed partial class ClipboardPopupWindow : Window
     }
 
     #region Win32 Interop
+
+    private const uint WDA_NONE = 0x00000000;
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -709,6 +828,9 @@ public sealed partial class ClipboardPopupWindow : Window
 
     [DllImport("user32.dll")]
     private static extern short GetKeyState(int vKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
 
     #endregion
 }
