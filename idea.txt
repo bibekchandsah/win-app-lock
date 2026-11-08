@@ -220,7 +220,12 @@ fixed - remove "capturing/disabled"status from the card quick setting toggle, as
 fixed - when user is in clipboard page then make the others navigation active 
 fixed - make others page responsive that is wrapped when window width is resized (custom controls:WrapPanel with auto-wrap on resize) 
 
-
+fixed - add system tray menu:
+        enable/disable clipboard 
+        Open history 
+        Pause capture > Pause for 5 minutes, Pause for 15 minutes, Pause for 1 hour, Pause until resumed, Resume capture
+fixed - snippet edit content now properly retains and displays full multi-line text (AcceptsReturn configured before setting Text + GetItemByIdAsync fresh db load + auto-recovery from preview)
+fixed - drag handle pill positioned in mathematical dead center of popup window header (spans full header with HorizontalAlignment="Center")
 
 
 

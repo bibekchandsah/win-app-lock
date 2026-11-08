@@ -185,6 +185,11 @@ public sealed partial class ClipboardSettingsPage : Page
             ServiceContainer.ClipboardMonitor.Stop();
         }
         SaveSettings();
+        try
+        {
+            ServiceContainer.TrayService.UpdateClipboardMenuItems();
+        }
+        catch { }
     }
 
     private async void HistoryLimitCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -472,6 +477,11 @@ public sealed partial class ClipboardSettingsPage : Page
     {
         if (sender is Button btn && btn.Tag is ClipboardItemViewModel vm)
         {
+            var dbItem = await ServiceContainer.ClipboardStore.GetItemByIdAsync(vm.Id);
+            if (dbItem != null)
+            {
+                vm = new ClipboardItemViewModel(dbItem);
+            }
             await ShowSnippetDialogAsync(vm);
         }
     }
@@ -487,6 +497,19 @@ public sealed partial class ClipboardSettingsPage : Page
 
     private async Task ShowSnippetDialogAsync(ClipboardItemViewModel? existing)
     {
+        string initialContent = string.Empty;
+        if (existing != null)
+        {
+            initialContent = existing.Model.ContentString ?? string.Empty;
+            // If ContentString is missing or was previously truncated to single line while PreviewText had multiple lines
+            if (string.IsNullOrEmpty(initialContent) ||
+                (!string.IsNullOrEmpty(existing.PreviewText) && existing.PreviewText.Contains('\n') && !initialContent.Contains('\n')))
+            {
+                initialContent = existing.PreviewText;
+            }
+            initialContent = initialContent.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
+        }
+
         var titleBox = new TextBox
         {
             Header = "Snippet Title",
@@ -509,15 +532,20 @@ public sealed partial class ClipboardSettingsPage : Page
             Margin = new Thickness(0, -6, 0, 0)
         };
 
+        // CRITICAL: Configure AcceptsReturn and TextWrapping BEFORE assigning Text.
+        // Assigning multi-line Text to a single-line TextBox truncates after the first newline!
         var contentBox = new TextBox
         {
             Header = "Snippet Content",
             PlaceholderText = "Enter or paste reusable snippet text...",
-            Text = existing?.Model.ContentString ?? existing?.PreviewText ?? string.Empty,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            MinHeight = 140
+            MinHeight = 140,
+            MaxHeight = 280,
+            IsSpellCheckEnabled = false
         };
+        contentBox.Text = initialContent;
+        ScrollViewer.SetVerticalScrollBarVisibility(contentBox, ScrollBarVisibility.Auto);
 
         var stack = new StackPanel
         {
@@ -535,7 +563,7 @@ public sealed partial class ClipboardSettingsPage : Page
             Content = stack,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary
+            DefaultButton = ContentDialogButton.None
         };
 
         ConfigureDialog(dialog);

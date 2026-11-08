@@ -83,6 +83,37 @@
                         </MenuFlyoutItem>
                         
                         <MenuFlyoutSeparator/>
+
+                        <!-- Clipboard Controls -->
+                        <MenuFlyoutItem x:Name="ClipboardToggleMenuItem" Text="Disable Clipboard">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8C8;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <MenuFlyoutItem x:Name="ClipboardHistoryMenuItem" Text="Open history">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE81C;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <MenuFlyoutSubItem x:Name="ClipboardPauseSubItem" Text="Pause capture">
+                            <MenuFlyoutSubItem.Icon>
+                                <FontIcon Glyph="&#xE769;"/>
+                            </MenuFlyoutSubItem.Icon>
+                            <MenuFlyoutItem x:Name="ClipboardPause5mItem" Text="Pause for 5 minutes"/>
+                            <MenuFlyoutItem x:Name="ClipboardPause15mItem" Text="Pause for 15 minutes"/>
+                            <MenuFlyoutItem x:Name="ClipboardPause1hItem" Text="Pause for 1 hour"/>
+                            <MenuFlyoutItem x:Name="ClipboardPauseIndefiniteItem" Text="Pause until resumed"/>
+                            <MenuFlyoutSeparator/>
+                            <MenuFlyoutItem x:Name="ClipboardResumeItem" Text="Resume capture">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE768;"/>
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyoutSubItem>
+
+                        <MenuFlyoutSeparator/>
                         
                         <MenuFlyoutItem x:Name="BrightnessHotkeysMenuItem" Text="Disable Brightness Hotkeys">
                             <MenuFlyoutItem.Icon>

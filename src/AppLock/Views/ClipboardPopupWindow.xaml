@@ -26,13 +26,14 @@
                     </Grid.RowDefinitions>
 
                     <!-- Window Header / Drag Bar -->
-                    <Grid Grid.Row="0" Margin="0,0,0,2">
+                    <Grid Grid.Row="0" Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Left side: Smooth non-blocking Drag Handle -->
+                        <!-- Left side: App Title & Icon -->
                         <StackPanel Grid.Column="0"
                                     Orientation="Horizontal"
                                     Spacing="6"
@@ -45,18 +46,38 @@
                                     ToolTipService.ToolTip="Drag window">
                             <FontIcon Glyph="&#xE8C8;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
                             <TextBlock Text="Clipboard" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <!-- Drag Handle Pill (horizontal rounded bar) -->
-                            <Border Width="30"
+                        </StackPanel>
+
+                        <!-- Center: Background drag area -->
+                        <Grid Grid.Column="1"
+                              Background="Transparent"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              PointerPressed="Header_PointerPressed"
+                              PointerMoved="Header_PointerMoved"
+                              PointerReleased="Header_PointerReleased"
+                              PointerCaptureLost="Header_PointerCaptureLost"
+                              ToolTipService.ToolTip="Drag window"/>
+
+                        <!-- True Center Drag Handle Pill (Spans full header width, mathematically dead-centered across window) -->
+                        <Grid Grid.Column="0" Grid.ColumnSpan="3"
+                              Background="Transparent"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              PointerPressed="Header_PointerPressed"
+                              PointerMoved="Header_PointerMoved"
+                              PointerReleased="Header_PointerReleased"
+                              PointerCaptureLost="Header_PointerCaptureLost"
+                              ToolTipService.ToolTip="Drag window">
+                            <Border Width="36"
                                     Height="4"
                                     CornerRadius="2"
                                     Background="{ThemeResource TextFillColorTertiaryBrush}"
-                                    VerticalAlignment="Center"
-                                    Margin="6,0,0,0"
                                     Opacity="0.85"/>
-                        </StackPanel>
+                        </Grid>
 
                         <!-- Right side: Window Action Buttons (Isolated from drag) -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
                             <!-- Pin Window (Keep open on click outside) -->
                             <Button x:Name="WindowPinButton"
                                     Click="WindowPinButton_Click"
@@ -203,19 +224,19 @@
                                                                    Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
                                                     </Border>
 
-                                                    <!-- Snippet Badge -->
+                                                    <!-- Source icon and title -->
+                                                    <FontIcon Glyph="&#xE71D;" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                                    <TextBlock Text="{x:Bind SourceProcess}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <TextBlock Text="•" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind RelativeTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                                                    <!-- Snippet Badge (next to date and time) -->
                                                     <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                             CornerRadius="4"
                                                             Padding="5,1"
                                                             Visibility="{x:Bind SnippetBadgeVisibility, Mode=OneWay}">
                                                         <TextBlock Text="{x:Bind SnippetTitle, Mode=OneWay}" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
                                                     </Border>
-
-                                                    <!-- Source icon and title -->
-                                                    <FontIcon Glyph="&#xE71D;" FontSize="11" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
-                                                    <TextBlock Text="{x:Bind SourceProcess}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                                    <TextBlock Text="•" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                                    <TextBlock Text="{x:Bind RelativeTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                                     <TextBlock Text="{x:Bind DimensionsText}" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="{x:Bind ImageVisibility, Mode=OneWay}"/>
 
                                                     <!-- Color Swatch -->

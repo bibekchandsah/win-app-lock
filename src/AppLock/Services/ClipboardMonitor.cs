@@ -71,6 +71,7 @@ public sealed class ClipboardMonitor : IDisposable
     public event EventHandler<ClipboardItem>? ItemCaptured;
     public event EventHandler? HotkeyTriggered;
     public event EventHandler<bool>? SessionLockChanged;
+    public event EventHandler? PauseStateChanged;
 
     public bool IsSessionLocked => _isSessionLocked;
     public bool IsRunning => _isRunning;
@@ -190,8 +191,9 @@ public sealed class ClipboardMonitor : IDisposable
     {
         lock (_stateLock)
         {
-            _pausedUntil = DateTime.Now.Add(duration);
+            _pausedUntil = duration == TimeSpan.MaxValue ? DateTime.MaxValue : DateTime.Now.Add(duration);
         }
+        PauseStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Resume()
@@ -200,6 +202,7 @@ public sealed class ClipboardMonitor : IDisposable
         {
             _pausedUntil = null;
         }
+        PauseStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void IgnoreNext()

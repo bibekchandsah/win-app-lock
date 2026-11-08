@@ -904,7 +904,12 @@ public sealed partial class ClipboardPopupWindow : Window
     private void OpenEditOverlay(ClipboardItemViewModel vm)
     {
         _editingItem = vm;
-        EditTextTextBox.Text = vm.Model.ContentString ?? vm.PreviewText;
+        string text = vm.Model.ContentString ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
+        {
+            text = vm.PreviewText;
+        }
+        EditTextTextBox.Text = text.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
         EditItemOverlay.Visibility = Visibility.Visible;
         MainContentGrid.Visibility = Visibility.Collapsed;
         DispatcherQueue.TryEnqueue(() =>

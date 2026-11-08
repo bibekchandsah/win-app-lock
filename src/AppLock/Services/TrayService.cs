@@ -8,6 +8,7 @@ using H.NotifyIcon;
 using AppLock.Models;
 using AppLock.Services.BitLocker;
 using AppLock.ViewModels;
+using AppLock.Views;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AppLock.Services;
@@ -22,6 +23,14 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _openMenuItem;
     private MenuFlyoutItem? _protectionMenuItem;
     private MenuFlyoutItem? _emergencyLockMenuItem;
+    private MenuFlyoutItem? _clipboardToggleMenuItem;
+    private MenuFlyoutItem? _clipboardHistoryMenuItem;
+    private MenuFlyoutSubItem? _clipboardPauseSubItem;
+    private MenuFlyoutItem? _clipboardPause5mItem;
+    private MenuFlyoutItem? _clipboardPause15mItem;
+    private MenuFlyoutItem? _clipboardPause1hItem;
+    private MenuFlyoutItem? _clipboardPauseIndefiniteItem;
+    private MenuFlyoutItem? _clipboardResumeItem;
     private MenuFlyoutItem? _brightnessHotkeysMenuItem;
     private MenuFlyoutItem? _blurHotkeyMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
@@ -74,18 +83,46 @@ public sealed class TrayService : IDisposable
                     if (item is MenuFlyoutItem mfi)
                     {
                         var text = mfi.Text ?? "";
-                        if (text.Contains("Open", StringComparison.OrdinalIgnoreCase))
+                        if (mfi.Name == "OpenMenuItem" || text.Contains("Open AppLock", StringComparison.OrdinalIgnoreCase))
                             _openMenuItem = mfi;
-                        else if (text.Contains("Protection", StringComparison.OrdinalIgnoreCase))
+                        else if (mfi.Name == "ProtectionMenuItem" || text.Contains("Protection", StringComparison.OrdinalIgnoreCase))
                             _protectionMenuItem = mfi;
-                        else if (text.Contains("Emergency", StringComparison.OrdinalIgnoreCase))
+                        else if (mfi.Name == "EmergencyLockMenuItem" || text.Contains("Emergency", StringComparison.OrdinalIgnoreCase))
                             _emergencyLockMenuItem = mfi;
-                        else if (text.Contains("Brightness Hotkeys", StringComparison.OrdinalIgnoreCase))
+                        else if (mfi.Name == "ClipboardToggleMenuItem" || (text.Contains("Clipboard", StringComparison.OrdinalIgnoreCase) && !text.Contains("History", StringComparison.OrdinalIgnoreCase)))
+                            _clipboardToggleMenuItem = mfi;
+                        else if (mfi.Name == "ClipboardHistoryMenuItem" || text.Contains("Open history", StringComparison.OrdinalIgnoreCase) || text.Contains("History", StringComparison.OrdinalIgnoreCase))
+                            _clipboardHistoryMenuItem = mfi;
+                        else if (mfi.Name == "BrightnessHotkeysMenuItem" || text.Contains("Brightness Hotkeys", StringComparison.OrdinalIgnoreCase))
                             _brightnessHotkeysMenuItem = mfi;
-                        else if (text.Contains("Blur Hotkey", StringComparison.OrdinalIgnoreCase))
+                        else if (mfi.Name == "BlurHotkeyMenuItem" || text.Contains("Blur Hotkey", StringComparison.OrdinalIgnoreCase))
                             _blurHotkeyMenuItem = mfi;
-                        else if (text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
+                        else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
+                    }
+                    else if (item is MenuFlyoutSubItem sub)
+                    {
+                        if (sub.Name == "ClipboardPauseSubItem" || (sub.Text != null && sub.Text.Contains("Pause", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _clipboardPauseSubItem = sub;
+                            foreach (var subItem in sub.Items)
+                            {
+                                if (subItem is MenuFlyoutItem smi)
+                                {
+                                    var st = smi.Text ?? "";
+                                    if (smi.Name == "ClipboardPause5mItem" || st.Contains("5 minutes", StringComparison.OrdinalIgnoreCase))
+                                        _clipboardPause5mItem = smi;
+                                    else if (smi.Name == "ClipboardPause15mItem" || st.Contains("15 minutes", StringComparison.OrdinalIgnoreCase))
+                                        _clipboardPause15mItem = smi;
+                                    else if (smi.Name == "ClipboardPause1hItem" || st.Contains("1 hour", StringComparison.OrdinalIgnoreCase))
+                                        _clipboardPause1hItem = smi;
+                                    else if (smi.Name == "ClipboardPauseIndefiniteItem" || st.Contains("until resumed", StringComparison.OrdinalIgnoreCase))
+                                        _clipboardPauseIndefiniteItem = smi;
+                                    else if (smi.Name == "ClipboardResumeItem" || st.Contains("Resume", StringComparison.OrdinalIgnoreCase))
+                                        _clipboardResumeItem = smi;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -133,6 +170,80 @@ public sealed class TrayService : IDisposable
                     });
                     System.Diagnostics.Debug.WriteLine("Emergency lock menu item wired");
                 }
+
+                if (_clipboardToggleMenuItem != null)
+                {
+                    _clipboardToggleMenuItem.Command = new RelayCommand(() =>
+                    {
+                        var settings = _settingsStore.Load();
+                        bool newEnabled = !settings.Clipboard.Enabled;
+                        settings.Clipboard.Enabled = newEnabled;
+                        _settingsStore.Save(settings);
+                        if (newEnabled)
+                        {
+                            ServiceContainer.ClipboardMonitor.Start();
+                        }
+                        else
+                        {
+                            ServiceContainer.ClipboardMonitor.Stop();
+                        }
+                        UpdateClipboardMenuItems();
+                    });
+                }
+
+                if (_clipboardHistoryMenuItem != null)
+                {
+                    _clipboardHistoryMenuItem.Command = new RelayCommand(() =>
+                    {
+                        var dispatcher = _dispatcherQueue ?? _trayIcon.DispatcherQueue;
+                        dispatcher?.TryEnqueue(() => ClipboardPopupWindow.Toggle());
+                    });
+                }
+
+                if (_clipboardPause5mItem != null)
+                {
+                    _clipboardPause5mItem.Command = new RelayCommand(() =>
+                    {
+                        ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(5));
+                        UpdateClipboardMenuItems();
+                    });
+                }
+
+                if (_clipboardPause15mItem != null)
+                {
+                    _clipboardPause15mItem.Command = new RelayCommand(() =>
+                    {
+                        ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromMinutes(15));
+                        UpdateClipboardMenuItems();
+                    });
+                }
+
+                if (_clipboardPause1hItem != null)
+                {
+                    _clipboardPause1hItem.Command = new RelayCommand(() =>
+                    {
+                        ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromHours(1));
+                        UpdateClipboardMenuItems();
+                    });
+                }
+
+                if (_clipboardPauseIndefiniteItem != null)
+                {
+                    _clipboardPauseIndefiniteItem.Command = new RelayCommand(() =>
+                    {
+                        ServiceContainer.ClipboardMonitor.SetPause(TimeSpan.FromDays(365));
+                        UpdateClipboardMenuItems();
+                    });
+                }
+
+                if (_clipboardResumeItem != null)
+                {
+                    _clipboardResumeItem.Command = new RelayCommand(() =>
+                    {
+                        ServiceContainer.ClipboardMonitor.Resume();
+                        UpdateClipboardMenuItems();
+                    });
+                }
                 
                 if (_brightnessHotkeysMenuItem != null)
                 {
@@ -178,8 +289,12 @@ public sealed class TrayService : IDisposable
             UpdateTooltip();
             UpdateProtectionMenuItems();
             UpdateBrightnessMenuItems();
+            UpdateClipboardMenuItems();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
+
+            ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+            ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -320,6 +435,68 @@ public sealed class TrayService : IDisposable
             _blurHotkeyMenuItem.Text = settings.Brightness.Blur.HotkeyEnabled 
                 ? "Disable Blur Hotkey" 
                 : "Enable Blur Hotkey";
+        }
+    }
+
+    private void OnClipboardPauseStateChanged(object? sender, EventArgs e)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateClipboardMenuItems);
+    }
+
+    public void UpdateClipboardMenuItems()
+    {
+        try
+        {
+            var settings = _settingsStore.Load();
+            bool enabled = settings.Clipboard.Enabled;
+            bool isPaused = ServiceContainer.ClipboardMonitor.IsPaused;
+
+            if (_clipboardToggleMenuItem != null)
+            {
+                _clipboardToggleMenuItem.Text = enabled ? "Disable Clipboard" : "Enable Clipboard";
+            }
+
+            if (_clipboardHistoryMenuItem != null)
+            {
+                _clipboardHistoryMenuItem.IsEnabled = enabled;
+            }
+
+            if (_clipboardPauseSubItem != null)
+            {
+                _clipboardPauseSubItem.IsEnabled = enabled;
+                if (!enabled)
+                {
+                    _clipboardPauseSubItem.Text = "Pause capture";
+                }
+                else if (isPaused)
+                {
+                    var pausedUntil = ServiceContainer.ClipboardMonitor.PausedUntil;
+                    if (pausedUntil.HasValue && pausedUntil.Value < DateTime.Now.AddYears(1))
+                    {
+                        var rem = pausedUntil.Value - DateTime.Now;
+                        string remText = rem.TotalMinutes >= 1 ? $"{(int)Math.Ceiling(rem.TotalMinutes)}m" : "<1m";
+                        _clipboardPauseSubItem.Text = $"Pause capture ({remText})";
+                    }
+                    else
+                    {
+                        _clipboardPauseSubItem.Text = "Pause capture (Paused)";
+                    }
+                }
+                else
+                {
+                    _clipboardPauseSubItem.Text = "Pause capture";
+                }
+            }
+
+            if (_clipboardResumeItem != null)
+            {
+                _clipboardResumeItem.IsEnabled = enabled && isPaused;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating clipboard menu: {ex.Message}");
         }
     }
 
@@ -524,6 +701,8 @@ public sealed class TrayService : IDisposable
 
     public void Dispose()
     {
+        ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+
         if (_isVolumeWatcherSubscribed)
         {
             ServiceContainer.VolumeWatcher.VolumeChanged -= OnVolumeWatcherChanged;

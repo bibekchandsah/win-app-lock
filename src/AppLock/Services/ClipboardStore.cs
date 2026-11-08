@@ -399,7 +399,12 @@ LIMIT @excess;
             }
             else
             {
-                whereClauses.Add("is_snippet = 0");
+                // When search is empty, filter out snippets so only regular clipboard items appear.
+                // When searching, allow snippets to appear in search results across All/Text/Pinned!
+                if (string.IsNullOrWhiteSpace(search))
+                {
+                    whereClauses.Add("is_snippet = 0");
+                }
 
                 if (!string.IsNullOrEmpty(filter) && filter != "All")
                 {
@@ -925,6 +930,66 @@ WHERE id = @id;
                data[1] == s_dpapiHeader[1] &&
                data[2] == s_dpapiHeader[2] &&
                data[3] == s_dpapiHeader[3];
+    }
+
+    public async Task<ClipboardItem?> GetItemByIdAsync(long id)
+    {
+        await InitializeAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            using var conn = new SqliteConnection(GetConnectionString());
+            await conn.OpenAsync();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT id, type, content, preview, html, hash, image_path, thumb_path,
+       width, height, size_bytes, source_process, source_title,
+       created_at, last_used_at, use_count, pinned, is_snippet,
+       label, is_sensitive, expires_at
+FROM items
+WHERE id = @id
+LIMIT 1;
+";
+            cmd.Parameters.AddWithValue("@id", id);
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                byte[]? rawContent = reader.IsDBNull(2) ? null : (byte[])reader["content"];
+                byte[]? rawPreview = reader.IsDBNull(3) ? null : (byte[])reader["preview"];
+                byte[]? rawHtml = reader.IsDBNull(4) ? null : (byte[])reader["html"];
+
+                return new ClipboardItem
+                {
+                    Id = reader.GetInt64(0),
+                    Type = reader.GetString(1),
+                    Content = DecryptBytes(rawContent),
+                    Preview = DecryptBytes(rawPreview),
+                    Html = DecryptBytes(rawHtml),
+                    Hash = reader.GetString(5),
+                    ImagePath = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    ThumbPath = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    Width = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                    Height = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                    SizeBytes = reader.GetInt64(10),
+                    SourceProcess = reader.IsDBNull(11) ? null : reader.GetString(11),
+                    SourceTitle = reader.IsDBNull(12) ? null : reader.GetString(12),
+                    CreatedAt = reader.GetInt64(13),
+                    LastUsedAt = reader.GetInt64(14),
+                    UseCount = reader.GetInt32(15),
+                    Pinned = reader.GetInt32(16) == 1,
+                    IsSnippet = reader.GetInt32(17) == 1,
+                    Label = reader.IsDBNull(18) ? null : reader.GetString(18),
+                    IsSensitive = reader.GetInt32(19) == 1,
+                    ExpiresAt = reader.IsDBNull(20) ? null : reader.GetInt64(20)
+                };
+            }
+            return null;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task<List<ClipboardItem>> GetSnippetsAsync()
