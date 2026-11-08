@@ -41,12 +41,19 @@ public partial class BitLockerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanSuspendSelected))]
     [NotifyPropertyChangedFor(nameof(CanBackupSelected))]
     [NotifyPropertyChangedFor(nameof(CanSuspendOrResumeSelected))]
+    [NotifyPropertyChangedFor(nameof(CanChangePasswordSelected))]
+    [NotifyPropertyChangedFor(nameof(CanManageProtectorsSelected))]
+    [NotifyPropertyChangedFor(nameof(CanOpenInExplorerSelected))]
     [NotifyPropertyChangedFor(nameof(SuspendButtonLabel))]
     [NotifyPropertyChangedFor(nameof(SuspendButtonGlyph))]
     [NotifyPropertyChangedFor(nameof(IsSelectedDriveLocked))]
     [NotifyPropertyChangedFor(nameof(QuickUnlockTitle))]
     [NotifyPropertyChangedFor(nameof(LockTooltip))]
     [NotifyPropertyChangedFor(nameof(UnlockTooltip))]
+    [NotifyPropertyChangedFor(nameof(TurnOnTooltip))]
+    [NotifyPropertyChangedFor(nameof(TurnOffTooltip))]
+    [NotifyPropertyChangedFor(nameof(SuspendTooltip))]
+    [NotifyPropertyChangedFor(nameof(BackupKeyTooltip))]
     [NotifyPropertyChangedFor(nameof(HasSavedPasswordForSelected))]
     private DriveItemViewModel? _selectedDrive;
 
@@ -128,16 +135,19 @@ public partial class BitLockerViewModel : ObservableObject
     public string SuspendButtonLabel => SelectedDrive?.ProtectionStatus == ProtectionStatus.Suspended ? "Resume protection" : "Suspend protection";
     public string SuspendButtonGlyph => SelectedDrive?.ProtectionStatus == ProtectionStatus.Suspended ? "" : "";
     public bool CanBackupSelected => SelectedDrive != null && SelectedDrive.HasProtectors && IsElevated;
+    public bool CanChangePasswordSelected => SelectedDrive != null && SelectedDrive.HasPasswordProtector && IsElevated;
+    public bool CanManageProtectorsSelected => SelectedDrive != null && SelectedDrive.ProtectionStatus != ProtectionStatus.Off && IsElevated;
+    public bool CanOpenInExplorerSelected => SelectedDrive != null && !SelectedDrive.IsLocked;
 
     public string LockTooltip
     {
         get
         {
             if (SelectedDrive == null) return "Select a drive to lock.";
-            if (!IsElevated) return "Administrator rights are required to lock drives.";
             if (SelectedDrive.IsOsDrive) return "The OS drive cannot be locked.";
             if (SelectedDrive.IsAppDrive) return "The drive containing AppLock cannot be locked.";
             if (!SelectedDrive.IsUnlocked) return "The drive is already locked.";
+            if (!IsElevated) return "Administrator rights are required to lock drives.";
             return $"Lock drive {SelectedDrive.DriveLetter} (Force dismount)";
         }
     }
@@ -147,10 +157,55 @@ public partial class BitLockerViewModel : ObservableObject
         get
         {
             if (SelectedDrive == null) return "Select a drive to unlock.";
-            if (!IsElevated) return "Administrator rights are required to unlock drives.";
             if (!SelectedDrive.IsLocked) return "The drive is already unlocked.";
             if (IsCooldownActive) return $"Unlock is disabled during cooldown ({CooldownSecondsRemaining}s remaining).";
+            if (!IsElevated) return "Administrator rights are required to unlock drives.";
             return $"Unlock drive {SelectedDrive.DriveLetter}";
+        }
+    }
+
+    public string TurnOnTooltip
+    {
+        get
+        {
+            if (SelectedDrive == null) return "Select a drive to turn on BitLocker.";
+            if (!IsElevated) return "Administrator rights are required to turn on BitLocker.";
+            if (SelectedDrive.ProtectionStatus != ProtectionStatus.Off) return "BitLocker is already enabled on this drive.";
+            return $"Turn on BitLocker encryption for drive {SelectedDrive.DriveLetter}";
+        }
+    }
+
+    public string TurnOffTooltip
+    {
+        get
+        {
+            if (SelectedDrive == null) return "Select a drive to turn off BitLocker.";
+            if (!IsElevated) return "Administrator rights are required to turn off BitLocker.";
+            if (SelectedDrive.ProtectionStatus == ProtectionStatus.Off) return "BitLocker is not enabled on this drive.";
+            return $"Turn off BitLocker encryption (decrypt) for drive {SelectedDrive.DriveLetter}";
+        }
+    }
+
+    public string SuspendTooltip
+    {
+        get
+        {
+            if (SelectedDrive == null) return "Select a drive to suspend or resume BitLocker.";
+            if (!IsElevated) return "Administrator rights are required.";
+            if (SelectedDrive.ProtectionStatus == ProtectionStatus.Off) return "BitLocker is not enabled on this drive.";
+            if (SelectedDrive.ProtectionStatus == ProtectionStatus.Suspended) return $"Resume BitLocker protection for drive {SelectedDrive.DriveLetter}";
+            return $"Suspend BitLocker protection for drive {SelectedDrive.DriveLetter}";
+        }
+    }
+
+    public string BackupKeyTooltip
+    {
+        get
+        {
+            if (SelectedDrive == null) return "Select a drive to view or back up recovery keys.";
+            if (!IsElevated) return "Administrator rights are required.";
+            if (!SelectedDrive.HasProtectors) return "No key protectors found for this drive.";
+            return $"View and back up BitLocker recovery keys for drive {SelectedDrive.DriveLetter}";
         }
     }
 

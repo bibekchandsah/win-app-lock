@@ -3,6 +3,7 @@ using AppLock.Services.BitLocker;
 using AppLock.Services;
 using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using System.Diagnostics;
@@ -61,6 +62,18 @@ public sealed partial class BitLockerPage : Page
         _cooldownTimer?.Stop();
         _cooldownTimer = null;
     }
+    private void ConfigureDialog(ContentDialog dialog)
+    {
+        dialog.XamlRoot = this.XamlRoot;
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            dialog.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            dialog.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
+    }
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         ElevationInfoBar.IsOpen = !ViewModel.IsElevated;
@@ -118,9 +131,9 @@ public sealed partial class BitLockerPage : Page
             },
             PrimaryButtonText = "Lock (Force dismount)",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(dialog);
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
         {
@@ -137,6 +150,7 @@ public sealed partial class BitLockerPage : Page
             PlaceholderText = "Enter BitLocker password",
             Width = 300
         };
+        AutomationProperties.SetName(passwordBox, "Enter BitLocker password");
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(passwordBox);
         var dialog = new ContentDialog
@@ -146,9 +160,9 @@ public sealed partial class BitLockerPage : Page
             PrimaryButtonText = "Unlock",
             SecondaryButtonText = "Use recovery key",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+        ConfigureDialog(dialog);
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
         {
@@ -201,6 +215,7 @@ public sealed partial class BitLockerPage : Page
             PlaceholderText = "48-digit numerical recovery password (e.g. 123456-123456-...)",
             Width = 360
         };
+        AutomationProperties.SetName(keyBox, "48-digit numerical recovery key");
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(new TextBlock
         {
@@ -215,9 +230,9 @@ public sealed partial class BitLockerPage : Page
             Content = panel,
             PrimaryButtonText = "Unlock",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+        ConfigureDialog(dialog);
         var res = await dialog.ShowAsync();
         if (res == ContentDialogResult.Primary)
         {
@@ -259,9 +274,9 @@ public sealed partial class BitLockerPage : Page
                     TextWrapping = TextWrapping.Wrap
                 },
                 CloseButtonText = "I understand",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Close
             };
+            ConfigureDialog(noticeDialog);
             await noticeDialog.ShowAsync();
             ViewModel.MarkSavedPasswordNoticeShown();
         }
@@ -282,9 +297,9 @@ public sealed partial class BitLockerPage : Page
             {
                 Title = "Saved Passwords",
                 Content = new TextBlock { Text = "No saved BitLocker passwords found.", TextWrapping = TextWrapping.Wrap },
-                CloseButtonText = "Close",
-                XamlRoot = this.XamlRoot
+                CloseButtonText = "Close"
             };
+            ConfigureDialog(emptyDialog);
             await emptyDialog.ShowAsync();
             return;
         }
@@ -340,6 +355,7 @@ public sealed partial class BitLockerPage : Page
                 Content = "Update",
                 FontSize = 12
             };
+            AutomationProperties.SetName(updateBtn, $"Update saved password for drive {pwd.DriveLetter}");
             var capturedPwd = pwd;
             updateBtn.Click += async (s, e) =>
             {
@@ -352,6 +368,7 @@ public sealed partial class BitLockerPage : Page
                 Content = "Delete",
                 FontSize = 12
             };
+            AutomationProperties.SetName(deleteBtn, $"Delete saved password for drive {pwd.DriveLetter}");
             deleteBtn.Click += async (s, e) =>
             {
                 await ViewModel.RemoveSavedPasswordAsync(capturedPwd.VolumeGuid, capturedPwd.DriveLetter);
@@ -371,9 +388,9 @@ public sealed partial class BitLockerPage : Page
             Content = new ScrollViewer { Content = panel, MaxHeight = 440 },
             PrimaryButtonText = "Delete All",
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(manageDialog);
         var res = await manageDialog.ShowAsync();
         if (res == ContentDialogResult.Primary)
         {
@@ -387,9 +404,9 @@ public sealed partial class BitLockerPage : Page
                 },
                 PrimaryButtonText = "Delete All",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Close
             };
+            ConfigureDialog(confirmDialog);
             var confirmRes = await confirmDialog.ShowAsync();
             if (confirmRes == ContentDialogResult.Primary)
             {
@@ -406,6 +423,7 @@ public sealed partial class BitLockerPage : Page
             PlaceholderText = "Enter new BitLocker password",
             Width = 320
         };
+        AutomationProperties.SetName(pwdBox, $"New password for Drive {pwd.DriveLetter}");
         var stack = new StackPanel { Spacing = 8 };
         stack.Children.Add(new TextBlock
         {
@@ -419,9 +437,9 @@ public sealed partial class BitLockerPage : Page
             Content = stack,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+        ConfigureDialog(updateDialog);
         var res = await updateDialog.ShowAsync();
         if (res == ContentDialogResult.Primary && !string.IsNullOrEmpty(pwdBox.Password))
         {
@@ -442,11 +460,8 @@ public sealed partial class BitLockerPage : Page
         var drives = ViewModel.Drives.Select(d => d.Model).ToList();
         var selectedLetter = ViewModel.SelectedDrive?.DriveLetter;
 
-        var dialog = new EnableBitLockerDialog(drives, selectedLetter)
-        {
-            XamlRoot = this.XamlRoot
-        };
-
+        var dialog = new EnableBitLockerDialog(drives, selectedLetter);
+        ConfigureDialog(dialog);
         await dialog.ShowAsync();
 
         if (dialog.IsConfirmed && dialog.ResultRequest != null)
@@ -495,6 +510,7 @@ public sealed partial class BitLockerPage : Page
             Width = 160,
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        AutomationProperties.SetName(confirmBox, "Type drive letter to confirm decryption");
         panel.Children.Add(confirmBox);
 
         var dialog = new ContentDialog
@@ -504,9 +520,9 @@ public sealed partial class BitLockerPage : Page
             PrimaryButtonText = "Turn off BitLocker (Decrypt)",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            IsPrimaryButtonEnabled = false,
-            XamlRoot = this.XamlRoot
+            IsPrimaryButtonEnabled = false
         };
+        ConfigureDialog(dialog);
 
         confirmBox.TextChanged += (s, args) =>
         {
@@ -530,9 +546,9 @@ public sealed partial class BitLockerPage : Page
                 },
                 PrimaryButtonText = "Yes, decrypt OS drive",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Close
             };
+            ConfigureDialog(secondDialog);
             var secondResult = await secondDialog.ShowAsync();
             if (secondResult != ContentDialogResult.Primary) return;
         }
@@ -569,6 +585,7 @@ public sealed partial class BitLockerPage : Page
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 SelectedIndex = 0
             };
+            AutomationProperties.SetName(combo, "Select number of reboots to suspend BitLocker");
             combo.Items.Add(new ComboBoxItem { Content = "1 reboot (Recommended)", Tag = 1 });
             combo.Items.Add(new ComboBoxItem { Content = "2 reboots", Tag = 2 });
             combo.Items.Add(new ComboBoxItem { Content = "3 reboots", Tag = 3 });
@@ -581,9 +598,9 @@ public sealed partial class BitLockerPage : Page
                 Content = panel,
                 PrimaryButtonText = "Suspend",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Primary
             };
+            ConfigureDialog(dialog);
 
             var res = await dialog.ShowAsync();
             if (res == ContentDialogResult.Primary)
@@ -605,9 +622,9 @@ public sealed partial class BitLockerPage : Page
                 },
                 PrimaryButtonText = "Suspend protection",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Primary
             };
+            ConfigureDialog(dialog);
 
             var res = await dialog.ShowAsync();
             if (res == ContentDialogResult.Primary)
@@ -645,9 +662,9 @@ public sealed partial class BitLockerPage : Page
                 },
                 PrimaryButtonText = "Add recovery key",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.XamlRoot
+                DefaultButton = ContentDialogButton.Primary
             };
+            ConfigureDialog(noKeyDialog);
 
             var res = await noKeyDialog.ShowAsync();
             if (res == ContentDialogResult.Primary)
@@ -700,6 +717,7 @@ public sealed partial class BitLockerPage : Page
                 FontSize = 14,
                 TextWrapping = TextWrapping.Wrap
             };
+            AutomationProperties.SetName(keyBox, "BitLocker recovery key");
             cardStack.Children.Add(keyBox);
 
             var actionsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -708,11 +726,13 @@ public sealed partial class BitLockerPage : Page
                 Content = "Copy key",
                 FontSize = 12
             };
+            AutomationProperties.SetName(copyBtn, "Copy recovery key to clipboard");
             var saveFileBtn = new Button
             {
                 Content = "Save to file (.txt)",
                 FontSize = 12
             };
+            AutomationProperties.SetName(saveFileBtn, "Save recovery key to text file");
             var feedbackText = new TextBlock
             {
                 Text = "",
@@ -752,9 +772,9 @@ public sealed partial class BitLockerPage : Page
             Title = $"BitLocker Recovery Key - {drive.DisplayName}",
             Content = new ScrollViewer { Content = panel, MaxHeight = 440 },
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(backupDialog);
 
         await backupDialog.ShowAsync();
     }
@@ -786,6 +806,7 @@ public sealed partial class BitLockerPage : Page
             Header = "Current password (optional if drive is unlocked)",
             PlaceholderText = "Current password"
         };
+        AutomationProperties.SetName(oldPwdBox, "Current BitLocker password");
         panel.Children.Add(oldPwdBox);
 
         var newPwdBox = new PasswordBox
@@ -793,6 +814,7 @@ public sealed partial class BitLockerPage : Page
             Header = "New password",
             PlaceholderText = "At least 8 characters"
         };
+        AutomationProperties.SetName(newPwdBox, "New BitLocker password");
         panel.Children.Add(newPwdBox);
 
         var confirmPwdBox = new PasswordBox
@@ -800,6 +822,7 @@ public sealed partial class BitLockerPage : Page
             Header = "Confirm new password",
             PlaceholderText = "Re-enter new password"
         };
+        AutomationProperties.SetName(confirmPwdBox, "Confirm new BitLocker password");
         panel.Children.Add(confirmPwdBox);
 
         var strengthBar = new ProgressBar
@@ -810,6 +833,7 @@ public sealed partial class BitLockerPage : Page
             Height = 4,
             Margin = new Thickness(0, 4, 0, 0)
         };
+        AutomationProperties.SetName(strengthBar, "Password strength");
         var strengthLabel = new TextBlock
         {
             Text = "",
@@ -833,9 +857,9 @@ public sealed partial class BitLockerPage : Page
             PrimaryButtonText = "Change password",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            IsPrimaryButtonEnabled = false,
-            XamlRoot = this.XamlRoot
+            IsPrimaryButtonEnabled = false
         };
+        ConfigureDialog(dialog);
 
         void ValidateInput()
         {
@@ -924,11 +948,13 @@ public sealed partial class BitLockerPage : Page
             Content = "+ Add password",
             FontSize = 12
         };
+        AutomationProperties.SetName(addPasswordBtn, "Add password protector");
         var addRecoveryKeyBtn = new Button
         {
             Content = "+ Add recovery key",
             FontSize = 12
         };
+        AutomationProperties.SetName(addRecoveryKeyBtn, "Add recovery key protector");
         topActions.Children.Add(addPasswordBtn);
         topActions.Children.Add(addRecoveryKeyBtn);
         panel.Children.Add(topActions);
@@ -987,6 +1013,7 @@ public sealed partial class BitLockerPage : Page
                 IsEnabled = canDelete,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            AutomationProperties.SetName(delBtn, $"Remove protector {p.TypeName}");
             if (!canDelete)
             {
                 ToolTipService.SetToolTip(delBtn, "Cannot delete the last key protector.");
@@ -1005,9 +1032,9 @@ public sealed partial class BitLockerPage : Page
                     },
                     PrimaryButtonText = "Delete",
                     CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = this.XamlRoot
+                    DefaultButton = ContentDialogButton.Close
                 };
+                ConfigureDialog(confirmDialog);
                 var confirmRes = await confirmDialog.ShowAsync();
                 if (confirmRes == ContentDialogResult.Primary)
                 {
@@ -1030,9 +1057,9 @@ public sealed partial class BitLockerPage : Page
             Title = $"Manage Key Protectors - {drive.DisplayName}",
             Content = panel,
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(manageDialog);
 
         addPasswordBtn.Click += async (s, e) =>
         {
@@ -1059,11 +1086,13 @@ public sealed partial class BitLockerPage : Page
             Header = "Enter new password:",
             PlaceholderText = "At least 8 characters"
         };
+        AutomationProperties.SetName(pwdBox, "Enter new password");
         var confirmBox = new PasswordBox
         {
             Header = "Confirm password:",
             PlaceholderText = "Re-enter password"
         };
+        AutomationProperties.SetName(confirmBox, "Confirm password");
         var msgLabel = new TextBlock
         {
             Text = "",
@@ -1081,9 +1110,9 @@ public sealed partial class BitLockerPage : Page
             PrimaryButtonText = "Add protector",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            IsPrimaryButtonEnabled = false,
-            XamlRoot = this.XamlRoot
+            IsPrimaryButtonEnabled = false
         };
+        ConfigureDialog(dialog);
 
         void Check()
         {
@@ -1136,6 +1165,7 @@ public sealed partial class BitLockerPage : Page
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap
         };
+        AutomationProperties.SetName(keyBox, "Generated recovery key");
         panel.Children.Add(keyBox);
 
         var copyBtn = new Button
@@ -1143,6 +1173,7 @@ public sealed partial class BitLockerPage : Page
             Content = "Copy to clipboard",
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        AutomationProperties.SetName(copyBtn, "Copy generated recovery key to clipboard");
         copyBtn.Click += (s, e) =>
         {
             var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
@@ -1158,9 +1189,9 @@ public sealed partial class BitLockerPage : Page
             Content = panel,
             PrimaryButtonText = "Add protector",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+        ConfigureDialog(dialog);
 
         var res = await dialog.ShowAsync();
         if (res == ContentDialogResult.Primary && !string.IsNullOrEmpty(key))
@@ -1265,6 +1296,7 @@ public sealed partial class BitLockerPage : Page
                 CornerRadius = new CornerRadius(4),
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
             };
+            AutomationProperties.SetName(progressBar, "Drive storage capacity used");
             barStack.Children.Add(progressBar);
             panel.Children.Add(barStack);
 
@@ -1309,6 +1341,7 @@ public sealed partial class BitLockerPage : Page
                 Content = "Open in File Explorer",
                 HorizontalAlignment = HorizontalAlignment.Left
             };
+            AutomationProperties.SetName(openBtn, "Open drive in File Explorer");
             openBtn.Click += (s, e) => BitLockerViewModel.TryOpenDriveInExplorer(drive.DriveLetter);
             panel.Children.Add(openBtn);
         }
@@ -1318,9 +1351,9 @@ public sealed partial class BitLockerPage : Page
             Title = $"Drive Usage - {drive.DisplayName}",
             Content = panel,
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(usageDialog);
 
         await usageDialog.ShowAsync();
     }
@@ -1427,12 +1460,15 @@ public sealed partial class BitLockerPage : Page
         var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
 
         var runNowBtn = new Button { Content = "Run now", IsEnabled = taskInfo.Exists };
+        AutomationProperties.SetName(runNowBtn, "Run auto-unlock startup task now");
         var createBtn = new Button
         {
             Content = taskInfo.Exists ? "Update task" : "Create task",
             Style = (Style)Application.Current.Resources["AccentButtonStyle"]
         };
+        AutomationProperties.SetName(createBtn, "Create or update auto-unlock startup task");
         var removeBtn = new Button { Content = "Remove task", IsEnabled = taskInfo.Exists };
+        AutomationProperties.SetName(removeBtn, "Remove auto-unlock startup task");
 
         buttonPanel.Children.Add(runNowBtn);
         buttonPanel.Children.Add(createBtn);
@@ -1444,9 +1480,9 @@ public sealed partial class BitLockerPage : Page
             Title = "BitLocker Auto-Unlock at Logon",
             Content = panel,
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(dialog);
 
         runNowBtn.Click += async (s, e) =>
         {
@@ -1505,11 +1541,14 @@ public sealed partial class BitLockerPage : Page
             TextWrapping = TextWrapping.Wrap,
             Height = 320
         };
+        AutomationProperties.SetName(reportBox, "BitLocker diagnostic report");
         panel.Children.Add(reportBox);
 
         var actionsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var copyBtn = new Button { Content = "Copy report", FontSize = 12 };
+        AutomationProperties.SetName(copyBtn, "Copy diagnostic report to clipboard");
         var openLogsBtn = new Button { Content = "Open logs folder", FontSize = 12 };
+        AutomationProperties.SetName(openLogsBtn, "Open logs folder in File Explorer");
         var feedbackText = new TextBlock
         {
             Text = "",
@@ -1551,9 +1590,9 @@ public sealed partial class BitLockerPage : Page
             Title = "BitLocker Diagnostics",
             Content = panel,
             CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Close
         };
+        ConfigureDialog(diagDialog);
 
         await diagDialog.ShowAsync();
     }
@@ -1591,24 +1630,28 @@ public sealed partial class BitLockerPage : Page
             Header = "Open drive in File Explorer after unlock",
             IsOn = ViewModel.OpenDriveAfterUnlock
         };
+        AutomationProperties.SetName(openExplorerToggle, "Open drive in File Explorer after unlock");
 
         var autoUnlockToggle = new ToggleSwitch
         {
             Header = "Auto-unlock saved drives when AppLock opens",
             IsOn = ViewModel.AutoUnlockOnAppOpen
         };
+        AutomationProperties.SetName(autoUnlockToggle, "Auto-unlock saved drives when AppLock opens");
 
         var toastToggle = new ToggleSwitch
         {
             Header = "Show toast notifications for BitLocker events",
             IsOn = ViewModel.ToastNotifications
         };
+        AutomationProperties.SetName(toastToggle, "Show toast notifications for BitLocker events");
 
         var autoClearToggle = new ToggleSwitch
         {
             Header = "Auto-clear clipboard 60s after copying a recovery key",
             IsOn = ViewModel.AutoClearClipboard
         };
+        AutomationProperties.SetName(autoClearToggle, "Auto-clear clipboard 60s after copying a recovery key");
 
         var intervalStack = new StackPanel { Spacing = 4 };
         intervalStack.Children.Add(new TextBlock { Text = "Drive list refresh interval:", FontSize = 12 });
@@ -1616,6 +1659,7 @@ public sealed partial class BitLockerPage : Page
         {
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        AutomationProperties.SetName(intervalCombo, "Drive list refresh interval");
         intervalCombo.Items.Add(new ComboBoxItem { Content = "5 seconds (Default)", Tag = 5 });
         intervalCombo.Items.Add(new ComboBoxItem { Content = "10 seconds", Tag = 10 });
         intervalCombo.Items.Add(new ComboBoxItem { Content = "30 seconds", Tag = 30 });
@@ -1644,9 +1688,9 @@ public sealed partial class BitLockerPage : Page
             Content = panel,
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            DefaultButton = ContentDialogButton.Primary
         };
+        ConfigureDialog(dialog);
 
         var res = await dialog.ShowAsync();
         if (res == ContentDialogResult.Primary)

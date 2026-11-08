@@ -380,7 +380,7 @@ public class BitLockerDriveTests
     public async Task TurnOnBitLocker_ViewModel_InvokesServiceCorrectly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -401,7 +401,7 @@ public class BitLockerDriveTests
     public async Task TurnOffBitLocker_ViewModel_InvokesServiceCorrectly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -413,7 +413,7 @@ public class BitLockerDriveTests
     public async Task SuspendAndResume_ViewModel_InvokesServiceCorrectly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -432,7 +432,7 @@ public class BitLockerDriveTests
     public async Task ChangePassword_ViewModel_InvokesServiceCorrectly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -448,7 +448,7 @@ public class BitLockerDriveTests
     public async Task ManageProtectors_ViewModel_InvokesServiceCorrectly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -473,7 +473,7 @@ public class BitLockerDriveTests
     public async Task GetRecoveryKey_ViewModel_ReturnsExpectedKey()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -502,7 +502,7 @@ public class BitLockerDriveTests
     public async Task DiagnosticsReport_GeneratesAllSectionsProperly()
     {
         var fakeService = new FakeBitLockerService();
-        var supportService = new BitLockerSupportService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
         using var watcher = new VolumeWatcher();
         var vm = new BitLockerViewModel(supportService, fakeService, watcher);
 
@@ -553,6 +553,208 @@ public class BitLockerDriveTests
 
         vm.ToastNotifications = false;
         Assert.False(settings.BitLockerToastNotifications);
+    }
+
+    [Fact]
+    public void BitLockerViewModel_TooltipsAndCommandStates_MatchDriveState()
+    {
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+
+        // Null drive selection
+        Assert.Null(vm.SelectedDrive);
+        Assert.Contains("Select a drive", vm.LockTooltip);
+        Assert.Contains("Select a drive", vm.UnlockTooltip);
+        Assert.Contains("Select a drive", vm.TurnOnTooltip);
+        Assert.Contains("Select a drive", vm.TurnOffTooltip);
+        Assert.Contains("Select a drive", vm.SuspendTooltip);
+        Assert.Contains("Select a drive", vm.BackupKeyTooltip);
+        Assert.False(vm.CanLockSelected);
+        Assert.False(vm.CanUnlockSelected);
+        Assert.False(vm.CanTurnOnSelected);
+        Assert.False(vm.CanTurnOffSelected);
+
+        // OS Drive (should never be lockable)
+        var osDrive = new BitLockerDrive
+        {
+            DriveLetter = "C:",
+            DriveType = AppLock.Models.DriveType.OperatingSystem,
+            LockStatus = LockStatus.Unlocked,
+            ProtectionStatus = ProtectionStatus.On,
+            KeyProtectors = new List<KeyProtectorInfo>
+            {
+                new KeyProtectorInfo { Id = "1", TypeCode = 1, TypeName = "TPM" }
+            }
+        };
+        var osItem = new DriveItemViewModel(osDrive);
+        vm.SelectedDrive = osItem;
+
+        Assert.False(vm.CanLockSelected);
+        Assert.Contains("OS drive cannot be locked", vm.LockTooltip);
+        Assert.False(vm.CanUnlockSelected);
+        Assert.Contains("already unlocked", vm.UnlockTooltip);
+        Assert.True(vm.CanTurnOffSelected);
+        Assert.False(vm.CanTurnOnSelected);
+        Assert.Contains("already enabled", vm.TurnOnTooltip);
+
+        // AppLock Drive (D: where this test runs)
+        var appDrive = new BitLockerDrive
+        {
+            DriveLetter = "D:",
+            DriveType = AppLock.Models.DriveType.Data,
+            LockStatus = LockStatus.Unlocked,
+            ProtectionStatus = ProtectionStatus.On
+        };
+        var appItem = new DriveItemViewModel(appDrive);
+        vm.SelectedDrive = appItem;
+
+        Assert.False(vm.CanLockSelected);
+        Assert.Contains("containing AppLock cannot be locked", vm.LockTooltip);
+
+        // Data Drive - Locked (Z:)
+        var lockedDrive = new BitLockerDrive
+        {
+            DriveLetter = "Z:",
+            DriveType = AppLock.Models.DriveType.Data,
+            LockStatus = LockStatus.Locked,
+            ProtectionStatus = ProtectionStatus.On
+        };
+        var lockedItem = new DriveItemViewModel(lockedDrive);
+        vm.SelectedDrive = lockedItem;
+
+        Assert.False(vm.CanLockSelected);
+        Assert.Contains("already locked", vm.LockTooltip);
+        Assert.True(vm.CanUnlockSelected);
+        Assert.Contains("Unlock drive Z:", vm.UnlockTooltip);
+        Assert.False(vm.CanOpenInExplorerSelected);
+
+        // Data Drive - Unlocked
+        var unlockedDrive = new BitLockerDrive
+        {
+            DriveLetter = "E:",
+            DriveType = AppLock.Models.DriveType.Data,
+            LockStatus = LockStatus.Unlocked,
+            ProtectionStatus = ProtectionStatus.Off
+        };
+        var unlockedItem = new DriveItemViewModel(unlockedDrive);
+        vm.SelectedDrive = unlockedItem;
+
+        Assert.True(vm.CanLockSelected);
+        Assert.Contains("Lock drive E:", vm.LockTooltip);
+        Assert.True(vm.CanTurnOnSelected);
+        Assert.False(vm.CanTurnOffSelected);
+        Assert.True(vm.CanOpenInExplorerSelected);
+    }
+
+    [Fact]
+    public void DriveItemViewModel_ProtectorDetection_WorksCorrectly()
+    {
+        var drive = new BitLockerDrive
+        {
+            DriveLetter = "F:",
+            DriveType = AppLock.Models.DriveType.Data,
+            LockStatus = LockStatus.Unlocked,
+            ProtectionStatus = ProtectionStatus.On,
+            KeyProtectors = new List<KeyProtectorInfo>
+            {
+                new KeyProtectorInfo { Id = "pwd-1", TypeCode = 8, TypeName = "Password" },
+                new KeyProtectorInfo { Id = "rec-1", TypeCode = 3, TypeName = "Numerical Password" }
+            }
+        };
+
+        var item = new DriveItemViewModel(drive);
+        Assert.True(item.HasProtectors);
+        Assert.True(item.HasPasswordProtector);
+        Assert.True(item.HasRecoveryPasswordProtector);
+
+        var fakeService = new FakeBitLockerService();
+        var supportService = new BitLockerSupportService(isSupported: true, isElevated: true);
+        using var watcher = new VolumeWatcher();
+        var vm = new BitLockerViewModel(supportService, fakeService, watcher);
+        vm.SelectedDrive = item;
+
+        Assert.True(vm.CanChangePasswordSelected);
+        Assert.True(vm.CanManageProtectorsSelected);
+        Assert.True(vm.CanBackupSelected);
+    }
+
+    [Fact]
+    public void BitLockerXaml_AllBrushesUseThemeResource_NoHardcodedColors()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        // Search upwards to find solution root
+        var currentDir = new DirectoryInfo(baseDir);
+        while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "AppLock.sln")))
+        {
+            currentDir = currentDir.Parent;
+        }
+
+        Assert.NotNull(currentDir);
+        var xamlFiles = new[]
+        {
+            Path.Combine(currentDir.FullName, "src", "AppLock", "Views", "BitLockerPage.xaml"),
+            Path.Combine(currentDir.FullName, "src", "AppLock", "Views", "EnableBitLockerDialog.xaml")
+        };
+
+        var regex = new System.Text.RegularExpressions.Regex(@"(?:Foreground|Background|BorderBrush|Fill|Stroke)=""([^""]+)""");
+
+        foreach (var file in xamlFiles)
+        {
+            Assert.True(File.Exists(file), $"File not found: {file}");
+            var text = File.ReadAllText(file);
+            var matches = regex.Matches(text);
+
+            Assert.NotEmpty(matches);
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                var val = match.Groups[1].Value;
+                Assert.True(
+                    val.StartsWith("{ThemeResource") || val == "Transparent",
+                    $"Non-theme brush '{val}' found in {Path.GetFileName(file)}: {match.Value}");
+            }
+        }
+    }
+
+    [Fact]
+    public void BitLockerXaml_CriticalInteractiveElements_HaveAutomationPropertiesName()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var currentDir = new DirectoryInfo(baseDir);
+        while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "AppLock.sln")))
+        {
+            currentDir = currentDir.Parent;
+        }
+
+        Assert.NotNull(currentDir);
+        var pageXamlPath = Path.Combine(currentDir.FullName, "src", "AppLock", "Views", "BitLockerPage.xaml");
+        var xaml = File.ReadAllText(pageXamlPath);
+
+        // Verify primary commands have AutomationProperties.Name
+        Assert.Contains(@"AutomationProperties.Name=""Refresh drive list""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Lock selected drive""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Turn on BitLocker encryption""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Turn off BitLocker encryption""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Suspend or resume BitLocker protection""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Back up BitLocker recovery key""", xaml);
+
+        // Verify secondary commands
+        Assert.Contains(@"AutomationProperties.Name=""Change BitLocker password""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Manage BitLocker key protectors""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Check BitLocker volume usage""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Open drive in File Explorer""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Configure auto-unlock and startup task""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Manage saved BitLocker passwords""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Open BitLocker diagnostics""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Open BitLocker settings""", xaml);
+
+        // Verify quick unlock elements
+        Assert.Contains(@"AutomationProperties.Name=""Enter BitLocker password""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive with password""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive with saved password""", xaml);
+        Assert.Contains(@"AutomationProperties.Name=""Unlock selected drive with recovery key""", xaml);
     }
 }
 

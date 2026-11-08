@@ -11,6 +11,13 @@ public class BitLockerSupportService
     private bool? _isWmiAvailable;
     private string? _editionId;
 
+    public BitLockerSupportService(bool? isSupported = null, bool? isElevated = null, bool? isWmiAvailable = null)
+    {
+        _isSupported = isSupported;
+        _isElevated = isElevated;
+        _isWmiAvailable = isWmiAvailable;
+    }
+
     public bool IsSupported => _isSupported ??= CheckSupport();
     public bool IsElevated => _isElevated ??= CheckElevation();
     public bool IsWmiAvailable => _isWmiAvailable ??= CheckWmiAvailable();

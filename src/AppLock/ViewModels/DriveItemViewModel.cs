@@ -109,6 +109,8 @@ public partial class DriveItemViewModel : ObservableObject
         : (IsLocked ? "Volume locked" : "Capacity unavailable");
 
     public bool HasProtectors => KeyProtectors.Count > 0;
+    public bool HasPasswordProtector => KeyProtectors.Any(p => p.TypeCode == 8);
+    public bool HasRecoveryPasswordProtector => KeyProtectors.Any(p => p.TypeCode == 3);
 
     public string ProtectorsSummary => KeyProtectors.Count > 0
         ? string.Join(", ", KeyProtectors.Select(p => p.TypeName))

@@ -34,7 +34,8 @@
             <ComboBox x:Name="DriveComboBox"
                       Header="Drive to Encrypt"
                       HorizontalAlignment="Stretch"
-                      SelectionChanged="DriveComboBox_SelectionChanged"/>
+                      SelectionChanged="DriveComboBox_SelectionChanged"
+                      AutomationProperties.Name="Drive to encrypt"/>
 
             <InfoBar x:Name="OsDriveWarningBar"
                      IsOpen="False"
@@ -47,16 +48,19 @@
                 <TextBlock Text="Encryption Scope" FontWeight="Medium" FontSize="13"/>
                 <RadioButton x:Name="ScopeUsedSpaceRadio"
                              Content="Encrypt used disk space only (faster, best for new drives)"
-                             IsChecked="True"/>
+                             IsChecked="True"
+                             AutomationProperties.Name="Encrypt used disk space only"/>
                 <RadioButton x:Name="ScopeEntireDriveRadio"
-                             Content="Encrypt entire drive (slower, recommended for drives already in use)"/>
+                             Content="Encrypt entire drive (slower, recommended for drives already in use)"
+                             AutomationProperties.Name="Encrypt entire drive"/>
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Encryption Method" FontWeight="Medium" FontSize="13"/>
                 <ComboBox x:Name="MethodComboBox"
                           HorizontalAlignment="Stretch"
-                          SelectedIndex="0">
+                          SelectedIndex="0"
+                          AutomationProperties.Name="Encryption method">
                     <ComboBoxItem Content="XTS-AES 128-bit (Recommended for Windows 10/11)"/>
                     <ComboBoxItem Content="XTS-AES 256-bit (Maximum security)"/>
                     <ComboBoxItem Content="AES-CBC 128-bit (Compatible with older Windows)"/>
@@ -77,14 +81,16 @@
                          PlaceholderText="Enter at least 8 characters"
                          CornerRadius="4"
                          PasswordRevealMode="Peek"
-                         PasswordChanged="PasswordBox_PasswordChanged"/>
+                         PasswordChanged="PasswordBox_PasswordChanged"
+                         AutomationProperties.Name="BitLocker password"/>
 
             <PasswordBox x:Name="ConfirmPasswordBox"
                          Header="Confirm Password"
                          PlaceholderText="Re-enter password"
                          CornerRadius="4"
                          PasswordRevealMode="Peek"
-                         PasswordChanged="PasswordBox_PasswordChanged"/>
+                         PasswordChanged="PasswordBox_PasswordChanged"
+                         AutomationProperties.Name="Confirm BitLocker password"/>
 
             <!-- Password strength indicator -->
             <StackPanel Spacing="4">
@@ -97,7 +103,8 @@
                              Maximum="100"
                              Value="0"
                              CornerRadius="2"
-                             Height="4"/>
+                             Height="4"
+                             AutomationProperties.Name="Password strength"/>
             </StackPanel>
 
             <TextBlock x:Name="PasswordErrorText"
@@ -128,21 +135,24 @@
                          FontWeight="SemiBold"
                          TextWrapping="Wrap"
                          BorderThickness="0"
-                         Background="Transparent"/>
+                         Background="Transparent"
+                         AutomationProperties.Name="Generated BitLocker recovery key"/>
             </Border>
 
             <!-- Backup Action Buttons -->
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button x:Name="SaveToFileButton"
                         Content="Save to text file"
-                        Click="SaveToFileButton_Click">
+                        Click="SaveToFileButton_Click"
+                        AutomationProperties.Name="Save recovery key to text file">
                     <Button.KeyboardAccelerators>
                         <KeyboardAccelerator Key="S" Modifiers="Control"/>
                     </Button.KeyboardAccelerators>
                 </Button>
                 <Button x:Name="CopyKeyButton"
                         Content="Copy to clipboard"
-                        Click="CopyKeyButton_Click"/>
+                        Click="CopyKeyButton_Click"
+                        AutomationProperties.Name="Copy recovery key to clipboard"/>
             </StackPanel>
 
             <InfoBar x:Name="BackupStatusInfoBar"

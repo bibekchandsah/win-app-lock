@@ -1,4 +1,5 @@
 using AppLock.Models;
+using AppLock.Services;
 using AppLock.Services.BitLocker;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -27,6 +28,18 @@ public sealed partial class EnableBitLockerDialog : ContentDialog
 
         // Generate initial recovery key
         RecoveryKeyTextBox.Text = BitLockerService.GenerateValidRecoveryPassword();
+
+        this.Loaded += (s, e) =>
+        {
+            if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+            {
+                this.RequestedTheme = rootFe.ActualTheme;
+            }
+            else
+            {
+                this.RequestedTheme = ServiceContainer.CurrentTheme;
+            }
+        };
     }
 
     private void PopulateDrives()

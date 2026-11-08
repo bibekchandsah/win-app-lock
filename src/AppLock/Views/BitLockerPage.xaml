@@ -41,38 +41,62 @@
             <AppBarSeparator/>
             <AppBarButton x:Name="TurnOnButton" Label="Turn on BitLocker" Click="TurnOnButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanTurnOnSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.TurnOnTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Turn on BitLocker encryption">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE965;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarButton x:Name="TurnOffButton" Label="Turn off BitLocker" Click="TurnOffButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanTurnOffSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.TurnOffTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Turn off BitLocker encryption">
                 <AppBarButton.Icon><FontIcon Glyph="&#xE7BA;"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="SuspendButton" Label="{x:Bind ViewModel.SuspendButtonLabel, Mode=OneWay}" Click="SuspendButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanSuspendSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.SuspendTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Suspend or resume BitLocker protection">
                 <AppBarButton.Icon><FontIcon Glyph="{x:Bind ViewModel.SuspendButtonGlyph, Mode=OneWay}"/></AppBarButton.Icon>
             </AppBarButton>
             <AppBarSeparator/>
             <AppBarButton x:Name="BackupKeyButton" Label="Back up recovery key" Click="BackupKeyButton_Click"
                           IsEnabled="{x:Bind ViewModel.CanBackupSelected, Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind ViewModel.BackupKeyTooltip, Mode=OneWay}"
                           AutomationProperties.Name="Back up BitLocker recovery key">
                 <AppBarButton.Icon><FontIcon Glyph="&#xEA37;"/></AppBarButton.Icon>
             </AppBarButton>
             <CommandBar.SecondaryCommands>
-                <AppBarButton Label="Change password" Click="ChangePasswordButton_Click"/>
-                <AppBarButton Label="Manage key protectors" Click="ManageProtectorsButton_Click"/>
-                <AppBarButton Label="Check usage" Click="CheckUsageButton_Click"/>
-                <AppBarButton Label="Open in File Explorer" Click="OpenExplorerButton_Click"/>
-                <AppBarButton Label="Auto-unlock on this PC" Click="AutoUnlockButton_Click"/>
+                <AppBarButton Label="Change password" Click="ChangePasswordButton_Click"
+                              IsEnabled="{x:Bind ViewModel.CanChangePasswordSelected, Mode=OneWay}"
+                              ToolTipService.ToolTip="Change the password protector for the selected drive"
+                              AutomationProperties.Name="Change BitLocker password"/>
+                <AppBarButton Label="Manage key protectors" Click="ManageProtectorsButton_Click"
+                              IsEnabled="{x:Bind ViewModel.CanManageProtectorsSelected, Mode=OneWay}"
+                              ToolTipService.ToolTip="View, add, or remove BitLocker key protectors"
+                              AutomationProperties.Name="Manage BitLocker key protectors"/>
+                <AppBarButton Label="Check usage" Click="CheckUsageButton_Click"
+                              IsEnabled="{x:Bind ViewModel.HasSelectedDrive, Mode=OneWay}"
+                              ToolTipService.ToolTip="Check capacity and encryption details for the selected drive"
+                              AutomationProperties.Name="Check BitLocker volume usage"/>
+                <AppBarButton Label="Open in File Explorer" Click="OpenExplorerButton_Click"
+                              IsEnabled="{x:Bind ViewModel.CanOpenInExplorerSelected, Mode=OneWay}"
+                              ToolTipService.ToolTip="Open the root folder of the selected drive"
+                              AutomationProperties.Name="Open drive in File Explorer"/>
+                <AppBarButton Label="Auto-unlock on this PC" Click="AutoUnlockButton_Click"
+                              ToolTipService.ToolTip="Configure Windows auto-unlock and AppLock startup task"
+                              AutomationProperties.Name="Configure auto-unlock and startup task"/>
                 <AppBarSeparator/>
-                <AppBarButton Label="Manage saved passwords" Click="ManageSavedPasswordsButton_Click"/>
+                <AppBarButton Label="Manage saved passwords" Click="ManageSavedPasswordsButton_Click"
+                              ToolTipService.ToolTip="View, update, or remove saved drive passwords"
+                              AutomationProperties.Name="Manage saved BitLocker passwords"/>
                 <AppBarSeparator/>
-                <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"/>
+                <AppBarButton Label="Diagnostics" Click="DiagnosticsButton_Click"
+                              ToolTipService.ToolTip="Generate system and BitLocker diagnostics report"
+                              AutomationProperties.Name="Open BitLocker diagnostics"/>
                 <AppBarSeparator/>
-                <AppBarButton Label="BitLocker settings" Click="BitLockerSettingsButton_Click"/>
+                <AppBarButton Label="BitLocker settings" Click="BitLockerSettingsButton_Click"
+                              ToolTipService.ToolTip="Configure BitLocker page and automation preferences"
+                              AutomationProperties.Name="Open BitLocker settings"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
         <!-- Elevation InfoBar -->
@@ -84,7 +108,8 @@
                  IsClosable="False"
                  Margin="16,0,16,8">
             <InfoBar.ActionButton>
-                <Button Content="Restart as administrator" Click="RestartAsAdminButton_Click"/>
+                <Button Content="Restart as administrator" Click="RestartAsAdminButton_Click"
+                        AutomationProperties.Name="Restart AppLock as administrator"/>
             </InfoBar.ActionButton>
         </InfoBar>
         <!-- Main Content Area -->
@@ -101,7 +126,8 @@
                                Style="{ThemeResource SubtitleTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                HorizontalAlignment="Center"/>
-                    <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"/>
+                    <Button Content="Refresh" HorizontalAlignment="Center" Click="RefreshButton_Click"
+                            AutomationProperties.Name="Refresh drive list"/>
                 </StackPanel>
             </Grid>
             <!-- Drives List and Details Pane -->
@@ -120,7 +146,8 @@
                               x:Name="DrivesList"
                               ItemsSource="{x:Bind ViewModel.Drives, Mode=OneWay}"
                               SelectedItem="{x:Bind ViewModel.SelectedDrive, Mode=TwoWay}"
-                              SelectionMode="Single">
+                              SelectionMode="Single"
+                              AutomationProperties.Name="BitLocker drives list">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -276,7 +303,8 @@
                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                                 <CheckBox Content="Auto-unlock saved drives when AppLock opens"
                                           IsChecked="{x:Bind ViewModel.AutoUnlockOnAppOpen, Mode=TwoWay}"
-                                          FontSize="12"/>
+                                          FontSize="12"
+                                          AutomationProperties.Name="Auto-unlock saved drives when AppLock opens"/>
                                 <TextBlock Text="{x:Bind ViewModel.LastUnlockedSummary, Mode=OneWay}"
                                            FontSize="11"
                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
@@ -286,7 +314,8 @@
                                              Content="Setup startup task"
                                              Click="AutoUnlockButton_Click"
                                              FontSize="12"
-                                             VerticalAlignment="Center"/>
+                                             VerticalAlignment="Center"
+                                             AutomationProperties.Name="Setup BitLocker startup task"/>
                         </Grid>
                     </Border>
                 </Grid>
@@ -424,7 +453,8 @@
                                               FontSize="12"
                                               IsChecked="{x:Bind ViewModel.IsSelectedDriveAutoUnlock, Mode=TwoWay}"
                                               Click="IncludeInAutoUnlockCheckBox_Click"
-                                              ToolTipService.ToolTip="Automatically unlock this volume when AppLock starts or when plugged in"/>
+                                              ToolTipService.ToolTip="Automatically unlock this volume when AppLock starts or when plugged in"
+                                              AutomationProperties.Name="Include selected drive in auto-unlock"/>
                                 </StackPanel>
                                 <!-- Quick Unlock Section (Visible when selected drive is locked) -->
                                 <StackPanel Spacing="10"
@@ -440,28 +470,33 @@
                                     <PasswordBox x:Name="QuickUnlockPasswordBox"
                                                  PlaceholderText="Enter BitLocker password"
                                                  IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
-                                                 KeyDown="QuickUnlockPasswordBox_KeyDown"/>
+                                                 KeyDown="QuickUnlockPasswordBox_KeyDown"
+                                                 AutomationProperties.Name="Enter BitLocker password"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button Content="Unlock"
                                                 Click="QuickUnlockButton_Click"
                                                 IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
-                                                Style="{ThemeResource AccentButtonStyle}"/>
+                                                Style="{ThemeResource AccentButtonStyle}"
+                                                AutomationProperties.Name="Unlock selected drive with password"/>
                                         <Button Content="Use saved"
                                                 Click="UseSavedPasswordButton_Click"
                                                 IsEnabled="{x:Bind ViewModel.HasSavedPasswordForSelected, Mode=OneWay}"
-                                                ToolTipService.ToolTip="Unlock using the saved password for this drive"/>
+                                                ToolTipService.ToolTip="Unlock using the saved password for this drive"
+                                                AutomationProperties.Name="Unlock selected drive with saved password"/>
                                     </StackPanel>
                                     <!-- Recovery key unlock link -->
                                     <HyperlinkButton Content="Unlock with recovery key"
                                                      Click="UnlockWithRecoveryKey_Click"
                                                      IsEnabled="{x:Bind ViewModel.CanAttemptUnlock, Mode=OneWay}"
                                                      Padding="0"
-                                                     FontSize="12"/>
+                                                     FontSize="12"
+                                                     AutomationProperties.Name="Unlock selected drive with recovery key"/>
                                     <CheckBox x:Name="SavePasswordCheckBox"
                                               Content="Save password for this drive"
                                               Checked="SavePasswordCheckbox_Checked"
                                               FontSize="12"
-                                              ToolTipService.ToolTip="Password encrypted with DPAPI and stored locally"/>
+                                              ToolTipService.ToolTip="Password encrypted with DPAPI and stored locally"
+                                              AutomationProperties.Name="Save password for this drive"/>
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>

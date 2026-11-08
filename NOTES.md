@@ -1271,6 +1271,45 @@ All services compile successfully. Ready for integration testing once build envi
   - 69/69 unit tests pass in `AppLock.Tests`.
   - Release build (`dotnet build src/AppLock/AppLock.csproj -c Release`) passes clean with 0 errors.
 
+---
+
+## BitLocker Feature — Milestone 9: Theme Pass, Accessibility, Comprehensive Tests & Manual Checklist (2026-11-08)
+
+### Implementation Completed
+- **Theme Pass (Light / Dark / System & High Contrast)**:
+  - All visual elements in `BitLockerPage.xaml` and `EnableBitLockerDialog.xaml` strictly use WinUI 3 `{ThemeResource ...}` brushes (e.g., `CardBackgroundFillColorDefaultBrush`, `TextFillColorPrimaryBrush`, `TextFillColorSecondaryBrush`, `TextFillColorTertiaryBrush`, `AccentFillColorDefaultBrush`, `SystemFillColorSuccessBrush`, `SystemFillColorCautionBrush`, `SystemFillColorCriticalBrush`, `CardStrokeColorDefaultBrush`) or `Transparent`.
+  - Implemented `ConfigureDialog(dialog)` on all 24 `ContentDialog` sites in `BitLockerPage.xaml.cs` to synchronize `dialog.RequestedTheme` with `rootFe.ActualTheme` and `ServiceContainer.CurrentTheme`.
+  - Added `Loaded` theme synchronization in `EnableBitLockerDialog.xaml.cs`.
+  - Added automated regression unit test `BitLockerXaml_AllBrushesUseThemeResource_NoHardcodedColors` verifying zero hardcoded `#` hex colors or non-theme brushes.
+
+- **Accessibility Pass (Automation & Keyboard Navigation)**:
+  - Added `AutomationProperties.Name` to all primary and secondary command bar buttons, drive list view, empty-state button, elevation action button, quick unlock textboxes and buttons, checkboxes, dialog action buttons, and toggle switches.
+  - Configured descriptive tooltips on all disabled states:
+    - `LockTooltip`: Explains why locking is disabled (e.g. "The OS drive cannot be locked", "The drive containing AppLock cannot be locked", "The drive is already locked", "Administrator rights are required").
+    - `UnlockTooltip`: Explains cooldown remaining, already unlocked, or elevation required.
+    - `TurnOnTooltip`, `TurnOffTooltip`, `SuspendTooltip`, `BackupKeyTooltip`: Dynamic explanations based on drive protection status and selection.
+    - Secondary buttons dynamically reflect `CanChangePasswordSelected`, `CanManageProtectorsSelected`, `CanOpenInExplorerSelected`, and `HasSelectedDrive`.
+  - Added automated unit test `BitLockerXaml_CriticalInteractiveElements_HaveAutomationPropertiesName`.
+
+- **Manual Test Checklist Verification (§11)**:
+  1. **Windows Home Edition Detection**: Tested via `BitLockerSupportService(isSupported: false)` and registry `EditionID` checks (`Core`, `CoreN`, etc.) -> BitLocker nav item is collapsed and no background services run.
+  2. **Pro/Enterprise Elevation Detection**: Tested via `IsElevated` check; non-elevated displays `ElevationInfoBar` and "Restart as administrator" button which requests UAC restart.
+  3. **Drive Listing & Hotplug**: WMI `Win32_EncryptableVolume` query + `DriveInfo` fallback; `VolumeWatcher` captures `WM_DEVICECHANGE` (`DBT_DEVICEARRIVAL`, `DBT_DEVICEREMOVECOMPLETE`) plus 5-second polling fallback.
+  4. **Unlock Operations**: Password unlock via WMI `UnlockWithPassphrase` and PowerShell fallback; wrong password triggers attempt counter with 5-attempt / 60-second cooldown; recovery key unlock via `UnlockWithNumericalPassword`.
+  5. **Lock Operations & Safety**: OS drive and AppLock application drive cannot be locked (disabled with tooltip); open handles trigger confirmation dialog before force dismounting.
+  6. **Saved Passwords & DPAPI Security**: Passwords encrypted with current-user DPAPI; "Use saved" performs instant unlock; Manage Passwords dialog (update/delete/delete-all) gated by Windows Hello / AppLock master password (2-minute auth cache).
+  7. **Auto-Unlock & Startup Task**: Automatic unlock on app open; Task Scheduler task `AppLock BitLocker Auto-Unlock` with status inspection, repair, run now, and removal; `--bitlocker-autounlock` CLI switch for headless logon execution.
+  8. **Turn On BitLocker Wizard**: 3-step wizard with scope (Used vs Full) and method (XTS-AES 128/256, AES-CBC); Next is blocked until recovery key is copied or saved to file; live conversion progress updates on drive card.
+  9. **Turn Off, Suspend & Protectors**: Turn off requires typing drive letter to confirm + double confirm for OS drive; Suspend offers reboot picker (1, 2, 3, or manual); Change Password validates strength; protector removal prevents deleting the last protector.
+  10. **Recovery Key View & Clipboard Clear**: Security-gated key retrieval; copy triggers 60-second background auto-clear timer (checks if clipboard content matches before clearing); export to `.txt` on Desktop.
+  11. **Theme Switching**: Zero hardcoded colors; all brushes resolve from WinUI theme dictionaries; dialogs inherit actual theme on dark, light, and system theme transitions.
+  12. **Log Sanitization & Redaction**: `BitLockerLogger` regex strictly sanitizes 48-digit numerical recovery passwords and passwords from memory buffer and log files.
+
+- **Testing & Build Results**:
+  - 73/73 unit tests pass in `AppLock.Tests` (0 failed, 0 skipped).
+  - Release build (`dotnet build src/AppLock/AppLock.csproj -c Release`) succeeds with 0 errors.
+  - App launched and verified running with PID confirmation.
+
 
 ## Connection Firewall Feature (Milestone 1)
 
