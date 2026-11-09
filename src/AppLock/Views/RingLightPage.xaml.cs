@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
@@ -532,7 +533,194 @@ public sealed partial class RingLightPage : Page
         RebuildCustomChips();
         RefreshActivePresetLabel();
 
+        // Automatic mode settings
+        bool cameraSupported = ServiceContainer.RingLightService.CameraMonitor.IsSupported;
+        CameraConsentWarningBar.IsOpen = !cameraSupported;
+        AutoCameraOnToggle.IsEnabled   = cameraSupported;
+        AutoCameraOnToggle.IsOn        = cameraSupported && s.Auto.OnWhenCameraInUse;
+        AutoCameraOffToggle.IsOn       = s.Auto.TurnOffWhenCameraStops;
+
+        FilterAnyAppRadio.IsChecked   = !s.Auto.OnlySelectedApps;
+        FilterSelectedRadio.IsChecked = s.Auto.OnlySelectedApps;
+        AppFilterPanel.Visibility     = s.Auto.OnlySelectedApps ? Visibility.Visible : Visibility.Collapsed;
+
+        RebuildAppFilterList();
+        SelectAutoOffItem(s.Auto.AutoOffMinutes);
+
         _loading = false;
+    }
+
+    private void SelectAutoOffItem(int minutes)
+    {
+        string targetTag = minutes.ToString();
+        bool found = false;
+        foreach (var item in AutoOffCombo.Items)
+        {
+            if (item is ComboBoxItem cbi && cbi.Tag?.ToString() == targetTag)
+            {
+                AutoOffCombo.SelectedItem = cbi;
+                found = true;
+                break;
+            }
+        }
+        if (!found && AutoOffCombo.Items.Count > 0)
+            AutoOffCombo.SelectedIndex = 0;
+    }
+
+    private void RebuildAppFilterList()
+    {
+        AppFilterListPanel.Children.Clear();
+        var filter = ServiceContainer.Settings.RingLight.Auto.AppFilter;
+
+        foreach (var app in filter)
+        {
+            var row = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var textBlock = new TextBlock
+            {
+                Text = app,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+
+            var deleteBtn = new Button
+            {
+                Tag = app,
+                Padding = new Thickness(6, 4, 6, 4),
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
+            };
+            ToolTipService.SetToolTip(deleteBtn, "Remove");
+            deleteBtn.Click += DeleteAppFilter_Click;
+
+            Grid.SetColumn(textBlock, 0);
+            Grid.SetColumn(deleteBtn, 1);
+            row.Children.Add(textBlock);
+            row.Children.Add(deleteBtn);
+
+            AppFilterListPanel.Children.Add(row);
+        }
+    }
+
+    private void DeleteAppFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string app)
+        {
+            SaveAndApply(s => s.Auto.AppFilter.Remove(app));
+            RebuildAppFilterList();
+        }
+    }
+
+    private void AutoCameraOnToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SaveAndApply(s => s.Auto.OnWhenCameraInUse = AutoCameraOnToggle.IsOn);
+    }
+
+    private void AutoCameraOffToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SaveAndApply(s => s.Auto.TurnOffWhenCameraStops = AutoCameraOffToggle.IsOn);
+    }
+
+    private void AppFilterMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        bool selectedOnly = FilterSelectedRadio.IsChecked == true;
+        AppFilterPanel.Visibility = selectedOnly ? Visibility.Visible : Visibility.Collapsed;
+        SaveAndApply(s => s.Auto.OnlySelectedApps = selectedOnly);
+    }
+
+    private void AddAppFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        CommitAppFilter();
+    }
+
+    private void AddAppFilterBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            CommitAppFilter();
+            e.Handled = true;
+        }
+    }
+
+    private void CommitAppFilter()
+    {
+        var text = AddAppFilterBox.Text.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        var s = ServiceContainer.Settings.RingLight;
+        if (!s.Auto.AppFilter.Contains(text, StringComparer.OrdinalIgnoreCase))
+        {
+            SaveAndApply(set => set.Auto.AppFilter.Add(text));
+            RebuildAppFilterList();
+        }
+        AddAppFilterBox.Text = "";
+    }
+
+    private void BrowseAppFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            using var ofd = new System.Windows.Forms.OpenFileDialog
+            {
+                Title = "Select Application Executable",
+                Filter = "Executables (*.exe)|*.exe|All Files (*.*)|*.*",
+                CheckFileExists = true,
+            };
+
+            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                var fileName = System.IO.Path.GetFileName(ofd.FileName);
+                if (!string.IsNullOrEmpty(fileName))
+                {
+                    var s = ServiceContainer.Settings.RingLight;
+                    if (!s.Auto.AppFilter.Contains(fileName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        SaveAndApply(set => set.Auto.AppFilter.Add(fileName));
+                        RebuildAppFilterList();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RingLightPage] Browse error: {ex.Message}");
+        }
+    }
+
+    private void AutoOffCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        if (AutoOffCombo.SelectedItem is ComboBoxItem cbi && int.TryParse(cbi.Tag?.ToString(), out int mins))
+        {
+            SaveAndApply(s => s.Auto.AutoOffMinutes = mins);
+        }
+    }
+
+    private void TestCameraDetectButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var apps = ServiceContainer.RingLightService.CameraMonitor.GetActiveCameraApps();
+            if (apps.Count > 0)
+            {
+                TestCameraStatusText.Text = $"Active camera apps: {string.Join(", ", apps)}";
+                TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            }
+            else
+            {
+                TestCameraStatusText.Text = "No apps currently using camera.";
+                TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+            }
+        }
+        catch (Exception ex)
+        {
+            TestCameraStatusText.Text = $"Check failed: {ex.Message}";
+        }
     }
 
     /// <summary>

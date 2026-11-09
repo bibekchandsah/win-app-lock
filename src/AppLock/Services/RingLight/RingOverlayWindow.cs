@@ -17,7 +17,7 @@ namespace AppLock.Services.RingLight;
 /// frame on a single display. The center of the window is "transparent" via LWA_COLORKEY
 /// so the user can see and click through it; only the edge strips are opaque.
 /// </summary>
-public sealed class RingOverlayWindow : IDisposable
+public sealed class RingOverlayWindow : IRingOverlay
 {
     // ── Win32 constants ─────────────────────────────────────────────────────
     private const int  GWL_EXSTYLE            = -20;

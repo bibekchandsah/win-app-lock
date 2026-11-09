@@ -19,12 +19,28 @@ public sealed class RingLightService : IDisposable
 
     // ── Fields ────────────────────────────────────────────────────────────────
     private RingOverlayManager? _manager;
+    private readonly CameraUsageMonitor _cameraMonitor = new();
+    private readonly RingLightTimers _timers = new();
     private State _state = State.Off;
     private bool _disposed;
 
     // ── Public properties ─────────────────────────────────────────────────────
     public State CurrentState => _state;
     public bool  IsOn => _state == State.On || _state == State.FadingIn;
+    public CameraUsageMonitor CameraMonitor => _cameraMonitor;
+    public RingLightTimers Timers => _timers;
+
+    public RingLightService()
+    {
+        _cameraMonitor.CameraUsageChanged += OnCameraUsageChanged;
+        try
+        {
+            var settings = ServiceContainer.Settings.RingLight;
+            if (settings.Auto.OnWhenCameraInUse)
+                _cameraMonitor.Start();
+        }
+        catch { }
+    }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -45,6 +61,19 @@ public sealed class RingLightService : IDisposable
     {
         if (_state == State.On || _state == State.FadingIn)
             _manager?.UpdateSettings(settings);
+
+        if (settings.Auto.OnWhenCameraInUse)
+            _cameraMonitor.Start();
+        else
+            _cameraMonitor.Stop();
+
+        if (IsOn)
+        {
+            _timers.UpdateAutoOff(settings.Auto.AutoOffMinutes, () =>
+            {
+                MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() => SetEnabled(false, "auto-off"));
+            });
+        }
     }
 
     /// <summary>
@@ -64,11 +93,45 @@ public sealed class RingLightService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _cameraMonitor.CameraUsageChanged -= OnCameraUsageChanged;
+        _cameraMonitor.Dispose();
+        _timers.Dispose();
         _manager?.Dispose();
         _manager = null;
     }
 
     // ── Private state machine ─────────────────────────────────────────────────
+
+    private void OnCameraUsageChanged(object? sender, (bool InUse, System.Collections.Generic.IReadOnlyList<string> ActiveApps) e)
+    {
+        MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() =>
+        {
+            try
+            {
+                var settings = ServiceContainer.Settings.RingLight;
+                if (!settings.Auto.OnWhenCameraInUse) return;
+
+                if (e.InUse)
+                {
+                    if (CameraUsageMonitor.MatchesFilter(e.ActiveApps, settings.Auto))
+                    {
+                        SetEnabled(true, "camera");
+                    }
+                }
+                else
+                {
+                    if (settings.Auto.TurnOffWhenCameraStops && IsOn)
+                    {
+                        SetEnabled(false, "camera");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RingLightService] OnCameraUsageChanged error: {ex.Message}");
+            }
+        });
+    }
 
     private async Task TurnOnAsync()
     {
@@ -90,6 +153,12 @@ public sealed class RingLightService : IDisposable
         {
             SetState(State.On);
 
+            // Arm auto-off timer
+            _timers.StartAutoOff(settings.Auto.AutoOffMinutes, () =>
+            {
+                MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() => SetEnabled(false, "auto-off"));
+            });
+
             // Persist if RememberState
             if (settings.RememberState)
             {
@@ -103,6 +172,8 @@ public sealed class RingLightService : IDisposable
     {
         if (_disposed || _manager == null) return;
         var settings = AppLock.Services.ServiceContainer.Settings.RingLight;
+
+        _timers.StopAutoOff();
 
         SetState(State.FadingOut);
         EnabledChanged?.Invoke(this, false);

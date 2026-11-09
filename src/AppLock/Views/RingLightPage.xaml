@@ -484,6 +484,156 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Automatic section -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- Section header -->
+                        <Grid Padding="20,16,20,16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Automatic" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Turn ring light on and off based on camera activity"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                        <StackPanel Padding="20,16,20,16" Spacing="20">
+
+                            <!-- Consent store warning if not supported -->
+                            <InfoBar x:Name="CameraConsentWarningBar"
+                                     IsOpen="False"
+                                     IsClosable="False"
+                                     Severity="Warning"
+                                     Title="Camera detection unavailable"
+                                     Message="The Windows camera privacy consent store is not accessible on this system."/>
+
+                            <!-- Turn on when camera is in use -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Turn on when camera is in use" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="AppLock only reads which apps are using the camera. It never opens the camera or sees video."
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoCameraOnToggle" Grid.Column="1"
+                                             Toggled="AutoCameraOnToggle_Toggled"
+                                             MinWidth="0" OffContent="" OnContent=""
+                                             VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Turn off when camera stops -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Turn off when camera stops" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Turns off after 5 seconds of silence so brief drops don't flicker"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoCameraOffToggle" Grid.Column="1"
+                                             Toggled="AutoCameraOffToggle_Toggled"
+                                             MinWidth="0" OffContent="" OnContent=""
+                                             VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- App filter -->
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="App filter" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Choose which camera apps trigger the ring light"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <RadioButton x:Name="FilterAnyAppRadio" Content="Any app"
+                                                 Checked="AppFilterMode_Changed" GroupName="AppFilterMode"/>
+                                    <RadioButton x:Name="FilterSelectedRadio" Content="Only selected apps"
+                                                 Checked="AppFilterMode_Changed" GroupName="AppFilterMode"/>
+                                </StackPanel>
+
+                                <StackPanel x:Name="AppFilterPanel" Spacing="10" Visibility="Collapsed">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="AddAppFilterBox"
+                                                 PlaceholderText="Executable or package (e.g. msedge.exe, Teams.exe)"
+                                                 KeyDown="AddAppFilterBox_KeyDown"/>
+                                        <Button x:Name="AddAppFilterButton" Grid.Column="1"
+                                                Content="Add" Click="AddAppFilterButton_Click"/>
+                                        <Button x:Name="BrowseAppFilterButton" Grid.Column="2"
+                                                Content="Browse…" Click="BrowseAppFilterButton_Click"/>
+                                    </Grid>
+
+                                    <!-- Filter apps list -->
+                                    <StackPanel x:Name="AppFilterListPanel" Spacing="6"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Auto turn-off timer -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Auto turn off after" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Turn off automatically after continuous use (protects against OLED burn-in)"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ComboBox x:Name="AutoOffCombo" Grid.Column="1"
+                                          MinWidth="140"
+                                          SelectionChanged="AutoOffCombo_SelectionChanged"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Tag="0"   Content="Never (disabled)"/>
+                                    <ComboBoxItem Tag="5"   Content="5 minutes"/>
+                                    <ComboBoxItem Tag="15"  Content="15 minutes"/>
+                                    <ComboBoxItem Tag="30"  Content="30 minutes"/>
+                                    <ComboBoxItem Tag="60"  Content="1 hour"/>
+                                    <ComboBoxItem Tag="120" Content="2 hours"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Test camera detection -->
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Button x:Name="TestCameraDetectButton"
+                                            Content="Test camera detection"
+                                            Click="TestCameraDetectButton_Click"/>
+                                    <TextBlock x:Name="TestCameraStatusText"
+                                               Text=""
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Tip card -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
