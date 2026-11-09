@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
     private bool _loginShown = false;
     private bool _isMainAuthenticated = false;
     private int _emergencyHotkeyId = -1;
+    private int _ringLightHotkeyId = -1;
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
     private bool _isNavPaneExpanded = false;
@@ -684,6 +685,9 @@ public sealed partial class MainWindow : Window
         // Register emergency hotkey if enabled
         RegisterEmergencyHotkey();
 
+        // Register Ring Light toggle hotkey (Ctrl+Shift+L)
+        RegisterRingLightHotkey();
+
         // Start idle monitoring if configured
         StartIdleMonitoring();
 
@@ -956,6 +960,37 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void RegisterRingLightHotkey()
+    {
+        try
+        {
+            // Ctrl+Shift+L  (VK_L = 0x4C)
+            _ringLightHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(
+                Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS.MOD_CONTROL |
+                Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS.MOD_SHIFT,
+                0x4C,   // 'L'
+                () => ServiceContainer.SetRingLightEnabled(!ServiceContainer.RingLightService.IsOn)
+            );
+            System.Diagnostics.Debug.WriteLine(
+                _ringLightHotkeyId > 0
+                    ? "[RingLight] Hotkey Ctrl+Shift+L registered"
+                    : "[RingLight] Failed to register Ctrl+Shift+L (conflict?)");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RingLight] Error registering hotkey: {ex.Message}");
+        }
+    }
+
+    private void UnregisterRingLightHotkey()
+    {
+        if (_ringLightHotkeyId > 0)
+        {
+            ServiceContainer.HotkeyService.UnregisterHotkey(_ringLightHotkeyId);
+            _ringLightHotkeyId = -1;
+        }
+    }
+
     /// <summary>
     /// Re-register the emergency hotkey after a change in Settings.
     /// Called by SettingsPage after saving the new hotkey string.
@@ -1144,6 +1179,7 @@ public sealed partial class MainWindow : Window
 
         // Actual cleanup when exiting app
         UnregisterEmergencyHotkey();
+        UnregisterRingLightHotkey();
         // Remove WndProc subclass
         if (_subclassProc != null)
         {

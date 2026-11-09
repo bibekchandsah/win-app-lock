@@ -34,6 +34,14 @@
                 
                 <MenuFlyoutSeparator/>
                 
+                <MenuFlyoutItem x:Name="RingLightToggleMenuItem" Text="Enable Ring Light">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE781;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+
+                <MenuFlyoutSeparator/>
+                
                 <MenuFlyoutItem Text="Exit" Click="ExitMenuItem_Click">
                     <MenuFlyoutItem.Icon>
                         <FontIcon Glyph="&#xE711;"/>

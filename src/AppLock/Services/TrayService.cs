@@ -41,6 +41,7 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _eyeCareInterval30mItem;
     private ToggleMenuFlyoutItem? _eyeCareInterval60mItem;
     private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
+    private MenuFlyoutItem? _ringLightToggleMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
@@ -107,6 +108,8 @@ public sealed class TrayService : IDisposable
                             _blurHotkeyMenuItem = mfi;
                         else if (mfi.Name == "EyeCareToggleMenuItem" || (text.Contains("Eye Care", StringComparison.OrdinalIgnoreCase) && !text.Contains("interval", StringComparison.OrdinalIgnoreCase)))
                             _eyeCareToggleMenuItem = mfi;
+                        else if (mfi.Name == "RingLightToggleMenuItem" || text.Contains("Ring Light", StringComparison.OrdinalIgnoreCase))
+                            _ringLightToggleMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -332,6 +335,18 @@ public sealed class TrayService : IDisposable
                     _eyeCareToggleMenuItem.Command = new RelayCommand(toggleEyeCare);
                 }
 
+                if (_ringLightToggleMenuItem != null)
+                {
+                    Action toggleRingLight = () =>
+                    {
+                        bool newEnabled = !ServiceContainer.RingLightService.IsOn;
+                        ServiceContainer.SetRingLightEnabled(newEnabled);
+                        UpdateRingLightMenuItem();
+                    };
+                    _ringLightToggleMenuItem.Click += (s, e) => toggleRingLight();
+                    _ringLightToggleMenuItem.Command = new RelayCommand(toggleRingLight);
+                }
+
                 void WireIntervalItem(ToggleMenuFlyoutItem? item, int minutes)
                 {
                     if (item == null) return;
@@ -388,6 +403,7 @@ public sealed class TrayService : IDisposable
             UpdateBrightnessMenuItems();
             UpdateClipboardMenuItems();
             UpdateEyeCareMenuItems();
+            UpdateRingLightMenuItem();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
 
@@ -402,6 +418,9 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
             ServiceContainer.EyeCareIntervalChanged += OnEyeCareIntervalChanged;
+
+            ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
+            ServiceContainer.RingLightEnabledChanged += OnRingLightEnabledChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -622,6 +641,26 @@ public sealed class TrayService : IDisposable
     {
         var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
         dispatcher?.TryEnqueue(UpdateEyeCareMenuItems);
+    }
+
+    private void OnRingLightEnabledChanged(object? sender, bool enabled)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateRingLightMenuItem);
+    }
+
+    public void UpdateRingLightMenuItem()
+    {
+        try
+        {
+            if (_ringLightToggleMenuItem == null) return;
+            bool on = ServiceContainer.RingLightService.IsOn;
+            _ringLightToggleMenuItem.Text = on ? "Disable Ring Light" : "Enable Ring Light";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating ring light menu: {ex.Message}");
+        }
     }
 
     public void UpdateEyeCareMenuItems()
@@ -923,6 +962,8 @@ public sealed class TrayService : IDisposable
 
         ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
         ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
+
+        ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
 
         if (_isVolumeWatcherSubscribed)
         {
