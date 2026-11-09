@@ -47,6 +47,19 @@ public sealed class RingLightService : IDisposable
             _manager?.UpdateSettings(settings);
     }
 
+    /// <summary>
+    /// Called when WM_DISPLAYCHANGE is received (monitor added, removed, or resolution changed).
+    /// Rebuilds overlays to cover the correct displays.
+    /// </summary>
+    public void OnDisplayChanged()
+    {
+        if (_state == State.On || _state == State.FadingIn)
+        {
+            var settings = AppLock.Services.ServiceContainer.Settings.RingLight;
+            _manager?.Rebuild(settings);
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;

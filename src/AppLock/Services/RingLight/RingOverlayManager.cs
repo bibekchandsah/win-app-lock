@@ -2,25 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AppLock.Models;
+using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
 namespace AppLock.Services.RingLight;
 
 /// <summary>
 /// Creates, positions, and destroys one <see cref="RingOverlayWindow"/> per target display.
-/// For milestone 2: primary display only. Multi-monitor support arrives in milestone 5.
+/// Supports multi-monitor, hot-plug (WM_DISPLAYCHANGE), and taskbar clearance.
 /// Must be used on the UI (STA) thread.
 /// </summary>
 public sealed class RingOverlayManager : IDisposable
 {
-    private readonly List<RingOverlayWindow> _overlays = new();
+    // Key = "X,Y" of the display's OuterBounds origin (unique per physical monitor)
+    private readonly Dictionary<string, RingOverlayWindow> _overlays = new();
     private bool _disposed;
 
     /// <summary>Show overlays on the target displays using current settings.</summary>
     public void Show(RingLightSettings settings)
     {
         EnsureOverlays(settings);
-        foreach (var overlay in _overlays)
+        foreach (var overlay in _overlays.Values)
         {
             overlay.ApplyCaptureExclusion(settings.ShowInScreenCapture);
             overlay.Show(settings);
@@ -31,11 +33,11 @@ public sealed class RingOverlayManager : IDisposable
     public async Task HideAllAsync(int fadeMs)
     {
         var tasks = new List<Task>();
-        foreach (var overlay in _overlays)
+        foreach (var overlay in _overlays.Values)
             tasks.Add(overlay.HideAsync(fadeMs));
         await Task.WhenAll(tasks);
 
-        foreach (var overlay in _overlays)
+        foreach (var overlay in _overlays.Values)
             overlay.Dispose();
         _overlays.Clear();
     }
@@ -43,16 +45,70 @@ public sealed class RingOverlayManager : IDisposable
     /// <summary>Re-apply settings live while overlays are visible.</summary>
     public void UpdateSettings(RingLightSettings settings)
     {
-        var bounds = GetTargetBounds(settings);
-        foreach (var overlay in _overlays)
-            overlay.ApplySettings(settings, bounds);
+        var targets = GetTargetDisplays(settings);
+        foreach (var display in targets)
+        {
+            var key = DisplayKey(display);
+            if (_overlays.TryGetValue(key, out var overlay))
+            {
+                var bounds = GetDisplayBounds(display, settings);
+                overlay.ApplySettings(settings, bounds);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds overlays in response to WM_DISPLAYCHANGE or settings changes while On.
+    /// Tears down windows for displays that disappeared; creates new ones for added displays.
+    /// </summary>
+    public void Rebuild(RingLightSettings settings)
+    {
+        if (_disposed) return;
+
+        var targets = GetTargetDisplays(settings);
+        var newKeys = new HashSet<string>();
+        foreach (var d in targets)
+            newKeys.Add(DisplayKey(d));
+
+        // Remove overlays for displays that are no longer targeted
+        var toRemove = new List<string>();
+        foreach (var key in _overlays.Keys)
+            if (!newKeys.Contains(key)) toRemove.Add(key);
+
+        foreach (var key in toRemove)
+        {
+            _overlays[key].Dispose();
+            _overlays.Remove(key);
+        }
+
+        // Add / refresh overlays for all targeted displays
+        foreach (var display in targets)
+        {
+            var key    = DisplayKey(display);
+            var bounds = GetDisplayBounds(display, settings);
+            if (_overlays.TryGetValue(key, out var existing))
+            {
+                // Already exists – just reposition
+                existing.ApplySettings(settings, bounds);
+                existing.ApplyCaptureExclusion(settings.ShowInScreenCapture);
+            }
+            else
+            {
+                // New display appeared (or was targeted for the first time)
+                var overlay = new RingOverlayWindow();
+                overlay.ApplySettings(settings, bounds);
+                overlay.ApplyCaptureExclusion(settings.ShowInScreenCapture);
+                overlay.Show(settings);
+                _overlays[key] = overlay;
+            }
+        }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        foreach (var o in _overlays)
+        foreach (var o in _overlays.Values)
             o.Dispose();
         _overlays.Clear();
     }
@@ -61,43 +117,67 @@ public sealed class RingOverlayManager : IDisposable
 
     private void EnsureOverlays(RingLightSettings settings)
     {
-        if (_overlays.Count > 0) return; // already created
-
-        var bounds = GetTargetBounds(settings);
-        var overlay = new RingOverlayWindow();
-        overlay.ApplySettings(settings, bounds);
-        _overlays.Add(overlay);
+        var targets = GetTargetDisplays(settings);
+        foreach (var display in targets)
+        {
+            var key = DisplayKey(display);
+            if (_overlays.ContainsKey(key)) continue;
+            var bounds  = GetDisplayBounds(display, settings);
+            var overlay = new RingOverlayWindow();
+            overlay.ApplySettings(settings, bounds);
+            _overlays[key] = overlay;
+        }
     }
 
-    private static RectInt32 GetTargetBounds(RingLightSettings settings)
+    // ── Display enumeration ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the set of DisplayAreas to cover, based on settings.DisplayTarget:
+    ///   "Primary"  → the primary display
+    ///   "BuiltIn"  → first non-primary display if available, otherwise primary
+    ///   "All"      → every connected display
+    ///   anything else → try to match by DisplayKey; fall back to primary
+    /// </summary>
+    internal static List<DisplayArea> GetTargetDisplays(RingLightSettings settings)
     {
-        // Milestone 2: always primary display.
-        // Milestone 5 will honour settings.DisplayTarget and handle multi-monitor.
-        try
-        {
-            var monitors = Microsoft.UI.Windowing.DisplayArea.FindAll();
-            Microsoft.UI.Windowing.DisplayArea? target = null;
+        IReadOnlyList<DisplayArea> all;
+        try { all = DisplayArea.FindAll(); }
+        catch { return new List<DisplayArea> { DisplayArea.Primary }; }
 
-            foreach (var m in monitors)
-            {
-                if (m.IsPrimary)
-                {
-                    target = m;
-                    break;
-                }
-            }
-            target ??= Microsoft.UI.Windowing.DisplayArea.Primary;
+        var target = settings.DisplayTarget ?? "Primary";
 
-            if (settings.KeepTaskbarClear)
-                return target.WorkArea;
-            else
-                return target.OuterBounds;
-        }
-        catch
+        if (target == "All")
         {
-            // Fallback: 1920×1080 at origin
-            return new RectInt32(0, 0, 1920, 1080);
+            var list = new List<DisplayArea>();
+            foreach (var d in all) list.Add(d);
+            return list;
         }
+
+        if (target == "BuiltIn")
+        {
+            // Heuristic: first non-primary, or primary if single-monitor
+            foreach (var d in all)
+                if (!d.IsPrimary)
+                    return new List<DisplayArea> { d };
+            return new List<DisplayArea> { DisplayArea.Primary };
+        }
+
+        if (target == "Primary")
+            return new List<DisplayArea> { DisplayArea.Primary };
+
+        // Specific display by key string
+        foreach (var d in all)
+            if (DisplayKey(d) == target)
+                return new List<DisplayArea> { d };
+
+        // Fallback
+        return new List<DisplayArea> { DisplayArea.Primary };
     }
-}
 
+    private static RectInt32 GetDisplayBounds(DisplayArea display, RingLightSettings settings)
+        => settings.KeepTaskbarClear ? display.WorkArea : display.OuterBounds;
+
+    /// <summary>Unique string key for a display: "X,Y" of outer bounds origin.</summary>
+    internal static string DisplayKey(DisplayArea d)
+        => $"{d.OuterBounds.X},{d.OuterBounds.Y}";
+}

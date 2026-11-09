@@ -4,6 +4,7 @@ using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.RingLight;
 using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -249,7 +250,60 @@ public sealed partial class RingLightPage : Page
         FadeSlider.Value = Math.Clamp(s.FadeMs, 0, 1000);
         FadeLabel.Text   = $"{s.FadeMs} ms";
 
+        // Populate and select display target combo
+        LoadDisplayTargets(s.DisplayTarget);
+
         _loading = false;
+    }
+
+    /// <summary>
+    /// Populates DisplayTargetCombo with the fixed options (Primary / Built-in / All)
+    /// plus one item per currently connected display, then selects the saved target.
+    /// </summary>
+    private void LoadDisplayTargets(string currentTarget)
+    {
+        // Remove any dynamically-added specific-display items (beyond the first 3 static items)
+        while (DisplayTargetCombo.Items.Count > 3)
+            DisplayTargetCombo.Items.RemoveAt(3);
+
+        // Add one item per real display
+        try
+        {
+            var displays = DisplayArea.FindAll();
+            int idx = 0;
+            foreach (var d in displays)
+            {
+                idx++;
+                var label   = d.IsPrimary ? $"Display {idx} (Primary)" : $"Display {idx}";
+                var item    = new ComboBoxItem { Tag = RingOverlayManager.DisplayKey(d), Content = label };
+                DisplayTargetCombo.Items.Add(item);
+            }
+        }
+        catch { /* ignore if display enumeration fails */ }
+
+        // Select the saved target
+        bool found = false;
+        foreach (var obj in DisplayTargetCombo.Items)
+        {
+            if (obj is ComboBoxItem cbi && cbi.Tag?.ToString() == currentTarget)
+            {
+                DisplayTargetCombo.SelectedItem = cbi;
+                found = true;
+                break;
+            }
+        }
+        if (!found && DisplayTargetCombo.Items.Count > 0)
+            DisplayTargetCombo.SelectedIndex = 0;
+    }
+
+    private void DisplayTargetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        if (DisplayTargetCombo.SelectedItem is ComboBoxItem cbi)
+        {
+            var tag = cbi.Tag?.ToString() ?? "Primary";
+            SaveAndApply(s => s.DisplayTarget = tag);
+        }
     }
 
     private void RefreshStatusText(bool enabled)

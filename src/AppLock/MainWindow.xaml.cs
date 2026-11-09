@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
 
     private const uint WM_HOTKEY = 0x0312;
     private const uint WM_CLOSE = 0x0010;
+    private const uint WM_DISPLAYCHANGE = 0x007E;
     private SUBCLASSPROC? _subclassProc; // keep delegate alive to prevent GC
 
     private SystemBackdropConfiguration? _backdropConfiguration;
@@ -736,6 +737,14 @@ public sealed partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine($"WM_HOTKEY received: id={hotkeyId}");
             ServiceContainer.HotkeyService.ProcessHotkeyMessage(hotkeyId);
             return 0;
+        }
+        if (uMsg == WM_DISPLAYCHANGE)
+        {
+            // Dispatch to UI thread — this message arrives on the message thread
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ServiceContainer.RingLightService.OnDisplayChanged();
+            });
         }
         return DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }

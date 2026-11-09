@@ -140,6 +140,37 @@
                     </Grid>
                 </Border>
 
+                <!-- Display targeting card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- Section header -->
+                        <Grid Padding="20,16,20,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Display" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Choose which screen shows the ring light"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox x:Name="DisplayTargetCombo"
+                                      Grid.Column="1"
+                                      MinWidth="180"
+                                      SelectionChanged="DisplayTargetCombo_SelectionChanged"
+                                      VerticalAlignment="Center">
+                                <ComboBoxItem Tag="Primary"  Content="Primary display"/>
+                                <ComboBoxItem Tag="BuiltIn"  Content="Built-in display"/>
+                                <ComboBoxItem Tag="All"      Content="All displays"/>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Appearance section -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
