@@ -310,7 +310,8 @@ public sealed partial class MainWindow : Window
                         pageType == typeof(BrightnessPage) ||
                         pageType == typeof(EyeCarePage) ||
                         pageType == typeof(ClipboardSettingsPage) ||
-                        pageType == typeof(ClipboardHistoryPage);
+                        pageType == typeof(ClipboardHistoryPage) ||
+                        pageType == typeof(RingLightPage);
 
         bool isDark = IsDarkMode;
         var windowAccentColor = GetWindowAccentColor();
