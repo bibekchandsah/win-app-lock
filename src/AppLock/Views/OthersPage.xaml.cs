@@ -55,8 +55,13 @@ public sealed partial class OthersPage : Page
         ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
         ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
         ServiceContainer.EyeCareEnabledChanged += OnEyeCareEnabledChanged;
+        ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
+        ServiceContainer.RingLightEnabledChanged += OnRingLightEnabledChanged;
+        ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
+        ServiceContainer.RingLightService.EnabledChanged += OnRingLightServiceChanged;
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
+        UpdateRingLightCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -64,11 +69,15 @@ public sealed partial class OthersPage : Page
         ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
         ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
+        ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
+        ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
     }
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
     private void OnClipboardPauseStateChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
     private void OnEyeCareEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateEyeCareCardState);
+    private void OnRingLightEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
+    private void OnRingLightServiceChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
 
     private void UpdateClipboardCardState()
     {
@@ -86,6 +95,18 @@ public sealed partial class OthersPage : Page
         {
             card.EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled;
         }
+    }
+
+    private void UpdateRingLightCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "ringlight");
+        if (card == null) return;
+        var svc = ServiceContainer.RingLightService;
+        var s   = ServiceContainer.Settings.RingLight;
+        card.RingLightEnabled = svc.IsOn;
+        card.Status = svc.IsOn
+            ? $"On · {s.Kelvin}K · {s.BrightnessPercent}%"
+            : "Off";
     }
 
     private void LoadUtilityCards()

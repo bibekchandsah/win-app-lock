@@ -39,6 +39,7 @@ public static class ServiceContainer
     private static ClipboardMonitor? _clipboardMonitor;
     private static ClipboardPasteService? _clipboardPasteService;
     private static ClipboardExportService? _clipboardExportService;
+    private static AppLock.Services.RingLight.RingLightService? _ringLightService;
 
     public static NotificationService NotificationService
     {
@@ -517,6 +518,26 @@ public static class ServiceContainer
         }
 
         EyeCareIntervalChanged?.Invoke(null, minutes);
+    }
+
+    // ── Ring Light ────────────────────────────────────────────────────────────
+
+    public static AppLock.Services.RingLight.RingLightService RingLightService
+    {
+        get
+        {
+            if (_ringLightService == null)
+                _ringLightService = new AppLock.Services.RingLight.RingLightService();
+            return _ringLightService;
+        }
+    }
+
+    public static event EventHandler<bool>? RingLightEnabledChanged;
+
+    public static void SetRingLightEnabled(bool enabled)
+    {
+        RingLightService.SetEnabled(enabled, "user");
+        RingLightEnabledChanged?.Invoke(null, enabled);
     }
 
     public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
