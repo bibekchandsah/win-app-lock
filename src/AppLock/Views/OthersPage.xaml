@@ -94,11 +94,21 @@
             <controls:ClipboardCard Margin="0,4,0,0"/>
         </DataTemplate>
 
+        <!-- Ring Light Card Template (no quick-settings needed; whole card navigates) -->
+        <DataTemplate x:Key="RingLightTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="8" Margin="0,8,0,0">
+                <TextBlock Text="{x:Bind Status, Mode=OneWay}"
+                           FontSize="13"
+                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
                                            EyeCareTemplate="{StaticResource EyeCareTemplate}"
-                                           ClipboardTemplate="{StaticResource ClipboardTemplate}"/>
+                                           ClipboardTemplate="{StaticResource ClipboardTemplate}"
+                                           RingLightTemplate="{StaticResource RingLightTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

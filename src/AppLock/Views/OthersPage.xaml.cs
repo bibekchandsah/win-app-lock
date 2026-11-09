@@ -13,36 +13,26 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? BrightnessTemplate { get; set; }
     public DataTemplate? EyeCareTemplate { get; set; }
     public DataTemplate? ClipboardTemplate { get; set; }
+    public DataTemplate? RingLightTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
-        System.Diagnostics.Debug.WriteLine($"SelectTemplateCore called with item: {item}");
-        
         if (item is UtilityCard card)
         {
-            System.Diagnostics.Debug.WriteLine($"Card ID: {card.Id}, Title: {card.Title}");
-            
-            var template = card.Id switch
+            return card.Id switch
             {
                 "brightness" => BrightnessTemplate,
                 "eyecare" => EyeCareTemplate,
                 "clipboard" => ClipboardTemplate,
+                "ringlight" => RingLightTemplate,
                 _ => null
             };
-            
-            System.Diagnostics.Debug.WriteLine($"Selected template: {template?.GetType().Name ?? "NULL"}");
-            return template;
         }
-        
-        System.Diagnostics.Debug.WriteLine("Item is not UtilityCard!");
         return null;
     }
 
     protected override DataTemplate? SelectTemplateCore(object item, DependencyObject container)
-    {
-        System.Diagnostics.Debug.WriteLine($"SelectTemplateCore (with container) called");
-        return SelectTemplateCore(item);
-    }
+        => SelectTemplateCore(item);
 }
 
 public sealed partial class OthersPage : Page
@@ -100,45 +90,71 @@ public sealed partial class OthersPage : Page
 
     private void LoadUtilityCards()
     {
-        Cards.Add(new UtilityCard
+        var allCards = new List<UtilityCard>
         {
-            Id = "brightness",
-            Icon = "\uE706", // Sun icon
-            Title = "Brightness",
-            Description = "Control screen brightness with shortcuts and a blur overlay",
-            Status = "",
-            StatusVisibility = Visibility.Collapsed,
-            BrightnessHotkeysEnabled = ServiceContainer.Settings.Brightness.HotkeysEnabled,
-            BlurHotkeyEnabled = ServiceContainer.Settings.Brightness.Blur.HotkeyEnabled,
-            EyeCareEnabled = false
-        });
-        
-        Cards.Add(new UtilityCard
-        {
-            Id = "eyecare",
-            Icon = "\uE7B3", // Eye icon
-            Title = "Eye Care",
-            Description = "Periodic reminders to rest your eyes with fullscreen overlays",
-            Status = "",
-            StatusVisibility = Visibility.Collapsed,
-            BrightnessHotkeysEnabled = false,
-            BlurHotkeyEnabled = false,
-            EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled
-        });
+            new UtilityCard
+            {
+                Id = "brightness",
+                Order = 10,
+                Icon = "\uE706", // Sun icon
+                Title = "Brightness",
+                Description = "Control screen brightness with shortcuts and a blur overlay",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = ServiceContainer.Settings.Brightness.HotkeysEnabled,
+                BlurHotkeyEnabled = ServiceContainer.Settings.Brightness.Blur.HotkeyEnabled,
+                EyeCareEnabled = false
+            },
+            new UtilityCard
+            {
+                Id = "eyecare",
+                Order = 20,
+                Icon = "\uE7B3", // Eye icon
+                Title = "Eye Care",
+                Description = "Periodic reminders to rest your eyes with fullscreen overlays",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "clipboard",
+                Order = 40,
+                Icon = "\uE8C8", // Paste / Clipboard icon
+                Title = "Clipboard",
+                Description = "Persistent clipboard history with custom hotkey and search",
+                Status = ServiceContainer.Settings.Clipboard.Enabled ? "Capturing" : "Disabled",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = false,
+                ClipboardEnabled = ServiceContainer.Settings.Clipboard.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "ringlight",
+                Order = 50,
+                Icon = "\uE781", // Light / Ring-light glyph
+                Title = "Ring Light",
+                Description = "Light your face during calls using your screen edges",
+                Status = ServiceContainer.Settings.RingLight.Enabled
+                    ? $"On · {ServiceContainer.Settings.RingLight.Kelvin}K · {ServiceContainer.Settings.RingLight.BrightnessPercent}%"
+                    : "Off",
+                StatusVisibility = Visibility.Visible,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = false,
+                ClipboardEnabled = false,
+                RingLightEnabled = ServiceContainer.Settings.RingLight.Enabled
+            }
+        };
 
-        Cards.Add(new UtilityCard
-        {
-            Id = "clipboard",
-            Icon = "\uE8C8", // Paste / Clipboard icon
-            Title = "Clipboard",
-            Description = "Persistent clipboard history with custom hotkey and search",
-            Status = ServiceContainer.Settings.Clipboard.Enabled ? "Capturing" : "Disabled",
-            StatusVisibility = Visibility.Collapsed,
-            BrightnessHotkeysEnabled = false,
-            BlurHotkeyEnabled = false,
-            EyeCareEnabled = false,
-            ClipboardEnabled = ServiceContainer.Settings.Clipboard.Enabled
-        });
+        // Sort by explicit order value so order is not file-order dependent
+        allCards.Sort((a, b) => a.Order.CompareTo(b.Order));
+        foreach (var card in allCards)
+            Cards.Add(card);
     }
 
     private void UtilityCard_Click(object sender, RoutedEventArgs e)
@@ -160,6 +176,10 @@ public sealed partial class OthersPage : Page
             {
                 // Navigate to ClipboardSettingsPage
                 Frame.Navigate(typeof(ClipboardSettingsPage));
+            }
+            else if (card.Id == "ringlight")
+            {
+                Frame.Navigate(typeof(RingLightPage));
             }
         }
     }
@@ -189,8 +209,8 @@ public sealed partial class OthersPage : Page
         // Show expander for brightness, eyecare, and clipboard cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard") 
-                ? Visibility.Visible 
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard")
+                ? Visibility.Visible
                 : Visibility.Collapsed;
         }
     }
@@ -260,9 +280,11 @@ public class UtilityCard : INotifyPropertyChanged
     private bool _brightnessHotkeysEnabled;
     private bool _blurHotkeyEnabled;
     private bool _eyeCareEnabled;
+    private bool _ringLightEnabled;
     private string _status = string.Empty;
 
     public string Id { get; set; } = string.Empty;
+    public int Order { get; set; }
     public string Icon { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -271,10 +293,12 @@ public class UtilityCard : INotifyPropertyChanged
     public bool IsBrightnessCard => Id == "brightness";
     public bool IsEyeCareCard => Id == "eyecare";
     public bool IsClipboardCard => Id == "clipboard";
+    public bool IsRingLightCard => Id == "ringlight";
     
     public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ClipboardContentVisibility => IsClipboardCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RingLightContentVisibility => IsRingLightCard ? Visibility.Visible : Visibility.Collapsed;
     
     public string Status
     {
@@ -339,6 +363,19 @@ public class UtilityCard : INotifyPropertyChanged
             if (_clipboardEnabled != value)
             {
                 _clipboardEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool RingLightEnabled
+    {
+        get => _ringLightEnabled;
+        set
+        {
+            if (_ringLightEnabled != value)
+            {
+                _ringLightEnabled = value;
                 OnPropertyChanged();
             }
         }

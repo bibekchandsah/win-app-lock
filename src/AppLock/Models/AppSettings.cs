@@ -63,7 +63,10 @@ public class AppSettings
     
     // Clipboard
     public ClipboardSettings Clipboard { get; set; } = new();
-    
+
+    // Ring Light
+    public RingLightSettings RingLight { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }
