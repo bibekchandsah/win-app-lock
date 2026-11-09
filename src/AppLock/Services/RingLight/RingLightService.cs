@@ -16,6 +16,8 @@ public sealed class RingLightService : IDisposable
     // ── Events ────────────────────────────────────────────────────────────────
     public event EventHandler<bool>?   EnabledChanged;
     public event EventHandler<State>?  StateChanged;
+    /// <summary>Fired whenever settings are applied live (preset change, slider, tray action).</summary>
+    public event EventHandler?         SettingsLiveChanged;
 
     // ── Fields ────────────────────────────────────────────────────────────────
     private RingOverlayManager? _manager;
@@ -113,6 +115,8 @@ public sealed class RingLightService : IDisposable
                 MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() => SetEnabled(false, "auto-off"));
             });
         }
+
+        SettingsLiveChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

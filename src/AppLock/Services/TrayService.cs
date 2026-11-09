@@ -386,14 +386,15 @@ public sealed class TrayService : IDisposable
                     Action action = () =>
                     {
                         var s = ServiceContainer.Settings.RingLight;
+                        // ApplyTo already sets ActivePresetId so UI chip highlights stay in sync
                         AppLock.Services.RingLight.RingPresets.ApplyTo(preset, s);
                         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
                         ServiceContainer.RingLightService.ApplySettingsLive(s);
                         if (!ServiceContainer.RingLightService.IsOn)
                         {
                             ServiceContainer.SetRingLightEnabled(true);
-                            UpdateRingLightMenuItem();
                         }
+                        UpdateRingLightMenuItem();
                     };
                     item.Click += (s, e) => action();
                     item.Command = new RelayCommand(action);

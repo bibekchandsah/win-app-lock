@@ -22,7 +22,7 @@ public class RingLightSettings
     public bool KeepTaskbarClear { get; set; } = true;
     public int FadeMs { get; set; } = 300;
     public string DisplayTarget { get; set; } = "Primary"; // Primary | BuiltIn | All | <displayId>
-    public bool ShowInScreenCapture { get; set; }
+    public bool ShowInScreenCapture { get; set; } = true;
     public bool BoostScreenBrightness { get; set; }
     public int BoostBrightnessPercent { get; set; } = 100;
     public bool ShowNotificationOnToggle { get; set; }

@@ -257,6 +257,10 @@ fixed - 5) camera detection is still not working
 fixed - 6) there is no quick settings toggle in card
 fixed - 7) no effect on system tray menu integration
 
+1) remove "off/on" status from the card as it can be seen from quick setting toggle status
+2) optimize the text of enabled and disabled toggle in quick settings toggle
+3) preview ring light and applied ring light overlay isn't visible but status shows previewing and notification shows on
+4) ring light preset isn't synced in window UI and tray context menu
 
 
 

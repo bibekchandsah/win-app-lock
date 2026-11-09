@@ -34,7 +34,8 @@ public sealed partial class RingLightPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        ServiceContainer.RingLightService.EnabledChanged += OnEnabledChanged;
+        ServiceContainer.RingLightService.EnabledChanged     += OnEnabledChanged;
+        ServiceContainer.RingLightService.SettingsLiveChanged += OnSettingsLiveChanged;
         LoadSettingsIntoUI();
         RefreshStatusText(ServiceContainer.RingLightService.IsOn);
         _loading = false;
@@ -49,7 +50,8 @@ public sealed partial class RingLightPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        ServiceContainer.RingLightService.EnabledChanged -= OnEnabledChanged;
+        ServiceContainer.RingLightService.EnabledChanged     -= OnEnabledChanged;
+        ServiceContainer.RingLightService.SettingsLiveChanged -= OnSettingsLiveChanged;
         _previewCts?.Cancel();
     }
 
@@ -63,6 +65,22 @@ public sealed partial class RingLightPage : Page
             MasterToggle.IsOn = enabled;
             _suppressToggle = false;
             RefreshStatusText(enabled);
+        });
+    }
+
+    /// <summary>
+    /// Called when settings are changed externally (e.g. tray preset applied).
+    /// Reloads appearance sliders + preset label so the UI stays in sync.
+    /// </summary>
+    private void OnSettingsLiveChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            _loading = true;
+            SyncAppearanceSliders(ServiceContainer.Settings.RingLight);
+            _loading = false;
+            RefreshActivePresetLabel();
+            UpdatePreview();
         });
     }
 

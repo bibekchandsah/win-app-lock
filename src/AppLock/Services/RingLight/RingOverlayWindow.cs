@@ -37,6 +37,8 @@ public sealed class RingOverlayWindow : IRingOverlay
     private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
     private static readonly nint HWND_TOPMOST = new nint(-1);
 
+    private const string WindowClassName = "AppLockRingLightOverlayClass";
+
     // ── Win32 structs ───────────────────────────────────────────────────────
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -61,6 +63,23 @@ public sealed class RingOverlayWindow : IRingOverlay
         public byte BlendFlags;
         public byte SourceConstantAlpha;
         public byte AlphaFormat;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WNDCLASSEXW
+    {
+        public uint    cbSize;
+        public uint    style;
+        public nint    lpfnWndProc;
+        public int     cbClsExtra;
+        public int     cbWndExtra;
+        public nint    hInstance;
+        public nint    hIcon;
+        public nint    hCursor;
+        public nint    hbrBackground;
+        public string? lpszMenuName;
+        public string  lpszClassName;
+        public nint    hIconSm;
     }
 
     // ── P/Invoke ─────────────────────────────────────────────────────────────
@@ -109,6 +128,54 @@ public sealed class RingOverlayWindow : IRingOverlay
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint GetModuleHandleW(string? lpModuleName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern ushort RegisterClassExW(ref WNDCLASSEXW lpwcx);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint DefWindowProcW(nint hWnd, uint msg, nint wParam, nint lParam);
+
+    // Delegate type for the window procedure
+    private delegate nint WndProcDelegate(nint hWnd, uint msg, nint wParam, nint lParam);
+
+    // ── Class registration (once per process) ─────────────────────────────
+    private static readonly object _classLock = new();
+    private static bool _classRegistered;
+    // Keep delegate alive for lifetime of process to prevent GC collection
+    private static readonly WndProcDelegate _wndProcDelegate = DefWndProc;
+
+    private static nint DefWndProc(nint hWnd, uint msg, nint wParam, nint lParam)
+        => DefWindowProcW(hWnd, msg, wParam, lParam);
+
+    private static void EnsureClassRegistered()
+    {
+        if (_classRegistered) return;
+        lock (_classLock)
+        {
+            if (_classRegistered) return;
+            var hInstance = GetModuleHandleW(null);
+            var wc = new WNDCLASSEXW
+            {
+                cbSize        = (uint)Marshal.SizeOf<WNDCLASSEXW>(),
+                style         = 0,
+                lpfnWndProc   = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
+                cbClsExtra    = 0,
+                cbWndExtra    = 0,
+                hInstance     = hInstance,
+                hIcon         = nint.Zero,
+                hCursor       = nint.Zero,
+                hbrBackground = nint.Zero,
+                lpszMenuName  = null,
+                lpszClassName = WindowClassName,
+                hIconSm       = nint.Zero,
+            };
+            RegisterClassExW(ref wc);
+            _classRegistered = true;
+        }
+    }
 
     // ── Fields ───────────────────────────────────────────────────────────────
     private nint _hwnd;
@@ -209,13 +276,17 @@ public sealed class RingOverlayWindow : IRingOverlay
     {
         if (_hwnd != nint.Zero) return;
 
+        // Register a custom window class so the layered window is fully isolated
+        // from the predefined "Static" class WndProc which can interfere with ULW.
+        EnsureClassRegistered();
+
         _hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-            "Static",
+            WindowClassName,
             "AppLockRingLightOverlay",
             WS_POPUP,
             bounds.X, bounds.Y, bounds.Width, bounds.Height,
-            nint.Zero, nint.Zero, nint.Zero, nint.Zero);
+            nint.Zero, nint.Zero, GetModuleHandleW(null), nint.Zero);
 
         if (_hwnd != nint.Zero && !_showInCapture)
         {

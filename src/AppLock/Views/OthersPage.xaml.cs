@@ -101,12 +101,8 @@ public sealed partial class OthersPage : Page
     {
         var card = Cards.FirstOrDefault(c => c.Id == "ringlight");
         if (card == null) return;
-        var svc = ServiceContainer.RingLightService;
-        var s   = ServiceContainer.Settings.RingLight;
-        card.RingLightEnabled = svc.IsOn;
-        card.Status = svc.IsOn
-            ? $"On · {s.Kelvin}K · {s.BrightnessPercent}%"
-            : "Off";
+        card.RingLightEnabled = ServiceContainer.RingLightService.IsOn;
+        // Status text is hidden for ring light card; toggle state is visible via quick settings
     }
 
     private void LoadUtilityCards()
@@ -160,10 +156,8 @@ public sealed partial class OthersPage : Page
                 Icon = "\uE781", // Light / Ring-light glyph
                 Title = "Ring Light",
                 Description = "Light your face during calls using your screen edges",
-                Status = ServiceContainer.Settings.RingLight.Enabled
-                    ? $"On · {ServiceContainer.Settings.RingLight.Kelvin}K · {ServiceContainer.Settings.RingLight.BrightnessPercent}%"
-                    : "Off",
-                StatusVisibility = Visibility.Visible,
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
                 BrightnessHotkeysEnabled = false,
                 BlurHotkeyEnabled = false,
                 EyeCareEnabled = false,
