@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
+using AppLock.Services.EyeCare;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -133,11 +134,10 @@ public sealed partial class EyeCareOverlayWindow : Window
     {
         try
         {
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var webViewDataFolder = Path.Combine(localAppData, "AppLock", "WebView2");
-            Directory.CreateDirectory(webViewDataFolder);
-            var env = await CoreWebView2Environment.CreateWithOptionsAsync(string.Empty, webViewDataFolder, null);
+            // Dark background prevents white flash while WebView2 initializes
+            WebView.DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, 33, 33, 33);
 
+            var env = await EyeCareOverlayService.GetOrCreateEnvironmentAsync();
             await WebView.EnsureCoreWebView2Async(env);
 
             var core = WebView.CoreWebView2;
@@ -228,16 +228,6 @@ public sealed partial class EyeCareOverlayWindow : Window
                 e.Handled = true;
             };
 
-            // Reveal WebView only after navigation completes to eliminate blank flash
-            core.NavigationCompleted += (s, e) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    LoadingPlaceholder.Visibility = Visibility.Collapsed;
-                    WebView.Visibility = Visibility.Visible;
-                });
-            };
-
             // Navigate to rendered HTML
             var fileName = Path.GetFileName(_htmlPath);
             core.Navigate($"https://eyecare.local/{fileName}");
@@ -258,7 +248,6 @@ public sealed partial class EyeCareOverlayWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            LoadingPlaceholder.Visibility = Visibility.Collapsed;
             WebView.Visibility = Visibility.Collapsed;
             FallbackPanel.Visibility = Visibility.Visible;
             FallbackMessageText.Text = _reminderMessage;

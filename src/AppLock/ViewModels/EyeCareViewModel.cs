@@ -49,7 +49,10 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
             {
                 _enabled = value;
                 OnPropertyChanged();
-                UpdateEnabled(value);
+                if (!_isUpdatingFromExternal)
+                {
+                    UpdateEnabled(value);
+                }
             }
         }
     }
@@ -64,7 +67,7 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
                 _selectedIntervalIndex = value;
                 OnPropertyChanged();
                 
-                if (value >= 0 && value < IntervalPresets.Count)
+                if (!_isUpdatingFromExternal && value >= 0 && value < IntervalPresets.Count)
                 {
                     UpdateInterval(IntervalPresets[value]);
                 }
@@ -298,13 +301,11 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
         if (minutes < 1 || minutes > 1440)
             return;
 
-        ServiceContainer.Settings.EyeCare.IntervalMinutes = minutes;
         _customInterval = minutes;
         _isCustomIntervalMode = true;
         OnPropertyChanged(nameof(CustomInterval));
         OnPropertyChanged(nameof(IsCustomIntervalMode));
-        SaveSettings();
-        RestartScheduler();
+        ServiceContainer.SetEyeCareInterval(minutes);
     }
 
     private void DebounceMessageSave()
@@ -497,8 +498,15 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
         _dispatcher.TryEnqueue(() =>
         {
             if (_enabled == enabled) return;
-            _enabled = enabled;
-            OnPropertyChanged(nameof(Enabled));
+            _isUpdatingFromExternal = true;
+            try
+            {
+                Enabled = enabled;
+            }
+            finally
+            {
+                _isUpdatingFromExternal = false;
+            }
         });
     }
 
@@ -513,10 +521,15 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
                 _isCustomIntervalMode = false;
                 if (_selectedIntervalIndex != idx)
                 {
-                    _isRefreshingTemplates = true; // reuse guard to avoid re-triggering UpdateInterval
-                    _selectedIntervalIndex = idx;
-                    _isRefreshingTemplates = false;
-                    OnPropertyChanged(nameof(SelectedIntervalIndex));
+                    _isUpdatingFromExternal = true;
+                    try
+                    {
+                        SelectedIntervalIndex = idx;
+                    }
+                    finally
+                    {
+                        _isUpdatingFromExternal = false;
+                    }
                 }
             }
             else

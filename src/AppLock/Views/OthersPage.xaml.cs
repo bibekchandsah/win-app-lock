@@ -63,17 +63,22 @@ public sealed partial class OthersPage : Page
         ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
         ServiceContainer.ClipboardMonitor.PauseStateChanged += OnClipboardPauseStateChanged;
+        ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
+        ServiceContainer.EyeCareEnabledChanged += OnEyeCareEnabledChanged;
         UpdateClipboardCardState();
+        UpdateEyeCareCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
     {
         ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
+        ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
     }
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
     private void OnClipboardPauseStateChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
+    private void OnEyeCareEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateEyeCareCardState);
 
     private void UpdateClipboardCardState()
     {
@@ -81,6 +86,15 @@ public sealed partial class OthersPage : Page
         if (card != null)
         {
             card.ClipboardEnabled = ServiceContainer.Settings.Clipboard.Enabled;
+        }
+    }
+
+    private void UpdateEyeCareCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "eyecare");
+        if (card != null)
+        {
+            card.EyeCareEnabled = ServiceContainer.Settings.EyeCare.Enabled;
         }
     }
 
@@ -235,21 +249,8 @@ public sealed partial class OthersPage : Page
     {
         if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
         {
-            ServiceContainer.Settings.EyeCare.Enabled = toggle.IsOn;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-            
-            // Update the card property
             card.EyeCareEnabled = toggle.IsOn;
-            
-            // Update scheduler
-            if (toggle.IsOn)
-            {
-                ServiceContainer.EyeCareScheduler?.Start();
-            }
-            else
-            {
-                ServiceContainer.EyeCareScheduler?.Stop();
-            }
+            ServiceContainer.SetEyeCareEnabled(toggle.IsOn);
         }
     }
 }

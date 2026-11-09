@@ -24,9 +24,21 @@ public sealed partial class EyeCarePage : Page
                 ServiceContainer.EyeCareScheduler,
                 ServiceContainer.EyeCareOverlayService,
                 DispatcherQueue);
+
+            _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             
             DataContext = _viewModel;
             UpdateIntervalDisplay();
+        }
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(EyeCareViewModel.SelectedIntervalIndex) ||
+            e.PropertyName == nameof(EyeCareViewModel.CustomInterval) ||
+            e.PropertyName == nameof(EyeCareViewModel.IsCustomIntervalMode))
+        {
+            DispatcherQueue.TryEnqueue(UpdateIntervalDisplay);
         }
     }
 
