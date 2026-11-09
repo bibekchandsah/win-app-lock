@@ -59,91 +59,361 @@
                        Margin="0,4,0,0"/>
         </StackPanel>
 
-        <!-- Settings content -->
+        <!-- Scrollable settings -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="12" MaxWidth="680" HorizontalAlignment="Left">
+            <StackPanel Spacing="12" MaxWidth="740" HorizontalAlignment="Left">
 
-                <!-- OLED burn-in tip -->
+                <!-- OLED warning -->
                 <InfoBar x:Name="OledInfoBar"
                          IsOpen="True"
                          IsClosable="True"
                          Severity="Warning"
                          Title="Screen burn-in"
-                         Message="A bright static frame for long periods can cause burn-in on OLED displays. Use the auto turn-off timer (coming soon) to protect your screen."/>
+                         Message="A bright static frame for long periods can cause burn-in on OLED displays. Use the auto turn-off timer to protect your screen."/>
 
-                <!-- ── Master control card ── -->
+                <!-- Master control + live preview -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="20">
-                    <Grid>
+                        BorderThickness="1" CornerRadius="8" Padding="20">
+                    <Grid ColumnSpacing="20">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
-                            <TextBlock Text="Ring Light"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <TextBlock x:Name="StatusText"
-                                       Text="Off"
-                                       FontSize="13"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <!-- Left: toggle + status -->
+                        <StackPanel Grid.Column="0" Spacing="12" VerticalAlignment="Center">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Ring Light" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock x:Name="StatusText" Text="Off" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="MasterToggle" Grid.Column="1"
+                                             Toggled="MasterToggle_Toggled"
+                                             MinWidth="0" OffContent="" OnContent=""
+                                             VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Preview 5s button -->
+                            <Button x:Name="PreviewButton"
+                                    Content="Preview on screen for 5 s"
+                                    Click="PreviewButton_Click"
+                                    HorizontalAlignment="Left"/>
                         </StackPanel>
 
-                        <ToggleSwitch x:Name="MasterToggle"
-                                      Grid.Column="1"
-                                      Toggled="MasterToggle_Toggled"
-                                      MinWidth="0"
-                                      OffContent=""
-                                      OnContent=""
-                                      VerticalAlignment="Center"/>
+                        <!-- Right: live mini preview (Grid-based, no Canvas) -->
+                        <Border Grid.Column="1"
+                                x:Name="PreviewBorder"
+                                Width="224" Height="140"
+                                Background="#111111"
+                                CornerRadius="6"
+                                VerticalAlignment="Center">
+                            <Grid>
+                                <!-- Top strip -->
+                                <Border x:Name="PreviewTopBorder"
+                                        VerticalAlignment="Top"
+                                        HorizontalAlignment="Stretch"
+                                        Height="12"/>
+                                <!-- Bottom strip -->
+                                <Border x:Name="PreviewBottomBorder"
+                                        VerticalAlignment="Bottom"
+                                        HorizontalAlignment="Stretch"
+                                        Height="12"/>
+                                <!-- Left strip -->
+                                <Border x:Name="PreviewLeftBorder"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Stretch"
+                                        Width="12"/>
+                                <!-- Right strip -->
+                                <Border x:Name="PreviewRightBorder"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Stretch"
+                                        Width="12"/>
+                            </Grid>
+                        </Border>
                     </Grid>
+                </Border>
+
+                <!-- Appearance section -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- Section header -->
+                        <Grid Padding="20,16,20,16">
+                            <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                        <StackPanel Padding="20,16,20,16" Spacing="20">
+
+                            <!-- Color mode -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Color mode" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <RadioButton x:Name="TempModeRadio" Content="Temperature"
+                                                 Checked="ColorMode_Changed" GroupName="ColorMode"/>
+                                    <RadioButton x:Name="CustomModeRadio" Content="Custom color"
+                                                 Checked="ColorMode_Changed" GroupName="ColorMode"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Temperature panel -->
+                            <StackPanel x:Name="TemperaturePanel" Spacing="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Color temperature" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="KelvinLabel" Grid.Column="1"
+                                               Text="4500 K" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Border Height="8" CornerRadius="4" Margin="0,16,0,0" VerticalAlignment="Top">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#FF7700" Offset="0.0"/>
+                                                <GradientStop Color="#FFAA44" Offset="0.3"/>
+                                                <GradientStop Color="#FFFFFF" Offset="0.65"/>
+                                                <GradientStop Color="#C8DFFF" Offset="1.0"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <Slider x:Name="KelvinSlider"
+                                            Minimum="2700" Maximum="6500" Value="4500"
+                                            StepFrequency="100"
+                                            ValueChanged="KelvinSlider_ValueChanged"
+                                            Background="Transparent"/>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="2700 K (Warm)" FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    <TextBlock Text="6500 K (Cool)" FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                               HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Custom color panel -->
+                            <StackPanel x:Name="CustomColorPanel" Spacing="8" Visibility="Collapsed">
+                                <TextBlock Text="Custom color" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                    <Border x:Name="ColorSwatch" Width="40" Height="40"
+                                            CornerRadius="6" Background="White"
+                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                            BorderThickness="1"/>
+                                    <TextBox x:Name="HexInput" PlaceholderText="#FFFFFF"
+                                             Width="140" TextChanged="HexInput_TextChanged"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="Enter hex color (e.g. #FFAA44)"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Brightness -->
+                            <StackPanel Spacing="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Brightness" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="BrightnessLabel" Grid.Column="1"
+                                               Text="80%" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Slider x:Name="BrightnessSlider"
+                                        Minimum="10" Maximum="100" Value="80"
+                                        StepFrequency="5"
+                                        ValueChanged="BrightnessSlider_ValueChanged"/>
+                            </StackPanel>
+
+                            <!-- Thickness -->
+                            <StackPanel Spacing="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Ring thickness" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ThicknessLabel" Grid.Column="1"
+                                               Text="8%" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Slider x:Name="ThicknessSlider"
+                                        Minimum="2" Maximum="30" Value="8"
+                                        StepFrequency="1"
+                                        ValueChanged="ThicknessSlider_ValueChanged"/>
+                            </StackPanel>
+
+                            <!-- Softness -->
+                            <StackPanel Spacing="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Softness (feather)" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="SoftnessLabel" Grid.Column="1"
+                                               Text="50%" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Slider x:Name="SoftnessSlider"
+                                        Minimum="0" Maximum="100" Value="50"
+                                        StepFrequency="5"
+                                        ValueChanged="SoftnessSlider_ValueChanged"/>
+                            </StackPanel>
+
+                            <!-- Corner radius -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Corner radius (inner frame)" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Rounds the inner edge of the ring" FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Slider x:Name="CornerRadiusSlider" Grid.Column="1"
+                                        Minimum="0" Maximum="200" Value="0"
+                                        StepFrequency="4"
+                                        Width="140"
+                                        ValueChanged="CornerRadiusSlider_ValueChanged"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Edges -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Edges" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Choose which screen edges show the ring"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
+                                    <CheckBox x:Name="EdgeTopCheck" Content="Top"
+                                              Checked="EdgeCheck_Changed" Unchecked="EdgeCheck_Changed"/>
+                                    <CheckBox x:Name="EdgeBottomCheck" Content="Bottom"
+                                              Checked="EdgeCheck_Changed" Unchecked="EdgeCheck_Changed"/>
+                                    <CheckBox x:Name="EdgeLeftCheck" Content="Left"
+                                              Checked="EdgeCheck_Changed" Unchecked="EdgeCheck_Changed"/>
+                                    <CheckBox x:Name="EdgeRightCheck" Content="Right"
+                                              Checked="EdgeCheck_Changed" Unchecked="EdgeCheck_Changed"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Style -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Style" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <RadioButton x:Name="StyleFrameRadio" Content="Frame (edges only)"
+                                                 Checked="Style_Changed" GroupName="RingStyle"/>
+                                    <RadioButton x:Name="StyleGlowRadio" Content="Full screen glow"
+                                                 Checked="Style_Changed" GroupName="RingStyle"/>
+                                </StackPanel>
+                                <TextBlock x:Name="StyleHint"
+                                           Text="Full screen glow intensity is capped at 60% so the screen stays usable."
+                                           FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                           Visibility="Collapsed"/>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Keep taskbar clear -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Keep taskbar clear" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Draw within the work area, leaving the taskbar visible"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="TaskbarClearToggle" Grid.Column="1"
+                                             Toggled="TaskbarClearToggle_Toggled"
+                                             MinWidth="0" OffContent="" OnContent=""
+                                             VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Fade duration -->
+                            <StackPanel Spacing="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Fade in / out duration" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="FadeLabel" Grid.Column="1"
+                                               Text="300 ms" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Slider x:Name="FadeSlider"
+                                        Minimum="0" Maximum="1000" Value="300"
+                                        StepFrequency="50"
+                                        ValueChanged="FadeSlider_ValueChanged"/>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </StackPanel>
                 </Border>
 
                 <!-- Tip card -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="20">
+                        BorderThickness="1" CornerRadius="8" Padding="20">
                     <StackPanel Spacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE946;" FontSize="14"
                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                       VerticalAlignment="Center"/>
-                            <TextBlock Text="Quick tip"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
+                            <TextBlock Text="Tip" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
-                        <TextBlock TextWrapping="Wrap"
-                                   FontSize="13"
+                        <TextBlock TextWrapping="Wrap" FontSize="13"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Text="For the best result: raise screen brightness, use a white or warm color, and increase ring thickness. A screen is a weaker light than a real ring light."/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Coming soon placeholder for appearance controls (Milestone 3) -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="20"
-                        Opacity="0.6">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Appearance — coming next"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <TextBlock Text="Color temperature, brightness, thickness, softness, edges and more will appear here."
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                     </StackPanel>
                 </Border>
 
