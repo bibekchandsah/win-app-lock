@@ -274,7 +274,7 @@ fixed - camera detection: browser web video calls (Chrome, Edge) not detected de
   - Added Strategy 2 fallback: checks HKLM Frame Server Sessions registry key when WMI finds nothing
   - Frame Server fallback correlates active Frame Server session with running browser processes
 
-when user is in ring light page then "others" side navigation don't looks active
+fixed - when user is in ring light page then "others" side navigation don't looks active
 
 
 
