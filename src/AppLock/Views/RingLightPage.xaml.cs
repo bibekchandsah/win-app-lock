@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
+using AppLock.Services.Brightness;
 using AppLock.Services.RingLight;
+using AppLock.Views.Dialogs;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -314,26 +316,30 @@ public sealed partial class RingLightPage : Page
 
     private void UpdateChipHighlights(string? activeId)
     {
-        // Built-in chips: use AccentButtonStyle when active, DefaultButtonStyle otherwise
-        var accent  = (Style)Application.Current.Resources["AccentButtonStyle"];
-        var defBtn  = (Style)Application.Current.Resources["DefaultButtonStyle"];
-        SetChip(ChipWarm,    "builtin:warm",    activeId, accent, defBtn);
-        SetChip(ChipNeutral, "builtin:neutral", activeId, accent, defBtn);
-        SetChip(ChipCool,    "builtin:cool",    activeId, accent, defBtn);
-        SetChip(ChipSoft,    "builtin:soft",    activeId, accent, defBtn);
-        SetChip(ChipStudio,  "builtin:studio",  activeId, accent, defBtn);
-        SetChip(ChipMax,     "builtin:maxlight",activeId, accent, defBtn);
+        var accent = (Style)Application.Current.Resources["AccentButtonStyle"];
+        SetChip(ChipWarm,    "builtin:warm",    activeId, accent);
+        SetChip(ChipNeutral, "builtin:neutral", activeId, accent);
+        SetChip(ChipCool,    "builtin:cool",    activeId, accent);
+        SetChip(ChipSoft,    "builtin:soft",    activeId, accent);
+        SetChip(ChipStudio,  "builtin:studio",  activeId, accent);
+        SetChip(ChipMax,     "builtin:maxlight",activeId, accent);
 
         // Custom chips
         foreach (var child in CustomChipsPanel.Children)
         {
-            if (child is Button cb && cb.Tag is string cid)
-                cb.Style = cid == activeId ? accent : defBtn;
+            if (child is StackPanel row && row.Children.Count > 0 && row.Children[0] is Button cb && cb.Tag is string cid)
+            {
+                cb.Style = cid == activeId ? accent : null;
+            }
+            else if (child is Button b && b.Tag is string bid)
+            {
+                b.Style = bid == activeId ? accent : null;
+            }
         }
     }
 
-    private static void SetChip(Button chip, string id, string? activeId, Style accent, Style defBtn)
-        => chip.Style = id == activeId ? accent : defBtn;
+    private static void SetChip(Button chip, string id, string? activeId, Style accent)
+        => chip.Style = id == activeId ? accent : null;
 
     private void RebuildCustomChips()
     {
@@ -344,8 +350,7 @@ public sealed partial class RingLightPage : Page
         CustomPresetsLabel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         CustomChipsPanel.Visibility   = any ? Visibility.Visible : Visibility.Collapsed;
 
-        var accent  = (Style)Application.Current.Resources["AccentButtonStyle"];
-        var defBtn  = (Style)Application.Current.Resources["DefaultButtonStyle"];
+        var accent   = (Style)Application.Current.Resources["AccentButtonStyle"];
         var activeId = ServiceContainer.Settings.RingLight.ActivePresetId;
 
         foreach (var preset in presets)
@@ -355,7 +360,7 @@ public sealed partial class RingLightPage : Page
             {
                 Content = preset.Name,
                 Tag     = preset.Id,
-                Style   = preset.Id == activeId ? accent : defBtn,
+                Style   = preset.Id == activeId ? accent : null,
                 Margin  = new Thickness(0),
             };
             applyBtn.Click += PresetChip_Click;
@@ -363,7 +368,7 @@ public sealed partial class RingLightPage : Page
             // Rename button (pencil icon)
             var renameBtn = new Button
             {
-                Tag    = preset.Id,
+                Tag     = preset.Id,
                 Padding = new Thickness(6, 4, 6, 4),
                 Content = new FontIcon { Glyph = "\uE70F", FontSize = 12 },
             };
@@ -373,7 +378,7 @@ public sealed partial class RingLightPage : Page
             // Delete button (X)
             var deleteBtn = new Button
             {
-                Tag    = preset.Id,
+                Tag     = preset.Id,
                 Padding = new Thickness(6, 4, 6, 4),
                 Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
             };
@@ -391,6 +396,7 @@ public sealed partial class RingLightPage : Page
     private async void SavePresetButton_Click(object sender, RoutedEventArgs e)
     {
         var nameBox = new TextBox { PlaceholderText = "Preset name", MinWidth = 240 };
+        bool enterPressed = false;
         var dialog  = new ContentDialog
         {
             Title             = "Save preset",
@@ -402,11 +408,15 @@ public sealed partial class RingLightPage : Page
         };
         nameBox.KeyDown += (s, ke) =>
         {
-            if (ke.Key == Windows.System.VirtualKey.Enter) dialog.Hide();
+            if (ke.Key == Windows.System.VirtualKey.Enter)
+            {
+                enterPressed = true;
+                dialog.Hide();
+            }
         };
 
         var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary && !enterPressed) return;
 
         var name = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(name)) return;
@@ -429,6 +439,7 @@ public sealed partial class RingLightPage : Page
         if (preset == null) return;
 
         var nameBox = new TextBox { Text = preset.Name, MinWidth = 240 };
+        bool enterPressed = false;
         var dialog  = new ContentDialog
         {
             Title             = "Rename preset",
@@ -438,9 +449,17 @@ public sealed partial class RingLightPage : Page
             XamlRoot          = this.XamlRoot,
             DefaultButton     = ContentDialogButton.Primary,
         };
+        nameBox.KeyDown += (s, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter)
+            {
+                enterPressed = true;
+                dialog.Hide();
+            }
+        };
 
         var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
+        if (result != ContentDialogResult.Primary && !enterPressed) return;
 
         var name = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(name)) return;
@@ -568,6 +587,9 @@ public sealed partial class RingLightPage : Page
         NightKelvinLabel.Text       = $"{s.Auto.NightKelvin} K";
         NightStartBox.Text          = string.IsNullOrEmpty(s.Auto.NightStart) ? "20:00" : s.Auto.NightStart;
         NightEndBox.Text            = string.IsNullOrEmpty(s.Auto.NightEnd) ? "07:00" : s.Auto.NightEnd;
+
+        // Hotkey settings
+        RefreshHotkeyUI();
 
         _loading = false;
     }
@@ -783,7 +805,7 @@ public sealed partial class RingLightPage : Page
             }
             else
             {
-                TestCameraStatusText.Text = "No apps currently using camera.";
+                TestCameraStatusText.Text = "No apps currently using camera (checked HKCU & HKLM).";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
             }
         }
@@ -851,7 +873,7 @@ public sealed partial class RingLightPage : Page
             : "Off";
     }
 
-    // ── Live mini preview (Border-based) ──────────────────────────────────
+    // ── Live mini preview (Border-based with inner screen cutout) ────────
 
     private void UpdatePreview()
     {
@@ -859,22 +881,33 @@ public sealed partial class RingLightPage : Page
         {
             var s = ServiceContainer.Settings.RingLight;
 
+            int bPct = s.Style == "FullGlow" ? Math.Min(s.BrightnessPercent, 60) : s.BrightnessPercent;
             Color ringColor = s.ColorMode == "Temperature"
-                ? ColorTemperature.ToColor(s.Kelvin, s.BrightnessPercent)
-                : ParseHexWithBrightness(s.CustomColorHex, s.BrightnessPercent);
-
-            if (s.Style == "FullGlow")
-                ringColor = ColorTemperature.ToColor(s.Kelvin, Math.Min(s.BrightnessPercent, 60));
+                ? ColorTemperature.ToColor(s.Kelvin, bPct)
+                : ParseHexWithBrightness(s.CustomColorHex, bPct);
 
             double softness = s.SoftnessPercent / 100.0;
 
-            // Scale thickness to preview (preview height=140, preview width=224)
-            double thickPx = Math.Max(2.0, 140 * s.ThicknessPercent / 100.0);
+            // Preview size: 200 x 125, shorter side = 125
+            double previewW = 200.0;
+            double previewH = 125.0;
+            double shorter  = 125.0;
+            double thickPx  = Math.Max(2.0, shorter * s.ThicknessPercent / 100.0);
 
             SetPreviewBorder(PreviewTopBorder,    ringColor, softness, true,  s.EdgeTop,    thickPx, true);
             SetPreviewBorder(PreviewBottomBorder, ringColor, softness, true,  s.EdgeBottom, thickPx, false);
             SetPreviewBorder(PreviewLeftBorder,   ringColor, softness, false, s.EdgeLeft,   thickPx, true);
             SetPreviewBorder(PreviewRightBorder,  ringColor, softness, false, s.EdgeRight,  thickPx, false);
+
+            // Calculate inner screen cutout preview dimensions and scale corner radius
+            double cutW = Math.Max(0, previewW - (s.EdgeLeft ? thickPx : 0) - (s.EdgeRight ? thickPx : 0));
+            double cutH = Math.Max(0, previewH - (s.EdgeTop ? thickPx : 0) - (s.EdgeBottom ? thickPx : 0));
+            PreviewCenterCutout.Width  = cutW;
+            PreviewCenterCutout.Height = cutH;
+
+            // Scale CornerRadiusPx (0-200) relative to preview height (125 / 1080)
+            double scaledRadius = Math.Clamp(s.CornerRadiusPx * (125.0 / 1080.0), 0, Math.Min(cutW / 2, cutH / 2));
+            PreviewCenterCutout.CornerRadius = new CornerRadius(scaledRadius);
         }
         catch (Exception ex)
         {
@@ -892,6 +925,8 @@ public sealed partial class RingLightPage : Page
         else
             border.Width = thickPx;
 
+        if (!visible) return;
+
         var brush = new LinearGradientBrush();
 
         if (softness <= 0.01)
@@ -904,27 +939,94 @@ public sealed partial class RingLightPage : Page
         else
         {
             var transparent = Color.FromArgb(0, color.R, color.G, color.B);
-            double hardStop = 1.0 - softness;
+            double hardStop = Math.Clamp(1.0 - softness, 0.0, 0.99);
 
-            // gradient direction: opaque outer → transparent inner
+            // Inward gradient: outer edge (Offset 0 = color) -> inner edge (Offset 1 = transparent)
             if (horizontal)
             {
+                // Top: fromStart=true -> (0,0) to (0,1)
+                // Bottom: fromStart=false -> (0,1) to (0,0)
                 brush.StartPoint = new Windows.Foundation.Point(0, fromStart ? 0 : 1);
                 brush.EndPoint   = new Windows.Foundation.Point(0, fromStart ? 1 : 0);
             }
             else
             {
+                // Left: fromStart=true -> (0,0) to (1,0)
+                // Right: fromStart=false -> (1,0) to (0,0)
                 brush.StartPoint = new Windows.Foundation.Point(fromStart ? 0 : 1, 0);
                 brush.EndPoint   = new Windows.Foundation.Point(fromStart ? 1 : 0, 0);
             }
 
-            brush.GradientStops.Add(new GradientStop { Color = color,       Offset = 0 });
+            brush.GradientStops.Add(new GradientStop { Color = color,       Offset = 0.0 });
             if (hardStop > 0.01)
                 brush.GradientStops.Add(new GradientStop { Color = color,   Offset = hardStop });
             brush.GradientStops.Add(new GradientStop { Color = transparent, Offset = 1.0 });
         }
 
         border.Background = brush;
+    }
+
+    // ── Hotkey Management ─────────────────────────────────────────────────
+
+    private async void ChangeHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        var validator = new Func<Models.HotkeyBinding?, ValidationResult>(binding =>
+        {
+            if (binding == null) return ValidationResult.Success();
+            string keyStr = HotkeyValidator.FormatHotkey(binding);
+            if (string.Equals(keyStr, ServiceContainer.Settings.EmergencyHotkey, StringComparison.OrdinalIgnoreCase))
+                return ValidationResult.Failure("Conflicts with Emergency Lock shortcut");
+            return ValidationResult.Success();
+        });
+
+        var currentBinding = HotkeyValidator.ParseHotkey(s.ToggleHotkey);
+        var dialog = new HotkeyCaptureDialog(currentBinding, validator)
+        {
+            XamlRoot = this.XamlRoot,
+            Title    = "Change Ring Light Hotkey"
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary || result == ContentDialogResult.Secondary)
+        {
+            if (dialog.CapturedHotkey != null)
+            {
+                string formatted = HotkeyValidator.FormatHotkey(dialog.CapturedHotkey);
+                s.ToggleHotkey = formatted;
+            }
+            else
+            {
+                s.ToggleHotkey = string.Empty;
+            }
+
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            MainWindow.Instance?.RegisterRingLightHotkey();
+            RefreshHotkeyUI();
+        }
+    }
+
+    private void ResetHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        s.ToggleHotkey = "Ctrl+Shift+L";
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        MainWindow.Instance?.RegisterRingLightHotkey();
+        RefreshHotkeyUI();
+    }
+
+    private void ShowNotificationOnToggleCheck_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        s.ShowNotificationOnToggle = ShowNotificationOnToggleCheck.IsChecked == true;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private void RefreshHotkeyUI()
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        ToggleHotkeyDisplay.Text = string.IsNullOrWhiteSpace(s.ToggleHotkey) ? "None" : s.ToggleHotkey;
+        ShowNotificationOnToggleCheck.IsChecked = s.ShowNotificationOnToggle;
     }
 
     // ── Color helpers ─────────────────────────────────────────────────────

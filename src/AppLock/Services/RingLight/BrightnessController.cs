@@ -43,7 +43,8 @@ public sealed class BrightnessController : IBrightnessController
         if (_brightnessService == null) return null;
         try
         {
-            return _brightnessService.GetBrightnessAsync().GetAwaiter().GetResult();
+            // Non-blocking quick check
+            return _brightnessService.GetBrightnessAsync("All").ConfigureAwait(false).GetAwaiter().GetResult();
         }
         catch
         {
@@ -58,13 +59,28 @@ public sealed class BrightnessController : IBrightnessController
         {
             if (!_hasBoosted)
             {
-                int current = GetCurrentBrightness() ?? 50;
-                _originalBrightness["All"] = current;
                 _targetBoostPercent = percent;
                 _hasBoosted = true;
-            }
 
-            _ = _brightnessService.SetBrightnessAsync(percent, "All", debounce: false);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        int current = await _brightnessService.GetBrightnessAsync("All");
+                        _originalBrightness["All"] = current;
+                        await _brightnessService.SetBrightnessAsync(percent, "All", debounce: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BrightnessController] Boost async error: {ex.Message}");
+                    }
+                });
+            }
+            else
+            {
+                _targetBoostPercent = percent;
+                _ = _brightnessService.SetBrightnessAsync(percent, "All", debounce: false);
+            }
         }
         catch (Exception ex)
         {
@@ -75,28 +91,26 @@ public sealed class BrightnessController : IBrightnessController
     public void RestoreBrightness()
     {
         if (!_hasBoosted || _brightnessService == null) return;
-        try
+        _hasBoosted = false;
+        _targetBoostPercent = -1;
+
+        _ = Task.Run(async () =>
         {
-            // Only restore if user hasn't manually adjusted brightness away from our target
-            int? current = GetCurrentBrightness();
-            if (current.HasValue && Math.Abs(current.Value - _targetBoostPercent) <= 2)
+            try
             {
                 if (_originalBrightness.TryGetValue("All", out int original))
                 {
-                    _ = _brightnessService.SetBrightnessAsync(original, "All", debounce: false);
+                    await _brightnessService.SetBrightnessAsync(original, "All", debounce: false);
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[BrightnessController] Restore error: {ex.Message}");
-        }
-        finally
-        {
-            _hasBoosted = false;
-            _targetBoostPercent = -1;
-            _originalBrightness.Clear();
-        }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BrightnessController] Restore error: {ex.Message}");
+            }
+            finally
+            {
+                _originalBrightness.Clear();
+            }
+        });
     }
 }
-

@@ -238,6 +238,23 @@ fixed - drag handle pill positioned in mathematical dead center of popup window 
 
 
 
+fix the live preview to the right side of ring light and it's description is located
+except edge in center it's shown black screen and user can't see the content of screen 
+corner radius (inner frame) isn't working 
+saving current preset don't show custom presets
+right & bottom edge softness is shown in opposite sides instead of showing it in center
+camera use isn't detected and not shown ring light
+test camera detection button isn't working
+rise screen brightness while on isn't working with "preview on screen for 5s"
+add hot key to enable disable ringlight
+add quick setting collapsable in card with enable/disable toggler as like other cards
+system tray menu:
+enable/disable ring light
+preset > Warm,  Neutral,  Cool,  Soft,  Studio,  Max light
+
+
+
+
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe
 Get-Process AppLock -ErrorAction SilentlyContinue | Stop-Process -Force

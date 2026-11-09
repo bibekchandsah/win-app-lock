@@ -969,21 +969,41 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void RegisterRingLightHotkey()
+    internal void RegisterRingLightHotkey()
     {
+        UnregisterRingLightHotkey();
         try
         {
-            // Ctrl+Shift+L  (VK_L = 0x4C)
+            var hotkeyStr = ServiceContainer.Settings.RingLight.ToggleHotkey;
+            if (string.IsNullOrWhiteSpace(hotkeyStr)) return;
+
+            var (modifiers, key) = HotkeyService.ParseHotkey(hotkeyStr);
+            if (key == 0) return;
+
             _ringLightHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(
-                Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS.MOD_CONTROL |
-                Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS.MOD_SHIFT,
-                0x4C,   // 'L'
-                () => ServiceContainer.SetRingLightEnabled(!ServiceContainer.RingLightService.IsOn)
+                modifiers,
+                key,
+                () =>
+                {
+                    DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        bool nextState = !ServiceContainer.RingLightService.IsOn;
+                        ServiceContainer.SetRingLightEnabled(nextState);
+                        if (ServiceContainer.Settings.RingLight.ShowNotificationOnToggle)
+                        {
+                            ShowToastNotification(new AppNotification
+                            {
+                                Title = "Ring Light",
+                                Message = nextState ? "Ring light turned on" : "Ring light turned off"
+                            });
+                        }
+                    });
+                }
             );
             System.Diagnostics.Debug.WriteLine(
                 _ringLightHotkeyId > 0
-                    ? "[RingLight] Hotkey Ctrl+Shift+L registered"
-                    : "[RingLight] Failed to register Ctrl+Shift+L (conflict?)");
+                    ? $"[RingLight] Hotkey {hotkeyStr} registered"
+                    : $"[RingLight] Failed to register {hotkeyStr} (conflict?)");
         }
         catch (Exception ex)
         {

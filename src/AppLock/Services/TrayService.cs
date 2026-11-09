@@ -122,22 +122,26 @@ public sealed class TrayService : IDisposable
                     }
                     else if (item is MenuFlyoutSubItem sub)
                     {
-                        if (sub.Name == "RingLightPresetsSubItem" || (sub.Text != null && sub.Text.Contains("Ring Light Presets", StringComparison.OrdinalIgnoreCase)))
+                        if (sub.Name == "RingLightPresetsSubItem" || (sub.Text != null && (sub.Text.Contains("Presets", StringComparison.OrdinalIgnoreCase) || sub.Text.Contains("Ring Light", StringComparison.OrdinalIgnoreCase))))
                         {
                             _ringLightPresetsSubItem = sub;
                             foreach (var subItem in sub.Items)
                             {
                                 if (subItem is MenuFlyoutItem psmi)
                                 {
-                                    switch (psmi.Name)
-                                    {
-                                        case "PresetWarmMenuItem":    _presetWarmMenuItem    = psmi; break;
-                                        case "PresetNeutralMenuItem": _presetNeutralMenuItem = psmi; break;
-                                        case "PresetCoolMenuItem":    _presetCoolMenuItem    = psmi; break;
-                                        case "PresetSoftMenuItem":    _presetSoftMenuItem    = psmi; break;
-                                        case "PresetStudioMenuItem":  _presetStudioMenuItem  = psmi; break;
-                                        case "PresetMaxMenuItem":     _presetMaxMenuItem     = psmi; break;
-                                    }
+                                    var pText = psmi.Text ?? "";
+                                    if (psmi.Name == "PresetWarmMenuItem" || pText.Equals("Warm", StringComparison.OrdinalIgnoreCase))
+                                        _presetWarmMenuItem = psmi;
+                                    else if (psmi.Name == "PresetNeutralMenuItem" || pText.Equals("Neutral", StringComparison.OrdinalIgnoreCase))
+                                        _presetNeutralMenuItem = psmi;
+                                    else if (psmi.Name == "PresetCoolMenuItem" || pText.Equals("Cool", StringComparison.OrdinalIgnoreCase))
+                                        _presetCoolMenuItem = psmi;
+                                    else if (psmi.Name == "PresetSoftMenuItem" || pText.Equals("Soft", StringComparison.OrdinalIgnoreCase))
+                                        _presetSoftMenuItem = psmi;
+                                    else if (psmi.Name == "PresetStudioMenuItem" || pText.Equals("Studio", StringComparison.OrdinalIgnoreCase))
+                                        _presetStudioMenuItem = psmi;
+                                    else if (psmi.Name == "PresetMaxMenuItem" || pText.Contains("Max", StringComparison.OrdinalIgnoreCase))
+                                        _presetMaxMenuItem = psmi;
                                 }
                             }
                         }

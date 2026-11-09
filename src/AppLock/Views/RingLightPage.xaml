@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:AppLock.Views.Controls"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
@@ -40,24 +41,79 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- Page Header -->
-        <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,20">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <FontIcon Glyph="&#xE781;"
-                          FontSize="28"
-                          Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                          VerticalAlignment="Center"/>
-                <TextBlock Text="Ring Light"
-                           FontSize="28"
-                           FontWeight="SemiBold"
-                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                           VerticalAlignment="Center"/>
+        <!-- Page Header + Live mini preview on the right side -->
+        <Grid Grid.Row="1" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Title & Description -->
+            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <FontIcon Glyph="&#xE781;"
+                              FontSize="28"
+                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                              VerticalAlignment="Center"/>
+                    <TextBlock Text="Ring Light"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Light your face during calls using your screen edges"
+                           FontSize="14"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Margin="0,4,0,0"/>
             </StackPanel>
-            <TextBlock Text="Light your face during calls using your screen edges"
-                       FontSize="14"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Margin="0,4,0,0"/>
-        </StackPanel>
+
+            <!-- Right: Live mini preview with inner screen cutout -->
+            <Border Grid.Column="1"
+                    x:Name="PreviewBorder"
+                    Width="200" Height="125"
+                    Background="#111111"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    VerticalAlignment="Center"
+                    Margin="16,0,0,0">
+                <Grid x:Name="PreviewInnerGrid">
+                    <!-- Top strip -->
+                    <Border x:Name="PreviewTopBorder"
+                            VerticalAlignment="Top"
+                            HorizontalAlignment="Stretch"
+                            Height="10"/>
+                    <!-- Bottom strip -->
+                    <Border x:Name="PreviewBottomBorder"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Stretch"
+                            Height="10"/>
+                    <!-- Left strip -->
+                    <Border x:Name="PreviewLeftBorder"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Stretch"
+                            Width="10"/>
+                    <!-- Right strip -->
+                    <Border x:Name="PreviewRightBorder"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Stretch"
+                            Width="10"/>
+                    <!-- Center screen representation / Corner radius cutout preview -->
+                    <Border x:Name="PreviewCenterCutout"
+                            Background="#181818"
+                            CornerRadius="0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="Screen"
+                                   FontSize="11"
+                                   Opacity="0.4"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- Scrollable settings -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
@@ -71,73 +127,34 @@
                          Title="Screen burn-in"
                          Message="A bright static frame for long periods can cause burn-in on OLED displays. Use the auto turn-off timer to protect your screen."/>
 
-                <!-- Master control + live preview -->
+                <!-- Master control -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1" CornerRadius="8" Padding="20">
-                    <Grid ColumnSpacing="20">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Ring Light" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock x:Name="StatusText" Text="Off" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="MasterToggle" Grid.Column="1"
+                                          Toggled="MasterToggle_Toggled"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          VerticalAlignment="Center"/>
+                        </Grid>
 
-                        <!-- Left: toggle + status -->
-                        <StackPanel Grid.Column="0" Spacing="12" VerticalAlignment="Center">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Ring Light" FontSize="15" FontWeight="SemiBold"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock x:Name="StatusText" Text="Off" FontSize="13"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                                <ToggleSwitch x:Name="MasterToggle" Grid.Column="1"
-                                             Toggled="MasterToggle_Toggled"
-                                             MinWidth="0" OffContent="" OnContent=""
-                                             VerticalAlignment="Center"/>
-                            </Grid>
-
-                            <!-- Preview 5s button -->
-                            <Button x:Name="PreviewButton"
-                                    Content="Preview on screen for 5 s"
-                                    Click="PreviewButton_Click"
-                                    HorizontalAlignment="Left"/>
-                        </StackPanel>
-
-                        <!-- Right: live mini preview (Grid-based, no Canvas) -->
-                        <Border Grid.Column="1"
-                                x:Name="PreviewBorder"
-                                Width="224" Height="140"
-                                Background="#111111"
-                                CornerRadius="6"
-                                VerticalAlignment="Center">
-                            <Grid>
-                                <!-- Top strip -->
-                                <Border x:Name="PreviewTopBorder"
-                                        VerticalAlignment="Top"
-                                        HorizontalAlignment="Stretch"
-                                        Height="12"/>
-                                <!-- Bottom strip -->
-                                <Border x:Name="PreviewBottomBorder"
-                                        VerticalAlignment="Bottom"
-                                        HorizontalAlignment="Stretch"
-                                        Height="12"/>
-                                <!-- Left strip -->
-                                <Border x:Name="PreviewLeftBorder"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Stretch"
-                                        Width="12"/>
-                                <!-- Right strip -->
-                                <Border x:Name="PreviewRightBorder"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Stretch"
-                                        Width="12"/>
-                            </Grid>
-                        </Border>
-                    </Grid>
+                        <!-- Preview 5s button -->
+                        <Button x:Name="PreviewButton"
+                                Content="Preview on screen for 5 s"
+                                Click="PreviewButton_Click"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
                 </Border>
 
                 <!-- Display targeting card -->
@@ -245,26 +262,25 @@
                             <!-- Built-in preset chips -->
                             <TextBlock Text="Built-in" FontSize="12"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                            <StackPanel x:Name="BuiltInChipsPanel"
-                                        Orientation="Horizontal" Spacing="8" FlowDirection="LeftToRight">
+                            <controls:WrapPanel x:Name="BuiltInChipsPanel"
+                                                HorizontalSpacing="8" VerticalSpacing="8">
                                 <!-- chips populated in code-behind to avoid XamlCompiler issues with dynamic Tag -->
-                                <Button x:Name="ChipWarm"    Content="Warm"      Click="PresetChip_Click" Tag="builtin:warm"     Style="{ThemeResource AccentButtonStyle}"/>
-                                <Button x:Name="ChipNeutral" Content="Neutral"   Click="PresetChip_Click" Tag="builtin:neutral"  Style="{ThemeResource AccentButtonStyle}"/>
-                                <Button x:Name="ChipCool"    Content="Cool"      Click="PresetChip_Click" Tag="builtin:cool"     Style="{ThemeResource AccentButtonStyle}"/>
-                                <Button x:Name="ChipSoft"    Content="Soft"      Click="PresetChip_Click" Tag="builtin:soft"     Style="{ThemeResource AccentButtonStyle}"/>
-                                <Button x:Name="ChipStudio"  Content="Studio"    Click="PresetChip_Click" Tag="builtin:studio"   Style="{ThemeResource AccentButtonStyle}"/>
-                                <Button x:Name="ChipMax"     Content="Max light" Click="PresetChip_Click" Tag="builtin:maxlight" Style="{ThemeResource AccentButtonStyle}"/>
-                            </StackPanel>
+                                <Button x:Name="ChipWarm"    Content="Warm"      Click="PresetChip_Click" Tag="builtin:warm"/>
+                                <Button x:Name="ChipNeutral" Content="Neutral"   Click="PresetChip_Click" Tag="builtin:neutral"/>
+                                <Button x:Name="ChipCool"    Content="Cool"      Click="PresetChip_Click" Tag="builtin:cool"/>
+                                <Button x:Name="ChipSoft"    Content="Soft"      Click="PresetChip_Click" Tag="builtin:soft"/>
+                                <Button x:Name="ChipStudio"  Content="Studio"    Click="PresetChip_Click" Tag="builtin:studio"/>
+                                <Button x:Name="ChipMax"     Content="Max light" Click="PresetChip_Click" Tag="builtin:maxlight"/>
+                            </controls:WrapPanel>
 
                             <!-- Custom preset chips (populated dynamically) -->
                             <TextBlock x:Name="CustomPresetsLabel"
                                        Text="Custom" FontSize="12"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                        Visibility="Collapsed"/>
-                            <StackPanel x:Name="CustomChipsPanel"
-                                        Orientation="Horizontal" Spacing="8"
-                                        FlowDirection="LeftToRight"
-                                        Visibility="Collapsed"/>
+                            <controls:WrapPanel x:Name="CustomChipsPanel"
+                                                HorizontalSpacing="8" VerticalSpacing="8"
+                                                Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -758,6 +774,72 @@
                                 </StackPanel>
                             </StackPanel>
 
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Shortcut / Hotkey Card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- Section header -->
+                        <Grid Padding="20,16,20,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Hotkey" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Toggle the ring light from any full-screen app or call"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button x:Name="ChangeHotkeyButton"
+                                        Content="Change"
+                                        Click="ChangeHotkeyButton_Click"/>
+                                <Button x:Name="ResetHotkeyButton"
+                                        Content="Reset"
+                                        Click="ResetHotkeyButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                        <StackPanel Padding="20,16,20,16" Spacing="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Toggle Ring Light shortcut" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock x:Name="ToggleHotkeyStatusText"
+                                               Text="Global shortcut registered"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Border Grid.Column="1"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10,4,10,4"
+                                        VerticalAlignment="Center">
+                                    <TextBlock x:Name="ToggleHotkeyDisplay"
+                                               Text="Ctrl+Shift+L"
+                                               FontFamily="Consolas"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                </Border>
+                            </Grid>
+
+                            <CheckBox x:Name="ShowNotificationOnToggleCheck"
+                                      Content="Show notification banner when toggled via hotkey"
+                                      Click="ShowNotificationOnToggleCheck_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

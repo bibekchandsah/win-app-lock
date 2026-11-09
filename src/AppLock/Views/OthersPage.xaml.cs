@@ -294,6 +294,16 @@ public sealed partial class OthersPage : Page
             ServiceContainer.SetEyeCareEnabled(toggle.IsOn);
         }
     }
+
+    private void RingLightToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
+        {
+            card.RingLightEnabled = toggle.IsOn;
+            ServiceContainer.SetRingLightEnabled(toggle.IsOn);
+            UpdateRingLightCardState();
+        }
+    }
 }
 
 public class UtilityCard : INotifyPropertyChanged

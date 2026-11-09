@@ -37,8 +37,10 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         {
             try
             {
-                using var key = Registry.CurrentUser.OpenSubKey(WebcamConsentSubKey);
-                return key != null;
+                using var cuKey = Registry.CurrentUser.OpenSubKey(WebcamConsentSubKey);
+                if (cuKey != null) return true;
+                using var lmKey = Registry.LocalMachine.OpenSubKey(WebcamConsentSubKey);
+                return lmKey != null;
             }
             catch
             {
@@ -84,42 +86,10 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         var result = new List<string>();
         try
         {
-            using var baseKey = Registry.CurrentUser.OpenSubKey(WebcamConsentSubKey);
-            if (baseKey == null) return result;
-
-            // 1. Packaged apps (directly under webcam subkey, excluding 'NonPackaged')
-            foreach (var subKeyName in baseKey.GetSubKeyNames())
+            ScanRegistryRoot(Registry.CurrentUser, result);
+            if (result.Count == 0)
             {
-                if (subKeyName.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                using var appKey = baseKey.OpenSubKey(subKeyName);
-                if (appKey == null) continue;
-
-                if (IsAppUsingCamera(appKey))
-                {
-                    var name = CleanPackagedName(subKeyName);
-                    if (!IsAppLock(name))
-                        result.Add(name);
-                }
-            }
-
-            // 2. Desktop apps (under NonPackaged)
-            using var nonPackagedKey = baseKey.OpenSubKey("NonPackaged");
-            if (nonPackagedKey != null)
-            {
-                foreach (var subKeyName in nonPackagedKey.GetSubKeyNames())
-                {
-                    using var appKey = nonPackagedKey.OpenSubKey(subKeyName);
-                    if (appKey == null) continue;
-
-                    if (IsAppUsingCamera(appKey))
-                    {
-                        var name = CleanDesktopName(subKeyName);
-                        if (!IsAppLock(name))
-                            result.Add(name);
-                    }
-                }
+                ScanRegistryRoot(Registry.LocalMachine, result);
             }
         }
         catch (Exception ex)
@@ -128,6 +98,47 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         }
 
         return result;
+    }
+
+    private static void ScanRegistryRoot(RegistryKey root, List<string> result)
+    {
+        using var baseKey = root.OpenSubKey(WebcamConsentSubKey);
+        if (baseKey == null) return;
+
+        // 1. Packaged apps (directly under webcam subkey, excluding 'NonPackaged')
+        foreach (var subKeyName in baseKey.GetSubKeyNames())
+        {
+            if (subKeyName.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            using var appKey = baseKey.OpenSubKey(subKeyName);
+            if (appKey == null) continue;
+
+            if (IsAppUsingCamera(appKey))
+            {
+                var name = CleanPackagedName(subKeyName);
+                if (!IsAppLock(name) && !result.Contains(name))
+                    result.Add(name);
+            }
+        }
+
+        // 2. Desktop apps (under NonPackaged)
+        using var nonPackagedKey = baseKey.OpenSubKey("NonPackaged");
+        if (nonPackagedKey != null)
+        {
+            foreach (var subKeyName in nonPackagedKey.GetSubKeyNames())
+            {
+                using var appKey = nonPackagedKey.OpenSubKey(subKeyName);
+                if (appKey == null) continue;
+
+                if (IsAppUsingCamera(appKey))
+                {
+                    var name = CleanDesktopName(subKeyName);
+                    if (!IsAppLock(name) && !result.Contains(name))
+                        result.Add(name);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -223,20 +234,35 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         try
         {
             var startVal = key.GetValue("LastUsedTimeStart");
+            if (startVal == null) return false;
+
             var stopVal = key.GetValue("LastUsedTimeStop");
 
-            if (startVal == null || stopVal == null) return false;
+            long start = ToInt64Safe(startVal);
+            long stop  = stopVal != null ? ToInt64Safe(stopVal) : 0;
 
-            long start = Convert.ToInt64(startVal);
-            long stop = Convert.ToInt64(stopVal);
-
-            // Using camera if start time is greater than stop time (often stop == 0 during active use)
+            // Using camera if start time is greater than stop time (stop == 0 during initial/active use)
             return start > stop;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static long ToInt64Safe(object value)
+    {
+        return value switch
+        {
+            long l => l,
+            int i => i,
+            ulong ul => (long)ul,
+            uint ui => ui,
+            byte[] bytes when bytes.Length >= 8 => BitConverter.ToInt64(bytes, 0),
+            byte[] bytes when bytes.Length >= 4 => BitConverter.ToInt32(bytes, 0),
+            string s when long.TryParse(s, out var parsed) => parsed,
+            _ => Convert.ToInt64(value)
+        };
     }
 
     private static string CleanDesktopName(string keyName)
@@ -256,7 +282,14 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     private static string CleanPackagedName(string keyName)
     {
-        // For packaged apps, simplify e.g. "Microsoft.WindowsCamera_8wekyb3d8bbwe" to friendly name or keep as family name
+        // For packaged apps, e.g. "Microsoft.WindowsCamera_8wekyb3d8bbwe" -> "Windows Camera" or prefix
+        if (keyName.Contains('_'))
+        {
+            var prefix = keyName.Split('_')[0];
+            if (prefix.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase))
+                return prefix["Microsoft.".Length..];
+            return prefix;
+        }
         return keyName;
     }
 
@@ -265,4 +298,3 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         return name.Contains("AppLock", StringComparison.OrdinalIgnoreCase);
     }
 }
-

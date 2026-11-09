@@ -1,253 +1,463 @@
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
-using Microsoft.UI;          // Colors.*
-using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Shapes;
-using Windows.UI;
+using Windows.Graphics;
 
 namespace AppLock.Services.RingLight;
 
 /// <summary>
-/// One borderless, click-through, topmost overlay window that draws the ring light
-/// frame on a single display. The center of the window is "transparent" via LWA_COLORKEY
-/// so the user can see and click through it; only the edge strips are opaque.
+/// A borderless, click-through, topmost Win32 layered overlay window that renders
+/// the ring light frame on a single monitor using GDI+ and UpdateLayeredWindow.
+/// The center is 100% transparent (Alpha = 0), allowing the screen content to remain
+/// completely visible and click-through without any DirectComposition chroma-key artifacts.
 /// </summary>
 public sealed class RingOverlayWindow : IRingOverlay
 {
     // ── Win32 constants ─────────────────────────────────────────────────────
-    private const int  GWL_EXSTYLE            = -20;
-    private const int  WS_EX_LAYERED          = 0x00080000;
-    private const int  WS_EX_TRANSPARENT      = 0x00000020;
-    private const int  WS_EX_NOACTIVATE       = 0x08000000;
-    private const int  WS_EX_TOOLWINDOW       = 0x00000080;
-    private const uint SWP_NOACTIVATE         = 0x0010;
-    private const uint SWP_SHOWWINDOW         = 0x0040;
-    private const uint LWA_COLORKEY           = 0x00000001;
-    private const uint LWA_ALPHA              = 0x00000002;
+    private const int WS_EX_LAYERED     = 0x00080000;
+    private const int WS_EX_TRANSPARENT = 0x00000020;
+    private const int WS_EX_TOPMOST     = 0x00000008;
+    private const int WS_EX_TOOLWINDOW  = 0x00000080;
+    private const int WS_EX_NOACTIVATE  = 0x08000000;
+    private const int WS_POPUP          = unchecked((int)0x80000000);
+
+    private const uint SWP_NOACTIVATE   = 0x0010;
+    private const uint SWP_SHOWWINDOW   = 0x0040;
+    private const int  SW_HIDE          = 0;
+    private const int  SW_SHOWNOACTIVATE = 4;
+
+    private const byte AC_SRC_OVER      = 0x00;
+    private const byte AC_SRC_ALPHA     = 0x01;
+    private const uint ULW_ALPHA        = 0x00000002;
     private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
     private static readonly nint HWND_TOPMOST = new nint(-1);
 
-    // The background color used as a chroma key (nearly-black, invisible to users)
-    // COLORREF format = 0x00BBGGRR  → R=3,G=3,B=3
-    private const uint KEY_COLOR_REF = 0x00030303u;
-    private static readonly Color KEY_COLOR = Color.FromArgb(255, 3, 3, 3);
+    // ── Win32 structs ───────────────────────────────────────────────────────
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+        public POINT(int x, int y) { X = x; Y = y; }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SIZE
+    {
+        public int cx;
+        public int cy;
+        public SIZE(int cx, int cy) { this.cx = cx; this.cy = cy; }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct BLENDFUNCTION
+    {
+        public byte BlendOp;
+        public byte BlendFlags;
+        public byte SourceConstantAlpha;
+        public byte AlphaFormat;
+    }
 
     // ── P/Invoke ─────────────────────────────────────────────────────────────
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
-    private static extern nint GetWindowLongPtr(nint hWnd, int nIndex);
+    [DllImport("user32.dll", EntryPoint = "CreateWindowExW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint CreateWindowExW(
+        int dwExStyle, string lpClassName, string lpWindowName, int dwStyle,
+        int x, int y, int nWidth, int nHeight,
+        nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
-    private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
+    [DllImport("user32.dll")]
+    private static extern bool DestroyWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(nint hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     [DllImport("user32.dll")]
-    private static extern bool SetLayeredWindowAttributes(nint hWnd, uint crKey, byte bAlpha, uint dwFlags);
+    private static extern nint GetDC(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(nint hWnd, nint hDC);
+
+    [DllImport("gdi32.dll")]
+    private static extern nint CreateCompatibleDC(nint hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(nint hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern nint SelectObject(nint hdc, nint h);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(nint ho);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UpdateLayeredWindow(
+        nint hwnd, nint hdcDst, ref POINT pptDst, ref SIZE psize,
+        nint hdcSrc, ref POINT pptSrc, uint crKey, [In] ref BLENDFUNCTION pblend, uint dwFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UpdateLayeredWindow(
+        nint hwnd, nint hdcDst, nint pptDst, nint psize,
+        nint hdcSrc, nint pptSrc, uint crKey, [In] ref BLENDFUNCTION pblend, uint dwFlags);
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
 
     // ── Fields ───────────────────────────────────────────────────────────────
-    private readonly Window   _window;
-    private readonly nint     _hwnd;
-    private readonly Rectangle _topStrip;
-    private readonly Rectangle _bottomStrip;
-    private readonly Rectangle _leftStrip;
-    private readonly Rectangle _rightStrip;
-
-    private CancellationTokenSource? _fadeCts;
+    private nint _hwnd;
+    private RectInt32 _bounds;
+    private RingLightSettings? _settings;
+    private byte _currentAlpha;
+    private bool _showInCapture;
     private bool _disposed;
+    private CancellationTokenSource? _fadeCts;
 
-    // ── Constructor ──────────────────────────────────────────────────────────
-    public RingOverlayWindow()
+    public nint Handle => _hwnd;
+
+    // ── IRingOverlay Implementation ──────────────────────────────────────────
+
+    public void ApplySettings(RingLightSettings settings, RectInt32 bounds)
     {
-        _window = new Window();
+        _settings = settings;
+        _bounds = bounds;
 
-        // Build XAML content: 4 edge strips + chroma-key background
-        var grid = new Microsoft.UI.Xaml.Controls.Grid
+        if (_hwnd == nint.Zero)
         {
-            Background = new SolidColorBrush(KEY_COLOR)
-        };
+            EnsureWindowCreated(bounds);
+        }
+        else
+        {
+            SetWindowPos(_hwnd, HWND_TOPMOST, bounds.X, bounds.Y, bounds.Width, bounds.Height,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
 
-        _topStrip    = MakeStrip();
-        _bottomStrip = MakeStrip();
-        _leftStrip   = MakeStrip();
-        _rightStrip  = MakeStrip();
-
-        _topStrip.VerticalAlignment    = VerticalAlignment.Top;
-        _bottomStrip.VerticalAlignment = VerticalAlignment.Bottom;
-        _leftStrip.HorizontalAlignment   = HorizontalAlignment.Left;
-        _rightStrip.HorizontalAlignment  = HorizontalAlignment.Right;
-
-        grid.Children.Add(_topStrip);
-        grid.Children.Add(_bottomStrip);
-        grid.Children.Add(_leftStrip);
-        grid.Children.Add(_rightStrip);
-
-        _window.Content = grid;
-
-        // ── AppWindow setup ──────────────────────────────────────────────────
-        var appWindow = _window.AppWindow;
-        appWindow.IsShownInSwitchers = false;
-
-        var presenter = OverlappedPresenter.Create();
-        presenter.IsAlwaysOnTop  = true;
-        presenter.IsResizable    = false;
-        presenter.IsMinimizable  = false;
-        presenter.IsMaximizable  = false;
-        presenter.SetBorderAndTitleBar(false, false);
-        appWindow.SetPresenter(presenter);
-
-        _window.ExtendsContentIntoTitleBar = true;
-        _window.SetTitleBar(null);
-
-        // ── Win32 extended styles ────────────────────────────────────────────
-        _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(_window);
-
-        var exStyle = (int)GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
-        exStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-        SetWindowLongPtr(_hwnd, GWL_EXSTYLE, (nint)exStyle);
-
-        // Start fully transparent (alpha = 0)
-        SetLayeredWindowAttributes(_hwnd, KEY_COLOR_REF, 0, LWA_COLORKEY | LWA_ALPHA);
+        ApplyCaptureExclusion(_showInCapture);
+        RenderFrame(settings, bounds, _currentAlpha);
     }
 
-    // ── Public API ───────────────────────────────────────────────────────────
-
-    /// <summary>Apply settings and position/size the overlay on the given display bounds.</summary>
-    public void ApplySettings(RingLightSettings s, Windows.Graphics.RectInt32 bounds)
+    public void ApplyCaptureExclusion(bool showInScreenCapture)
     {
-        // Calculate strip thickness
-        int shorter   = Math.Min(bounds.Width, bounds.Height);
-        int thickness = Math.Max(2, (int)(shorter * s.ThicknessPercent / 100.0));
-
-        // Ring color (cap brightness at 60% for FullGlow to keep screen usable)
-        int bPct = s.Style == "FullGlow" ? Math.Min(s.BrightnessPercent, 60) : s.BrightnessPercent;
-        Color ringColor = s.ColorMode == "Temperature"
-            ? ColorTemperature.ToColor(s.Kelvin, bPct)
-            : ParseHexColor(s.CustomColorHex, bPct);
-
-        double softness = s.SoftnessPercent / 100.0;
-
-        // Apply strips
-        ApplyStrip(_topStrip,    ringColor, softness, thickness, true,  s.EdgeTop,    s.Style);
-        ApplyStrip(_bottomStrip, ringColor, softness, thickness, true,  s.EdgeBottom, s.Style);
-        ApplyStrip(_leftStrip,   ringColor, softness, thickness, false, s.EdgeLeft,   s.Style);
-        ApplyStrip(_rightStrip,  ringColor, softness, thickness, false, s.EdgeRight,  s.Style);
-
-        // Position and size (before Activate so it appears in final position)
-        _window.AppWindow.MoveAndResize(bounds);
-        SetWindowPos(_hwnd, HWND_TOPMOST, bounds.X, bounds.Y, bounds.Width, bounds.Height,
-                     SWP_SHOWWINDOW | SWP_NOACTIVATE);
+        _showInCapture = showInScreenCapture;
+        if (_hwnd != nint.Zero)
+        {
+            SetWindowDisplayAffinity(_hwnd, showInScreenCapture ? 0u : WDA_EXCLUDEFROMCAPTURE);
+        }
     }
 
-    /// <summary>Apply screen-capture exclusion based on the ShowInScreenCapture setting.</summary>
-    public void ApplyCaptureExclusion(bool showInCapture)
+    public void Show(RingLightSettings settings)
     {
-        SetWindowDisplayAffinity(_hwnd, showInCapture ? 0u : WDA_EXCLUDEFROMCAPTURE);
+        _settings = settings;
+        if (_bounds.Width <= 0 || _bounds.Height <= 0) return;
+
+        EnsureWindowCreated(_bounds);
+        RenderFrame(settings, _bounds, _currentAlpha);
+        ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+
+        _ = FadeAsync(targetAlpha: 255, durationMs: settings.FadeMs);
     }
 
-    /// <summary>Show the window and fade in over FadeMs milliseconds.</summary>
-    public void Show(RingLightSettings s)
-    {
-        _window.Activate();
-        _ = FadeAsync(targetAlpha: 255, durationMs: s.FadeMs);
-    }
-
-    /// <summary>Fade out and then hide.</summary>
     public async Task HideAsync(int fadeMs)
     {
         await FadeAsync(targetAlpha: 0, durationMs: fadeMs);
-        _window.AppWindow.Hide();
+        if (_hwnd != nint.Zero)
+        {
+            ShowWindow(_hwnd, SW_HIDE);
+        }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+
         _fadeCts?.Cancel();
-        try { _window.Close(); } catch { }
-    }
+        _fadeCts?.Dispose();
+        _fadeCts = null;
 
-    // ── Private helpers ──────────────────────────────────────────────────────
-
-    private static Rectangle MakeStrip() => new Rectangle
-    {
-        Fill = new SolidColorBrush(Colors.White)
-    };
-
-    private static void ApplyStrip(Rectangle strip, Color color, double softness,
-                                    int thickness, bool isHorizontal, bool edgeOn, string style)
-    {
-        strip.Opacity = edgeOn ? 1.0 : 0.0;
-
-        if (isHorizontal) { strip.Height = thickness; strip.Width  = double.NaN; }
-        else              { strip.Width  = thickness; strip.Height = double.NaN; }
-
-        // Build fill brush
-        if (style == "FullGlow" || softness <= 0.01)
+        if (_hwnd != nint.Zero)
         {
-            strip.Fill = new SolidColorBrush(color);
-        }
-        else
-        {
-            // Gradient: opaque at outer edge → transparent at inner edge
-            var transparent = Color.FromArgb(0, color.R, color.G, color.B);
-            double hardStop = 1.0 - softness;
-
-            var brush = new LinearGradientBrush();
-            // Horizontal strip: top=outer edge → bottom=inner edge (vertical gradient)
-            // Vertical strip: left=outer edge → right=inner edge (horizontal gradient)
-            brush.StartPoint = isHorizontal
-                ? new Windows.Foundation.Point(0, 0)
-                : new Windows.Foundation.Point(0, 0);
-            brush.EndPoint = isHorizontal
-                ? new Windows.Foundation.Point(0, 1)
-                : new Windows.Foundation.Point(1, 0);
-
-            brush.GradientStops.Add(new GradientStop { Color = color, Offset = 0 });
-            if (hardStop > 0.01)
-                brush.GradientStops.Add(new GradientStop { Color = color, Offset = hardStop });
-            brush.GradientStops.Add(new GradientStop { Color = transparent, Offset = 1.0 });
-
-            strip.Fill = brush;
+            ShowWindow(_hwnd, SW_HIDE);
+            DestroyWindow(_hwnd);
+            _hwnd = nint.Zero;
         }
     }
 
-    private async Task FadeAsync(int targetAlpha, int durationMs)
+    // ── Frame Rendering & Layered Window Setup ───────────────────────────────
+
+    private void EnsureWindowCreated(RectInt32 bounds)
+    {
+        if (_hwnd != nint.Zero) return;
+
+        _hwnd = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            "Static",
+            "AppLockRingLightOverlay",
+            WS_POPUP,
+            bounds.X, bounds.Y, bounds.Width, bounds.Height,
+            nint.Zero, nint.Zero, nint.Zero, nint.Zero);
+
+        if (_hwnd != nint.Zero && !_showInCapture)
+        {
+            SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
+        }
+    }
+
+    private void RenderFrame(RingLightSettings s, RectInt32 bounds, byte alpha)
+    {
+        int w = bounds.Width;
+        int h = bounds.Height;
+        if (w <= 0 || h <= 0) return;
+
+        EnsureWindowCreated(bounds);
+
+        using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.Clear(System.Drawing.Color.Transparent);
+
+            int shorter = Math.Min(w, h);
+            int thickness = Math.Max(2, (int)(shorter * s.ThicknessPercent / 100.0));
+
+            int topT    = s.EdgeTop    ? thickness : 0;
+            int bottomT = s.EdgeBottom ? thickness : 0;
+            int leftT   = s.EdgeLeft   ? thickness : 0;
+            int rightT  = s.EdgeRight  ? thickness : 0;
+
+            float ix = leftT;
+            float iy = topT;
+            float iw = Math.Max(0, w - leftT - rightT);
+            float ih = Math.Max(0, h - topT - bottomT);
+            float r  = Math.Clamp((float)s.CornerRadiusPx, 0, Math.Min(iw / 2f, ih / 2f));
+
+            // Inner cutout path that leaves the center 100% transparent and handles corner radius
+            using var innerPath = new GraphicsPath();
+            if (r > 0 && iw > 0 && ih > 0)
+            {
+                float d = r * 2f;
+                innerPath.AddArc(ix, iy, d, d, 180, 90);
+                innerPath.AddArc(ix + iw - d, iy, d, d, 270, 90);
+                innerPath.AddArc(ix + iw - d, iy + ih - d, d, d, 0, 90);
+                innerPath.AddArc(ix, iy + ih - d, d, d, 90, 90);
+                innerPath.CloseFigure();
+            }
+            else if (iw > 0 && ih > 0)
+            {
+                innerPath.AddRectangle(new RectangleF(ix, iy, iw, ih));
+            }
+
+            // Exclude the inner cutout so nothing drawn here touches the center screen
+            if (iw > 0 && ih > 0)
+            {
+                g.SetClip(innerPath, CombineMode.Exclude);
+            }
+
+            int bPct = s.Style == "FullGlow" ? Math.Min(s.BrightnessPercent, 60) : s.BrightnessPercent;
+            var winColor = s.ColorMode == "Temperature"
+                ? ColorTemperature.ToColor(s.Kelvin, bPct)
+                : ParseHexColor(s.CustomColorHex, bPct);
+            var gdiColor = System.Drawing.Color.FromArgb(255, winColor.R, winColor.G, winColor.B);
+
+            double softness = s.SoftnessPercent / 100.0;
+
+            if (s.Style == "FullGlow" || softness <= 0.01)
+            {
+                using var brush = new SolidBrush(gdiColor);
+                g.FillRectangle(brush, 0, 0, w, h);
+            }
+            else
+            {
+                float hardStop = (float)Math.Clamp(1.0 - softness, 0.0, 0.99);
+                var transparentColor = System.Drawing.Color.FromArgb(0, gdiColor.R, gdiColor.G, gdiColor.B);
+
+                // Top: outer y=0 -> inner y=topT (fading inward toward center)
+                if (topT > 0)
+                {
+                    int drawH = topT + (int)r;
+                    using var brush = new LinearGradientBrush(
+                        new PointF(0, 0),
+                        new PointF(0, topT),
+                        gdiColor,
+                        transparentColor)
+                    {
+                        WrapMode = WrapMode.Clamp
+                    };
+                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
+                    g.FillRectangle(brush, 0, 0, w, drawH);
+                }
+
+                // Bottom: outer y=h -> inner y=h-bottomT (fading inward toward center)
+                if (bottomT > 0)
+                {
+                    int drawY = h - bottomT - (int)r;
+                    int drawH = bottomT + (int)r;
+                    using var brush = new LinearGradientBrush(
+                        new PointF(0, h),
+                        new PointF(0, h - bottomT),
+                        gdiColor,
+                        transparentColor)
+                    {
+                        WrapMode = WrapMode.Clamp
+                    };
+                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
+                    g.FillRectangle(brush, 0, drawY, w, drawH);
+                }
+
+                // Left: outer x=0 -> inner x=leftT (fading inward toward center)
+                if (leftT > 0)
+                {
+                    int drawW = leftT + (int)r;
+                    using var brush = new LinearGradientBrush(
+                        new PointF(0, 0),
+                        new PointF(leftT, 0),
+                        gdiColor,
+                        transparentColor)
+                    {
+                        WrapMode = WrapMode.Clamp
+                    };
+                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
+                    g.FillRectangle(brush, 0, 0, drawW, h);
+                }
+
+                // Right: outer x=w -> inner x=w-rightT (fading inward toward center)
+                if (rightT > 0)
+                {
+                    int drawX = w - rightT - (int)r;
+                    int drawW = rightT + (int)r;
+                    using var brush = new LinearGradientBrush(
+                        new PointF(w, 0),
+                        new PointF(w - rightT, 0),
+                        gdiColor,
+                        transparentColor)
+                    {
+                        WrapMode = WrapMode.Clamp
+                    };
+                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
+                    g.FillRectangle(brush, drawX, 0, drawW, h);
+                }
+            }
+        }
+
+        ApplyBitmapToLayeredWindow(bitmap, bounds.X, bounds.Y, bounds.Width, bounds.Height, alpha);
+    }
+
+    private static ColorBlend CreateColorBlend(System.Drawing.Color solid, System.Drawing.Color trans, float hardStop)
+    {
+        if (hardStop <= 0.01f)
+        {
+            return new ColorBlend(2)
+            {
+                Colors = new[] { solid, trans },
+                Positions = new[] { 0.0f, 1.0f }
+            };
+        }
+
+        return new ColorBlend(3)
+        {
+            Colors = new[] { solid, solid, trans },
+            Positions = new[] { 0.0f, hardStop, 1.0f }
+        };
+    }
+
+    private void ApplyBitmapToLayeredWindow(Bitmap bitmap, int x, int y, int w, int h, byte alpha)
+    {
+        nint screenDc = GetDC(nint.Zero);
+        nint memDc = CreateCompatibleDC(screenDc);
+        nint hBitmap = bitmap.GetHbitmap(System.Drawing.Color.FromArgb(0));
+        nint oldBitmap = SelectObject(memDc, hBitmap);
+
+        try
+        {
+            POINT ptDst = new POINT(x, y);
+            SIZE size = new SIZE(w, h);
+            POINT ptSrc = new POINT(0, 0);
+
+            BLENDFUNCTION blend = new BLENDFUNCTION
+            {
+                BlendOp = AC_SRC_OVER,
+                BlendFlags = 0,
+                SourceConstantAlpha = alpha,
+                AlphaFormat = AC_SRC_ALPHA
+            };
+
+            UpdateLayeredWindow(
+                _hwnd,
+                screenDc,
+                ref ptDst,
+                ref size,
+                memDc,
+                ref ptSrc,
+                0,
+                ref blend,
+                ULW_ALPHA);
+
+            SetWindowPos(
+                _hwnd,
+                HWND_TOPMOST,
+                x, y, w, h,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+        finally
+        {
+            SelectObject(memDc, oldBitmap);
+            DeleteObject(hBitmap);
+            DeleteDC(memDc);
+            ReleaseDC(nint.Zero, screenDc);
+        }
+    }
+
+    private void UpdateWindowAlpha(byte alpha)
+    {
+        if (_hwnd == nint.Zero) return;
+        BLENDFUNCTION blend = new BLENDFUNCTION
+        {
+            BlendOp = AC_SRC_OVER,
+            BlendFlags = 0,
+            SourceConstantAlpha = alpha,
+            AlphaFormat = AC_SRC_ALPHA
+        };
+        UpdateLayeredWindow(_hwnd, nint.Zero, nint.Zero, nint.Zero, nint.Zero, nint.Zero, 0, ref blend, ULW_ALPHA);
+    }
+
+    private async Task FadeAsync(byte targetAlpha, int durationMs)
     {
         _fadeCts?.Cancel();
         _fadeCts = new CancellationTokenSource();
         var ct = _fadeCts.Token;
 
+        byte startAlpha = _currentAlpha;
+        if (startAlpha == targetAlpha) return;
+
         const int Steps = 20;
         int stepMs = Math.Max(8, durationMs / Steps);
-
-        int startAlpha = targetAlpha == 255 ? 0 : 255;
         double stepSize = (targetAlpha - startAlpha) / (double)Steps;
 
         try
         {
             for (int i = 1; i <= Steps; i++)
             {
-                if (ct.IsCancellationRequested) return;
-                int alpha = (int)(startAlpha + stepSize * i);
-                alpha = Math.Clamp(alpha, 0, 255);
-                SetLayeredWindowAttributes(_hwnd, KEY_COLOR_REF, (byte)alpha, LWA_COLORKEY | LWA_ALPHA);
+                if (ct.IsCancellationRequested || _disposed || _hwnd == nint.Zero) return;
+                int a = (int)(startAlpha + stepSize * i);
+                _currentAlpha = (byte)Math.Clamp(a, 0, 255);
+                UpdateWindowAlpha(_currentAlpha);
                 await Task.Delay(stepMs, ct);
             }
-            SetLayeredWindowAttributes(_hwnd, KEY_COLOR_REF, (byte)targetAlpha, LWA_COLORKEY | LWA_ALPHA);
+            _currentAlpha = targetAlpha;
+            UpdateWindowAlpha(_currentAlpha);
         }
         catch (OperationCanceledException) { }
     }
 
-    private static Color ParseHexColor(string hex, int brightnessPercent)
+    private static Windows.UI.Color ParseHexColor(string hex, int brightnessPercent)
     {
         try
         {
@@ -258,10 +468,10 @@ public sealed class RingOverlayWindow : IRingOverlay
                 byte g = Convert.ToByte(hex[2..4], 16);
                 byte b = Convert.ToByte(hex[4..6], 16);
                 float scale = brightnessPercent / 100f;
-                return Color.FromArgb(255, (byte)(r * scale), (byte)(g * scale), (byte)(b * scale));
+                return Windows.UI.Color.FromArgb(255, (byte)(r * scale), (byte)(g * scale), (byte)(b * scale));
             }
         }
         catch { }
-        return Colors.White;
+        return Microsoft.UI.Colors.White;
     }
 }

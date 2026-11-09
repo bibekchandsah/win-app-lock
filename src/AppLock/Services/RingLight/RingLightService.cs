@@ -169,6 +169,12 @@ public sealed class RingLightService : IDisposable
         SetState(State.FadingIn);
         EnabledChanged?.Invoke(this, true);
 
+        // Boost brightness immediately so it rises concurrently with the ring light overlay
+        if (settings.BoostScreenBrightness)
+        {
+            _brightnessController.SetBrightness(settings.BoostBrightnessPercent);
+        }
+
         // Create the manager and show overlays (must be on UI thread)
         _manager?.Dispose();
         _manager = new RingOverlayManager();
@@ -181,7 +187,7 @@ public sealed class RingLightService : IDisposable
         {
             SetState(State.On);
 
-            // Brightness boost
+            // Re-assert brightness boost upon reaching full on
             if (settings.BoostScreenBrightness)
             {
                 _brightnessController.SetBrightness(settings.BoostBrightnessPercent);

@@ -94,12 +94,31 @@
             <controls:ClipboardCard Margin="0,4,0,0"/>
         </DataTemplate>
 
-        <!-- Ring Light Card Template (no quick-settings needed; whole card navigates) -->
+        <!-- Ring Light Card Template -->
         <DataTemplate x:Key="RingLightTemplate" x:DataType="local:UtilityCard">
-            <StackPanel Spacing="8" Margin="0,8,0,0">
-                <TextBlock Text="{x:Bind Status, Mode=OneWay}"
-                           FontSize="13"
-                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Ring Light Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Ring Light"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable edge ring light"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind RingLightEnabled, Mode=TwoWay}"
+                                  Toggled="RingLightToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
             </StackPanel>
         </DataTemplate>
 

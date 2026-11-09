@@ -305,4 +305,55 @@ public class RingLightTests
         Assert.Equal(5000, deserialized.Auto.DayKelvin);
         Assert.Equal(3000, deserialized.Auto.NightKelvin);
     }
+
+    [Fact]
+    public void CustomPreset_SnapshotAndApply_PreservesProperties()
+    {
+        var settings = new RingLightSettings
+        {
+            ColorMode = "Custom",
+            CustomColorHex = "#FF5500",
+            BrightnessPercent = 85,
+            ThicknessPercent = 12,
+            SoftnessPercent = 40,
+            CornerRadiusPx = 25,
+            EdgeTop = true,
+            EdgeBottom = true,
+            EdgeLeft = false,
+            EdgeRight = true
+        };
+
+        var snapshot = RingPresets.SnapshotFrom(settings, "My Warm Preset");
+        Assert.Equal("My Warm Preset", snapshot.Name);
+        Assert.Equal("Custom", snapshot.ColorMode);
+        Assert.Equal("#FF5500", snapshot.CustomColorHex);
+        Assert.Equal(85, snapshot.BrightnessPercent);
+        Assert.Equal(12, snapshot.ThicknessPercent);
+        Assert.Equal(40, snapshot.SoftnessPercent);
+        Assert.False(snapshot.EdgeLeft);
+        Assert.True(snapshot.EdgeRight);
+
+        // Apply snapshot to new settings
+        var target = new RingLightSettings();
+        RingPresets.ApplyTo(snapshot, target);
+
+        Assert.Equal("Custom", target.ColorMode);
+        Assert.Equal("#FF5500", target.CustomColorHex);
+        Assert.Equal(85, target.BrightnessPercent);
+        Assert.Equal(12, target.ThicknessPercent);
+        Assert.Equal(40, target.SoftnessPercent);
+        Assert.False(target.EdgeLeft);
+        Assert.True(target.EdgeRight);
+    }
+
+    [Theory]
+    [InlineData("Ctrl+Shift+L", true)]
+    [InlineData("Ctrl+Alt+R", true)]
+    [InlineData("", false)]
+    public void RingLight_ToggleHotkey_ValidatesPresence(string hotkey, bool isValid)
+    {
+        var settings = new RingLightSettings { ToggleHotkey = hotkey };
+        Assert.Equal(isValid, !string.IsNullOrWhiteSpace(settings.ToggleHotkey));
+    }
 }
+
