@@ -547,7 +547,77 @@ public sealed partial class RingLightPage : Page
         RebuildAppFilterList();
         SelectAutoOffItem(s.Auto.AutoOffMinutes);
 
+        // Brightness boost settings
+        bool brightnessSupported = ServiceContainer.RingLightService.BrightnessController.IsSupported;
+        BoostBrightnessToggle.IsEnabled = brightnessSupported;
+        if (!brightnessSupported)
+        {
+            ToolTipService.SetToolTip(BoostBrightnessToggle, "Display brightness control is not available on this system.");
+        }
+        BoostBrightnessToggle.IsOn = brightnessSupported && s.BoostScreenBrightness;
+        BoostBrightnessPanel.Visibility = BoostBrightnessToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        BoostBrightnessSlider.Value = Math.Clamp(s.BoostBrightnessPercent, 50, 100);
+        BoostBrightnessLabel.Text   = $"{s.BoostBrightnessPercent}%";
+
+        // Auto warmth settings
+        AutoWarmthToggle.IsOn       = s.Auto.AutoWarmth;
+        AutoWarmthPanel.Visibility = s.Auto.AutoWarmth ? Visibility.Visible : Visibility.Collapsed;
+        DayKelvinSlider.Value       = Math.Clamp(s.Auto.DayKelvin, 2700, 6500);
+        DayKelvinLabel.Text         = $"{s.Auto.DayKelvin} K";
+        NightKelvinSlider.Value     = Math.Clamp(s.Auto.NightKelvin, 2700, 6500);
+        NightKelvinLabel.Text       = $"{s.Auto.NightKelvin} K";
+        NightStartBox.Text          = string.IsNullOrEmpty(s.Auto.NightStart) ? "20:00" : s.Auto.NightStart;
+        NightEndBox.Text            = string.IsNullOrEmpty(s.Auto.NightEnd) ? "07:00" : s.Auto.NightEnd;
+
         _loading = false;
+    }
+
+    private void BoostBrightnessToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        BoostBrightnessPanel.Visibility = BoostBrightnessToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        SaveAndApply(s => s.BoostScreenBrightness = BoostBrightnessToggle.IsOn);
+    }
+
+    private void BoostBrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        int val = (int)BoostBrightnessSlider.Value;
+        BoostBrightnessLabel.Text = $"{val}%";
+        SaveAndApply(s => s.BoostBrightnessPercent = val);
+    }
+
+    private void AutoWarmthToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AutoWarmthPanel.Visibility = AutoWarmthToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        SaveAndApply(s => s.Auto.AutoWarmth = AutoWarmthToggle.IsOn);
+    }
+
+    private void DayKelvinSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        int val = (int)DayKelvinSlider.Value;
+        DayKelvinLabel.Text = $"{val} K";
+        SaveAndApply(s => s.Auto.DayKelvin = val);
+    }
+
+    private void NightKelvinSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        int val = (int)NightKelvinSlider.Value;
+        NightKelvinLabel.Text = $"{val} K";
+        SaveAndApply(s => s.Auto.NightKelvin = val);
+    }
+
+    private void NightSchedule_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loading) return;
+        SaveAndApply(s =>
+        {
+            s.Auto.NightStart = NightStartBox.Text.Trim();
+            s.Auto.NightEnd   = NightEndBox.Text.Trim();
+        });
     }
 
     private void SelectAutoOffItem(int minutes)

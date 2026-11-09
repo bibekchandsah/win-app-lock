@@ -15,3 +15,4 @@ public interface IRingOverlay : IDisposable
     void ApplySettings(RingLightSettings settings, RectInt32 bounds);
     void ApplyCaptureExclusion(bool showInScreenCapture);
 }
+

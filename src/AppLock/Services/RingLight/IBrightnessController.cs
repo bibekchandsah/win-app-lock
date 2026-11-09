@@ -10,3 +10,4 @@ public interface IBrightnessController
     void SetBrightness(int percent);
     void RestoreBrightness();
 }
+

@@ -21,6 +21,7 @@ public sealed class RingLightService : IDisposable
     private RingOverlayManager? _manager;
     private readonly CameraUsageMonitor _cameraMonitor = new();
     private readonly RingLightTimers _timers = new();
+    private readonly BrightnessController _brightnessController;
     private State _state = State.Off;
     private bool _disposed;
 
@@ -29,9 +30,11 @@ public sealed class RingLightService : IDisposable
     public bool  IsOn => _state == State.On || _state == State.FadingIn;
     public CameraUsageMonitor CameraMonitor => _cameraMonitor;
     public RingLightTimers Timers => _timers;
+    public BrightnessController BrightnessController => _brightnessController;
 
     public RingLightService()
     {
+        _brightnessController = new BrightnessController(ServiceContainer.BrightnessService);
         _cameraMonitor.CameraUsageChanged += OnCameraUsageChanged;
         try
         {
@@ -60,7 +63,31 @@ public sealed class RingLightService : IDisposable
     public void ApplySettingsLive(RingLightSettings settings)
     {
         if (_state == State.On || _state == State.FadingIn)
+        {
             _manager?.UpdateSettings(settings);
+
+            if (settings.BoostScreenBrightness)
+                _brightnessController.SetBrightness(settings.BoostBrightnessPercent);
+            else
+                _brightnessController.RestoreBrightness();
+
+            if (settings.Auto.AutoWarmth)
+            {
+                _timers.UpdateAutoWarmth(settings.Auto, kelvin =>
+                {
+                    MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        var s = ServiceContainer.Settings.RingLight;
+                        s.Kelvin = kelvin;
+                        _manager?.UpdateSettings(s);
+                    });
+                });
+            }
+            else
+            {
+                _timers.StopAutoWarmth();
+            }
+        }
 
         if (settings.Auto.OnWhenCameraInUse)
             _cameraMonitor.Start();
@@ -93,6 +120,7 @@ public sealed class RingLightService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _brightnessController.RestoreBrightness();
         _cameraMonitor.CameraUsageChanged -= OnCameraUsageChanged;
         _cameraMonitor.Dispose();
         _timers.Dispose();
@@ -153,11 +181,31 @@ public sealed class RingLightService : IDisposable
         {
             SetState(State.On);
 
+            // Brightness boost
+            if (settings.BoostScreenBrightness)
+            {
+                _brightnessController.SetBrightness(settings.BoostBrightnessPercent);
+            }
+
             // Arm auto-off timer
             _timers.StartAutoOff(settings.Auto.AutoOffMinutes, () =>
             {
                 MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() => SetEnabled(false, "auto-off"));
             });
+
+            // Start auto warmth if enabled
+            if (settings.Auto.AutoWarmth)
+            {
+                _timers.StartAutoWarmth(settings.Auto, kelvin =>
+                {
+                    MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        var s = ServiceContainer.Settings.RingLight;
+                        s.Kelvin = kelvin;
+                        _manager?.UpdateSettings(s);
+                    });
+                });
+            }
 
             // Persist if RememberState
             if (settings.RememberState)
@@ -174,6 +222,12 @@ public sealed class RingLightService : IDisposable
         var settings = AppLock.Services.ServiceContainer.Settings.RingLight;
 
         _timers.StopAutoOff();
+        _timers.StopAutoWarmth();
+
+        if (settings.BoostScreenBrightness)
+        {
+            _brightnessController.RestoreBrightness();
+        }
 
         SetState(State.FadingOut);
         EnabledChanged?.Invoke(this, false);

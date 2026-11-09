@@ -168,6 +168,49 @@
                                 <ComboBoxItem Tag="All"      Content="All displays"/>
                             </ComboBox>
                         </Grid>
+
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                        <!-- Brightness Boost -->
+                        <StackPanel Padding="20,16,20,16" Spacing="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Raise screen brightness while on" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Boosts display brightness while the ring light is active and restores it when turned off"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="BoostBrightnessToggle" Grid.Column="1"
+                                             Toggled="BoostBrightnessToggle_Toggled"
+                                             MinWidth="0" OffContent="" OnContent=""
+                                             VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <StackPanel x:Name="BoostBrightnessPanel" Spacing="8" Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Target boost brightness" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="BoostBrightnessLabel" Grid.Column="1"
+                                               Text="100%" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Slider x:Name="BoostBrightnessSlider"
+                                        Minimum="50" Maximum="100" Value="100"
+                                        StepFrequency="5"
+                                        ValueChanged="BoostBrightnessSlider_ValueChanged"/>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -613,6 +656,91 @@
                                     <ComboBoxItem Tag="120" Content="2 hours"/>
                                 </ComboBox>
                             </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
+
+                            <!-- Auto Warmth -->
+                            <StackPanel Spacing="12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Auto warmth by time of day" FontSize="13"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Automatically shifts color temperature smoothly between day and evening"
+                                                   FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="AutoWarmthToggle" Grid.Column="1"
+                                                 Toggled="AutoWarmthToggle_Toggled"
+                                                 MinWidth="0" OffContent="" OnContent=""
+                                                 VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <StackPanel x:Name="AutoWarmthPanel" Spacing="16" Visibility="Collapsed">
+                                    <!-- Day Kelvin -->
+                                    <StackPanel Spacing="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Day temperature" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBlock x:Name="DayKelvinLabel" Grid.Column="1"
+                                                       Text="5500 K" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                        </Grid>
+                                        <Slider x:Name="DayKelvinSlider"
+                                                Minimum="2700" Maximum="6500" Value="5500"
+                                                StepFrequency="100"
+                                                ValueChanged="DayKelvinSlider_ValueChanged"/>
+                                    </StackPanel>
+
+                                    <!-- Night Kelvin -->
+                                    <StackPanel Spacing="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Night temperature" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBlock x:Name="NightKelvinLabel" Grid.Column="1"
+                                                       Text="3500 K" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                                        </Grid>
+                                        <Slider x:Name="NightKelvinSlider"
+                                                Minimum="2700" Maximum="6500" Value="3500"
+                                                StepFrequency="100"
+                                                ValueChanged="NightKelvinSlider_ValueChanged"/>
+                                    </StackPanel>
+
+                                    <!-- Night schedule -->
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <TextBlock Text="Night starts" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBox x:Name="NightStartBox" Text="20:00"
+                                                     TextChanged="NightSchedule_TextChanged"
+                                                     PlaceholderText="20:00"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="Night ends" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBox x:Name="NightEndBox" Text="07:00"
+                                                     TextChanged="NightSchedule_TextChanged"
+                                                     PlaceholderText="07:00"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
 
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
 

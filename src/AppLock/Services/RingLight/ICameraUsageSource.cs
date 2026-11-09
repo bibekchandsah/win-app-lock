@@ -36,3 +36,4 @@ public interface ICameraUsageSource : IDisposable
     /// <summary>Stops monitoring camera usage.</summary>
     void Stop();
 }
+

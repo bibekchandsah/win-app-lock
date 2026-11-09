@@ -265,3 +265,4 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         return name.Contains("AppLock", StringComparison.OrdinalIgnoreCase);
     }
 }
+

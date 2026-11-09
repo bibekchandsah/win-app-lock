@@ -33,6 +33,7 @@ public static class ServiceContainer
     private static AppLock.Services.BitLocker.StartupTaskService? _startupTaskService;
     private static AppLock.Services.BitLocker.BitLockerAutoUnlockService? _autoUnlockService;
     private static AppLock.Services.Brightness.BrightnessHotkeyManager? _brightnessHotkeyManager;
+    private static AppLock.Services.Brightness.BrightnessService? _brightnessService;
     private static AppLock.Services.EyeCare.EyeCareScheduler? _eyeCareScheduler;
     private static AppLock.Services.EyeCare.EyeCareOverlayService? _eyeCareOverlayService;
     private static ClipboardStore? _clipboardStore;
@@ -396,11 +397,25 @@ public static class ServiceContainer
 
     public static AppLock.Services.Brightness.BrightnessHotkeyManager? BrightnessHotkeyManager => _brightnessHotkeyManager;
 
+    public static AppLock.Services.Brightness.BrightnessService BrightnessService
+    {
+        get
+        {
+            if (_brightnessService == null)
+            {
+                var dq = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()
+                         ?? MainWindow.Instance?.DispatcherQueue;
+                _brightnessService = new AppLock.Services.Brightness.BrightnessService(dq);
+            }
+            return _brightnessService;
+        }
+    }
+
     public static void InitializeBrightnessHotkeys(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         if (_brightnessHotkeyManager == null)
         {
-            var brightnessService = new AppLock.Services.Brightness.BrightnessService(dispatcherQueue);
+            var brightnessService = BrightnessService;
             var osdService = new AppLock.Services.Brightness.OsdService(dispatcherQueue);
             var blurOverlayService = new AppLock.Services.Brightness.BlurOverlayService(dispatcherQueue);
 
