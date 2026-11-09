@@ -28,27 +28,6 @@ public sealed class EyeCareOverlayService
 
     public bool IsVisible => _activeWindows.Count > 0;
 
-    private static Task<Microsoft.Web.WebView2.Core.CoreWebView2Environment>? _sharedEnvTask;
-    private static readonly object _envLock = new();
-
-    public static Task<Microsoft.Web.WebView2.Core.CoreWebView2Environment> GetOrCreateEnvironmentAsync()
-    {
-        lock (_envLock)
-        {
-            if (_sharedEnvTask == null || _sharedEnvTask.IsFaulted)
-            {
-                _sharedEnvTask = Task.Run(async () =>
-                {
-                    var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    var webViewDataFolder = Path.Combine(localAppData, "AppLock", "WebView2");
-                    Directory.CreateDirectory(webViewDataFolder);
-                    return await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(string.Empty, webViewDataFolder, null);
-                });
-            }
-            return _sharedEnvTask;
-        }
-    }
-
     public EyeCareOverlayService(DispatcherQueue dispatcher, Func<EyeCareSettings> getSettings)
     {
         _dispatcher = dispatcher;
@@ -56,9 +35,6 @@ public sealed class EyeCareOverlayService
 
         EnsureDirectoriesExist();
         CopyBuiltInTemplateIfNeeded();
-
-        // Warm up WebView2 environment in the background so overlays open instantly
-        _ = GetOrCreateEnvironmentAsync();
     }
 
     private void EnsureDirectoriesExist()
@@ -95,13 +71,10 @@ public sealed class EyeCareOverlayService
             var defaultTemplatePath = Path.Combine(TemplatesPath, "default.html");
             var builtInPath = GetBuiltInTemplatePath();
 
-            if (File.Exists(builtInPath))
+            if (File.Exists(builtInPath) && !string.Equals(builtInPath, defaultTemplatePath, StringComparison.OrdinalIgnoreCase))
             {
-                if (!File.Exists(defaultTemplatePath))
-                {
-                    File.Copy(builtInPath, defaultTemplatePath, overwrite: false);
-                    System.Diagnostics.Debug.WriteLine("[EyeCare] Copied built-in template to templates folder");
-                }
+                File.Copy(builtInPath, defaultTemplatePath, overwrite: true);
+                System.Diagnostics.Debug.WriteLine("[EyeCare] Synced built-in template to templates folder");
             }
         }
         catch (Exception ex)

@@ -130,6 +130,9 @@ public sealed partial class EyeCareOverlayWindow : Window
         }
     }
 
+    private static CoreWebView2Environment? _sharedEnvironment;
+    private static readonly SemaphoreSlim _initLock = new(1, 1);
+
     private async Task InitializeWebViewAsync()
     {
         try
@@ -137,8 +140,43 @@ public sealed partial class EyeCareOverlayWindow : Window
             // Dark background prevents white flash while WebView2 initializes
             WebView.DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, 33, 33, 33);
 
-            var env = await EyeCareOverlayService.GetOrCreateEnvironmentAsync();
-            await WebView.EnsureCoreWebView2Async(env);
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var webViewDataFolder = Path.Combine(localAppData, "AppLock", "WebView2");
+            Directory.CreateDirectory(webViewDataFolder);
+            Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", webViewDataFolder);
+
+            // One-time thread-safe environment creation on UI thread (passing null uses system installed runtime)
+            if (_sharedEnvironment == null)
+            {
+                await _initLock.WaitAsync();
+                try
+                {
+                    if (_sharedEnvironment == null)
+                    {
+                        try
+                        {
+                            _sharedEnvironment = await CoreWebView2Environment.CreateWithOptionsAsync(null, webViewDataFolder, null);
+                        }
+                        catch (Exception createEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[EyeCare] CreateAsync failed, using default: {createEx.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    _initLock.Release();
+                }
+            }
+
+            if (_sharedEnvironment != null)
+            {
+                await WebView.EnsureCoreWebView2Async(_sharedEnvironment);
+            }
+            else
+            {
+                await WebView.EnsureCoreWebView2Async();
+            }
 
             var core = WebView.CoreWebView2;
             if (core == null)
@@ -226,6 +264,27 @@ public sealed partial class EyeCareOverlayWindow : Window
             core.NewWindowRequested += (s, e) =>
             {
                 e.Handled = true;
+            };
+
+            // If virtual host navigation fails for any reason, seamlessly fallback to in-memory NavigateToString
+            core.NavigationCompleted += (s, e) =>
+            {
+                if (!e.IsSuccess)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EyeCare] Navigation unsuccessful ({e.WebErrorStatus}), falling back to NavigateToString");
+                    try
+                    {
+                        if (File.Exists(_htmlPath))
+                        {
+                            var html = File.ReadAllText(_htmlPath);
+                            core.NavigateToString(html);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[EyeCare] NavigateToString fallback error: {ex.Message}");
+                    }
+                }
             };
 
             // Navigate to rendered HTML
