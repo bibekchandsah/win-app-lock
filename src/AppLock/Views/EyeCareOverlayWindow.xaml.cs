@@ -228,6 +228,16 @@ public sealed partial class EyeCareOverlayWindow : Window
                 e.Handled = true;
             };
 
+            // Reveal WebView only after navigation completes to eliminate blank flash
+            core.NavigationCompleted += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    LoadingPlaceholder.Visibility = Visibility.Collapsed;
+                    WebView.Visibility = Visibility.Visible;
+                });
+            };
+
             // Navigate to rendered HTML
             var fileName = Path.GetFileName(_htmlPath);
             core.Navigate($"https://eyecare.local/{fileName}");
@@ -248,6 +258,7 @@ public sealed partial class EyeCareOverlayWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            LoadingPlaceholder.Visibility = Visibility.Collapsed;
             WebView.Visibility = Visibility.Collapsed;
             FallbackPanel.Visibility = Visibility.Visible;
             FallbackMessageText.Text = _reminderMessage;

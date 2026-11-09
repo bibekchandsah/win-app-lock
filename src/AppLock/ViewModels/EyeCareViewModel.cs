@@ -32,6 +32,7 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
     private bool _isCustomIntervalMode;
     private int _customInterval;
     private bool _isRefreshingTemplates;
+    private bool _isUpdatingFromExternal;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -199,6 +200,10 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
 
         LoadSettings();
         RefreshTemplateList();
+
+        // Sync when tray (or any external source) changes eye care state
+        ServiceContainer.EyeCareEnabledChanged += OnEyeCareEnabledChanged;
+        ServiceContainer.EyeCareIntervalChanged += OnEyeCareIntervalChanged;
     }
 
     private void LoadSettings()
@@ -280,24 +285,12 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
 
     private void UpdateEnabled(bool value)
     {
-        ServiceContainer.Settings.EyeCare.Enabled = value;
-        SaveSettings();
-
-        if (value)
-        {
-            _scheduler.Start();
-        }
-        else
-        {
-            _scheduler.Stop();
-        }
+        ServiceContainer.SetEyeCareEnabled(value);
     }
 
     private void UpdateInterval(int minutes)
     {
-        ServiceContainer.Settings.EyeCare.IntervalMinutes = minutes;
-        SaveSettings();
-        RestartScheduler();
+        ServiceContainer.SetEyeCareInterval(minutes);
     }
 
     public void SetCustomInterval(int minutes)
@@ -499,6 +492,42 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private void OnEyeCareEnabledChanged(object? sender, bool enabled)
+    {
+        _dispatcher.TryEnqueue(() =>
+        {
+            if (_enabled == enabled) return;
+            _enabled = enabled;
+            OnPropertyChanged(nameof(Enabled));
+        });
+    }
+
+    private void OnEyeCareIntervalChanged(object? sender, int minutes)
+    {
+        _dispatcher.TryEnqueue(() =>
+        {
+            _customInterval = minutes;
+            var idx = IntervalPresets.IndexOf(minutes);
+            if (idx >= 0)
+            {
+                _isCustomIntervalMode = false;
+                if (_selectedIntervalIndex != idx)
+                {
+                    _isRefreshingTemplates = true; // reuse guard to avoid re-triggering UpdateInterval
+                    _selectedIntervalIndex = idx;
+                    _isRefreshingTemplates = false;
+                    OnPropertyChanged(nameof(SelectedIntervalIndex));
+                }
+            }
+            else
+            {
+                _isCustomIntervalMode = true;
+            }
+            OnPropertyChanged(nameof(CustomInterval));
+            OnPropertyChanged(nameof(IsCustomIntervalMode));
+        });
+    }
+
     private void SaveSettings()
     {
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -511,6 +540,8 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
+        ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
         _messageDebounceTimer?.Dispose();
     }
 }

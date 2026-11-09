@@ -128,6 +128,28 @@
                         </MenuFlyoutItem>
                         
                         <MenuFlyoutSeparator/>
+
+                        <!-- Eye Care Controls -->
+                        <MenuFlyoutItem x:Name="EyeCareToggleMenuItem" Text="Disable Eye Care">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7B3;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <MenuFlyoutSubItem x:Name="EyeCareIntervalSubItem" Text="Reminder interval">
+                            <MenuFlyoutSubItem.Icon>
+                                <FontIcon Glyph="&#xE823;"/>
+                            </MenuFlyoutSubItem.Icon>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareInterval1mItem" Text="1 minute"/>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareInterval20mItem" Text="20 minutes"/>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareInterval25mItem" Text="25 minutes"/>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareInterval30mItem" Text="30 minutes"/>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareInterval60mItem" Text="60 minutes"/>
+                            <MenuFlyoutSeparator/>
+                            <ToggleMenuFlyoutItem x:Name="EyeCareIntervalCustomItem" Text="Custom..."/>
+                        </MenuFlyoutSubItem>
+                        
+                        <MenuFlyoutSeparator/>
                         
                         <MenuFlyoutItem x:Name="ExitMenuItem" Text="Exit">
                             <MenuFlyoutItem.Icon>

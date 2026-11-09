@@ -33,6 +33,14 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _clipboardResumeItem;
     private MenuFlyoutItem? _brightnessHotkeysMenuItem;
     private MenuFlyoutItem? _blurHotkeyMenuItem;
+    private MenuFlyoutItem? _eyeCareToggleMenuItem;
+    private MenuFlyoutSubItem? _eyeCareIntervalSubItem;
+    private ToggleMenuFlyoutItem? _eyeCareInterval1mItem;
+    private ToggleMenuFlyoutItem? _eyeCareInterval20mItem;
+    private ToggleMenuFlyoutItem? _eyeCareInterval25mItem;
+    private ToggleMenuFlyoutItem? _eyeCareInterval30mItem;
+    private ToggleMenuFlyoutItem? _eyeCareInterval60mItem;
+    private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
@@ -97,12 +105,37 @@ public sealed class TrayService : IDisposable
                             _brightnessHotkeysMenuItem = mfi;
                         else if (mfi.Name == "BlurHotkeyMenuItem" || text.Contains("Blur Hotkey", StringComparison.OrdinalIgnoreCase))
                             _blurHotkeyMenuItem = mfi;
+                        else if (mfi.Name == "EyeCareToggleMenuItem" || (text.Contains("Eye Care", StringComparison.OrdinalIgnoreCase) && !text.Contains("interval", StringComparison.OrdinalIgnoreCase)))
+                            _eyeCareToggleMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
                     else if (item is MenuFlyoutSubItem sub)
                     {
-                        if (sub.Name == "ClipboardPauseSubItem" || (sub.Text != null && sub.Text.Contains("Pause", StringComparison.OrdinalIgnoreCase)))
+                        if (sub.Name == "EyeCareIntervalSubItem" || (sub.Text != null && sub.Text.Contains("Reminder interval", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _eyeCareIntervalSubItem = sub;
+                            foreach (var subItem in sub.Items)
+                            {
+                                if (subItem is ToggleMenuFlyoutItem tmi)
+                                {
+                                    var st = (tmi.Text ?? "").Trim();
+                                    if (tmi.Name == "EyeCareInterval1mItem" || st.StartsWith("1 min", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareInterval1mItem = tmi;
+                                    else if (tmi.Name == "EyeCareInterval20mItem" || st.StartsWith("20 min", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareInterval20mItem = tmi;
+                                    else if (tmi.Name == "EyeCareInterval25mItem" || st.StartsWith("25 min", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareInterval25mItem = tmi;
+                                    else if (tmi.Name == "EyeCareInterval30mItem" || st.StartsWith("30 min", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareInterval30mItem = tmi;
+                                    else if (tmi.Name == "EyeCareInterval60mItem" || st.StartsWith("60 min", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareInterval60mItem = tmi;
+                                    else if (tmi.Name == "EyeCareIntervalCustomItem" || st.Contains("Custom", StringComparison.OrdinalIgnoreCase))
+                                        _eyeCareIntervalCustomItem = tmi;
+                                }
+                            }
+                        }
+                        else if (sub.Name == "ClipboardPauseSubItem" || (sub.Text != null && sub.Text.Contains("Pause", StringComparison.OrdinalIgnoreCase)))
                         {
                             _clipboardPauseSubItem = sub;
                             foreach (var subItem in sub.Items)
@@ -286,6 +319,50 @@ public sealed class TrayService : IDisposable
                     });
                     System.Diagnostics.Debug.WriteLine("Blur hotkey menu item wired");
                 }
+
+                if (_eyeCareToggleMenuItem != null)
+                {
+                    Action toggleEyeCare = () =>
+                    {
+                        bool newEnabled = !ServiceContainer.Settings.EyeCare.Enabled;
+                        ServiceContainer.SetEyeCareEnabled(newEnabled);
+                        UpdateEyeCareMenuItems();
+                    };
+                    _eyeCareToggleMenuItem.Click += (s, e) => toggleEyeCare();
+                    _eyeCareToggleMenuItem.Command = new RelayCommand(toggleEyeCare);
+                }
+
+                void WireIntervalItem(ToggleMenuFlyoutItem? item, int minutes)
+                {
+                    if (item == null) return;
+                    Action action = () =>
+                    {
+                        ServiceContainer.SetEyeCareInterval(minutes);
+                        UpdateEyeCareMenuItems();
+                    };
+                    item.Click += (s, e) => action();
+                    item.Command = new RelayCommand(action);
+                }
+
+                WireIntervalItem(_eyeCareInterval1mItem, 1);
+                WireIntervalItem(_eyeCareInterval20mItem, 20);
+                WireIntervalItem(_eyeCareInterval25mItem, 25);
+                WireIntervalItem(_eyeCareInterval30mItem, 30);
+                WireIntervalItem(_eyeCareInterval60mItem, 60);
+
+                if (_eyeCareIntervalCustomItem != null)
+                {
+                    Action customAction = () =>
+                    {
+                        var dispatcher = _dispatcherQueue ?? _trayIcon.DispatcherQueue;
+                        dispatcher?.TryEnqueue(async () =>
+                        {
+                            await PromptCustomIntervalAsync();
+                        });
+                    };
+                    _eyeCareIntervalCustomItem.Click += (s, e) => customAction();
+                    _eyeCareIntervalCustomItem.Command = new RelayCommand(customAction);
+                }
                 
                 if (_exitMenuItem != null)
                 {
@@ -310,6 +387,7 @@ public sealed class TrayService : IDisposable
             UpdateProtectionMenuItems();
             UpdateBrightnessMenuItems();
             UpdateClipboardMenuItems();
+            UpdateEyeCareMenuItems();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
 
@@ -318,6 +396,12 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
             ServiceContainer.ClipboardEnabledChanged += OnClipboardEnabledChanged;
+
+            ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
+            ServiceContainer.EyeCareEnabledChanged += OnEyeCareEnabledChanged;
+
+            ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
+            ServiceContainer.EyeCareIntervalChanged += OnEyeCareIntervalChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -528,6 +612,111 @@ public sealed class TrayService : IDisposable
         }
     }
 
+    private void OnEyeCareEnabledChanged(object? sender, bool enabled)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateEyeCareMenuItems);
+    }
+
+    private void OnEyeCareIntervalChanged(object? sender, int minutes)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateEyeCareMenuItems);
+    }
+
+    public void UpdateEyeCareMenuItems()
+    {
+        try
+        {
+            var settings = ServiceContainer.Settings.EyeCare;
+            bool enabled = settings.Enabled;
+            int interval = settings.IntervalMinutes;
+
+            if (_eyeCareToggleMenuItem != null)
+            {
+                _eyeCareToggleMenuItem.Text = enabled ? "Disable Eye Care" : "Enable Eye Care";
+            }
+
+            if (_eyeCareIntervalSubItem != null)
+            {
+                _eyeCareIntervalSubItem.Text = $"Reminder interval ({interval}m)";
+            }
+
+            if (_eyeCareInterval1mItem != null)
+                _eyeCareInterval1mItem.IsChecked = interval == 1;
+
+            if (_eyeCareInterval20mItem != null)
+                _eyeCareInterval20mItem.IsChecked = interval == 20;
+
+            if (_eyeCareInterval25mItem != null)
+                _eyeCareInterval25mItem.IsChecked = interval == 25;
+
+            if (_eyeCareInterval30mItem != null)
+                _eyeCareInterval30mItem.IsChecked = interval == 30;
+
+            if (_eyeCareInterval60mItem != null)
+                _eyeCareInterval60mItem.IsChecked = interval == 60;
+
+            if (_eyeCareIntervalCustomItem != null)
+            {
+                bool isCustom = interval != 1 && interval != 20 && interval != 25 && interval != 30 && interval != 60;
+                _eyeCareIntervalCustomItem.IsChecked = isCustom;
+                _eyeCareIntervalCustomItem.Text = isCustom ? $"Custom ({interval}m)..." : "Custom...";
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating eye care menu: {ex.Message}");
+        }
+    }
+
+    private async Task PromptCustomIntervalAsync()
+    {
+        try
+        {
+            if (MainWindow.Instance == null) return;
+
+            MainWindow.Instance.Show();
+
+            var numberBox = new NumberBox
+            {
+                Minimum = 1,
+                Maximum = 1440,
+                Value = ServiceContainer.Settings.EyeCare.IntervalMinutes,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+                SmallChange = 1,
+                LargeChange = 5,
+                Header = "Interval (1 to 1440 minutes):",
+                Width = 250
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = "Custom Reminder Interval",
+                PrimaryButtonText = "Save",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = MainWindow.Instance.Content?.XamlRoot,
+                Content = numberBox
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var value = (int)numberBox.Value;
+                if (value >= 1 && value <= 1440)
+                {
+                    ServiceContainer.SetEyeCareInterval(value);
+                    UpdateEyeCareMenuItems();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error showing custom interval dialog: {ex.Message}");
+        }
+    }
+
     private void OnVolumeWatcherChanged(object? sender, EventArgs e)
     {
         _ = UpdateBitLockerMenuItemsAsync();
@@ -731,6 +920,9 @@ public sealed class TrayService : IDisposable
     {
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
         ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
+
+        ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
+        ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
 
         if (_isVolumeWatcherSubscribed)
         {

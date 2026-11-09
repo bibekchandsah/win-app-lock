@@ -484,6 +484,41 @@ public static class ServiceContainer
         ClipboardEnabledChanged?.Invoke(null, enabled);
     }
 
+    public static event EventHandler<bool>? EyeCareEnabledChanged;
+    public static event EventHandler<int>? EyeCareIntervalChanged;
+
+    public static void SetEyeCareEnabled(bool enabled)
+    {
+        Settings.EyeCare.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            EyeCareScheduler?.Start();
+        }
+        else
+        {
+            EyeCareScheduler?.Stop();
+        }
+
+        EyeCareEnabledChanged?.Invoke(null, enabled);
+    }
+
+    public static void SetEyeCareInterval(int minutes)
+    {
+        if (minutes < 1 || minutes > 1440) return;
+
+        Settings.EyeCare.IntervalMinutes = minutes;
+        SettingsStore.Save(Settings);
+
+        if (Settings.EyeCare.Enabled)
+        {
+            EyeCareScheduler?.Start();
+        }
+
+        EyeCareIntervalChanged?.Invoke(null, minutes);
+    }
+
     public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         if (_eyeCareOverlayService == null)
