@@ -106,7 +106,15 @@ public sealed partial class RingLightPage : Page
 
         var svc   = ServiceContainer.RingLightService;
         bool wasOn = svc.IsOn;
-        if (!wasOn) svc.SetEnabled(true, "preview");
+        if (!wasOn)
+        {
+            svc.SetEnabled(true, "preview");
+        }
+        else
+        {
+            svc.ApplySettingsLive(ServiceContainer.Settings.RingLight);
+            svc.RebuildOverlays();
+        }
 
         PreviewButton.IsEnabled = false;
         PreviewButton.Content   = "Previewing…";
@@ -131,7 +139,7 @@ public sealed partial class RingLightPage : Page
         bool isTemp = TempModeRadio.IsChecked == true;
         TemperaturePanel.Visibility = isTemp ? Visibility.Visible : Visibility.Collapsed;
         CustomColorPanel.Visibility = isTemp ? Visibility.Collapsed : Visibility.Visible;
-        SaveAndApply(s => s.ColorMode = isTemp ? "Temperature" : "Custom");
+        SaveAndApply(s => s.ColorMode = isTemp ? "Temperature" : "Custom", clearPreset: true);
     }
 
     private void KelvinSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -139,7 +147,7 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         int k = (int)KelvinSlider.Value;
         KelvinLabel.Text = $"{k} K";
-        SaveAndApply(s => s.Kelvin = k);
+        SaveAndApply(s => s.Kelvin = k, clearPreset: true);
     }
 
     private void HexInput_TextChanged(object sender, TextChangedEventArgs e)
@@ -153,7 +161,7 @@ public sealed partial class RingLightPage : Page
             _loading = true;
             CustomColorPicker.Color = color.Value;
             _loading = false;
-            SaveAndApply(s => s.CustomColorHex = hex.StartsWith('#') ? hex : "#" + hex);
+            SaveAndApply(s => s.CustomColorHex = hex.StartsWith('#') ? hex : "#" + hex, clearPreset: true);
         }
     }
 
@@ -166,7 +174,7 @@ public sealed partial class RingLightPage : Page
         HexInput.Text = hex;
         ColorSwatch.Background = new SolidColorBrush(c);
         _loading = false;
-        SaveAndApply(s => s.CustomColorHex = hex);
+        SaveAndApply(s => s.CustomColorHex = hex, clearPreset: true);
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -174,7 +182,7 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         int v = (int)BrightnessSlider.Value;
         BrightnessLabel.Text = $"{v}%";
-        SaveAndApply(s => s.BrightnessPercent = v);
+        SaveAndApply(s => s.BrightnessPercent = v, clearPreset: true);
     }
 
     private void ThicknessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -182,7 +190,7 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         int v = (int)ThicknessSlider.Value;
         ThicknessLabel.Text = $"{v}%";
-        SaveAndApply(s => s.ThicknessPercent = v);
+        SaveAndApply(s => s.ThicknessPercent = v, clearPreset: true);
     }
 
     private void SoftnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -190,14 +198,14 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         int v = (int)SoftnessSlider.Value;
         SoftnessLabel.Text = $"{v}%";
-        SaveAndApply(s => s.SoftnessPercent = v);
+        SaveAndApply(s => s.SoftnessPercent = v, clearPreset: true);
     }
 
     private void CornerRadiusSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loading) return;
         int v = (int)Math.Clamp(CornerRadiusSlider.Value, 0, 200);
-        SaveAndApply(s => s.CornerRadiusPx = v);
+        SaveAndApply(s => s.CornerRadiusPx = v, clearPreset: true);
     }
 
     private void EdgeCheck_Changed(object sender, RoutedEventArgs e)
@@ -209,7 +217,7 @@ public sealed partial class RingLightPage : Page
             s.EdgeBottom = EdgeBottomCheck.IsChecked == true;
             s.EdgeLeft   = EdgeLeftCheck.IsChecked   == true;
             s.EdgeRight  = EdgeRightCheck.IsChecked  == true;
-        });
+        }, clearPreset: true);
     }
 
     private void Style_Changed(object sender, RoutedEventArgs e)
@@ -217,13 +225,13 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         bool isGlow = StyleGlowRadio.IsChecked == true;
         StyleHint.Visibility = isGlow ? Visibility.Visible : Visibility.Collapsed;
-        SaveAndApply(s => s.Style = isGlow ? "FullGlow" : "Frame");
+        SaveAndApply(s => s.Style = isGlow ? "FullGlow" : "Frame", clearPreset: true);
     }
 
     private void TaskbarClearToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        SaveAndApply(s => s.KeepTaskbarClear = TaskbarClearToggle.IsOn);
+        SaveAndApply(s => s.KeepTaskbarClear = TaskbarClearToggle.IsOn, clearPreset: false);
     }
 
     private void FadeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -231,17 +239,20 @@ public sealed partial class RingLightPage : Page
         if (_loading) return;
         int v = (int)FadeSlider.Value;
         FadeLabel.Text = $"{v} ms";
-        SaveAndApply(s => s.FadeMs = v);
+        SaveAndApply(s => s.FadeMs = v, clearPreset: false);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private void SaveAndApply(Action<RingLightSettings> mutate)
+    private void SaveAndApply(Action<RingLightSettings> mutate, bool clearPreset = false)
     {
         var s = ServiceContainer.Settings.RingLight;
         mutate(s);
-        // Clear active preset ID — settings are now "modified"
-        s.ActivePresetId = null;
+        if (clearPreset)
+        {
+            // Clear active preset ID only when visual appearance sliders are manually modified
+            s.ActivePresetId = null;
+        }
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.RingLightService.ApplySettingsLive(s);
         UpdatePreview();

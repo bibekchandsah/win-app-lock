@@ -191,13 +191,23 @@ public sealed class RingLightService : IDisposable
             _brightnessController.SetBrightness(settings.BoostBrightnessPercent);
         }
 
-        // Create the manager and show overlays (must be on UI thread)
-        _manager?.Dispose();
-        _manager = new RingOverlayManager();
-        _manager.Show(settings);
+        try
+        {
+            // Create the manager and show overlays (must be on UI thread)
+            _manager?.Dispose();
+            _manager = new RingOverlayManager();
+            _manager.Show(settings);
 
-        // Wait for the fade-in duration
-        await Task.Delay(Math.Max(50, settings.FadeMs));
+            // Wait for the fade-in duration
+            await Task.Delay(Math.Max(50, settings.FadeMs));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RingLightService] TurnOnAsync error: {ex}");
+            SetState(State.Off);
+            EnabledChanged?.Invoke(this, false);
+            return;
+        }
 
         if (_state == State.FadingIn)
         {

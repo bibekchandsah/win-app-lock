@@ -116,8 +116,8 @@
                                   IsOn="{x:Bind RingLightEnabled, Mode=TwoWay}"
                                   Toggled="RingLightToggle_Toggled"
                                   MinWidth="0"
-                                  OffContent="Off"
-                                  OnContent="On"/>
+                                  OffContent=""
+                                  OnContent=""/>
                 </Grid>
             </StackPanel>
         </DataTemplate>

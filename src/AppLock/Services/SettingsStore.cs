@@ -69,6 +69,12 @@ public class SettingsStore
         }
         settings.Clipboard.Clamp();
 
+        if (settings.RingLight == null)
+        {
+            settings.RingLight = new RingLightSettings();
+            modified = true;
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         foreach (var rule in settings.LockRules)

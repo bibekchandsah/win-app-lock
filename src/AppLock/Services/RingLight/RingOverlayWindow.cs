@@ -205,7 +205,7 @@ public sealed class RingOverlayWindow : IRingOverlay
                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
 
-        ApplyCaptureExclusion(_showInCapture);
+        ApplyCaptureExclusion(settings.ShowInScreenCapture);
         // Render at full opacity so layered window bitmap is valid and ready
         RenderFrame(settings, bounds, 255);
     }
@@ -288,6 +288,7 @@ public sealed class RingOverlayWindow : IRingOverlay
             bounds.X, bounds.Y, bounds.Width, bounds.Height,
             nint.Zero, nint.Zero, GetModuleHandleW(null), nint.Zero);
 
+        _showInCapture = _settings?.ShowInScreenCapture ?? true;
         if (_hwnd != nint.Zero && !_showInCapture)
         {
             SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
@@ -302,154 +303,159 @@ public sealed class RingOverlayWindow : IRingOverlay
 
         EnsureWindowCreated(bounds);
 
-        using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
-        using (var g = Graphics.FromImage(bitmap))
+        try
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            g.Clear(System.Drawing.Color.Transparent);
-
-            int shorter = Math.Min(w, h);
-            int thickness = Math.Max(2, (int)(shorter * s.ThicknessPercent / 100.0));
-
-            int topT    = s.EdgeTop    ? thickness : 0;
-            int bottomT = s.EdgeBottom ? thickness : 0;
-            int leftT   = s.EdgeLeft   ? thickness : 0;
-            int rightT  = s.EdgeRight  ? thickness : 0;
-
-            float ix = leftT;
-            float iy = topT;
-            float iw = Math.Max(0, w - leftT - rightT);
-            float ih = Math.Max(0, h - topT - bottomT);
-            float r  = Math.Clamp((float)s.CornerRadiusPx, 0, Math.Min(iw / 2f, ih / 2f));
-
-            // Inner cutout path that leaves the center 100% transparent and handles corner radius
-            using var innerPath = new GraphicsPath();
-            if (r > 0 && iw > 0 && ih > 0)
+            using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
+            using (var g = Graphics.FromImage(bitmap))
             {
-                float d = r * 2f;
-                innerPath.AddArc(ix, iy, d, d, 180, 90);
-                innerPath.AddArc(ix + iw - d, iy, d, d, 270, 90);
-                innerPath.AddArc(ix + iw - d, iy + ih - d, d, d, 0, 90);
-                innerPath.AddArc(ix, iy + ih - d, d, d, 90, 90);
-                innerPath.CloseFigure();
-            }
-            else if (iw > 0 && ih > 0)
-            {
-                innerPath.AddRectangle(new RectangleF(ix, iy, iw, ih));
-            }
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.Clear(System.Drawing.Color.Transparent);
 
-            // Exclude the inner cutout so nothing drawn here touches the center screen
-            if (iw > 0 && ih > 0)
-            {
-                g.SetClip(innerPath, CombineMode.Exclude);
-            }
+                int shorter = Math.Min(w, h);
+                int thickness = Math.Max(2, (int)(shorter * s.ThicknessPercent / 100.0));
 
-            int bPct = s.Style == "FullGlow" ? Math.Min(s.BrightnessPercent, 60) : s.BrightnessPercent;
-            var winColor = s.ColorMode == "Temperature"
-                ? ColorTemperature.ToColor(s.Kelvin, bPct)
-                : ParseHexColor(s.CustomColorHex, bPct);
-            var gdiColor = System.Drawing.Color.FromArgb(255, winColor.R, winColor.G, winColor.B);
+                int topT    = s.EdgeTop    ? thickness : 0;
+                int bottomT = s.EdgeBottom ? thickness : 0;
+                int leftT   = s.EdgeLeft   ? thickness : 0;
+                int rightT  = s.EdgeRight  ? thickness : 0;
 
-            double softness = s.SoftnessPercent / 100.0;
+                float ix = leftT;
+                float iy = topT;
+                float iw = Math.Max(0, w - leftT - rightT);
+                float ih = Math.Max(0, h - topT - bottomT);
+                float r  = Math.Clamp((float)s.CornerRadiusPx, 0, Math.Min(iw / 2f, ih / 2f));
 
-            if (s.Style == "FullGlow" || softness <= 0.01)
-            {
-                using var brush = new SolidBrush(gdiColor);
-                g.FillRectangle(brush, 0, 0, w, h);
-            }
-            else
-            {
-                float hardStop = (float)Math.Clamp(1.0 - softness, 0.0, 0.99);
-                var transparentColor = System.Drawing.Color.FromArgb(0, gdiColor.R, gdiColor.G, gdiColor.B);
-
-                // Top: outer y=0 -> inner y=topT (fading inward toward center)
-                if (topT > 0)
+                // Inner cutout path that leaves the center 100% transparent and handles corner radius
+                using var innerPath = new GraphicsPath();
+                if (r > 0 && iw > 0 && ih > 0)
                 {
-                    int drawH = topT + (int)r;
-                    using var brush = new LinearGradientBrush(
-                        new PointF(0, 0),
-                        new PointF(0, topT),
-                        gdiColor,
-                        transparentColor)
-                    {
-                        WrapMode = WrapMode.Clamp
-                    };
-                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
-                    g.FillRectangle(brush, 0, 0, w, drawH);
+                    float d = r * 2f;
+                    innerPath.AddArc(ix, iy, d, d, 180, 90);
+                    innerPath.AddArc(ix + iw - d, iy, d, d, 270, 90);
+                    innerPath.AddArc(ix + iw - d, iy + ih - d, d, d, 0, 90);
+                    innerPath.AddArc(ix, iy + ih - d, d, d, 90, 90);
+                    innerPath.CloseFigure();
+                }
+                else if (iw > 0 && ih > 0)
+                {
+                    innerPath.AddRectangle(new RectangleF(ix, iy, iw, ih));
                 }
 
-                // Bottom: outer y=h -> inner y=h-bottomT (fading inward toward center)
-                if (bottomT > 0)
+                // Exclude the inner cutout so nothing drawn here touches the center screen
+                if (iw > 0 && ih > 0)
                 {
-                    int drawY = h - bottomT - (int)r;
-                    int drawH = bottomT + (int)r;
-                    using var brush = new LinearGradientBrush(
-                        new PointF(0, h),
-                        new PointF(0, h - bottomT),
-                        gdiColor,
-                        transparentColor)
-                    {
-                        WrapMode = WrapMode.Clamp
-                    };
-                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
-                    g.FillRectangle(brush, 0, drawY, w, drawH);
+                    g.SetClip(innerPath, CombineMode.Exclude);
                 }
 
-                // Left: outer x=0 -> inner x=leftT (fading inward toward center)
-                if (leftT > 0)
-                {
-                    int drawW = leftT + (int)r;
-                    using var brush = new LinearGradientBrush(
-                        new PointF(0, 0),
-                        new PointF(leftT, 0),
-                        gdiColor,
-                        transparentColor)
-                    {
-                        WrapMode = WrapMode.Clamp
-                    };
-                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
-                    g.FillRectangle(brush, 0, 0, drawW, h);
-                }
+                int bPct = s.Style == "FullGlow" ? Math.Min(s.BrightnessPercent, 60) : s.BrightnessPercent;
+                var winColor = s.ColorMode == "Temperature"
+                    ? ColorTemperature.ToColor(s.Kelvin, bPct)
+                    : ParseHexColor(s.CustomColorHex, bPct);
+                var gdiColor = System.Drawing.Color.FromArgb(255, winColor.R, winColor.G, winColor.B);
 
-                // Right: outer x=w -> inner x=w-rightT (fading inward toward center)
-                if (rightT > 0)
+                double softness = s.SoftnessPercent / 100.0;
+
+                if (s.Style == "FullGlow" || softness <= 0.01)
                 {
-                    int drawX = w - rightT - (int)r;
-                    int drawW = rightT + (int)r;
-                    using var brush = new LinearGradientBrush(
-                        new PointF(w, 0),
-                        new PointF(w - rightT, 0),
-                        gdiColor,
-                        transparentColor)
+                    using var brush = new SolidBrush(gdiColor);
+                    g.FillRectangle(brush, 0, 0, w, h);
+                }
+                else
+                {
+                    float hardStop = (float)Math.Clamp(1.0 - softness, 0.0, 0.99);
+                    var transparentColor = System.Drawing.Color.FromArgb(0, gdiColor.R, gdiColor.G, gdiColor.B);
+
+                    // Top: outer y=0 -> inner y=topT (fading inward toward center)
+                    if (topT > 0)
                     {
-                        WrapMode = WrapMode.Clamp
-                    };
-                    brush.InterpolationColors = CreateColorBlend(gdiColor, transparentColor, hardStop);
-                    g.FillRectangle(brush, drawX, 0, drawW, h);
+                        int drawH = topT + (int)r;
+                        using var brush = new LinearGradientBrush(
+                            new PointF(0, 0),
+                            new PointF(0, drawH),
+                            gdiColor,
+                            transparentColor);
+                        brush.InterpolationColors = CreateEdgeBlend(gdiColor, transparentColor, topT, drawH, hardStop);
+                        g.FillRectangle(brush, 0, 0, w, drawH);
+                    }
+
+                    // Bottom: outer y=h -> inner y=h-bottomT (fading inward toward center)
+                    if (bottomT > 0)
+                    {
+                        int drawY = h - bottomT - (int)r;
+                        int drawH = bottomT + (int)r;
+                        using var brush = new LinearGradientBrush(
+                            new PointF(0, h),
+                            new PointF(0, drawY),
+                            gdiColor,
+                            transparentColor);
+                        brush.InterpolationColors = CreateEdgeBlend(gdiColor, transparentColor, bottomT, drawH, hardStop);
+                        g.FillRectangle(brush, 0, drawY, w, drawH);
+                    }
+
+                    // Left: outer x=0 -> inner x=leftT (fading inward toward center)
+                    if (leftT > 0)
+                    {
+                        int drawW = leftT + (int)r;
+                        using var brush = new LinearGradientBrush(
+                            new PointF(0, 0),
+                            new PointF(drawW, 0),
+                            gdiColor,
+                            transparentColor);
+                        brush.InterpolationColors = CreateEdgeBlend(gdiColor, transparentColor, leftT, drawW, hardStop);
+                        g.FillRectangle(brush, 0, 0, drawW, h);
+                    }
+
+                    // Right: outer x=w -> inner x=w-rightT (fading inward toward center)
+                    if (rightT > 0)
+                    {
+                        int drawX = w - rightT - (int)r;
+                        int drawW = rightT + (int)r;
+                        using var brush = new LinearGradientBrush(
+                            new PointF(w, 0),
+                            new PointF(drawX, 0),
+                            gdiColor,
+                            transparentColor);
+                        brush.InterpolationColors = CreateEdgeBlend(gdiColor, transparentColor, rightT, drawW, hardStop);
+                        g.FillRectangle(brush, drawX, 0, drawW, h);
+                    }
                 }
             }
+
+            ApplyBitmapToLayeredWindow(bitmap, bounds.X, bounds.Y, bounds.Width, bounds.Height, alpha);
         }
-
-        ApplyBitmapToLayeredWindow(bitmap, bounds.X, bounds.Y, bounds.Width, bounds.Height, alpha);
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RingOverlayWindow] RenderFrame error: {ex}");
+        }
     }
 
-    private static ColorBlend CreateColorBlend(System.Drawing.Color solid, System.Drawing.Color trans, float hardStop)
+    private static ColorBlend CreateEdgeBlend(System.Drawing.Color solid, System.Drawing.Color trans, float edgeT, float drawDist, float hardStop)
     {
-        if (hardStop <= 0.01f)
+        if (drawDist <= edgeT || edgeT <= 0)
         {
-            return new ColorBlend(2)
+            if (hardStop <= 0.01f)
             {
-                Colors = new[] { solid, trans },
-                Positions = new[] { 0.0f, 1.0f }
+                return new ColorBlend(2)
+                {
+                    Colors = new[] { solid, trans },
+                    Positions = new[] { 0.0f, 1.0f }
+                };
+            }
+            return new ColorBlend(3)
+            {
+                Colors = new[] { solid, solid, trans },
+                Positions = new[] { 0.0f, hardStop, 1.0f }
             };
         }
 
-        return new ColorBlend(3)
+        float transStop = Math.Min(edgeT / drawDist, 0.99f);
+        float solidStop = transStop * hardStop;
+        return new ColorBlend(4)
         {
-            Colors = new[] { solid, solid, trans },
-            Positions = new[] { 0.0f, hardStop, 1.0f }
+            Colors = new[] { solid, solid, trans, trans },
+            Positions = new[] { 0.0f, solidStop, transStop, 1.0f }
         };
     }
 
