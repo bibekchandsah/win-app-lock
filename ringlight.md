@@ -203,10 +203,10 @@ After each milestone: `dotnet build -c Release`, fix all errors and warnings, la
 - [ ] Temperature slider changes the color from warm to cool; custom color works; brightness, thickness, softness, corner radius, and edge checkboxes update the live preview and the real ring instantly
 - [ ] Style "Full screen glow" stays usable (capped intensity)
 - [ ] "Keep taskbar clear" works; multi-monitor targets (primary/built-in/all/specific) work; unplugging a monitor or changing DPI doesn't crash
-- [ ] Ring does not appear in a screen share or recording by default, and does appear when the option is enabled
 - [ ] Brightness page's blur overlay doesn't blur the ring
 - [ ] Opening the camera in Teams/Zoom/Camera app turns the ring on automatically; closing the camera turns it off after ~5 s; app filter works; the camera is never opened by AppLock
 - [ ] Auto turn-off timer and auto warmth behave correctly across midnight and time changes
 - [ ] Brightness boost raises brightness and restores the previous value afterward (and doesn't override a manual change)
 - [ ] Presets apply instantly; custom presets save/rename/delete; settings persist after restart
 - [ ] Hotkey conflicts with other AppLock shortcuts are rejected with clear messages
+- [ ] Ring does not appear in a screen share or recording by default, and does appear when the option is enabled

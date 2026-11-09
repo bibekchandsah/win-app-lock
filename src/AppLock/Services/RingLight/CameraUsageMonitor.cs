@@ -379,27 +379,26 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
         var activeApps = new List<string>();
 
-        // 1. Detect browser and Electron web video calls (Chrome, Edge, Brave, etc.)
+        // 1. Detect browser/Electron web video calls via WMI (Chrome, Edge, Brave, etc.)
+        // Accurate: the video_capture.mojom.VideoCaptureService subprocess exists only
+        // when the browser is actively holding the camera pipeline open.
         var webCaptureApps = GetActiveVideoCaptureProcesses();
         foreach (var app in webCaptureApps)
         {
             if (!activeApps.Contains(app)) activeApps.Add(app);
         }
 
-        // 2. Detect dedicated meeting/camera desktop processes
-        var desktopMeetingApps = GetRunningCameraAppNames();
-        foreach (var app in desktopMeetingApps)
-        {
-            if (!activeApps.Contains(app)) activeApps.Add(app);
-        }
+        // Note: GetRunningCameraAppNames() (process-name scan for Teams, Discord, OBS, etc.)
+        // is intentionally NOT called here — it reports apps just for being open, not for
+        // actually using the camera, causing false positives.
 
-        // 3. Collect from Windows privacy consent store
+        // 2. Collect from Windows privacy consent store (catches UWP/packaged apps)
         foreach (var app in GetActiveCameraApps())
         {
             if (!activeApps.Contains(app)) activeApps.Add(app);
         }
 
-        // 4. Probe hardware via MediaCapture initialization (catches exclusive driver locks)
+        // 3. Probe hardware via MediaCapture initialization (catches exclusive driver locks)
         var (isExclusiveLocked, devName, reason) = await ProbeCameraStreamingAsync();
         if (isExclusiveLocked && activeApps.Count == 0)
         {
@@ -511,6 +510,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             var activeApps = new List<string>();
 
             // 1. Check browser video capture utility processes (Chrome, Edge, Brave, etc.)
+            // Pre-check with GetProcessesByName before the slower WMI query.
             if (HasRunningBrowserOrCameraProcess())
             {
                 foreach (var app in GetActiveVideoCaptureProcesses())
@@ -519,13 +519,11 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 }
             }
 
-            // 2. Check dedicated desktop camera processes
-            foreach (var app in GetRunningCameraAppNames())
-            {
-                if (!activeApps.Contains(app)) activeApps.Add(app);
-            }
+            // Note: GetRunningCameraAppNames() is intentionally NOT called here —
+            // it reports apps just for being open (not for actually using the camera),
+            // causing false positives for Teams, Discord, OBS, etc. that are open but idle.
 
-            // 3. Check registry consent store
+            // 2. Check registry consent store (catches UWP/packaged apps, Windows Camera, etc.)
             foreach (var app in GetActiveCameraApps())
             {
                 if (!activeApps.Contains(app)) activeApps.Add(app);
