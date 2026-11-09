@@ -266,6 +266,13 @@ public class RingLightTests
         Assert.NotNull(running);
     }
 
+    [Fact]
+    public void CameraUsageMonitor_GetActiveVideoCaptureProcesses_DoesNotThrow()
+    {
+        var active = CameraUsageMonitor.GetActiveVideoCaptureProcesses();
+        Assert.NotNull(active);
+    }
+
     // ── 5. Settings Serialization & Migration ────────────────────────────────
 
     [Fact]

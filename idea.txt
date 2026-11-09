@@ -267,7 +267,8 @@ fixed - 2) in quick settings toggle remove on/off text status
 fixed - 3) custom ring light presets aren't synced in tray 
 fixed - 4) active present selected status is removed when app reloads or page is changed
 fixed - 5) in appearnace card of custom color everytime app reloads or page is changed then it don't show last user used color 
-6) 
+
+when user is in ring light page then "others" side navigation don't looks active
 
 
 
