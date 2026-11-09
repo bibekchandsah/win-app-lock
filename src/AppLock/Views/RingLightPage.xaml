@@ -369,7 +369,7 @@
                                             Content="Pick color"
                                             VerticalAlignment="Center">
                                         <Button.Flyout>
-                                            <Flyout x:Name="ColorPickerFlyout">
+                                            <Flyout x:Name="ColorPickerFlyout" Opening="ColorPickerFlyout_Opening">
                                                 <StackPanel Spacing="8">
                                                     <ColorPicker x:Name="CustomColorPicker"
                                                                  IsColorChannelTextInputVisible="True"

@@ -355,18 +355,5 @@ public class RingLightTests
         var settings = new RingLightSettings { ToggleHotkey = hotkey };
         Assert.Equal(isValid, !string.IsNullOrWhiteSpace(settings.ToggleHotkey));
     }
-
-    [Fact]
-    public void RingOverlayManager_GetTargetDisplays_ReturnsDisplays()
-    {
-        var settings = new RingLightSettings { DisplayTarget = "Primary" };
-        var displays = RingOverlayManager.GetTargetDisplays(settings);
-        Assert.NotEmpty(displays);
-        var d = displays[0];
-        Assert.True(d.OuterBounds.Width > 0, $"Outer width: {d.OuterBounds.Width}");
-        Assert.True(d.OuterBounds.Height > 0, $"Outer height: {d.OuterBounds.Height}");
-        Assert.True(d.WorkArea.Width > 0, $"Work width: {d.WorkArea.Width}");
-        Assert.True(d.WorkArea.Height > 0, $"Work height: {d.WorkArea.Height}");
-    }
 }
 

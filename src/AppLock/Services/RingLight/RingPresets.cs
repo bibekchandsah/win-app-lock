@@ -97,7 +97,8 @@ public static class RingPresets
     {
         settings.ColorMode        = preset.ColorMode;
         settings.Kelvin           = preset.Kelvin;
-        settings.CustomColorHex   = preset.CustomColorHex;
+        if (preset.ColorMode == "Custom")
+            settings.CustomColorHex = preset.CustomColorHex;
         settings.BrightnessPercent = preset.BrightnessPercent;
         settings.ThicknessPercent = preset.ThicknessPercent;
         settings.SoftnessPercent  = preset.SoftnessPercent;

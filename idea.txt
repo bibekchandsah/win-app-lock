@@ -262,11 +262,12 @@ fixed - 2) optimize the text of enabled and disabled toggle in quick settings to
 fixed - 3) preview ring light and applied ring light overlay isn't visible but status shows previewing and notification shows on
 fixed - 4) ring light preset isn't synced in window UI and tray context menu
 
-1) preset in tray menu don't show checked status of selected preset
+fixed - 1) preset in tray menu don't show checked status of selected preset
 fixed - 2) in quick settings toggle remove on/off text status
-3) custom ring light presets aren't synced in tray 
+fixed - 3) custom ring light presets aren't synced in tray 
 fixed - 4) active present selected status is removed when app reloads or page is changed
-5) 
+fixed - 5) in appearnace card of custom color everytime app reloads or page is changed then it don't show last user used color 
+6) 
 
 
 

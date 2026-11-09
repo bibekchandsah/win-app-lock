@@ -136,16 +136,43 @@ public sealed partial class RingLightPage : Page
     private void ColorMode_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
+        var s = ServiceContainer.Settings.RingLight;
         bool isTemp = TempModeRadio.IsChecked == true;
+        if (isTemp == (s.ColorMode != "Custom")) return;
         TemperaturePanel.Visibility = isTemp ? Visibility.Visible : Visibility.Collapsed;
         CustomColorPanel.Visibility = isTemp ? Visibility.Collapsed : Visibility.Visible;
-        SaveAndApply(s => s.ColorMode = isTemp ? "Temperature" : "Custom", clearPreset: true);
+        if (!isTemp)
+        {
+            var col = TryParseHex(s.CustomColorHex);
+            if (col.HasValue)
+            {
+                ColorSwatch.Background = new SolidColorBrush(col.Value);
+                _loading = true;
+                HexInput.Text = s.CustomColorHex;
+                CustomColorPicker.Color = col.Value;
+                _loading = false;
+            }
+        }
+        SaveAndApply(set => set.ColorMode = isTemp ? "Temperature" : "Custom", clearPreset: true);
+    }
+
+    private void ColorPickerFlyout_Opening(object? sender, object e)
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        var col = TryParseHex(s.CustomColorHex);
+        if (col.HasValue)
+        {
+            _loading = true;
+            CustomColorPicker.Color = col.Value;
+            _loading = false;
+        }
     }
 
     private void KelvinSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loading) return;
         int k = (int)KelvinSlider.Value;
+        if (k == ServiceContainer.Settings.RingLight.Kelvin) return;
         KelvinLabel.Text = $"{k} K";
         SaveAndApply(s => s.Kelvin = k, clearPreset: true);
     }
@@ -157,30 +184,36 @@ public sealed partial class RingLightPage : Page
         var color = TryParseHex(hex);
         if (color.HasValue)
         {
+            var s = ServiceContainer.Settings.RingLight;
+            string formattedHex = hex.StartsWith('#') ? hex : "#" + hex;
+            if (string.Equals(s.CustomColorHex, formattedHex, StringComparison.OrdinalIgnoreCase)) return;
             ColorSwatch.Background = new SolidColorBrush(color.Value);
             _loading = true;
             CustomColorPicker.Color = color.Value;
             _loading = false;
-            SaveAndApply(s => s.CustomColorHex = hex.StartsWith('#') ? hex : "#" + hex, clearPreset: true);
+            SaveAndApply(set => set.CustomColorHex = formattedHex, clearPreset: true);
         }
     }
 
     private void CustomColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
     {
         if (_loading) return;
+        var s = ServiceContainer.Settings.RingLight;
         var c = args.NewColor;
         string hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        if (string.Equals(s.CustomColorHex, hex, StringComparison.OrdinalIgnoreCase)) return;
         _loading = true;
         HexInput.Text = hex;
         ColorSwatch.Background = new SolidColorBrush(c);
         _loading = false;
-        SaveAndApply(s => s.CustomColorHex = hex, clearPreset: true);
+        SaveAndApply(set => set.CustomColorHex = hex, clearPreset: true);
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loading) return;
         int v = (int)BrightnessSlider.Value;
+        if (v == ServiceContainer.Settings.RingLight.BrightnessPercent) return;
         BrightnessLabel.Text = $"{v}%";
         SaveAndApply(s => s.BrightnessPercent = v, clearPreset: true);
     }
@@ -189,6 +222,7 @@ public sealed partial class RingLightPage : Page
     {
         if (_loading) return;
         int v = (int)ThicknessSlider.Value;
+        if (v == ServiceContainer.Settings.RingLight.ThicknessPercent) return;
         ThicknessLabel.Text = $"{v}%";
         SaveAndApply(s => s.ThicknessPercent = v, clearPreset: true);
     }
@@ -197,6 +231,7 @@ public sealed partial class RingLightPage : Page
     {
         if (_loading) return;
         int v = (int)SoftnessSlider.Value;
+        if (v == ServiceContainer.Settings.RingLight.SoftnessPercent) return;
         SoftnessLabel.Text = $"{v}%";
         SaveAndApply(s => s.SoftnessPercent = v, clearPreset: true);
     }
@@ -205,27 +240,37 @@ public sealed partial class RingLightPage : Page
     {
         if (_loading) return;
         int v = (int)Math.Clamp(CornerRadiusSlider.Value, 0, 200);
+        if (v == ServiceContainer.Settings.RingLight.CornerRadiusPx) return;
         SaveAndApply(s => s.CornerRadiusPx = v, clearPreset: true);
     }
 
     private void EdgeCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
-        SaveAndApply(s =>
+        var s = ServiceContainer.Settings.RingLight;
+        bool t = EdgeTopCheck.IsChecked == true;
+        bool b = EdgeBottomCheck.IsChecked == true;
+        bool l = EdgeLeftCheck.IsChecked == true;
+        bool r = EdgeRightCheck.IsChecked == true;
+        if (t == s.EdgeTop && b == s.EdgeBottom && l == s.EdgeLeft && r == s.EdgeRight) return;
+        SaveAndApply(set =>
         {
-            s.EdgeTop    = EdgeTopCheck.IsChecked    == true;
-            s.EdgeBottom = EdgeBottomCheck.IsChecked == true;
-            s.EdgeLeft   = EdgeLeftCheck.IsChecked   == true;
-            s.EdgeRight  = EdgeRightCheck.IsChecked  == true;
+            set.EdgeTop    = t;
+            set.EdgeBottom = b;
+            set.EdgeLeft   = l;
+            set.EdgeRight  = r;
         }, clearPreset: true);
     }
 
     private void Style_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
+        var s = ServiceContainer.Settings.RingLight;
         bool isGlow = StyleGlowRadio.IsChecked == true;
+        string newStyle = isGlow ? "FullGlow" : "Frame";
+        if (s.Style == newStyle) return;
         StyleHint.Visibility = isGlow ? Visibility.Visible : Visibility.Collapsed;
-        SaveAndApply(s => s.Style = isGlow ? "FullGlow" : "Frame", clearPreset: true);
+        SaveAndApply(set => set.Style = newStyle, clearPreset: true);
     }
 
     private void TaskbarClearToggle_Toggled(object sender, RoutedEventArgs e)

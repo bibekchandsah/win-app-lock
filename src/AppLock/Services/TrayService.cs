@@ -43,12 +43,13 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
     private MenuFlyoutItem? _ringLightToggleMenuItem;
     private MenuFlyoutSubItem? _ringLightPresetsSubItem;
-    private MenuFlyoutItem? _presetWarmMenuItem;
-    private MenuFlyoutItem? _presetNeutralMenuItem;
-    private MenuFlyoutItem? _presetCoolMenuItem;
-    private MenuFlyoutItem? _presetSoftMenuItem;
-    private MenuFlyoutItem? _presetStudioMenuItem;
-    private MenuFlyoutItem? _presetMaxMenuItem;
+    private ToggleMenuFlyoutItem? _presetWarmMenuItem;
+    private ToggleMenuFlyoutItem? _presetNeutralMenuItem;
+    private ToggleMenuFlyoutItem? _presetCoolMenuItem;
+    private ToggleMenuFlyoutItem? _presetSoftMenuItem;
+    private ToggleMenuFlyoutItem? _presetStudioMenuItem;
+    private ToggleMenuFlyoutItem? _presetMaxMenuItem;
+    private readonly List<MenuFlyoutItemBase> _customPresetMenuItems = new();
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
@@ -127,7 +128,7 @@ public sealed class TrayService : IDisposable
                             _ringLightPresetsSubItem = sub;
                             foreach (var subItem in sub.Items)
                             {
-                                if (subItem is MenuFlyoutItem psmi)
+                                if (subItem is ToggleMenuFlyoutItem psmi)
                                 {
                                     var pText = psmi.Text ?? "";
                                     if (psmi.Name == "PresetWarmMenuItem" || pText.Equals("Warm", StringComparison.OrdinalIgnoreCase))
@@ -377,7 +378,7 @@ public sealed class TrayService : IDisposable
                     _ringLightToggleMenuItem.Command = new RelayCommand(toggleRingLight);
                 }
 
-                void WirePresetItem(MenuFlyoutItem? item, string presetId)
+                void WirePresetItem(ToggleMenuFlyoutItem? item, string presetId)
                 {
                     if (item == null) return;
                     var preset = AppLock.Services.RingLight.RingPresets.BuiltIn
@@ -481,6 +482,9 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
             ServiceContainer.RingLightEnabledChanged += OnRingLightEnabledChanged;
+
+            ServiceContainer.RingLightService.SettingsLiveChanged -= OnRingLightSettingsLiveChanged;
+            ServiceContainer.RingLightService.SettingsLiveChanged += OnRingLightSettingsLiveChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -709,17 +713,100 @@ public sealed class TrayService : IDisposable
         dispatcher?.TryEnqueue(UpdateRingLightMenuItem);
     }
 
+    private void OnRingLightSettingsLiveChanged(object? sender, EventArgs e)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateRingLightMenuItem);
+    }
+
     public void UpdateRingLightMenuItem()
     {
         try
         {
-            if (_ringLightToggleMenuItem == null) return;
-            bool on = ServiceContainer.RingLightService.IsOn;
-            _ringLightToggleMenuItem.Text = on ? "Disable Ring Light" : "Enable Ring Light";
+            if (_ringLightToggleMenuItem != null)
+            {
+                bool on = ServiceContainer.RingLightService.IsOn;
+                _ringLightToggleMenuItem.Text = on ? "Disable Ring Light" : "Enable Ring Light";
+            }
+            UpdateRingLightPresetMenuItems();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating ring light menu: {ex.Message}");
+        }
+    }
+
+    public void UpdateRingLightPresetMenuItems()
+    {
+        try
+        {
+            if (_ringLightPresetsSubItem == null) return;
+            var s = ServiceContainer.Settings.RingLight;
+            var activeId = s.ActivePresetId;
+
+            // 1. Update checkmarks for built-in items
+            if (_presetWarmMenuItem != null)
+                _presetWarmMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.WarmId;
+            if (_presetNeutralMenuItem != null)
+                _presetNeutralMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.NeutralId;
+            if (_presetCoolMenuItem != null)
+                _presetCoolMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.CoolId;
+            if (_presetSoftMenuItem != null)
+                _presetSoftMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.SoftId;
+            if (_presetStudioMenuItem != null)
+                _presetStudioMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.StudioId;
+            if (_presetMaxMenuItem != null)
+                _presetMaxMenuItem.IsChecked = activeId == AppLock.Services.RingLight.RingPresets.MaxId;
+
+            // 2. Remove previously added custom preset menu items
+            foreach (var old in _customPresetMenuItems)
+            {
+                _ringLightPresetsSubItem.Items.Remove(old);
+            }
+            _customPresetMenuItems.Clear();
+
+            // 3. Add separator and custom preset items if any exist
+            if (s.CustomPresets.Count > 0)
+            {
+                var sep = new MenuFlyoutSeparator();
+                _ringLightPresetsSubItem.Items.Add(sep);
+                _customPresetMenuItems.Add(sep);
+
+                foreach (var custom in s.CustomPresets)
+                {
+                    var customItem = new ToggleMenuFlyoutItem
+                    {
+                        Text = custom.Name,
+                        IsChecked = activeId == custom.Id
+                    };
+                    string pid = custom.Id;
+                    Action action = () =>
+                    {
+                        var set = ServiceContainer.Settings.RingLight;
+                        var target = set.CustomPresets.FirstOrDefault(p => p.Id == pid);
+                        if (target != null)
+                        {
+                            AppLock.Services.RingLight.RingPresets.ApplyTo(target, set);
+                            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                            ServiceContainer.RingLightService.ApplySettingsLive(set);
+                            if (!ServiceContainer.RingLightService.IsOn)
+                            {
+                                ServiceContainer.SetRingLightEnabled(true);
+                            }
+                            UpdateRingLightMenuItem();
+                        }
+                    };
+                    customItem.Click += (sender, args) => action();
+                    customItem.Command = new RelayCommand(action);
+
+                    _ringLightPresetsSubItem.Items.Add(customItem);
+                    _customPresetMenuItems.Add(customItem);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating ring light presets: {ex.Message}");
         }
     }
 
@@ -1024,6 +1111,7 @@ public sealed class TrayService : IDisposable
         ServiceContainer.EyeCareIntervalChanged -= OnEyeCareIntervalChanged;
 
         ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
+        ServiceContainer.RingLightService.SettingsLiveChanged -= OnRingLightSettingsLiveChanged;
 
         if (_isVolumeWatcherSubscribed)
         {
