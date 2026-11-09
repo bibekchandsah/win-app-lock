@@ -43,6 +43,14 @@
     <Compile Include="..\..\src\AppLock\Models\EyeCareSettings.cs" Link="Models\EyeCareSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ClipboardSettings.cs" Link="Models\ClipboardSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ClipboardItem.cs" Link="Models\ClipboardItem.cs" />
+    <Compile Include="..\..\src\AppLock\Models\RingLightSettings.cs" Link="Models\RingLightSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\ColorTemperature.cs" Link="Services\RingLight\ColorTemperature.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\RingPresets.cs" Link="Services\RingLight\RingPresets.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\CameraUsageMonitor.cs" Link="Services\RingLight\CameraUsageMonitor.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\RingLightTimers.cs" Link="Services\RingLight\RingLightTimers.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\ICameraUsageSource.cs" Link="Services\RingLight\ICameraUsageSource.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\IRingOverlay.cs" Link="Services\RingLight\IRingOverlay.cs" />
+    <Compile Include="..\..\src\AppLock\Services\RingLight\IBrightnessController.cs" Link="Services\RingLight\IBrightnessController.cs" />
     <Compile Include="..\..\src\AppLock\Services\SensitiveDetector.cs" Link="Services\SensitiveDetector.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />

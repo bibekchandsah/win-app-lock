@@ -1579,3 +1579,37 @@ SetWindowDisplayAffinity(mainWindowHandle, WDA_EXCLUDEFROMCAPTURE);
   - Active applications running on the target drive (`BitLockerService.GetProcessesOnDrive`) are surfaced in the Lock Confirmation Dialog and Drive Usage Dialog.
   - In-place observable collection refresh without UI flicker, maintaining visual selection and card state.
 
+---
+
+## Ring Light Add-on (Milestones 1–9)
+
+### Architecture & Technical Decisions
+1. **Window Overlay & Chroma-Key**:
+   - WinUI 3 Window with Win32 extended styles `WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`.
+   - Chroma key color `#030303` (COLORREF `0x00030303`) creates a transparent, click-through center with zero continuous CPU overhead.
+   - Smooth 20-step alpha fade via `SetLayeredWindowAttributes(hwnd, KEY_COLOR_REF, alpha, LWA_COLORKEY | LWA_ALPHA)`.
+   - Excluded from screen capture by default with `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`.
+
+2. **XamlCompiler Constraints & Solutions**:
+   - `Canvas` with named children inside `Border` with `ClipToBounds="True"` or `NumberBox` causes silent crash in net472 `XamlCompiler.exe` (code 1).
+   - Solution: Mini live preview uses `Grid` with named `Border` elements; all inputs use WinUI `Slider` and `ComboBox`.
+
+3. **Multi-Monitor & Hot-Plug**:
+   - `RingOverlayManager` manages per-monitor overlays keyed by `OuterBounds` coordinates.
+   - Listens to `WM_DISPLAYCHANGE` (0x007E) via `MainWindow`'s WndProc subclass and rebuilds overlays seamlessly.
+   - Supports Primary, Built-in, All displays, or specific display targeting.
+
+4. **Presets**:
+   - Built-in presets: Warm (3200K, 85%, 10%), Neutral (4500K, 80%, 8%), Cool (6000K, 80%, 8%), Soft (4500K, 60%, 12%, 80% feather), Studio (5000K, 90%, 10%, Top/Left/Right edges), Max light (6500K, 100%, 18%, 30% feather).
+   - Custom presets with name dialog, rename, delete, and tray submenu integration.
+
+5. **Automatic Mode & Camera Detection**:
+   - `CameraUsageMonitor` reads `CapabilityAccessManager\ConsentStore\webcam` timestamps (`LastUsedTimeStart > LastUsedTimeStop`) without opening or accessing camera hardware.
+   - 1-second continuous use debounce on activate; 5-second silence debounce on deactivate.
+   - App filtering supports exe names or package family names.
+   - `RingLightTimers` provides auto turn-off countdown (5–120 min) and time-of-day auto warmth with smooth 15-minute transition windows.
+
+6. **Brightness Boost**:
+   - Integrated with AppLock's `BrightnessService`. Remembers initial display brightness on activate, boosts to target, and restores only if user did not manually adjust brightness while active.
+
+
