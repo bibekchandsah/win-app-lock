@@ -227,10 +227,10 @@ public sealed partial class OthersPage : Page
 
     private void CardExpander_Loaded(object sender, RoutedEventArgs e)
     {
-        // Show expander for brightness, eyecare, and clipboard cards
+        // Show expander for brightness, eyecare, clipboard, and ringlight cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard")
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight")
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }

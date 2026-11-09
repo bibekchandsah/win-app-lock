@@ -48,8 +48,8 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Title & Description -->
-            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+            <!-- Left: Title, Description & Screen Preview Button -->
+            <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <FontIcon Glyph="&#xE781;"
                               FontSize="28"
@@ -63,8 +63,14 @@
                 </StackPanel>
                 <TextBlock Text="Light your face during calls using your screen edges"
                            FontSize="14"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Margin="0,4,0,0"/>
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <!-- Preview on screen for 5s button placed before preview -->
+                <Button x:Name="PreviewButton"
+                        Content="Preview on screen for 5 s"
+                        Click="PreviewButton_Click"
+                        HorizontalAlignment="Left"
+                        Margin="0,4,0,0"/>
             </StackPanel>
 
             <!-- Right: Live mini preview with inner screen cutout -->
@@ -148,12 +154,6 @@
                                           MinWidth="0" OffContent="" OnContent=""
                                           VerticalAlignment="Center"/>
                         </Grid>
-
-                        <!-- Preview 5s button -->
-                        <Button x:Name="PreviewButton"
-                                Content="Preview on screen for 5 s"
-                                Click="PreviewButton_Click"
-                                HorizontalAlignment="Left"/>
                     </StackPanel>
                 </Border>
 
@@ -365,7 +365,22 @@
                                     <TextBox x:Name="HexInput" PlaceholderText="#FFFFFF"
                                              Width="140" TextChanged="HexInput_TextChanged"
                                              VerticalAlignment="Center"/>
-                                    <TextBlock Text="Enter hex color (e.g. #FFAA44)"
+                                    <Button x:Name="ColorPickerButton"
+                                            Content="Pick color"
+                                            VerticalAlignment="Center">
+                                        <Button.Flyout>
+                                            <Flyout x:Name="ColorPickerFlyout">
+                                                <StackPanel Spacing="8">
+                                                    <ColorPicker x:Name="CustomColorPicker"
+                                                                 IsColorChannelTextInputVisible="True"
+                                                                 IsHexInputVisible="True"
+                                                                 IsAlphaEnabled="False"
+                                                                 ColorChanged="CustomColorPicker_ColorChanged"/>
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <TextBlock Text="Enter hex or choose from picker"
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                VerticalAlignment="Center"/>

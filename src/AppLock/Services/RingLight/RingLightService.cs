@@ -59,6 +59,18 @@ public sealed class RingLightService : IDisposable
     /// <summary>Toggle the current state.</summary>
     public void Toggle() => SetEnabled(!IsOn);
 
+    /// <summary>
+    /// Rebuilds all overlays live based on current settings and target displays.
+    /// </summary>
+    public void RebuildOverlays()
+    {
+        if (_state == State.On || _state == State.FadingIn)
+        {
+            var settings = ServiceContainer.Settings.RingLight;
+            _manager?.Rebuild(settings);
+        }
+    }
+
     /// <summary>Apply live settings changes to running overlays without restart.</summary>
     public void ApplySettingsLive(RingLightSettings settings)
     {

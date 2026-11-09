@@ -155,7 +155,8 @@ public sealed class RingOverlayManager : IDisposable
 
         if (target == "BuiltIn")
         {
-            // Heuristic: first non-primary, or primary if single-monitor
+            // On multi-display setups, try non-primary first as external is usually primary or built-in is internal.
+            // If only 1 display is connected, return the primary display so it still appears!
             foreach (var d in all)
                 if (!d.IsPrimary)
                     return new List<DisplayArea> { d };
@@ -165,12 +166,12 @@ public sealed class RingOverlayManager : IDisposable
         if (target == "Primary")
             return new List<DisplayArea> { DisplayArea.Primary };
 
-        // Specific display by key string
+        // Specific display by key string (e.g. "0,0")
         foreach (var d in all)
             if (DisplayKey(d) == target)
                 return new List<DisplayArea> { d };
 
-        // Fallback
+        // Fallback to primary display
         return new List<DisplayArea> { DisplayArea.Primary };
     }
 

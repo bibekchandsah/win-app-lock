@@ -39,6 +39,12 @@ public sealed partial class RingLightPage : Page
         RefreshStatusText(ServiceContainer.RingLightService.IsOn);
         _loading = false;
         UpdatePreview();
+
+        // Ensure live overlay has loaded settings (such as custom color hex) applied immediately
+        if (ServiceContainer.RingLightService.IsOn)
+        {
+            ServiceContainer.RingLightService.ApplySettingsLive(ServiceContainer.Settings.RingLight);
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -126,8 +132,23 @@ public sealed partial class RingLightPage : Page
         if (color.HasValue)
         {
             ColorSwatch.Background = new SolidColorBrush(color.Value);
+            _loading = true;
+            CustomColorPicker.Color = color.Value;
+            _loading = false;
             SaveAndApply(s => s.CustomColorHex = hex.StartsWith('#') ? hex : "#" + hex);
         }
+    }
+
+    private void CustomColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+    {
+        if (_loading) return;
+        var c = args.NewColor;
+        string hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        _loading = true;
+        HexInput.Text = hex;
+        ColorSwatch.Background = new SolidColorBrush(c);
+        _loading = false;
+        SaveAndApply(s => s.CustomColorHex = hex);
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -266,6 +287,14 @@ public sealed partial class RingLightPage : Page
 
         KelvinSlider.Value = Math.Clamp(s.Kelvin, 2700, 6500);
         KelvinLabel.Text   = $"{s.Kelvin} K";
+
+        HexInput.Text = s.CustomColorHex;
+        var customCol = TryParseHex(s.CustomColorHex);
+        if (customCol.HasValue)
+        {
+            ColorSwatch.Background = new SolidColorBrush(customCol.Value);
+            CustomColorPicker.Color = customCol.Value;
+        }
 
         BrightnessSlider.Value = Math.Clamp(s.BrightnessPercent, 10, 100);
         BrightnessLabel.Text   = $"{s.BrightnessPercent}%";
@@ -517,7 +546,11 @@ public sealed partial class RingLightPage : Page
 
         HexInput.Text = s.CustomColorHex;
         var col = TryParseHex(s.CustomColorHex);
-        if (col.HasValue) ColorSwatch.Background = new SolidColorBrush(col.Value);
+        if (col.HasValue)
+        {
+            ColorSwatch.Background = new SolidColorBrush(col.Value);
+            CustomColorPicker.Color = col.Value;
+        }
 
         BrightnessSlider.Value = Math.Clamp(s.BrightnessPercent, 10, 100);
         BrightnessLabel.Text   = $"{s.BrightnessPercent}%";
@@ -798,14 +831,20 @@ public sealed partial class RingLightPage : Page
         try
         {
             var apps = ServiceContainer.RingLightService.CameraMonitor.GetActiveCameraApps();
+            var detectedCameras = ServiceContainer.RingLightService.CameraMonitor.GetInstalledCameras();
+
+            string hardwareInfo = detectedCameras.Count > 0
+                ? $"Camera found: {string.Join(", ", detectedCameras)}."
+                : "No camera hardware detected.";
+
             if (apps.Count > 0)
             {
-                TestCameraStatusText.Text = $"Active camera apps: {string.Join(", ", apps)}";
+                TestCameraStatusText.Text = $"{hardwareInfo} Currently in use by: {string.Join(", ", apps)}.";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
             }
             else
             {
-                TestCameraStatusText.Text = "No apps currently using camera (checked HKCU & HKLM).";
+                TestCameraStatusText.Text = $"{hardwareInfo} No apps currently streaming camera.";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
             }
         }
@@ -862,6 +901,7 @@ public sealed partial class RingLightPage : Page
         {
             var tag = cbi.Tag?.ToString() ?? "Primary";
             SaveAndApply(s => s.DisplayTarget = tag);
+            ServiceContainer.RingLightService.RebuildOverlays();
         }
     }
 

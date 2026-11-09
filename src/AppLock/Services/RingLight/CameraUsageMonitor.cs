@@ -100,6 +100,32 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         return result;
     }
 
+    /// <summary>
+    /// Enumerates physical camera devices recognized by Windows PnP (e.g. Integrated Camera, USB Webcams).
+    /// </summary>
+    public IReadOnlyList<string> GetInstalledCameras()
+    {
+        var list = new List<string>();
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                "SELECT Name FROM Win32_PnPEntity WHERE PNPClass = 'Camera' OR PNPClass = 'Image'");
+            foreach (var obj in searcher.Get())
+            {
+                var name = obj["Name"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(name) && !list.Contains(name))
+                {
+                    list.Add(name);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Hardware enumeration error: {ex.Message}");
+        }
+        return list;
+    }
+
     private static void ScanRegistryRoot(RegistryKey root, List<string> result)
     {
         using var baseKey = root.OpenSubKey(WebcamConsentSubKey);

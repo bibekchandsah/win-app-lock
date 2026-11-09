@@ -238,19 +238,24 @@ fixed - drag handle pill positioned in mathematical dead center of popup window 
 
 
 
-fix the live preview to the right side of ring light and it's description is located
-except edge in center it's shown black screen and user can't see the content of screen 
-corner radius (inner frame) isn't working 
-saving current preset don't show custom presets
-right & bottom edge softness is shown in opposite sides instead of showing it in center
-camera use isn't detected and not shown ring light
-test camera detection button isn't working
-rise screen brightness while on isn't working with "preview on screen for 5s"
-add hot key to enable disable ringlight
-add quick setting collapsable in card with enable/disable toggler as like other cards
-system tray menu:
-enable/disable ring light
-preset > Warm,  Neutral,  Cool,  Soft,  Studio,  Max light
+fixed  - fix the live preview to the right side of ring light and it's description is located
+fixed - except edge in center it's shown black screen and user can't see the content of screen 
+fixed - corner radius (inner frame) isn't working 
+fixed - saving current preset don't show custom presets
+fixed - right & bottom edge softness is shown in opposite sides instead of showing it in center
+fixed - add hot key to enable disable ringlight
+fixed - camera use detection and test camera detection with installed camera check & active app detection
+fixed - rise screen brightness while on works concurrently with preview on screen for 5s
+fixed - add quick setting collapsable in card with enable/disable toggler as like other cards
+fixed - system tray menu integration: enable/disable ring light toggle and preset items
+
+fixed - 1) move "preview on screen for 5s" before the live preview
+fixed - 2) preview on screen for 5s isn't working it's not showing the live preview in desktop screen
+fixed - 3) when user select "primary display, built-in display, all displays" then it don't show ring light in current or built-in display
+fixed - 4) in custom color though there is color code it still shows white color and when edited then it shows real and in color preview add color picker so that user can choose from color picker
+fixed - 5) camera detection is still not working
+fixed - 6) there is no quick settings toggle in card
+fixed - 7) no effect on system tray menu integration
 
 
 

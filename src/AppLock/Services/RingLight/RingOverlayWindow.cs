@@ -139,7 +139,8 @@ public sealed class RingOverlayWindow : IRingOverlay
         }
 
         ApplyCaptureExclusion(_showInCapture);
-        RenderFrame(settings, bounds, _currentAlpha);
+        // Render at full opacity so layered window bitmap is valid and ready
+        RenderFrame(settings, bounds, 255);
     }
 
     public void ApplyCaptureExclusion(bool showInScreenCapture)
@@ -157,10 +158,23 @@ public sealed class RingOverlayWindow : IRingOverlay
         if (_bounds.Width <= 0 || _bounds.Height <= 0) return;
 
         EnsureWindowCreated(_bounds);
-        RenderFrame(settings, _bounds, _currentAlpha);
+
+        // Render bitmap with full alpha=255 so the frame content is permanently stored in the DC
+        RenderFrame(settings, _bounds, 255);
         ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
 
-        _ = FadeAsync(targetAlpha: 255, durationMs: settings.FadeMs);
+        if (settings.FadeMs > 0)
+        {
+            // Start transparent and fade in
+            _currentAlpha = 0;
+            UpdateWindowAlpha(0);
+            _ = FadeAsync(targetAlpha: 255, durationMs: settings.FadeMs);
+        }
+        else
+        {
+            _currentAlpha = 255;
+            UpdateWindowAlpha(255);
+        }
     }
 
     public async Task HideAsync(int fadeMs)
