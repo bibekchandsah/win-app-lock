@@ -290,147 +290,53 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     /// (Google Chrome, Microsoft Edge, Brave, Opera, Vivaldi) and Electron apps when a web page
     /// or web call (such as Instagram, Google Meet, Teams Web, Zoom Web) starts streaming the webcam.
     ///
-    /// Strategy 1: WMI CommandLine query for 'video_capture.mojom.VideoCaptureService'.
-    /// Strategy 2: Fallback parent-child process tree scan — Chromium spawns a child process
-    ///             whose parent is the browser process; count extra chrome/msedge instances to infer
-    ///             a utility subprocess is active, then confirm via comparing running process counts
-    ///             against the registry Frame Server activity key.
+    /// Uses WMI to find processes whose CommandLine contains the Chromium video capture service
+    /// argument. This subprocess is spawned by the browser ONLY while the camera is actively streaming
+    /// and disappears the moment the camera is released — making it a precise, real-time indicator.
     /// </summary>
     public static IReadOnlyList<string> GetActiveVideoCaptureProcesses()
     {
         var found = new List<string>();
         try
         {
-            // Strategy 1 — WMI CommandLine query (works when CommandLine is accessible)
-            GetVideoCaptureProcessesViaWmi(found);
+            // ManagementScope and ObjectQuery do not implement IDisposable — do not wrap in using.
+            var scope = new System.Management.ManagementScope(@"\\.\root\cimv2");
+            scope.Options.Timeout = TimeSpan.FromSeconds(5);
+
+            // WHERE CommandLine IS NOT NULL skips system/protected processes where WMI cannot
+            // read CommandLine (avoids silent filter failures on null rows).
+            var query = new System.Management.ObjectQuery(
+                "SELECT ProcessId, Name, CommandLine FROM Win32_Process " +
+                "WHERE CommandLine IS NOT NULL AND CommandLine LIKE '%video_capture.mojom.VideoCaptureService%'");
+
+            var options = new System.Management.EnumerationOptions { ReturnImmediately = false };
+            using var searcher = new System.Management.ManagementObjectSearcher(scope, query, options);
+
+            foreach (var obj in searcher.Get())
+            {
+                var name = obj["Name"]?.ToString() ?? "";
+                string display = name.ToLowerInvariant() switch
+                {
+                    "chrome.exe"  => "Google Chrome (Web video call)",
+                    "msedge.exe"  => "Microsoft Edge (Web video call)",
+                    "brave.exe"   => "Brave (Web video call)",
+                    "opera.exe"   => "Opera (Web video call)",
+                    "vivaldi.exe" => "Vivaldi (Web video call)",
+                    _ => string.IsNullOrEmpty(name)
+                            ? "Web video call"
+                            : $"{Path.GetFileNameWithoutExtension(name)} (Web video call)"
+                };
+
+                if (!found.Contains(display))
+                    found.Add(display);
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] VideoCaptureService WMI query error: {ex.Message}");
         }
 
-        // Strategy 2 — Frame Server registry + parent-child process count heuristic
-        // Only run if WMI returned nothing, to avoid duplicates
-        if (found.Count == 0)
-        {
-            try
-            {
-                GetVideoCaptureProcessesViaProcessTree(found);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Process tree scan error: {ex.Message}");
-            }
-        }
-
         return found;
-    }
-
-    /// <summary>
-    /// WMI-based detection: queries Win32_Process for the Chromium video capture service argument.
-    /// This works when the process CommandLine is accessible (usually without elevation on the same user session).
-    /// A timeout is applied to avoid blocking the UI for too long.
-    /// </summary>
-    private static void GetVideoCaptureProcessesViaWmi(List<string> found)
-    {
-        // Apply a WMI query timeout to prevent hanging (30 seconds default is too long).
-        // ManagementScope and ObjectQuery do not implement IDisposable — do not wrap in using.
-        var options = new System.Management.EnumerationOptions
-        {
-            ReturnImmediately = false
-        };
-
-        var scope = new System.Management.ManagementScope(@"\\.\root\cimv2");
-        scope.Options.Timeout = TimeSpan.FromSeconds(5);
-
-        // WHERE CommandLine IS NOT NULL skips system/protected processes where WMI cannot read args.
-        var query = new System.Management.ObjectQuery(
-            "SELECT ProcessId, Name, CommandLine FROM Win32_Process " +
-            "WHERE CommandLine IS NOT NULL AND CommandLine LIKE '%video_capture.mojom.VideoCaptureService%'");
-
-        using var searcher = new System.Management.ManagementObjectSearcher(scope, query, options);
-        foreach (var obj in searcher.Get())
-        {
-            var name = obj["Name"]?.ToString() ?? "";
-            string display = name.ToLowerInvariant() switch
-            {
-                "chrome.exe"  => "Google Chrome (Web video call)",
-                "msedge.exe"  => "Microsoft Edge (Web video call)",
-                "brave.exe"   => "Brave (Web video call)",
-                "opera.exe"   => "Opera (Web video call)",
-                "vivaldi.exe" => "Vivaldi (Web video call)",
-                _ => string.IsNullOrEmpty(name)
-                        ? "Web video call"
-                        : $"{Path.GetFileNameWithoutExtension(name)} (Web video call)"
-            };
-
-            if (!found.Contains(display))
-                found.Add(display);
-        }
-    }
-
-    /// <summary>
-    /// Fallback detection using the Windows Camera Frame Server registry key.
-    /// When any app uses the camera via the Frame Server (Chrome, Edge, UWP apps, etc.),
-    /// the Frame Server creates session entries under:
-    ///   HKLM\SOFTWARE\Microsoft\Windows Media Foundation\Platform\FrameServer\Sessions
-    /// or signals activity via the Frame Server service. We detect this and correlate
-    /// with running browser processes to report which browser is streaming.
-    /// </summary>
-    private static void GetVideoCaptureProcessesViaProcessTree(List<string> found)
-    {
-        // Check the Windows Camera Frame Server session registry key
-        const string frameServerKey =
-            @"SOFTWARE\Microsoft\Windows Media Foundation\Platform\FrameServer";
-        bool frameServerActive = false;
-
-        try
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(frameServerKey + @"\Sessions");
-            if (key != null && key.GetSubKeyNames().Length > 0)
-            {
-                frameServerActive = true;
-            }
-        }
-        catch { }
-
-        // Also check the simpler Frame Server enabled flag approach:
-        // If the Frame Server key doesn't exist, fall back to checking the camera activity
-        // by counting Chromium processes — a VideoCaptureService utility process appears as
-        // an extra chrome.exe / msedge.exe child with a low MainWindowHandle.
-        if (!frameServerActive)
-        {
-            // Check if camera is in use at driver level by trying to open it exclusively
-            // (This is handled by CheckCameraStatusAsync's ProbeCameraStreamingAsync already)
-            return;
-        }
-
-        // Frame Server is active — determine which browser is using the camera
-        // by checking which known browser process is running AND has an open camera session.
-        // Heuristic: browser with the most child processes (indicating active rendering/capture)
-        // is most likely the one streaming.
-        var browserCandidates = new (string procName, string displayName)[]
-        {
-            ("chrome",    "Google Chrome (Web video call)"),
-            ("msedge",    "Microsoft Edge (Web video call)"),
-            ("brave",     "Brave (Web video call)"),
-            ("opera",     "Opera (Web video call)"),
-            ("vivaldi",   "Vivaldi (Web video call)"),
-            ("firefox",   "Firefox (Web video call)"),
-        };
-
-        foreach (var (procName, displayName) in browserCandidates)
-        {
-            var procs = Process.GetProcessesByName(procName);
-            if (procs.Length > 0)
-            {
-                foreach (var p in procs) p.Dispose();
-                if (!found.Contains(displayName))
-                    found.Add(displayName);
-                // Report the first browser found — the Frame Server is active so at least one is streaming
-                break;
-            }
-        }
     }
 
     /// <summary>
