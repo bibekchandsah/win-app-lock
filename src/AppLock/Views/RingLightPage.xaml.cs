@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
@@ -197,9 +198,283 @@ public sealed partial class RingLightPage : Page
     {
         var s = ServiceContainer.Settings.RingLight;
         mutate(s);
+        // Clear active preset ID — settings are now "modified"
+        s.ActivePresetId = null;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.RingLightService.ApplySettingsLive(s);
         UpdatePreview();
+        RefreshActivePresetLabel();
+    }
+
+    // ── Preset helpers ────────────────────────────────────────────────────
+
+    private void PresetChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string presetId)
+            ApplyPresetById(presetId);
+    }
+
+    private void ApplyPresetById(string presetId)
+    {
+        // Check built-ins first
+        foreach (var p in RingPresets.BuiltIn)
+        {
+            if (p.Id == presetId)
+            {
+                var s = ServiceContainer.Settings.RingLight;
+                RingPresets.ApplyTo(p, s);
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.RingLightService.ApplySettingsLive(s);
+                _loading = true;
+                SyncAppearanceSliders(s);
+                _loading = false;
+                UpdatePreview();
+                RefreshActivePresetLabel();
+                return;
+            }
+        }
+        // Check custom presets
+        var cs = ServiceContainer.Settings.RingLight;
+        foreach (var p in cs.CustomPresets)
+        {
+            if (p.Id == presetId)
+            {
+                RingPresets.ApplyTo(p, cs);
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.RingLightService.ApplySettingsLive(cs);
+                _loading = true;
+                SyncAppearanceSliders(cs);
+                _loading = false;
+                UpdatePreview();
+                RefreshActivePresetLabel();
+                return;
+            }
+        }
+    }
+
+    /// <summary>Syncs all appearance sliders/controls to the current settings without triggering save.</summary>
+    private void SyncAppearanceSliders(RingLightSettings s)
+    {
+        bool isTemp = s.ColorMode != "Custom";
+        TempModeRadio.IsChecked   = isTemp;
+        CustomModeRadio.IsChecked = !isTemp;
+        TemperaturePanel.Visibility = isTemp ? Visibility.Visible : Visibility.Collapsed;
+        CustomColorPanel.Visibility = isTemp ? Visibility.Collapsed : Visibility.Visible;
+
+        KelvinSlider.Value = Math.Clamp(s.Kelvin, 2700, 6500);
+        KelvinLabel.Text   = $"{s.Kelvin} K";
+
+        BrightnessSlider.Value = Math.Clamp(s.BrightnessPercent, 10, 100);
+        BrightnessLabel.Text   = $"{s.BrightnessPercent}%";
+
+        ThicknessSlider.Value = Math.Clamp(s.ThicknessPercent, 2, 30);
+        ThicknessLabel.Text   = $"{s.ThicknessPercent}%";
+
+        SoftnessSlider.Value = Math.Clamp(s.SoftnessPercent, 0, 100);
+        SoftnessLabel.Text   = $"{s.SoftnessPercent}%";
+
+        CornerRadiusSlider.Value = Math.Clamp(s.CornerRadiusPx, 0, 200);
+
+        EdgeTopCheck.IsChecked    = s.EdgeTop;
+        EdgeBottomCheck.IsChecked = s.EdgeBottom;
+        EdgeLeftCheck.IsChecked   = s.EdgeLeft;
+        EdgeRightCheck.IsChecked  = s.EdgeRight;
+    }
+
+    private void RefreshActivePresetLabel()
+    {
+        var s = ServiceContainer.Settings.RingLight;
+        var id = s.ActivePresetId;
+
+        // Check built-ins
+        foreach (var p in RingPresets.BuiltIn)
+        {
+            if (p.Id == id)
+            {
+                ActivePresetLabel.Text = $"Active: {p.Name}";
+                UpdateChipHighlights(id);
+                return;
+            }
+        }
+        // Check custom
+        foreach (var p in s.CustomPresets)
+        {
+            if (p.Id == id)
+            {
+                ActivePresetLabel.Text = $"Active: {p.Name} (custom)";
+                UpdateChipHighlights(id);
+                return;
+            }
+        }
+        // Modified or none
+        ActivePresetLabel.Text = string.IsNullOrEmpty(id) ? "No preset selected" : "Modified";
+        UpdateChipHighlights(null);
+    }
+
+    private void UpdateChipHighlights(string? activeId)
+    {
+        // Built-in chips: use AccentButtonStyle when active, DefaultButtonStyle otherwise
+        var accent  = (Style)Application.Current.Resources["AccentButtonStyle"];
+        var defBtn  = (Style)Application.Current.Resources["DefaultButtonStyle"];
+        SetChip(ChipWarm,    "builtin:warm",    activeId, accent, defBtn);
+        SetChip(ChipNeutral, "builtin:neutral", activeId, accent, defBtn);
+        SetChip(ChipCool,    "builtin:cool",    activeId, accent, defBtn);
+        SetChip(ChipSoft,    "builtin:soft",    activeId, accent, defBtn);
+        SetChip(ChipStudio,  "builtin:studio",  activeId, accent, defBtn);
+        SetChip(ChipMax,     "builtin:maxlight",activeId, accent, defBtn);
+
+        // Custom chips
+        foreach (var child in CustomChipsPanel.Children)
+        {
+            if (child is Button cb && cb.Tag is string cid)
+                cb.Style = cid == activeId ? accent : defBtn;
+        }
+    }
+
+    private static void SetChip(Button chip, string id, string? activeId, Style accent, Style defBtn)
+        => chip.Style = id == activeId ? accent : defBtn;
+
+    private void RebuildCustomChips()
+    {
+        CustomChipsPanel.Children.Clear();
+        var presets = ServiceContainer.Settings.RingLight.CustomPresets;
+
+        bool any = presets.Count > 0;
+        CustomPresetsLabel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        CustomChipsPanel.Visibility   = any ? Visibility.Visible : Visibility.Collapsed;
+
+        var accent  = (Style)Application.Current.Resources["AccentButtonStyle"];
+        var defBtn  = (Style)Application.Current.Resources["DefaultButtonStyle"];
+        var activeId = ServiceContainer.Settings.RingLight.ActivePresetId;
+
+        foreach (var preset in presets)
+        {
+            // Apply chip
+            var applyBtn = new Button
+            {
+                Content = preset.Name,
+                Tag     = preset.Id,
+                Style   = preset.Id == activeId ? accent : defBtn,
+                Margin  = new Thickness(0),
+            };
+            applyBtn.Click += PresetChip_Click;
+
+            // Rename button (pencil icon)
+            var renameBtn = new Button
+            {
+                Tag    = preset.Id,
+                Padding = new Thickness(6, 4, 6, 4),
+                Content = new FontIcon { Glyph = "\uE70F", FontSize = 12 },
+            };
+            ToolTipService.SetToolTip(renameBtn, "Rename");
+            renameBtn.Click += RenamePresetButton_Click;
+
+            // Delete button (X)
+            var deleteBtn = new Button
+            {
+                Tag    = preset.Id,
+                Padding = new Thickness(6, 4, 6, 4),
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
+            };
+            ToolTipService.SetToolTip(deleteBtn, "Delete");
+            deleteBtn.Click += DeletePresetButton_Click;
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+            row.Children.Add(applyBtn);
+            row.Children.Add(renameBtn);
+            row.Children.Add(deleteBtn);
+            CustomChipsPanel.Children.Add(row);
+        }
+    }
+
+    private async void SavePresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var nameBox = new TextBox { PlaceholderText = "Preset name", MinWidth = 240 };
+        var dialog  = new ContentDialog
+        {
+            Title             = "Save preset",
+            Content           = nameBox,
+            PrimaryButtonText = "Save",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = this.XamlRoot,
+            DefaultButton     = ContentDialogButton.Primary,
+        };
+        nameBox.KeyDown += (s, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter) dialog.Hide();
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        var name = nameBox.Text.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        var s      = ServiceContainer.Settings.RingLight;
+        var preset = RingPresets.SnapshotFrom(s, name);
+        s.CustomPresets.Add(preset);
+        s.ActivePresetId = preset.Id;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+        RebuildCustomChips();
+        RefreshActivePresetLabel();
+    }
+
+    private async void RenamePresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string id) return;
+        var s = ServiceContainer.Settings.RingLight;
+        var preset = s.CustomPresets.Find(p => p.Id == id);
+        if (preset == null) return;
+
+        var nameBox = new TextBox { Text = preset.Name, MinWidth = 240 };
+        var dialog  = new ContentDialog
+        {
+            Title             = "Rename preset",
+            Content           = nameBox,
+            PrimaryButtonText = "Rename",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = this.XamlRoot,
+            DefaultButton     = ContentDialogButton.Primary,
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        var name = nameBox.Text.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        preset.Name = name;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        RebuildCustomChips();
+        RefreshActivePresetLabel();
+    }
+
+    private async void DeletePresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string id) return;
+        var s = ServiceContainer.Settings.RingLight;
+        var preset = s.CustomPresets.Find(p => p.Id == id);
+        if (preset == null) return;
+
+        var dialog = new ContentDialog
+        {
+            Title             = "Delete preset",
+            Content           = $"Delete \"{preset.Name}\"?",
+            PrimaryButtonText = "Delete",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = this.XamlRoot,
+            DefaultButton     = ContentDialogButton.Close,
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        s.CustomPresets.Remove(preset);
+        if (s.ActivePresetId == id) s.ActivePresetId = null;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        RebuildCustomChips();
+        RefreshActivePresetLabel();
     }
 
     private void LoadSettingsIntoUI()
@@ -252,6 +527,10 @@ public sealed partial class RingLightPage : Page
 
         // Populate and select display target combo
         LoadDisplayTargets(s.DisplayTarget);
+
+        // Populate preset chips and label
+        RebuildCustomChips();
+        RefreshActivePresetLabel();
 
         _loading = false;
     }

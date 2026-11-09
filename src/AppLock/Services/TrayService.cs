@@ -42,6 +42,13 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _eyeCareInterval60mItem;
     private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
     private MenuFlyoutItem? _ringLightToggleMenuItem;
+    private MenuFlyoutSubItem? _ringLightPresetsSubItem;
+    private MenuFlyoutItem? _presetWarmMenuItem;
+    private MenuFlyoutItem? _presetNeutralMenuItem;
+    private MenuFlyoutItem? _presetCoolMenuItem;
+    private MenuFlyoutItem? _presetSoftMenuItem;
+    private MenuFlyoutItem? _presetStudioMenuItem;
+    private MenuFlyoutItem? _presetMaxMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
@@ -115,7 +122,26 @@ public sealed class TrayService : IDisposable
                     }
                     else if (item is MenuFlyoutSubItem sub)
                     {
-                        if (sub.Name == "EyeCareIntervalSubItem" || (sub.Text != null && sub.Text.Contains("Reminder interval", StringComparison.OrdinalIgnoreCase)))
+                        if (sub.Name == "RingLightPresetsSubItem" || (sub.Text != null && sub.Text.Contains("Ring Light Presets", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _ringLightPresetsSubItem = sub;
+                            foreach (var subItem in sub.Items)
+                            {
+                                if (subItem is MenuFlyoutItem psmi)
+                                {
+                                    switch (psmi.Name)
+                                    {
+                                        case "PresetWarmMenuItem":    _presetWarmMenuItem    = psmi; break;
+                                        case "PresetNeutralMenuItem": _presetNeutralMenuItem = psmi; break;
+                                        case "PresetCoolMenuItem":    _presetCoolMenuItem    = psmi; break;
+                                        case "PresetSoftMenuItem":    _presetSoftMenuItem    = psmi; break;
+                                        case "PresetStudioMenuItem":  _presetStudioMenuItem  = psmi; break;
+                                        case "PresetMaxMenuItem":     _presetMaxMenuItem     = psmi; break;
+                                    }
+                                }
+                            }
+                        }
+                        else if (sub.Name == "EyeCareIntervalSubItem" || (sub.Text != null && sub.Text.Contains("Reminder interval", StringComparison.OrdinalIgnoreCase)))
                         {
                             _eyeCareIntervalSubItem = sub;
                             foreach (var subItem in sub.Items)
@@ -346,6 +372,35 @@ public sealed class TrayService : IDisposable
                     _ringLightToggleMenuItem.Click += (s, e) => toggleRingLight();
                     _ringLightToggleMenuItem.Command = new RelayCommand(toggleRingLight);
                 }
+
+                void WirePresetItem(MenuFlyoutItem? item, string presetId)
+                {
+                    if (item == null) return;
+                    var preset = AppLock.Services.RingLight.RingPresets.BuiltIn
+                        .FirstOrDefault(p => p.Id == presetId);
+                    if (preset == null) return;
+                    Action action = () =>
+                    {
+                        var s = ServiceContainer.Settings.RingLight;
+                        AppLock.Services.RingLight.RingPresets.ApplyTo(preset, s);
+                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                        ServiceContainer.RingLightService.ApplySettingsLive(s);
+                        if (!ServiceContainer.RingLightService.IsOn)
+                        {
+                            ServiceContainer.SetRingLightEnabled(true);
+                            UpdateRingLightMenuItem();
+                        }
+                    };
+                    item.Click += (s, e) => action();
+                    item.Command = new RelayCommand(action);
+                }
+
+                WirePresetItem(_presetWarmMenuItem,    AppLock.Services.RingLight.RingPresets.WarmId);
+                WirePresetItem(_presetNeutralMenuItem, AppLock.Services.RingLight.RingPresets.NeutralId);
+                WirePresetItem(_presetCoolMenuItem,    AppLock.Services.RingLight.RingPresets.CoolId);
+                WirePresetItem(_presetSoftMenuItem,    AppLock.Services.RingLight.RingPresets.SoftId);
+                WirePresetItem(_presetStudioMenuItem,  AppLock.Services.RingLight.RingPresets.StudioId);
+                WirePresetItem(_presetMaxMenuItem,     AppLock.Services.RingLight.RingPresets.MaxId);
 
                 void WireIntervalItem(ToggleMenuFlyoutItem? item, int minutes)
                 {

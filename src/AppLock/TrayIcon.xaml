@@ -40,6 +40,18 @@
                     </MenuFlyoutItem.Icon>
                 </MenuFlyoutItem>
 
+                <MenuFlyoutSubItem x:Name="RingLightPresetsSubItem" Text="Ring Light Presets">
+                    <MenuFlyoutSubItem.Icon>
+                        <FontIcon Glyph="&#xE721;"/>
+                    </MenuFlyoutSubItem.Icon>
+                    <MenuFlyoutItem x:Name="PresetWarmMenuItem"    Text="Warm"/>
+                    <MenuFlyoutItem x:Name="PresetNeutralMenuItem" Text="Neutral"/>
+                    <MenuFlyoutItem x:Name="PresetCoolMenuItem"    Text="Cool"/>
+                    <MenuFlyoutItem x:Name="PresetSoftMenuItem"    Text="Soft"/>
+                    <MenuFlyoutItem x:Name="PresetStudioMenuItem"  Text="Studio"/>
+                    <MenuFlyoutItem x:Name="PresetMaxMenuItem"     Text="Max light"/>
+                </MenuFlyoutSubItem>
+
                 <MenuFlyoutSeparator/>
                 
                 <MenuFlyoutItem Text="Exit" Click="ExitMenuItem_Click">

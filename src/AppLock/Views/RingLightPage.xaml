@@ -171,6 +171,61 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Presets card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                        <!-- Section header -->
+                        <Grid Padding="20,16,20,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Presets" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock x:Name="ActivePresetLabel"
+                                           Text="No preset selected"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <Button x:Name="SavePresetButton"
+                                    Grid.Column="1"
+                                    Content="Save current…"
+                                    Click="SavePresetButton_Click"
+                                    VerticalAlignment="Center"/>
+                        </Grid>
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                        <StackPanel Padding="20,16,20,16" Spacing="12">
+                            <!-- Built-in preset chips -->
+                            <TextBlock Text="Built-in" FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            <StackPanel x:Name="BuiltInChipsPanel"
+                                        Orientation="Horizontal" Spacing="8" FlowDirection="LeftToRight">
+                                <!-- chips populated in code-behind to avoid XamlCompiler issues with dynamic Tag -->
+                                <Button x:Name="ChipWarm"    Content="Warm"      Click="PresetChip_Click" Tag="builtin:warm"     Style="{ThemeResource AccentButtonStyle}"/>
+                                <Button x:Name="ChipNeutral" Content="Neutral"   Click="PresetChip_Click" Tag="builtin:neutral"  Style="{ThemeResource AccentButtonStyle}"/>
+                                <Button x:Name="ChipCool"    Content="Cool"      Click="PresetChip_Click" Tag="builtin:cool"     Style="{ThemeResource AccentButtonStyle}"/>
+                                <Button x:Name="ChipSoft"    Content="Soft"      Click="PresetChip_Click" Tag="builtin:soft"     Style="{ThemeResource AccentButtonStyle}"/>
+                                <Button x:Name="ChipStudio"  Content="Studio"    Click="PresetChip_Click" Tag="builtin:studio"   Style="{ThemeResource AccentButtonStyle}"/>
+                                <Button x:Name="ChipMax"     Content="Max light" Click="PresetChip_Click" Tag="builtin:maxlight" Style="{ThemeResource AccentButtonStyle}"/>
+                            </StackPanel>
+
+                            <!-- Custom preset chips (populated dynamically) -->
+                            <TextBlock x:Name="CustomPresetsLabel"
+                                       Text="Custom" FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       Visibility="Collapsed"/>
+                            <StackPanel x:Name="CustomChipsPanel"
+                                        Orientation="Horizontal" Spacing="8"
+                                        FlowDirection="LeftToRight"
+                                        Visibility="Collapsed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Appearance section -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
