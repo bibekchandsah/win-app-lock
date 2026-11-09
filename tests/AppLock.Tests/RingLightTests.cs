@@ -241,6 +241,31 @@ public class RingLightTests
         Assert.False(CameraUsageMonitor.MatchesFilter(new List<string>(), auto));
     }
 
+    [Fact]
+    public void CameraUsageMonitor_CameraCheckResult_PropertiesHold()
+    {
+        var result = new CameraCheckResult
+        {
+            InstalledCameras = new[] { "Integrated Camera" },
+            IsStreaming = true,
+            ActiveApps = new[] { "Windows Camera" },
+            Reason = "MediaCapture stream in use"
+        };
+
+        Assert.True(result.HasHardware);
+        Assert.Single(result.InstalledCameras);
+        Assert.True(result.IsStreaming);
+        Assert.Contains("Windows Camera", result.ActiveApps);
+        Assert.Equal("MediaCapture stream in use", result.Reason);
+    }
+
+    [Fact]
+    public void CameraUsageMonitor_GetRunningCameraAppNames_DoesNotThrow()
+    {
+        var running = CameraUsageMonitor.GetRunningCameraAppNames();
+        Assert.NotNull(running);
+    }
+
     // ── 5. Settings Serialization & Migration ────────────────────────────────
 
     [Fact]

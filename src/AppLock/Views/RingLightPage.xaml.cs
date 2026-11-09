@@ -900,20 +900,27 @@ public sealed partial class RingLightPage : Page
         }
     }
 
-    private void TestCameraDetectButton_Click(object sender, RoutedEventArgs e)
+    private async void TestCameraDetectButton_Click(object sender, RoutedEventArgs e)
     {
+        TestCameraDetectButton.IsEnabled = false;
+        TestCameraStatusText.Text = "Testing camera status...";
+        TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+
         try
         {
-            var apps = ServiceContainer.RingLightService.CameraMonitor.GetActiveCameraApps();
-            var detectedCameras = ServiceContainer.RingLightService.CameraMonitor.GetInstalledCameras();
+            var result = await ServiceContainer.RingLightService.CameraMonitor.CheckCameraStatusAsync();
 
-            string hardwareInfo = detectedCameras.Count > 0
-                ? $"Camera found: {string.Join(", ", detectedCameras)}."
+            string hardwareInfo = result.InstalledCameras.Count > 0
+                ? $"Camera found: {string.Join(", ", result.InstalledCameras)}."
                 : "No camera hardware detected.";
 
-            if (apps.Count > 0)
+            if (result.IsStreaming)
             {
-                TestCameraStatusText.Text = $"{hardwareInfo} Currently in use by: {string.Join(", ", apps)}.";
+                string appsInfo = result.ActiveApps.Count > 0
+                    ? $"Currently in use by: {string.Join(", ", result.ActiveApps)}."
+                    : "Camera is actively streaming (in use).";
+
+                TestCameraStatusText.Text = $"{hardwareInfo} {appsInfo}";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
             }
             else
@@ -925,6 +932,10 @@ public sealed partial class RingLightPage : Page
         catch (Exception ex)
         {
             TestCameraStatusText.Text = $"Check failed: {ex.Message}";
+        }
+        finally
+        {
+            TestCameraDetectButton.IsEnabled = true;
         }
     }
 

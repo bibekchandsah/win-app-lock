@@ -1,14 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using AppLock.Models;
 using Microsoft.Win32;
+using Windows.Devices.Enumeration;
+using Windows.Media.Capture;
 
 namespace AppLock.Services.RingLight;
 
 /// <summary>
-/// Monitors Windows privacy consent store for webcam usage without accessing the camera.
+/// Status result returned when checking camera devices and active streaming state.
+/// </summary>
+public sealed class CameraCheckResult
+{
+    public bool HasHardware => InstalledCameras.Count > 0;
+    public IReadOnlyList<string> InstalledCameras { get; init; } = Array.Empty<string>();
+    public bool IsStreaming { get; init; }
+    public IReadOnlyList<string> ActiveApps { get; init; } = Array.Empty<string>();
+    public string? Reason { get; init; }
+}
+
+/// <summary>
+/// Monitors Windows privacy consent store and MediaCapture hardware streams for webcam usage.
 /// Implements 1-second continuous use debounce for 'On' and 5-second silence debounce for 'Off'.
 /// </summary>
 public sealed class CameraUsageMonitor : ICameraUsageSource
@@ -16,10 +32,30 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     private const string WebcamConsentSubKey =
         @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
 
+    private static readonly (string ProcessName, string DisplayName)[] KnownCameraProcesses = new[]
+    {
+        ("WindowsCamera", "Windows Camera"),
+        ("Teams", "Microsoft Teams"),
+        ("ms-teams", "Microsoft Teams"),
+        ("Zoom", "Zoom"),
+        ("Discord", "Discord"),
+        ("obs64", "OBS Studio"),
+        ("obs32", "OBS Studio"),
+        ("obs", "OBS Studio"),
+        ("Skype", "Skype"),
+        ("SkypeApp", "Skype"),
+        ("WhatsApp", "WhatsApp"),
+        ("Telegram", "Telegram"),
+        ("slack", "Slack"),
+        ("CamoStudio", "Camo Studio"),
+        ("viber", "Viber"),
+    };
+
     public event EventHandler<(bool InUse, IReadOnlyList<string> ActiveApps)>? CameraUsageChanged;
 
     private readonly object _lock = new();
     private Timer? _pollTimer;
+    private int _isPolling;
     private bool _isMonitoring;
     private bool _isDebouncedInUse;
     private int _consecutiveActiveSeconds;
@@ -126,6 +162,199 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         return list;
     }
 
+    /// <summary>
+    /// Enumerates video capture devices asynchronously via Windows.Devices.Enumeration,
+    /// falling back to WMI if empty.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetInstalledCamerasAsync()
+    {
+        var list = new List<string>();
+        try
+        {
+            var devices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+            foreach (var d in devices)
+            {
+                if (!string.IsNullOrWhiteSpace(d.Name) && !list.Contains(d.Name))
+                {
+                    list.Add(d.Name);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] DeviceInformation enumeration error: {ex.Message}");
+        }
+
+        if (list.Count == 0)
+        {
+            foreach (var c in GetInstalledCameras())
+            {
+                if (!list.Contains(c)) list.Add(c);
+            }
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// Probes each video capture device by attempting MediaCapture initialization.
+    /// If an exclusive stream is actively held by another app, initialization fails with
+    /// UnauthorizedAccessException or HRESULT 0xC00D3704 / ERROR_BUSY.
+    /// If the camera is free/idle, initialization succeeds and the capture object is immediately disposed.
+    /// </summary>
+    public async Task<(bool IsStreaming, string? DeviceName, string? Reason)> ProbeCameraStreamingAsync()
+    {
+        try
+        {
+            var devices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+            if (devices.Count == 0)
+                return (false, null, "No camera devices found");
+
+            foreach (var dev in devices)
+            {
+                if (!dev.IsEnabled) continue;
+
+                try
+                {
+                    using var capture = new MediaCapture();
+                    var initSettings = new MediaCaptureInitializationSettings
+                    {
+                        VideoDeviceId = dev.Id,
+                        StreamingCaptureMode = StreamingCaptureMode.Video
+                    };
+                    await capture.InitializeAsync(initSettings);
+                    // Successfully opened -> this camera is idle and available
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Camera stream is exclusively locked by another application
+                    return (true, dev.Name, "Access denied: stream locked by another app");
+                }
+                catch (System.Runtime.InteropServices.COMException comEx)
+                {
+                    return (true, dev.Name, $"Device busy (HRESULT 0x{comEx.HResult:X8})");
+                }
+                catch (Exception ex)
+                {
+                    return (true, dev.Name, ex.Message);
+                }
+            }
+
+            return (false, devices[0].Name, null);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Probe error: {ex.Message}");
+            return (false, null, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Checks running processes for known video conferencing or camera apps.
+    /// </summary>
+    public static IReadOnlyList<string> GetRunningCameraAppNames()
+    {
+        var found = new List<string>();
+        try
+        {
+            var processes = Process.GetProcesses();
+            foreach (var p in processes)
+            {
+                try
+                {
+                    var pName = p.ProcessName;
+                    foreach (var (proc, display) in KnownCameraProcesses)
+                    {
+                        if (pName.Equals(proc, StringComparison.OrdinalIgnoreCase) && !found.Contains(display))
+                        {
+                            found.Add(display);
+                        }
+                    }
+                }
+                catch { }
+                finally
+                {
+                    p.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Process scan error: {ex.Message}");
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// Performs an all-in-one check of camera hardware devices, MediaCapture streaming lock,
+    /// and active apps (both from ConsentStore and process detection).
+    /// </summary>
+    public async Task<CameraCheckResult> CheckCameraStatusAsync()
+    {
+        var installed = await GetInstalledCamerasAsync();
+        if (installed.Count == 0)
+        {
+            return new CameraCheckResult
+            {
+                InstalledCameras = Array.Empty<string>(),
+                IsStreaming = false,
+                ActiveApps = Array.Empty<string>(),
+                Reason = "No camera hardware detected"
+            };
+        }
+
+        // 1. Probe hardware via MediaCapture initialization
+        var (isStreaming, devName, reason) = await ProbeCameraStreamingAsync();
+
+        // 2. Collect any active apps from Windows privacy consent store
+        var activeApps = new List<string>(GetActiveCameraApps());
+
+        // 3. Collect any running dedicated camera apps (e.g. Windows Camera, Zoom, Teams)
+        var runningMeetingApps = GetRunningCameraAppNames();
+
+        if (isStreaming)
+        {
+            // Hardware lock detected: stream is in use!
+            foreach (var app in runningMeetingApps)
+            {
+                if (!activeApps.Contains(app)) activeApps.Add(app);
+            }
+
+            if (activeApps.Count == 0)
+            {
+                activeApps.Add("Active camera stream");
+            }
+
+            return new CameraCheckResult
+            {
+                InstalledCameras = installed,
+                IsStreaming = true,
+                ActiveApps = activeApps,
+                Reason = reason
+            };
+        }
+
+        // If probe succeeded (idle) but consent store had an active app, trust consent store
+        if (activeApps.Count > 0)
+        {
+            return new CameraCheckResult
+            {
+                InstalledCameras = installed,
+                IsStreaming = true,
+                ActiveApps = activeApps,
+                Reason = "Detected via Windows privacy consent store"
+            };
+        }
+
+        return new CameraCheckResult
+        {
+            InstalledCameras = installed,
+            IsStreaming = false,
+            ActiveApps = Array.Empty<string>(),
+            Reason = "Camera is idle"
+        };
+    }
+
     private static void ScanRegistryRoot(RegistryKey root, List<string> result)
     {
         using var baseKey = root.OpenSubKey(WebcamConsentSubKey);
@@ -206,40 +435,75 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private void OnPollTick(object? state)
+    private async void OnPollTick(object? state)
     {
         if (_disposed) return;
+        if (Interlocked.CompareExchange(ref _isPolling, 1, 0) != 0) return;
 
-        IReadOnlyList<string> activeApps;
-        lock (_lock)
+        try
         {
             if (!_isMonitoring) return;
-            activeApps = GetActiveCameraApps();
 
-            if (activeApps.Count > 0)
+            // 1. Check registry consent store
+            var activeApps = new List<string>(GetActiveCameraApps());
+
+            // 2. If consent store returned no apps, check if potential camera streaming app is active
+            var runningApps = GetRunningCameraAppNames();
+            bool hasPotentialStreamingApp = runningApps.Count > 0 || _isDebouncedInUse;
+
+            if (activeApps.Count == 0 && hasPotentialStreamingApp)
             {
-                _consecutiveActiveSeconds++;
-                _consecutiveInactiveSeconds = 0;
-
-                // 1 second of continuous use required to turn on
-                if (!_isDebouncedInUse && _consecutiveActiveSeconds >= 1)
+                var probe = await ProbeCameraStreamingAsync();
+                if (probe.IsStreaming)
                 {
-                    _isDebouncedInUse = true;
-                    NotifyUsageChanged(true, activeApps);
+                    foreach (var app in runningApps)
+                    {
+                        if (!activeApps.Contains(app)) activeApps.Add(app);
+                    }
+                    if (activeApps.Count == 0)
+                    {
+                        activeApps.Add("Camera");
+                    }
                 }
             }
-            else
-            {
-                _consecutiveInactiveSeconds++;
-                _consecutiveActiveSeconds = 0;
 
-                // 5 seconds of silence required to turn off
-                if (_isDebouncedInUse && _consecutiveInactiveSeconds >= 5)
+            lock (_lock)
+            {
+                if (!_isMonitoring) return;
+
+                if (activeApps.Count > 0)
                 {
-                    _isDebouncedInUse = false;
-                    NotifyUsageChanged(false, Array.Empty<string>());
+                    _consecutiveActiveSeconds++;
+                    _consecutiveInactiveSeconds = 0;
+
+                    // 1 second of continuous use required to turn on
+                    if (!_isDebouncedInUse && _consecutiveActiveSeconds >= 1)
+                    {
+                        _isDebouncedInUse = true;
+                        NotifyUsageChanged(true, activeApps);
+                    }
+                }
+                else
+                {
+                    _consecutiveInactiveSeconds++;
+                    _consecutiveActiveSeconds = 0;
+
+                    // 5 seconds of silence required to turn off
+                    if (_isDebouncedInUse && _consecutiveInactiveSeconds >= 5)
+                    {
+                        _isDebouncedInUse = false;
+                        NotifyUsageChanged(false, Array.Empty<string>());
+                    }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraUsageMonitor] Poll tick error: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isPolling, 0);
         }
     }
 
