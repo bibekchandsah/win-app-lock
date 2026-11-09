@@ -388,46 +388,65 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             Debug.WriteLine("[EyeCare] BrowseForTemplateAsync started");
-            
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Add(".html");
-            picker.FileTypeFilter.Add(".htm");
-            
-            Debug.WriteLine($"[EyeCare] App.MainWindowInstance is null: {App.MainWindowInstance == null}");
-            
-            if (App.MainWindowInstance == null)
-            {
-                Debug.WriteLine("[EyeCare] ERROR: MainWindowInstance is null!");
-                throw new InvalidOperationException("Main window instance is not available");
-            }
-            
-            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindowInstance);
-            Debug.WriteLine($"[EyeCare] Window handle: {hWnd}");
-            
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hWnd);
-            Debug.WriteLine("[EyeCare] Picker initialized, showing dialog...");
 
-            var file = await picker.PickSingleFileAsync();
-            Debug.WriteLine($"[EyeCare] File picked: {file?.Path ?? "null"}");
-            
-            if (file != null)
+            string? selectedPath = null;
+
+            // In unpackaged WinUI 3 desktop apps (especially running elevated), WinRT FileOpenPicker
+            // fails due to integrity level / pickerhost broker restrictions.
+            // Using Win32 OpenFileDialog ensures 100% reliable file selection.
+            using var openFileDialog = new System.Windows.Forms.OpenFileDialog
             {
+                Filter = "HTML Files (*.html;*.htm)|*.html;*.htm|All Files (*.*)|*.*",
+                FilterIndex = 1,
+                Title = "Select Eye Care Template",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                RestoreDirectory = true
+            };
+
+            var targetWin = App.MainWindowInstance ?? MainWindow.Instance;
+            System.Windows.Forms.DialogResult dialogResult;
+
+            if (targetWin != null)
+            {
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWin);
+                if (hWnd != 0)
+                {
+                    dialogResult = openFileDialog.ShowDialog(new Win32WindowWrapper(hWnd));
+                }
+                else
+                {
+                    dialogResult = openFileDialog.ShowDialog();
+                }
+            }
+            else
+            {
+                dialogResult = openFileDialog.ShowDialog();
+            }
+
+            if (dialogResult == System.Windows.Forms.DialogResult.OK && !string.IsNullOrWhiteSpace(openFileDialog.FileName))
+            {
+                selectedPath = openFileDialog.FileName;
+            }
+
+            if (!string.IsNullOrEmpty(selectedPath) && File.Exists(selectedPath))
+            {
+                var fileName = Path.GetFileName(selectedPath);
                 var templatesFolder = _overlayService.GetTemplatesFolder();
                 Directory.CreateDirectory(templatesFolder);
-                var targetPath = Path.Combine(templatesFolder, file.Name);
+                var targetPath = Path.Combine(templatesFolder, fileName);
 
                 try
                 {
-                    if (!string.Equals(file.Path, targetPath, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(selectedPath, targetPath, StringComparison.OrdinalIgnoreCase))
                     {
-                        File.Copy(file.Path, targetPath, overwrite: true);
+                        File.Copy(selectedPath, targetPath, overwrite: true);
                     }
                     ServiceContainer.Settings.EyeCare.TemplatePath = targetPath;
                 }
                 catch (Exception copyEx)
                 {
                     Debug.WriteLine($"[EyeCare] Failed to copy to templates folder: {copyEx.Message}");
-                    ServiceContainer.Settings.EyeCare.TemplatePath = file.Path;
+                    ServiceContainer.Settings.EyeCare.TemplatePath = selectedPath;
                 }
 
                 SaveSettings();
@@ -441,6 +460,13 @@ public class EyeCareViewModel : INotifyPropertyChanged, IDisposable
             Debug.WriteLine($"[EyeCare] Stack trace: {ex.StackTrace}");
             throw; // Re-throw so the UI handler can catch it
         }
+
+        await Task.CompletedTask;
+    }
+
+    private sealed class Win32WindowWrapper(nint handle) : System.Windows.Forms.IWin32Window
+    {
+        public nint Handle { get; } = handle;
     }
 
     public void OpenTemplatesFolder()
