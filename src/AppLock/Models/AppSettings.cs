@@ -67,6 +67,9 @@ public class AppSettings
     // Ring Light
     public RingLightSettings RingLight { get; set; } = new();
 
+    // Volume Mixer
+    public VolumeMixerSettings VolumeMixer { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

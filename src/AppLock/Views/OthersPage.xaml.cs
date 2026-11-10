@@ -14,6 +14,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? EyeCareTemplate { get; set; }
     public DataTemplate? ClipboardTemplate { get; set; }
     public DataTemplate? RingLightTemplate { get; set; }
+    public DataTemplate? VolumeMixerTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -25,6 +26,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "eyecare" => EyeCareTemplate,
                 "clipboard" => ClipboardTemplate,
                 "ringlight" => RingLightTemplate,
+                "volumemixer" => VolumeMixerTemplate,
                 _ => null
             };
         }
@@ -59,9 +61,12 @@ public sealed partial class OthersPage : Page
         ServiceContainer.RingLightEnabledChanged += OnRingLightEnabledChanged;
         ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
         ServiceContainer.RingLightService.EnabledChanged += OnRingLightServiceChanged;
+        ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+        ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
         UpdateRingLightCardState();
+        UpdateVolumeMixerCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -71,6 +76,7 @@ public sealed partial class OthersPage : Page
         ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
         ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
         ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
+        ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
     }
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
@@ -78,6 +84,7 @@ public sealed partial class OthersPage : Page
     private void OnEyeCareEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateEyeCareCardState);
     private void OnRingLightEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
     private void OnRingLightServiceChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
+    private void OnVolumeMixerEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateVolumeMixerCardState);
 
     private void UpdateClipboardCardState()
     {
@@ -103,6 +110,15 @@ public sealed partial class OthersPage : Page
         if (card == null) return;
         card.RingLightEnabled = ServiceContainer.RingLightService.IsOn;
         // Status text is hidden for ring light card; toggle state is visible via quick settings
+    }
+
+    private void UpdateVolumeMixerCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "volumemixer");
+        if (card != null)
+        {
+            card.VolumeMixerEnabled = ServiceContainer.Settings.VolumeMixer.Enabled;
+        }
     }
 
     private void LoadUtilityCards()
@@ -163,6 +179,22 @@ public sealed partial class OthersPage : Page
                 EyeCareEnabled = false,
                 ClipboardEnabled = false,
                 RingLightEnabled = ServiceContainer.Settings.RingLight.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "volumemixer",
+                Order = 60,
+                Icon = "\uE767", // Volume icon
+                Title = "Volume Mixer",
+                Description = "Floating overlay with master volume and per-app mixer",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = false,
+                ClipboardEnabled = false,
+                RingLightEnabled = false,
+                VolumeMixerEnabled = ServiceContainer.Settings.VolumeMixer.Enabled
             }
         };
 
@@ -196,6 +228,10 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(RingLightPage));
             }
+            else if (card.Id == "volumemixer")
+            {
+                Frame.Navigate(typeof(VolumeMixerSettingsPage));
+            }
         }
     }
 
@@ -221,10 +257,10 @@ public sealed partial class OthersPage : Page
 
     private void CardExpander_Loaded(object sender, RoutedEventArgs e)
     {
-        // Show expander for brightness, eyecare, clipboard, and ringlight cards
+        // Show expander for brightness, eyecare, clipboard, ringlight, and volumemixer cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight")
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer")
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -298,6 +334,15 @@ public sealed partial class OthersPage : Page
             UpdateRingLightCardState();
         }
     }
+
+    private void VolumeMixerToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
+        {
+            card.VolumeMixerEnabled = toggle.IsOn;
+            ServiceContainer.SetVolumeMixerEnabled(toggle.IsOn);
+        }
+    }
 }
 
 public class UtilityCard : INotifyPropertyChanged
@@ -319,11 +364,13 @@ public class UtilityCard : INotifyPropertyChanged
     public bool IsEyeCareCard => Id == "eyecare";
     public bool IsClipboardCard => Id == "clipboard";
     public bool IsRingLightCard => Id == "ringlight";
+    public bool IsVolumeMixerCard => Id == "volumemixer";
     
     public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ClipboardContentVisibility => IsClipboardCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RingLightContentVisibility => IsRingLightCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility VolumeMixerContentVisibility => IsVolumeMixerCard ? Visibility.Visible : Visibility.Collapsed;
     
     public string Status
     {
@@ -401,6 +448,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_ringLightEnabled != value)
             {
                 _ringLightEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _volumeMixerEnabled;
+    public bool VolumeMixerEnabled
+    {
+        get => _volumeMixerEnabled;
+        set
+        {
+            if (_volumeMixerEnabled != value)
+            {
+                _volumeMixerEnabled = value;
                 OnPropertyChanged();
             }
         }

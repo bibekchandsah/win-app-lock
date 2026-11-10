@@ -47,6 +47,7 @@
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.2.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>

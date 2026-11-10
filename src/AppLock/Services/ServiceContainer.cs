@@ -41,6 +41,7 @@ public static class ServiceContainer
     private static ClipboardPasteService? _clipboardPasteService;
     private static ClipboardExportService? _clipboardExportService;
     private static AppLock.Services.RingLight.RingLightService? _ringLightService;
+    private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
 
     public static NotificationService NotificationService
     {
@@ -313,6 +314,8 @@ public static class ServiceContainer
         _eyeCareScheduler?.Dispose();
         _eyeCareScheduler = null;
         _eyeCareOverlayService = null;
+        _volumeOverlayService?.Dispose();
+        _volumeOverlayService = null;
     }
 
     public static SelfDisciplineService GetOrCreateSelfDisciplineService(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
@@ -553,6 +556,43 @@ public static class ServiceContainer
     {
         RingLightService.SetEnabled(enabled, "user");
         RingLightEnabledChanged?.Invoke(null, enabled);
+    }
+
+    // ── Volume Mixer ──────────────────────────────────────────────────────────
+
+    public static AppLock.Services.VolumeMixer.VolumeOverlayService? VolumeOverlayService => _volumeOverlayService;
+
+    public static event EventHandler<bool>? VolumeMixerEnabledChanged;
+
+    public static void SetVolumeMixerEnabled(bool enabled)
+    {
+        Settings.VolumeMixer.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            _volumeOverlayService?.Start();
+        }
+        else
+        {
+            _volumeOverlayService?.Stop();
+        }
+        
+        VolumeMixerEnabledChanged?.Invoke(null, enabled);
+    }
+
+    public static void InitializeVolumeMixer(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_volumeOverlayService == null)
+        {
+            _volumeOverlayService = new AppLock.Services.VolumeMixer.VolumeOverlayService(dispatcherQueue);
+
+            // Auto-start if enabled
+            if (Settings.VolumeMixer.Enabled)
+            {
+                _volumeOverlayService.Start();
+            }
+        }
     }
 
     public static void InitializeEyeCare(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)

@@ -22,9 +22,23 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Check for command-line arguments (--minimized for startup)
+        var cmdArgs = Environment.GetCommandLineArgs();
+        var startMinimized = cmdArgs.Any(arg => arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase) || 
+                                                  arg.Equals("--startup", StringComparison.OrdinalIgnoreCase));
+
         _mainWindow = new MainWindow();
         MainWindowInstance = _mainWindow;
-        _mainWindow.Activate();
+        
+        // Only activate (show) window if not starting minimized
+        if (!startMinimized)
+        {
+            _mainWindow.Activate();
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[App] Started minimized (startup mode)");
+        }
 
         // Apply process tamper protection & launch independent watchdog after window is up
         AppLock.Services.ProcessProtectionService.ProtectCurrentProcess();
@@ -49,6 +63,12 @@ public partial class App : Application
                 AppLock.Views.ClipboardPopupWindow.Toggle();
             });
         };
+
+        // Initialize Volume Mixer overlay
+        if (_mainWindow?.DispatcherQueue != null)
+        {
+            AppLock.Services.ServiceContainer.InitializeVolumeMixer(_mainWindow.DispatcherQueue);
+        }
 
         // Wire session lock change to dismiss popup immediately on lock screen
         AppLock.Services.ServiceContainer.ClipboardMonitor.SessionLockChanged += (s, isLocked) =>

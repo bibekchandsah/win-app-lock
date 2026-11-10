@@ -75,6 +75,13 @@ public class SettingsStore
             modified = true;
         }
 
+        if (settings.VolumeMixer == null)
+        {
+            settings.VolumeMixer = new VolumeMixerSettings();
+            modified = true;
+        }
+        settings.VolumeMixer.Clamp();
+
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         foreach (var rule in settings.LockRules)

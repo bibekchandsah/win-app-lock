@@ -122,12 +122,41 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Volume Mixer Card Template -->
+        <DataTemplate x:Key="VolumeMixerTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Volume Mixer Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Floating Volume Overlay"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable the volume mixer overlay"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind VolumeMixerEnabled, Mode=TwoWay}"
+                                  Toggled="VolumeMixerToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
                                            EyeCareTemplate="{StaticResource EyeCareTemplate}"
                                            ClipboardTemplate="{StaticResource ClipboardTemplate}"
-                                           RingLightTemplate="{StaticResource RingLightTemplate}"/>
+                                           RingLightTemplate="{StaticResource RingLightTemplate}"
+                                           VolumeMixerTemplate="{StaticResource VolumeMixerTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">
