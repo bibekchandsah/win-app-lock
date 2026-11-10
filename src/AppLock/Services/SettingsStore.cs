@@ -82,6 +82,14 @@ public class SettingsStore
         }
         settings.VolumeMixer.Clamp();
 
+        // Migration: Change Win+V to Alt+V (Win+V conflicts with clipboard)
+        if (settings.VolumeMixer.Hotkey == "Win+V")
+        {
+            settings.VolumeMixer.Hotkey = "Alt+V";
+            modified = true;
+            System.Diagnostics.Debug.WriteLine("[SettingsStore] Migrated Volume Mixer hotkey: Win+V → Alt+V");
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         foreach (var rule in settings.LockRules)

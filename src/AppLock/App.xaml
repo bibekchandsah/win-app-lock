@@ -172,6 +172,15 @@
                         
                         <MenuFlyoutSeparator/>
                         
+                        <!-- Volume Mixer Controls -->
+                        <MenuFlyoutItem x:Name="VolumeMixerToggleMenuItem" Text="Enable Volume Mixer">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE767;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        
+                        <MenuFlyoutSeparator/>
+                        
                         <MenuFlyoutItem x:Name="ExitMenuItem" Text="Exit">
                             <MenuFlyoutItem.Icon>
                                 <FontIcon Glyph="&#xE711;"/>

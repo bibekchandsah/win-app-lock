@@ -42,6 +42,7 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _eyeCareInterval60mItem;
     private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
     private MenuFlyoutItem? _ringLightToggleMenuItem;
+    private MenuFlyoutItem? _volumeMixerToggleMenuItem;  // ADD THIS
     private MenuFlyoutSubItem? _ringLightPresetsSubItem;
     private ToggleMenuFlyoutItem? _presetWarmMenuItem;
     private ToggleMenuFlyoutItem? _presetNeutralMenuItem;
@@ -66,6 +67,7 @@ public sealed class TrayService : IDisposable
     public event EventHandler<bool>? ProtectionToggleRequested;
     public event EventHandler<bool>? BrightnessHotkeysToggleRequested;
     public event EventHandler<bool>? BlurHotkeyToggleRequested;
+    public event EventHandler<bool>? VolumeMixerToggleRequested;  // ADD THIS
 
     public TrayService(SettingsStore settingsStore, AuthService authService, LockManager lockManager)
     {
@@ -118,6 +120,8 @@ public sealed class TrayService : IDisposable
                             _eyeCareToggleMenuItem = mfi;
                         else if (mfi.Name == "RingLightToggleMenuItem" || text.Contains("Ring Light", StringComparison.OrdinalIgnoreCase))
                             _ringLightToggleMenuItem = mfi;
+                        else if (mfi.Name == "VolumeMixerToggleMenuItem" || text.Contains("Volume Mixer", StringComparison.OrdinalIgnoreCase))
+                            _volumeMixerToggleMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -378,6 +382,18 @@ public sealed class TrayService : IDisposable
                     _ringLightToggleMenuItem.Command = new RelayCommand(toggleRingLight);
                 }
 
+                if (_volumeMixerToggleMenuItem != null)
+                {
+                    Action toggleVolumeMixer = () =>
+                    {
+                        bool newEnabled = !ServiceContainer.Settings.VolumeMixer.Enabled;
+                        VolumeMixerToggleRequested?.Invoke(this, newEnabled);
+                        UpdateVolumeMixerMenuItem();
+                    };
+                    _volumeMixerToggleMenuItem.Click += (s, e) => toggleVolumeMixer();
+                    _volumeMixerToggleMenuItem.Command = new RelayCommand(toggleVolumeMixer);
+                }
+
                 void WirePresetItem(ToggleMenuFlyoutItem? item, string presetId)
                 {
                     if (item == null) return;
@@ -465,6 +481,7 @@ public sealed class TrayService : IDisposable
             UpdateClipboardMenuItems();
             UpdateEyeCareMenuItems();
             UpdateRingLightMenuItem();
+            UpdateVolumeMixerMenuItem();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
 
@@ -485,6 +502,9 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.RingLightService.SettingsLiveChanged -= OnRingLightSettingsLiveChanged;
             ServiceContainer.RingLightService.SettingsLiveChanged += OnRingLightSettingsLiveChanged;
+
+            ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+            ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -717,6 +737,28 @@ public sealed class TrayService : IDisposable
     {
         var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
         dispatcher?.TryEnqueue(UpdateRingLightMenuItem);
+    }
+
+    private void OnVolumeMixerEnabledChanged(object? sender, bool enabled)
+    {
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(UpdateVolumeMixerMenuItem);
+    }
+
+    public void UpdateVolumeMixerMenuItem()
+    {
+        try
+        {
+            if (_volumeMixerToggleMenuItem != null)
+            {
+                bool enabled = ServiceContainer.Settings.VolumeMixer.Enabled;
+                _volumeMixerToggleMenuItem.Text = enabled ? "Disable Volume Mixer" : "Enable Volume Mixer";
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating volume mixer menu: {ex.Message}");
+        }
     }
 
     public void UpdateRingLightMenuItem()

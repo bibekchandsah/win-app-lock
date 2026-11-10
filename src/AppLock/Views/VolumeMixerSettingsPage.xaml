@@ -6,6 +6,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
+    Loaded="VolumeMixerSettingsPage_Loaded"
+    Unloaded="VolumeMixerSettingsPage_Unloaded"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid Padding="24,20,24,24">
@@ -69,6 +71,76 @@
                 </TabViewItem.IconSource>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,16,16,16">
                     <StackPanel Spacing="8" MaxWidth="800" HorizontalAlignment="Left">
+
+                        <!-- Enable Volume Mixer -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Enable Volume Mixer" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Toggle the floating volume overlay on or off"
+                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="EnabledToggle"
+                                              Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              Toggled="EnabledToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Hotkey Configuration -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Header -->
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Toggle Hotkey" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Keyboard shortcut to show/hide Volume Mixer"
+                                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="HotkeyEnabledToggle"
+                                                  Grid.Column="1"
+                                                  VerticalAlignment="Center"
+                                                  Toggled="HotkeyEnabledToggle_Toggled"/>
+                                </Grid>
+                                
+                                <!-- Hotkey Input -->
+                                <Grid Grid.Row="1" Margin="0,12,0,0" Visibility="{x:Bind HotkeyEnabledToggle.IsOn, Mode=OneWay}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Hotkey:" VerticalAlignment="Center" Margin="0,0,12,0"
+                                               FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                        <TextBox x:Name="HotkeyTextBox"
+                                                 IsReadOnly="True"
+                                                 MinWidth="120"
+                                                 VerticalAlignment="Center"/>
+                                        <Button Content="Change" Click="ChangeHotkeyButton_Click"/>
+                                        <Button Content="Reset" Click="ResetHotkeyButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
 
                         <!-- Icon Position -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

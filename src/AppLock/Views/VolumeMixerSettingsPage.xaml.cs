@@ -40,6 +40,29 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         LoadSettings();
     }
 
+    private void VolumeMixerSettingsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Subscribe to real-time updates
+        ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+        ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
+    }
+
+    private void VolumeMixerSettingsPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        // Unsubscribe from events
+        ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+    }
+
+    private void OnVolumeMixerEnabledChanged(object? sender, bool enabled)
+    {
+        // Update UI on dispatcher queue when toggled from tray/hotkey
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            EnabledToggle.IsOn = enabled;
+            System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer UI updated: {enabled}");
+        });
+    }
+
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
         if (Frame.CanGoBack) Frame.GoBack();
@@ -48,6 +71,11 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     private void LoadSettings()
     {
         var s = ServiceContainer.Settings.VolumeMixer;
+
+        // Enable/Hotkey
+        EnabledToggle.IsOn = s.Enabled;
+        HotkeyEnabledToggle.IsOn = s.HotkeyEnabled;
+        HotkeyTextBox.Text = s.Hotkey;
 
         // Appearance
         IconPositionComboBox.SelectedIndex = s.IconPosition switch
@@ -83,6 +111,72 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     private void SaveSettings() => ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
     // ── Appearance ────────────────────────────────────────────────────────────
+
+    private void EnabledToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        bool enabled = EnabledToggle.IsOn;
+        ServiceContainer.Settings.VolumeMixer.Enabled = enabled;
+        SaveSettings();
+        
+        // Update service
+        ServiceContainer.SetVolumeMixerEnabled(enabled);
+        
+        System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer {(enabled ? "enabled" : "disabled")}");
+    }
+
+    private void HotkeyEnabledToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.Settings.VolumeMixer.HotkeyEnabled = HotkeyEnabledToggle.IsOn;
+        SaveSettings();
+        
+        // Re-register hotkeys
+        ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
+        
+        System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer hotkey {(HotkeyEnabledToggle.IsOn ? "enabled" : "disabled")}");
+    }
+
+    private async void ChangeHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var currentHotkey = ServiceContainer.Settings.VolumeMixer.Hotkey;
+        
+        var dialog = new ChangeHotkeyDialog(currentHotkey)
+        {
+            XamlRoot = this.XamlRoot
+        };
+
+        await dialog.ShowAsync();
+
+        if (dialog.HotkeyChanged && !string.IsNullOrEmpty(dialog.NewHotkey))
+        {
+            // Update the hotkey
+            var oldHotkey = ServiceContainer.Settings.VolumeMixer.Hotkey;
+            ServiceContainer.Settings.VolumeMixer.Hotkey = dialog.NewHotkey;
+            HotkeyTextBox.Text = dialog.NewHotkey;
+            SaveSettings();
+            
+            // Re-register hotkey
+            ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
+            
+            System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer hotkey changed from {oldHotkey} to {dialog.NewHotkey}");
+            
+            // Show success notification (optional)
+            ServiceContainer.NotificationService?.ShowSuccess(
+                "Hotkey Changed",
+                $"Volume Mixer hotkey changed to: {dialog.NewHotkey}");
+        }
+    }
+
+    private void ResetHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.Settings.VolumeMixer.Hotkey = "Alt+V";
+        HotkeyTextBox.Text = "Alt+V";
+        SaveSettings();
+        
+        // Re-register with default hotkey
+        ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
+        
+        System.Diagnostics.Debug.WriteLine("[Settings] Volume Mixer hotkey reset to Alt+V");
+    }
 
     private void IconPositionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

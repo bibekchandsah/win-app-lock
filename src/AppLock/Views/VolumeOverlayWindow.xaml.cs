@@ -303,8 +303,12 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void StartPolling()
     {
+        // Stop existing timer if running
         if (_pollingTimer != null)
-            return;
+        {
+            _pollingTimer.Stop();
+            _pollingTimer = null;
+        }
 
         var settings = ServiceContainer.Settings.VolumeMixer;
         _pollingTimer = DispatcherQueue.CreateTimer();
@@ -934,6 +938,9 @@ public sealed partial class VolumeOverlayWindow : Window
         }
         else
         {
+            // Reload settings to pick up any changes made in settings page
+            ApplySettings();
+            
             // Clear stale rows so polling always starts fresh
             _appSessions.Clear();
             AppRowsContainer.Children.Clear();
@@ -1264,8 +1271,12 @@ public sealed partial class VolumeOverlayWindow : Window
 
     // ── Public API ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Called when settings change externally - reapplies all settings to the window.
+    /// </summary>
     public void RefreshSettings()
     {
+        System.Diagnostics.Debug.WriteLine("[VolumeMixer] RefreshSettings called");
         ApplySettings();
         ApplyTheme();
         PositionWindow();

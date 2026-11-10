@@ -707,6 +707,9 @@ public sealed partial class MainWindow : Window
         // Initialize global brightness hotkeys
         ServiceContainer.InitializeBrightnessHotkeys(DispatcherQueue);
 
+        // Initialize Volume Mixer hotkeys
+        ServiceContainer.InitializeVolumeMixerHotkeys(DispatcherQueue);
+
         // Initialize Eye Care scheduler
         ServiceContainer.InitializeEyeCare(DispatcherQueue);
 
@@ -786,6 +789,11 @@ public sealed partial class MainWindow : Window
             ServiceContainer.TrayService.BlurHotkeyToggleRequested += (s, newState) =>
             {
                 DispatcherQueue.TryEnqueue(() => HandleBlurHotkeyToggle(newState));
+            };
+            
+            ServiceContainer.TrayService.VolumeMixerToggleRequested += (s, newState) =>
+            {
+                DispatcherQueue.TryEnqueue(() => HandleVolumeMixerToggle(newState));
             };
             
             System.Diagnostics.Debug.WriteLine("Tray service initialized");
@@ -878,6 +886,21 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error toggling blur hotkey: {ex.Message}");
+        }
+    }
+
+    private void HandleVolumeMixerToggle(bool enable)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Volume Mixer toggle requested from tray: {enable}");
+            ServiceContainer.SetVolumeMixerEnabled(enable);
+            
+            System.Diagnostics.Debug.WriteLine($"Volume Mixer {(enable ? "enabled" : "disabled")} from tray");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error toggling Volume Mixer: {ex.Message}");
         }
     }
 

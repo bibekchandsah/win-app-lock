@@ -42,6 +42,7 @@ public static class ServiceContainer
     private static ClipboardExportService? _clipboardExportService;
     private static AppLock.Services.RingLight.RingLightService? _ringLightService;
     private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
+    private static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? _volumeMixerHotkeyManager;
 
     public static NotificationService NotificationService
     {
@@ -283,6 +284,7 @@ public static class ServiceContainer
         _thumbnailService?.Dispose();
         _windowEventMonitor?.Dispose();
         _brightnessHotkeyManager?.Dispose();
+        _volumeMixerHotkeyManager?.Dispose();
         
         _settingsStore = null;
         _settings = null;
@@ -311,6 +313,7 @@ public static class ServiceContainer
         _startupTaskService = null;
         _autoUnlockService = null;
         _brightnessHotkeyManager = null;
+        _volumeMixerHotkeyManager = null;
         _eyeCareScheduler?.Dispose();
         _eyeCareScheduler = null;
         _eyeCareOverlayService = null;
@@ -578,8 +581,13 @@ public static class ServiceContainer
             _volumeOverlayService?.Stop();
         }
         
+        // Update tray menu
+        TrayService?.UpdateVolumeMixerMenuItem();
+        
         VolumeMixerEnabledChanged?.Invoke(null, enabled);
     }
+
+    public static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? VolumeMixerHotkeyManager => _volumeMixerHotkeyManager;
 
     public static void InitializeVolumeMixer(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
@@ -592,6 +600,29 @@ public static class ServiceContainer
             {
                 _volumeOverlayService.Start();
             }
+        }
+    }
+
+    public static void InitializeVolumeMixerHotkeys(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        System.Diagnostics.Debug.WriteLine("[ServiceContainer] InitializeVolumeMixerHotkeys called");
+        
+        if (_volumeMixerHotkeyManager == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[ServiceContainer] Creating VolumeMixerHotkeyManager...");
+            
+            _volumeMixerHotkeyManager = new AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager(
+                HotkeyService,
+                dispatcherQueue);
+            
+            System.Diagnostics.Debug.WriteLine("[ServiceContainer] Calling RegisterHotkey...");
+            _volumeMixerHotkeyManager.RegisterHotkey();
+            
+            System.Diagnostics.Debug.WriteLine("[ServiceContainer] Volume Mixer hotkeys initialized");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[ServiceContainer] VolumeMixerHotkeyManager already exists");
         }
     }
 

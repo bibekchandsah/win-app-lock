@@ -6,6 +6,8 @@ namespace AppLock.Models;
 public sealed class VolumeMixerSettings
 {
     public bool Enabled { get; set; } = false;
+    public bool HotkeyEnabled { get; set; } = true;  // Master switch for hotkey
+    public string Hotkey { get; set; } = "Alt+V";    // Default hotkey (Win+V conflicts with clipboard)
     public string IconPosition { get; set; } = "top-center";
     public int IconSize { get; set; } = 32;
     public int IdleOpacity { get; set; } = 50;
@@ -45,6 +47,10 @@ public sealed class VolumeMixerSettings
         // Theme mode
         if (ThemeMode != "Light" && ThemeMode != "Dark" && ThemeMode != "System")
             ThemeMode = "System";
+
+        // Hotkey string validation
+        if (string.IsNullOrWhiteSpace(Hotkey))
+            Hotkey = "Alt+V";
 
         // Blacklist: ensure all items are normalized
         if (Blacklist != null && Blacklist.Count > 0)
