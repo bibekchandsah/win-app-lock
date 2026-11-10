@@ -61,7 +61,7 @@
                     <Border Grid.Row="1" Height="1"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                             Margin="0,2,0,0"/>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320" Padding="0,0,2,0">
                         <StackPanel x:Name="AppRowsContainerAbove" Spacing="6">
                             <TextBlock x:Name="EmptyStateTextAbove"
                                        Text="No apps playing audio"
@@ -186,7 +186,7 @@
                     <Border Grid.Row="1" Height="1"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                             Margin="0,2,0,0"/>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320" Padding="0,0,2,0">
                         <StackPanel x:Name="AppRowsContainer" Spacing="6">
                             <TextBlock x:Name="EmptyStateText"
                                        Text="No apps playing audio"

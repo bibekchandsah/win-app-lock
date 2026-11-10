@@ -347,6 +347,10 @@ public sealed partial class VolumeOverlayWindow : Window
         try
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: received {sessions.Count} sessions");
+            foreach (var s in sessions)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Session: PID={s.ProcessId}, Name={GetProcessName(s.ProcessId)}, State={s.State}");
+            }
             
             var settings = ServiceContainer.Settings.VolumeMixer;
 
@@ -486,11 +490,15 @@ public sealed partial class VolumeOverlayWindow : Window
 
         UpdateEmptyState();
         
-        // Resize window to fit the new row count
+        // Resize window to fit the new row count after a short delay to ensure layout is complete
         if (_state == OverlayState.MixerOpen)
         {
-            ResizeWindowToContent();
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized window for {_appSessions.Count} apps");
+            // Use DispatcherQueue to defer resize until after layout pass
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                ResizeWindowToContent();
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized window for {_appSessions.Count} apps");
+            });
         }
     }
 
@@ -539,7 +547,8 @@ public sealed partial class VolumeOverlayWindow : Window
             Minimum = 0, Maximum = 100,
             Value = viewModel.VolumePercent,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0)
+            Margin = new Thickness(0),
+            UseSystemFocusVisuals = false  // Disable focus visual to prevent rectangular outline
         };
         slider.SetValue(Grid.ColumnProperty, 1);
         grid.Children.Add(slider);
@@ -605,15 +614,39 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
+            // Strip .exe extension
             var name = processExeName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                 ? processExeName[..^4] : processExeName;
 
+            // Try to find the process
             var proc = Process.GetProcessesByName(name).FirstOrDefault();
-            if (proc == null) return;
+            
+            // Special handling for processes with different names
+            if (proc == null)
+            {
+                // Handle "whatsapp.root" -> look for "WhatsApp" process
+                if (name.Contains("whatsapp", StringComparison.OrdinalIgnoreCase))
+                {
+                    proc = Process.GetProcessesByName("WhatsApp").FirstOrDefault();
+                }
+                // Handle other edge cases here
+            }
+            
+            if (proc == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Icon load: process '{name}' not found");
+                return;
+            }
 
             string? exePath = null;
             try { exePath = proc.MainModule?.FileName; } catch { }
-            if (string.IsNullOrEmpty(exePath) || !System.IO.File.Exists(exePath)) return;
+            if (string.IsNullOrEmpty(exePath) || !System.IO.File.Exists(exePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Icon load: exe path not found for '{name}'");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Loading icon from: {exePath}");
 
             // Extract icon bytes on background thread
             byte[]? pngBytes = await System.Threading.Tasks.Task.Run(() =>
@@ -983,10 +1016,28 @@ public sealed partial class VolumeOverlayWindow : Window
                 // Bar width + at least 340 to fit the mixer panel (MinWidth=320 + 2*14 padding)
                 barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
                 totalWidth  = Math.Max(barWidth, 348);
-                // bar + 6px gap + panel (header ~36 + divider 1 + up to 5 rows * ~52 + padding 24)
-                int panelHeight = 36 + 1 + Math.Min(_appSessions.Count, 5) * 52 + 24 + 20;
-                panelHeight = Math.Max(panelHeight, 100); // at least some height when empty
+                
+                // Calculate panel height based on app count (more reliable than Measure)
+                // - Header "Volume Mixer": ~28px
+                // - Divider: ~15px  
+                // - Each app row: ~40px (Grid with slider)
+                // - StackPanel spacing: 6px between rows
+                // - Border padding: 26px (top 12 + bottom 14)
+                int headerHeight = 28;
+                int dividerHeight = 15;
+                int rowHeight = 40;
+                int appCount = _appSessions.Count;
+                int spacingHeight = appCount > 1 ? (appCount - 1) * 6 : 0;
+                int contentHeight = (appCount * rowHeight) + spacingHeight;
+                int paddingHeight = 26;
+                
+                int panelHeight = headerHeight + dividerHeight + contentHeight + paddingHeight;
+                panelHeight = Math.Max(panelHeight, 100); // minimum when empty
+                panelHeight = Math.Min(panelHeight, 400); // respect MaxHeight
+                
                 totalHeight = barHeight + 6 + panelHeight;
+                
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Calculated height: apps={appCount}, panelH={panelHeight}, totalH={totalHeight}");
             }
             else // Expanded
             {
