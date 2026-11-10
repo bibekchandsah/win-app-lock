@@ -7,7 +7,17 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <!-- Root grid with backdrop and dynamic size -->
+    <!--
+        Layout: RootGrid → StackPanel (vertical)
+          ┌─────────────────────────────┐
+          │  MixerPanel  (Collapsed)    │  ← appears above bar for bottom-* icon positions
+          │  CardBorder  (pill bar)     │  ← always visible when enabled
+          │  MixerPanel  (Collapsed)    │  ← appears below bar for top-* icon positions
+          └─────────────────────────────┘
+        Only one of the two MixerPanel slots is ever Visible at a time.
+        Using a StackPanel means the mixer extends the window vertically without overlapping.
+    -->
+
     <Grid x:Name="RootGrid"
           PointerEntered="RootGrid_PointerEntered"
           PointerExited="RootGrid_PointerExited"
@@ -16,153 +26,189 @@
           PointerReleased="RootGrid_PointerReleased"
           KeyDown="RootGrid_KeyDown"
           Background="Transparent">
-        
-        <!-- Main card container -->
-        <Border x:Name="CardBorder"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="20"
-                Padding="12,8">
-            
-            <Grid x:Name="ContentGrid">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- Speaker icon -->
-                    <ColumnDefinition Width="Auto"/> <!-- Slider (hidden when idle) -->
-                    <ColumnDefinition Width="Auto"/> <!-- Percent text (hidden when idle) -->
-                    <ColumnDefinition Width="Auto"/> <!-- Mixer button (hidden when idle) -->
-                </Grid.ColumnDefinitions>
-                
-                <!-- Speaker Icon -->
-                <Button x:Name="SpeakerButton"
-                        Grid.Column="0"
-                        Click="SpeakerButton_Click"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Width="32"
-                        Height="32"
-                        Padding="0"
-                        CornerRadius="16"
-                        AutomationProperties.Name="Master volume mute toggle"
-                        AutomationProperties.HelpText="Click to mute or unmute system audio">
-                    <FontIcon x:Name="SpeakerIcon"
-                              Glyph="&#xE767;"
-                              FontSize="20"
-                              Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                </Button>
 
-                <!-- Master Volume Slider (expanded state) -->
-                <Slider x:Name="MasterVolumeSlider"
-                        Grid.Column="1"
-                        Minimum="0"
-                        Maximum="100"
-                        Value="50"
-                        Width="200"
-                        VerticalAlignment="Center"
-                        Margin="12,0,0,0"
-                        Visibility="Collapsed"
-                        ValueChanged="MasterVolumeSlider_ValueChanged"
-                        PointerWheelChanged="MasterVolumeSlider_PointerWheelChanged"
-                        AutomationProperties.Name="Master volume"
-                        AutomationProperties.HelpText="Adjust system volume level. Use mouse wheel or arrow keys."/>
+        <StackPanel x:Name="LayoutRoot"
+                    Orientation="Vertical"
+                    Spacing="6">
 
-                <!-- Percent Text -->
-                <TextBlock x:Name="PercentText"
-                           Grid.Column="2"
-                           Text="50%"
-                           FontSize="13"
-                           MinWidth="44"
-                           TextAlignment="Right"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0"
-                           Visibility="Collapsed"
-                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                           AutomationProperties.LiveSetting="Polite"/>
-
-                <!-- Mixer Button -->
-                <Button x:Name="MixerButton"
-                        Grid.Column="3"
-                        Click="MixerButton_Click"
-                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        Width="32"
-                        Height="32"
-                        Padding="0"
-                        Margin="8,0,0,0"
-                        CornerRadius="16"
-                        Visibility="Collapsed"
-                        AutomationProperties.Name="Open volume mixer"
-                        AutomationProperties.HelpText="Show per-application volume controls">
-                    <FontIcon Glyph="&#xE9E9;"
-                              FontSize="14"
-                              Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- Mixer Panel (popup) -->
-        <Border x:Name="MixerPanel"
-                Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
-                Padding="16"
-                Visibility="Collapsed"
-                MaxHeight="360"
-                MinWidth="320"
-                VerticalAlignment="Top"
-                Margin="0,60,0,0"
-                PointerEntered="MixerPanel_PointerEntered"
-                PointerExited="MixerPanel_PointerExited">
-
-            <Grid RowSpacing="12">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <!-- Header -->
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE9E9;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                    <TextBlock Text="Volume Mixer" 
-                               FontSize="14" 
-                               FontWeight="SemiBold"
+            <!-- ══════════════════════════════════════════════════
+                 MIXER PANEL — above the bar (bottom-* positions)
+                 ══════════════════════════════════════════════════ -->
+            <Border x:Name="MixerPanelAbove"
+                    Visibility="Collapsed"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    Padding="14,12,14,14"
+                    MinWidth="320"
+                    MaxHeight="400"
+                    PointerEntered="MixerPanel_PointerEntered"
+                    PointerExited="MixerPanel_PointerExited">
+                <!-- content injected by MixerPanelContent below — same x:Name trick via
+                     a shared ContentPresenter won't work, so this slot uses a plain container
+                     and code-behind picks the active panel. -->
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Text="Volume Mixer"
+                               FontSize="13" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                </StackPanel>
+                    <Border Grid.Row="1" Height="1"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Margin="0,2,0,0"/>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                        <StackPanel x:Name="AppRowsContainerAbove" Spacing="6">
+                            <TextBlock x:Name="EmptyStateTextAbove"
+                                       Text="No apps playing audio"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextAlignment="Center"
+                                       Margin="0,24,0,24"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
 
-                <!-- Divider -->
-                <Border Grid.Row="1"
-                        Height="1"
-                        Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+            <!-- ══════════════════════════════════════════════════
+                 CONTROL BAR — the pill, always visible
+                 ══════════════════════════════════════════════════ -->
+            <Border x:Name="CardBorder"
+                    CornerRadius="24"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    Padding="10,6">
 
-                <!-- App Rows Container -->
-                <ScrollViewer Grid.Row="2" 
-                              VerticalScrollBarVisibility="Auto"
-                              MaxHeight="300">
-                    <StackPanel x:Name="AppRowsContainer" Spacing="8">
-                        <!-- Empty state text -->
-                        <TextBlock x:Name="EmptyStateText"
-                                   Text="No apps playing audio"
-                                   FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextAlignment="Center"
-                                   Margin="0,32,0,32"
-                                   Visibility="Visible"/>
-                    </StackPanel>
-                </ScrollViewer>
+                <Grid x:Name="ContentGrid">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-            </Grid>
-        </Border>
+                    <!-- Speaker / mute button -->
+                    <Button x:Name="SpeakerButton"
+                            Grid.Column="0"
+                            Click="SpeakerButton_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Width="32" Height="32"
+                            Padding="0"
+                            CornerRadius="16"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Master volume mute toggle"
+                            AutomationProperties.HelpText="Click to mute or unmute system audio">
+                        <FontIcon x:Name="SpeakerIcon"
+                                  Glyph="&#xE767;"
+                                  FontSize="16"
+                                  Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    </Button>
 
-        <!-- Drag Mode Outline (shown when drag mode is enabled) -->
+                    <!-- Volume slider (hidden when idle) -->
+                    <Slider x:Name="MasterVolumeSlider"
+                            Grid.Column="1"
+                            Minimum="0" Maximum="100" Value="50"
+                            Width="180"
+                            VerticalAlignment="Center"
+                            Margin="8,0,0,0"
+                            Visibility="Collapsed"
+                            ValueChanged="MasterVolumeSlider_ValueChanged"
+                            PointerWheelChanged="MasterVolumeSlider_PointerWheelChanged"
+                            AutomationProperties.Name="Master volume"
+                            AutomationProperties.HelpText="Adjust system volume. Use mouse wheel or arrow keys."/>
+
+                    <!-- Percent label (hidden when idle) -->
+                    <TextBlock x:Name="PercentText"
+                               Grid.Column="2"
+                               Text="50%"
+                               FontSize="12"
+                               MinWidth="40"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="6,0,0,0"
+                               Visibility="Collapsed"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               AutomationProperties.LiveSetting="Polite"/>
+
+                    <!-- Mixer-open button (hidden when idle) -->
+                    <Button x:Name="MixerButton"
+                            Grid.Column="3"
+                            Click="MixerButton_Click"
+                            Width="28" Height="28"
+                            Padding="0"
+                            Margin="6,0,0,0"
+                            CornerRadius="14"
+                            Visibility="Collapsed"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            BorderThickness="1"
+                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Open volume mixer"
+                            AutomationProperties.HelpText="Show per-application volume controls">
+                        <FontIcon x:Name="MixerButtonIcon"
+                                  Glyph="&#xE9E9;"
+                                  FontSize="13"
+                                  Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ══════════════════════════════════════════════════
+                 MIXER PANEL — below the bar (top-* positions)
+                 ══════════════════════════════════════════════════ -->
+            <Border x:Name="MixerPanelBelow"
+                    Visibility="Collapsed"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    Padding="14,12,14,14"
+                    MinWidth="320"
+                    MaxHeight="400"
+                    PointerEntered="MixerPanel_PointerEntered"
+                    PointerExited="MixerPanel_PointerExited">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Text="Volume Mixer"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <Border Grid.Row="1" Height="1"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                            Margin="0,2,0,0"/>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                        <StackPanel x:Name="AppRowsContainer" Spacing="6">
+                            <TextBlock x:Name="EmptyStateText"
+                                       Text="No apps playing audio"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextAlignment="Center"
+                                       Margin="0,24,0,24"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+        </StackPanel>
+
+        <!-- Drag outline accent ring (non-interactive) -->
         <Border x:Name="DragOutline"
                 BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
                 BorderThickness="2"
-                CornerRadius="20"
+                CornerRadius="24"
                 Visibility="Collapsed"
                 IsHitTestVisible="False"
-                Opacity="0.5"/>
+                Opacity="0.6"/>
+
     </Grid>
 </Window>

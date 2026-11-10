@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Media;
 using AppLock.Services;
 using AppLock.Services.VolumeMixer;
 using AppLock.Models;
@@ -79,6 +80,9 @@ public sealed partial class VolumeOverlayWindow : Window
             this.InitializeComponent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] InitializeComponent complete");
             
+            // Setup clipping for rounded corners on mixer panels
+            SetupMixerPanelClipping();
+            
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Calling SetupWindow...");
             SetupWindow();
             
@@ -117,6 +121,27 @@ public sealed partial class VolumeOverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Stack trace: {ex.StackTrace}");
             throw;
         }
+    }
+
+    private void SetupMixerPanelClipping()
+    {
+        // In WinUI 3, Border.CornerRadius clips the background but not child content.
+        // We apply a Clip geometry that tracks the panel size to prevent child overflow.
+        void SetupClip(Border border)
+        {
+            border.SizeChanged += (s, e) =>
+            {
+                // RectangleGeometry without radius still clips content to bounds.
+                // The visual rounding comes from the Border's own CornerRadius painting.
+                border.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+                {
+                    Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height)
+                };
+            };
+        }
+
+        SetupClip(MixerPanelAbove);
+        SetupClip(MixerPanelBelow);
     }
 
     private void SetupWindow()
@@ -321,22 +346,48 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: received {sessions.Count} sessions");
+            
             var settings = ServiceContainer.Settings.VolumeMixer;
 
             // Apply blacklist filter
             var blacklist = settings.Blacklist.Select(b => b.ToLowerInvariant()).ToHashSet();
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Blacklist: {string.Join(", ", blacklist)}");
+            
+            var beforeBlacklist = sessions.Count;
             sessions = sessions.Where(s =>
             {
                 var processName = GetProcessName(s.ProcessId);
-                return !blacklist.Contains(processName.ToLowerInvariant());
+                var isBlacklisted = blacklist.Contains(processName.ToLowerInvariant());
+                if (isBlacklisted)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeMixer] FILTERED (blacklist): {processName} (PID {s.ProcessId})");
+                }
+                return !isBlacklisted;
             }).ToList();
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After blacklist: {beforeBlacklist} → {sessions.Count} sessions");
 
             // Apply active-only filter
-            if (settings.OnlyActiveApps)
+            // NOTE: State-based filtering is disabled because Windows audio sessions report State=0 (inactive)
+            // even when playing audio. The State field is unreliable for determining active playback.
+            // Instead, we rely on the fact that GetAudioSessionsAsync only returns sessions with non-zero volume.
+            if (false && settings.OnlyActiveApps) // DISABLED - State is unreliable
             {
-                // Filter to only active sessions (State == 1 means AudioSessionStateActive)
-                // NAudio AudioSessionState: 0=Inactive, 1=Active, 2=Expired
-                sessions = sessions.Where(s => s.State == 1).ToList();
+                var beforeActive = sessions.Count;
+                sessions = sessions.Where(s =>
+                {
+                    var isActive = s.State == 1;
+                    if (!isActive)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[VolumeMixer] FILTERED (inactive): {GetProcessName(s.ProcessId)} (PID {s.ProcessId}, State={s.State})");
+                    }
+                    return isActive;
+                }).ToList();
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After active-only filter: {beforeActive} → {sessions.Count} sessions");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Active-only filter disabled (State field unreliable)");
             }
 
             // Group by process name
@@ -344,6 +395,12 @@ public sealed partial class VolumeOverlayWindow : Window
                 .GroupBy(s => GetProcessName(s.ProcessId))
                 .OrderBy(g => g.Key)
                 .ToList();
+
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: {sessions.Count} sessions → {groups.Count} groups");
+            foreach (var g in groups)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Group '{g.Key}': {g.Count()} sessions");
+            }
 
             // Update UI
             UpdateSessionRows(groups);
@@ -369,6 +426,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void UpdateSessionRows(List<IGrouping<string, SessionInfo>> groups)
     {
+        var container = ActiveAppRowsContainer;
+        System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UpdateSessionRows: container={container?.Name}, has {container?.Children.Count ?? -1} children before update");
+        
         var currentKeys = _appSessions.Keys.ToHashSet();
         var newKeys = groups.Select(g => g.Key).ToHashSet();
 
@@ -378,7 +438,7 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             if (_appSessions.TryGetValue(key, out var session))
             {
-                AppRowsContainer.Children.Remove(session.Row);
+                container.Children.Remove(session.Row);
                 _appSessions.Remove(key);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Removed app: {key}");
             }
@@ -393,7 +453,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
             if (_appSessions.TryGetValue(processName, out var existing))
             {
-                // Update existing app
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Updating existing: {processName}");
                 existing.ViewModel.IsUpdating = true;
                 existing.ViewModel.Volume = group.Max(s => s.Volume);
                 existing.ViewModel.IsMuted = group.All(s => s.IsMuted);
@@ -403,7 +463,6 @@ public sealed partial class VolumeOverlayWindow : Window
             }
             else
             {
-                // Add new app
                 var (name, exePath) = _iconResolver.ResolveApp(first.ProcessId, first.DisplayName, first.IconPath);
                 
                 var viewModel = new MixerSessionViewModel
@@ -412,129 +471,185 @@ public sealed partial class VolumeOverlayWindow : Window
                     ProcessName = processName + ".exe",
                     Volume = group.Max(s => s.Volume),
                     IsMuted = group.All(s => s.IsMuted),
-                    Icon = null  // Icon extraction deferred to M6
+                    Icon = null
                 };
 
                 var row = CreateAppRow(viewModel, sessionIds);
-                AppRowsContainer.Children.Add(row);
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Adding NEW: {name} ({processName})");
+                container.Children.Add(row);
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]     Container now has {container.Children.Count} children");
                 _appSessions[processName] = (viewModel, new List<string>(sessionIds), row);
 
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Added app: {name} ({processName})");
             }
         }
 
-        // Update empty state
         UpdateEmptyState();
+        
+        // Resize window to fit the new row count
+        if (_state == OverlayState.MixerOpen)
+        {
+            ResizeWindowToContent();
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized window for {_appSessions.Count} apps");
+        }
     }
 
     private void UpdateEmptyState()
     {
-        EmptyStateText.Visibility = _appSessions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        
-        if (_appSessions.Count == 0)
-        {
+        var isEmpty = ActiveAppRowsContainer.Children
+            .OfType<UIElement>()
+            .All(c => c == ActiveEmptyStateText);  // only the placeholder remains
+
+        ActiveEmptyStateText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+
+        if (isEmpty)
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] No apps playing audio");
-        }
     }
 
     private Grid CreateAppRow(MixerSessionViewModel viewModel, List<string> sessionIds)
     {
-        var grid = new Grid
+        var grid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+
+        // App icon — start with generic glyph, replace with real icon if available
+        var appIconHost = new Grid { Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center };
+        var fallbackIcon = new FontIcon
         {
-            ColumnSpacing = 8,
-            Margin = new Thickness(0, 4, 0, 4)
+            Glyph = "\uE8A5",   // generic app glyph
+            FontSize = 18,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["TextFillColorSecondaryBrush"]
         };
+        appIconHost.Children.Add(fallbackIcon);
 
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) }); // Icon
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Slider
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) }); // Percent
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) }); // Mute
+        // Try to load the real icon from disk
+        _ = TryLoadAppIconAsync(viewModel.ProcessName, appIconHost, fallbackIcon);
 
-        // App Icon
-        var appIcon = new FontIcon
-        {
-            Glyph = "\uE71D", // Generic app icon
-            FontSize = 24
-        };
-        appIcon.SetValue(Grid.ColumnProperty, 0);
-        grid.Children.Add(appIcon);
+        appIconHost.SetValue(Grid.ColumnProperty, 0);
+        grid.Children.Add(appIconHost);
 
-        // Volume Slider
+        // Volume slider
         var slider = new Slider
         {
-            Minimum = 0,
-            Maximum = 100,
+            Minimum = 0, Maximum = 100,
             Value = viewModel.VolumePercent,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0)
         };
         slider.SetValue(Grid.ColumnProperty, 1);
         grid.Children.Add(slider);
 
-        // Percent Text
+        // Percent label
         var percentText = new TextBlock
         {
             Text = $"{viewModel.VolumePercent}%",
-            FontSize = 12,
-            MinWidth = 44,
+            FontSize = 11,
+            Width = 40,
             TextAlignment = TextAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["TextFillColorSecondaryBrush"]
         };
         percentText.SetValue(Grid.ColumnProperty, 2);
         grid.Children.Add(percentText);
 
-        // Mute Button
+        // Mute button
+        var muteIcon = new FontIcon { Glyph = viewModel.MuteIconGlyph, FontSize = 12 };
         var muteButton = new Button
         {
-            Width = 32,
-            Height = 32,
+            Width = 28, Height = 28,
             Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(16),
-            Content = new FontIcon 
-            { 
-                Glyph = viewModel.MuteIconGlyph, 
-                FontSize = 14 
-            }
+            CornerRadius = new CornerRadius(14),
+            Content = muteIcon,
+            Background = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["SubtleFillColorTransparentBrush"],
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center
         };
         muteButton.SetValue(Grid.ColumnProperty, 3);
         grid.Children.Add(muteButton);
 
-        // Wire up events
+        ToolTipService.SetToolTip(grid, viewModel.Name);
+
+        // Wire events
         slider.ValueChanged += (s, e) =>
         {
-            if (viewModel.IsUpdating)
-                return;
-
-            var newVolume = (float)(e.NewValue / 100.0);
+            if (viewModel.IsUpdating) return;
             percentText.Text = $"{(int)e.NewValue}%";
-            
-            // Set volume for all sessions of this app
-            foreach (var sessionId in sessionIds)
-            {
-                _audioService.SetSessionVolume(sessionId, newVolume);
-            }
+            var vol = (float)(e.NewValue / 100.0);
+            foreach (var id in sessionIds) _audioService.SetSessionVolume(id, vol);
         };
 
         muteButton.Click += (s, e) =>
         {
             var newMute = !viewModel.IsMuted;
             viewModel.IsMuted = newMute;
-            
-            if (muteButton.Content is FontIcon icon)
-            {
-                icon.Glyph = viewModel.MuteIconGlyph;
-            }
-
-            // Set mute for all sessions of this app
-            foreach (var sessionId in sessionIds)
-            {
-                _audioService.SetSessionMute(sessionId, newMute);
-            }
+            muteIcon.Glyph = viewModel.MuteIconGlyph;
+            foreach (var id in sessionIds) _audioService.SetSessionMute(id, newMute);
         };
 
-        // Tooltip
-        ToolTipService.SetToolTip(grid, viewModel.ToolTipText);
-
         return grid;
+    }
+
+    /// <summary>
+    /// Loads the .exe icon for <paramref name="processExeName"/> and swaps it into
+    /// <paramref name="host"/>, replacing the <paramref name="fallback"/> glyph.
+    /// </summary>
+    private async System.Threading.Tasks.Task TryLoadAppIconAsync(
+        string processExeName, Grid host, FontIcon fallback)
+    {
+        try
+        {
+            var name = processExeName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                ? processExeName[..^4] : processExeName;
+
+            var proc = Process.GetProcessesByName(name).FirstOrDefault();
+            if (proc == null) return;
+
+            string? exePath = null;
+            try { exePath = proc.MainModule?.FileName; } catch { }
+            if (string.IsNullOrEmpty(exePath) || !System.IO.File.Exists(exePath)) return;
+
+            // Extract icon bytes on background thread
+            byte[]? pngBytes = await System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (icon == null) return null;
+                    using var bmp = icon.ToBitmap();
+                    using var ms = new System.IO.MemoryStream();
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    return ms.ToArray();
+                }
+                catch { return null; }
+            });
+
+            if (pngBytes == null) return;
+
+            // Load BitmapImage on UI thread properly with await
+            var imgSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            using var stream = new System.IO.MemoryStream(pngBytes).AsRandomAccessStream();
+            await imgSource.SetSourceAsync(stream);
+
+            var img = new Image
+            {
+                Source = imgSource,
+                Width = 20, Height = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center,
+                Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform
+            };
+
+            host.Children.Remove(fallback);
+            host.Children.Add(img);
+        }
+        catch { /* keep fallback glyph */ }
     }
 
     private void SetupAudioEventHandlers()
@@ -750,7 +865,8 @@ public sealed partial class VolumeOverlayWindow : Window
         // Close mixer panel first if open
         if (_state == OverlayState.MixerOpen)
         {
-            MixerPanel.Visibility = Visibility.Collapsed;
+            MixerPanelAbove.Visibility = Visibility.Collapsed;
+            MixerPanelBelow.Visibility = Visibility.Collapsed;
             StopPolling();
         }
 
@@ -772,49 +888,55 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void ToggleMixerPanel()
     {
-        if (MixerPanel.Visibility == Visibility.Visible)
+        bool panelIsBelow = !ServiceContainer.Settings.VolumeMixer.IconPosition.StartsWith("bottom");
+
+        if (_state == OverlayState.MixerOpen)
         {
-            // Close mixer
-            MixerPanel.Visibility = Visibility.Collapsed;
+            MixerPanelAbove.Visibility = Visibility.Collapsed;
+            MixerPanelBelow.Visibility = Visibility.Collapsed;
             _state = OverlayState.Expanded;
             StopPolling();
-            ResizeWindowToContent(); // Shrink window back to bar size
+            ResizeWindowToContent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: MixerOpen → Expanded");
         }
         else
         {
-            // Open mixer
-            MixerPanel.Visibility = Visibility.Visible;
+            // Clear stale rows so polling always starts fresh
+            _appSessions.Clear();
+            AppRowsContainer.Children.Clear();
+            AppRowsContainer.Children.Add(EmptyStateText);
+            AppRowsContainerAbove.Children.Clear();
+            AppRowsContainerAbove.Children.Add(EmptyStateTextAbove);
+
+            if (panelIsBelow)
+            {
+                MixerPanelBelow.Visibility = Visibility.Visible;
+                MixerPanelAbove.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                MixerPanelAbove.Visibility = Visibility.Visible;
+                MixerPanelBelow.Visibility = Visibility.Collapsed;
+            }
+
             _state = OverlayState.MixerOpen;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: Expanded → MixerOpen");
 
-            // Position mixer panel relative to icon position
-            PositionMixerPanel();
-            
-            // Resize window to accommodate mixer panel
             ResizeWindowToContent();
-
-            // Start polling for active audio sessions
             StartPolling();
         }
     }
 
+    // Always route to the currently-visible panel's container
+    private StackPanel ActiveAppRowsContainer =>
+        MixerPanelAbove.Visibility == Visibility.Visible ? AppRowsContainerAbove : AppRowsContainer;
+
+    private TextBlock ActiveEmptyStateText =>
+        MixerPanelAbove.Visibility == Visibility.Visible ? EmptyStateTextAbove : EmptyStateText;
+
     private void PositionMixerPanel()
     {
-        var settings = ServiceContainer.Settings.VolumeMixer;
-        
-        // For bottom-* positions, panel goes above the bar
-        if (settings.IconPosition.StartsWith("bottom"))
-        {
-            MixerPanel.VerticalAlignment = VerticalAlignment.Bottom;
-            MixerPanel.Margin = new Thickness(0, 0, 0, 60);
-        }
-        else
-        {
-            // For top-* positions, panel goes below the bar
-            MixerPanel.VerticalAlignment = VerticalAlignment.Top;
-            MixerPanel.Margin = new Thickness(0, 60, 0, 0);
-        }
+        // No-op: layout handled by StackPanel in XAML
     }
 
     private void AnimateOpacity(double targetOpacity, int durationMs)
@@ -844,37 +966,53 @@ public sealed partial class VolumeOverlayWindow : Window
         try
         {
             var settings = ServiceContainer.Settings.VolumeMixer;
-            int width, height;
+            int barHeight = settings.IconSize + 16; // pill height
+            int barWidth;
+            int totalHeight;
+            int totalWidth;
 
             if (_state == OverlayState.Idle)
             {
-                // Chip size: just the icon
-                width = settings.IconSize + 24;
-                height = settings.IconSize + 16;
+                // Chip: just the icon pill
+                barWidth = settings.IconSize + 24;
+                totalWidth  = barWidth;
+                totalHeight = barHeight;
             }
             else if (_state == OverlayState.MixerOpen)
             {
-                // Mixer open: need space for expanded bar + mixer panel
-                width = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 8 + 24; // expanded bar width
-                width = Math.Max(width, 340); // Ensure at least 340px for mixer panel (MinWidth=320 + padding)
-                height = settings.IconSize + 16 + 12 + 380; // bar height + margin + panel max height
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Mixer open size: {width}x{height}");
+                // Bar width + at least 340 to fit the mixer panel (MinWidth=320 + 2*14 padding)
+                barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
+                totalWidth  = Math.Max(barWidth, 348);
+                // bar + 6px gap + panel (header ~36 + divider 1 + up to 5 rows * ~52 + padding 24)
+                int panelHeight = 36 + 1 + Math.Min(_appSessions.Count, 5) * 52 + 24 + 20;
+                panelHeight = Math.Max(panelHeight, 100); // at least some height when empty
+                totalHeight = barHeight + 6 + panelHeight;
             }
-            else
+            else // Expanded
             {
-                // Expanded: icon + slider + percent + mixer button
-                width = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 8 + 24; // padding + margins
-                height = settings.IconSize + 16;
+                barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
+                totalWidth  = barWidth;
+                totalHeight = barHeight;
             }
 
             var appWindow = AppWindow;
             if (appWindow != null)
             {
-                var currentBounds = appWindow.Position;
-                var newBounds = new RectInt32(currentBounds.X, currentBounds.Y, width, height);
-                appWindow.MoveAndResize(newBounds);
+                var pos = appWindow.Position;
+                // For bottom-* positions the panel is ABOVE the bar, so shift Y up by panel height
+                int newY = pos.Y;
+                if (_state == OverlayState.MixerOpen &&
+                    settings.IconPosition.StartsWith("bottom"))
+                {
+                    int panelH = totalHeight - barHeight - 6;
+                    newY = pos.Y - panelH - 6;
+                    // Don't go above the work area
+                    var wa = DisplayArea.Primary.WorkArea;
+                    if (newY < wa.Y) newY = wa.Y;
+                }
 
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized to {width}x{height}");
+                appWindow.MoveAndResize(new RectInt32(pos.X, newY, totalWidth, totalHeight));
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized to {totalWidth}x{totalHeight} at ({pos.X},{newY})");
             }
         }
         catch (Exception ex)
