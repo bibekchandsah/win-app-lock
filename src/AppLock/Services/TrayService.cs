@@ -742,18 +742,27 @@ public sealed class TrayService : IDisposable
     private void OnVolumeMixerEnabledChanged(object? sender, bool enabled)
     {
         var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
-        dispatcher?.TryEnqueue(UpdateVolumeMixerMenuItem);
+        dispatcher?.TryEnqueue(() =>
+        {
+            try
+            {
+                UpdateVolumeMixerMenuItem();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TrayService] Error in OnVolumeMixerEnabledChanged: {ex.Message}");
+            }
+        });
     }
 
     public void UpdateVolumeMixerMenuItem()
     {
         try
         {
-            if (_volumeMixerToggleMenuItem != null)
-            {
-                bool enabled = ServiceContainer.Settings.VolumeMixer.Enabled;
-                _volumeMixerToggleMenuItem.Text = enabled ? "Disable Volume Mixer" : "Enable Volume Mixer";
-            }
+            if (_volumeMixerToggleMenuItem == null || _trayIcon == null) return;
+            
+            bool enabled = ServiceContainer.Settings.VolumeMixer.Enabled;
+            _volumeMixerToggleMenuItem.Text = enabled ? "Disable Volume Mixer" : "Enable Volume Mixer";
         }
         catch (Exception ex)
         {
@@ -1154,6 +1163,8 @@ public sealed class TrayService : IDisposable
 
         ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
         ServiceContainer.RingLightService.SettingsLiveChanged -= OnRingLightSettingsLiveChanged;
+
+        ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
 
         if (_isVolumeWatcherSubscribed)
         {

@@ -90,6 +90,9 @@
                                 <ToggleSwitch x:Name="EnabledToggle"
                                               Grid.Column="1"
                                               VerticalAlignment="Center"
+                                              MinWidth="0"
+                                              OffContent=""
+                                              OnContent=""
                                               Toggled="EnabledToggle_Toggled"/>
                             </Grid>
                         </Border>
@@ -119,6 +122,9 @@
                                     <ToggleSwitch x:Name="HotkeyEnabledToggle"
                                                   Grid.Column="1"
                                                   VerticalAlignment="Center"
+                                                  MinWidth="0"
+                                                  OffContent=""
+                                                  OnContent=""
                                                   Toggled="HotkeyEnabledToggle_Toggled"/>
                                 </Grid>
                                 

@@ -186,6 +186,10 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             ServiceContainer.Settings.VolumeMixer.CustomX = null;
             ServiceContainer.Settings.VolumeMixer.CustomY = null;
             SaveSettings();
+            
+            // Apply position change in real-time
+            ServiceContainer.VolumeOverlayService?.RefreshSettings();
+            System.Diagnostics.Debug.WriteLine($"[Settings] Icon position changed to: {tag}");
         }
     }
 
@@ -195,6 +199,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         {
             ServiceContainer.Settings.VolumeMixer.IconSize = (int)sender.Value;
             SaveSettings();
+            
+            // Apply size change in real-time
+            ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
     }
 
@@ -204,6 +211,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         IdleOpacityText = $"{value}%";
         ServiceContainer.Settings.VolumeMixer.IdleOpacity = value;
         SaveSettings();
+        
+        // Apply opacity change in real-time
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
     }
 
     private void HoverOpacitySlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
@@ -212,6 +222,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         HoverOpacityText = $"{value}%";
         ServiceContainer.Settings.VolumeMixer.HoverOpacity = value;
         SaveSettings();
+        
+        // Apply opacity change in real-time
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
     }
 
     private void SliderWidthNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -220,6 +233,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         {
             ServiceContainer.Settings.VolumeMixer.SliderWidth = (int)sender.Value;
             SaveSettings();
+            
+            // Apply width change in real-time
+            ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
     }
 
