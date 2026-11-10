@@ -37,9 +37,9 @@ public sealed class AudioMixerService : IDisposable
     private MMDeviceEnumerator? _deviceEnumerator;
     private MMDevice? _defaultDevice;
     
-    // Keep strong reference to callback delegate to prevent garbage collection
-    // NAudio creates a COM callback wrapper; if this delegate is GC'd, COM calls freed memory
+    // Keep strong references to prevent GC while COM has pointers to these callbacks
     private AudioEndpointVolumeNotificationDelegate? _volumeCallbackDelegate;
+    private DeviceNotificationClient? _deviceNotificationClient;
 
     // ── Cached state (written on audio thread, read on any thread safely) ─────
 
@@ -152,8 +152,11 @@ public sealed class AudioMixerService : IDisposable
         try
         {
             _deviceEnumerator = new MMDeviceEnumerator();
-            _deviceEnumerator.RegisterEndpointNotificationCallback(
-                new DeviceNotificationClient(this));
+            
+            // CRITICAL: Keep strong reference to DeviceNotificationClient
+            // COM holds a pointer to this; if GC collects it, we get ExecutionEngineException
+            _deviceNotificationClient = new DeviceNotificationClient(this);
+            _deviceEnumerator.RegisterEndpointNotificationCallback(_deviceNotificationClient);
 
             _defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(
                 DataFlow.Render, Role.Multimedia);
@@ -219,8 +222,20 @@ public sealed class AudioMixerService : IDisposable
                 _defaultDevice = null;
             }
 
-            _deviceEnumerator?.Dispose();
-            _deviceEnumerator = null;
+            if (_deviceEnumerator != null)
+            {
+                try
+                {
+                    if (_deviceNotificationClient != null)
+                    {
+                        _deviceEnumerator.UnregisterEndpointNotificationCallback(_deviceNotificationClient);
+                        _deviceNotificationClient = null;
+                    }
+                }
+                catch { /* best-effort */ }
+                _deviceEnumerator.Dispose();
+                _deviceEnumerator = null;
+            }
 
             _cachedDeviceName = null;
             _hasDevice = false;

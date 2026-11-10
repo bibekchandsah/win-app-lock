@@ -778,6 +778,7 @@ public sealed partial class VolumeOverlayWindow : Window
             MixerPanel.Visibility = Visibility.Collapsed;
             _state = OverlayState.Expanded;
             StopPolling();
+            ResizeWindowToContent(); // Shrink window back to bar size
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: MixerOpen → Expanded");
         }
         else
@@ -789,6 +790,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
             // Position mixer panel relative to icon position
             PositionMixerPanel();
+            
+            // Resize window to accommodate mixer panel
+            ResizeWindowToContent();
 
             // Start polling for active audio sessions
             StartPolling();
@@ -848,6 +852,14 @@ public sealed partial class VolumeOverlayWindow : Window
                 width = settings.IconSize + 24;
                 height = settings.IconSize + 16;
             }
+            else if (_state == OverlayState.MixerOpen)
+            {
+                // Mixer open: need space for expanded bar + mixer panel
+                width = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 8 + 24; // expanded bar width
+                width = Math.Max(width, 340); // Ensure at least 340px for mixer panel (MinWidth=320 + padding)
+                height = settings.IconSize + 16 + 12 + 380; // bar height + margin + panel max height
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Mixer open size: {width}x{height}");
+            }
             else
             {
                 // Expanded: icon + slider + percent + mixer button
@@ -867,7 +879,7 @@ public sealed partial class VolumeOverlayWindow : Window
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resize error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resize error: {ex}");
         }
     }
 
