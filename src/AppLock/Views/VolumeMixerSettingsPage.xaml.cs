@@ -17,6 +17,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 {
     private string _idleOpacityText = "50%";
     private string _hoverOpacityText = "100%";
+    private bool _isLoading; // Guard: prevents change handlers from saving during LoadSettings()
 
     public string IdleOpacityText
     {
@@ -36,8 +37,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     public VolumeMixerSettingsPage()
     {
+        _isLoading = true;
         this.InitializeComponent();
-        LoadSettings();
+        LoadSettings(); // sets _isLoading = false in its finally block
     }
 
     private void VolumeMixerSettingsPage_Loaded(object sender, RoutedEventArgs e)
@@ -70,6 +72,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void LoadSettings()
     {
+        _isLoading = true;
+        try
+        {
         var s = ServiceContainer.Settings.VolumeMixer;
 
         // Enable/Hotkey
@@ -106,63 +111,55 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
         // Blacklist
         BlacklistListView.ItemsSource = new ObservableCollection<string>(s.Blacklist);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
-    private void SaveSettings() => ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    private void SaveSettings()
+    {
+        if (_isLoading) return;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
 
     // ── Appearance ────────────────────────────────────────────────────────────
 
     private void EnabledToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
         bool enabled = EnabledToggle.IsOn;
         ServiceContainer.Settings.VolumeMixer.Enabled = enabled;
         SaveSettings();
-        
-        // Update service
         ServiceContainer.SetVolumeMixerEnabled(enabled);
-        
         System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer {(enabled ? "enabled" : "disabled")}");
     }
 
     private void HotkeyEnabledToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
         ServiceContainer.Settings.VolumeMixer.HotkeyEnabled = HotkeyEnabledToggle.IsOn;
         SaveSettings();
-        
-        // Re-register hotkeys
         ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
-        
         System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer hotkey {(HotkeyEnabledToggle.IsOn ? "enabled" : "disabled")}");
     }
 
     private async void ChangeHotkeyButton_Click(object sender, RoutedEventArgs e)
     {
         var currentHotkey = ServiceContainer.Settings.VolumeMixer.Hotkey;
-        
-        var dialog = new ChangeHotkeyDialog(currentHotkey)
-        {
-            XamlRoot = this.XamlRoot
-        };
-
+        var dialog = new ChangeHotkeyDialog(currentHotkey) { XamlRoot = this.XamlRoot };
         await dialog.ShowAsync();
 
         if (dialog.HotkeyChanged && !string.IsNullOrEmpty(dialog.NewHotkey))
         {
-            // Update the hotkey
             var oldHotkey = ServiceContainer.Settings.VolumeMixer.Hotkey;
             ServiceContainer.Settings.VolumeMixer.Hotkey = dialog.NewHotkey;
             HotkeyTextBox.Text = dialog.NewHotkey;
             SaveSettings();
-            
-            // Re-register hotkey
             ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
-            
             System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer hotkey changed from {oldHotkey} to {dialog.NewHotkey}");
-            
-            // Show success notification (optional)
-            ServiceContainer.NotificationService?.ShowSuccess(
-                "Hotkey Changed",
-                $"Volume Mixer hotkey changed to: {dialog.NewHotkey}");
+            ServiceContainer.NotificationService?.ShowSuccess("Hotkey Changed", $"Volume Mixer hotkey changed to: {dialog.NewHotkey}");
         }
     }
 
@@ -171,23 +168,19 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         ServiceContainer.Settings.VolumeMixer.Hotkey = "Alt+V";
         HotkeyTextBox.Text = "Alt+V";
         SaveSettings();
-        
-        // Re-register with default hotkey
         ServiceContainer.VolumeMixerHotkeyManager?.RegisterHotkey();
-        
         System.Diagnostics.Debug.WriteLine("[Settings] Volume Mixer hotkey reset to Alt+V");
     }
 
     private void IconPositionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isLoading) return;
         if (IconPositionComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
             ServiceContainer.Settings.VolumeMixer.IconPosition = tag;
             ServiceContainer.Settings.VolumeMixer.CustomX = null;
             ServiceContainer.Settings.VolumeMixer.CustomY = null;
             SaveSettings();
-            
-            // Apply position change in real-time
             ServiceContainer.VolumeOverlayService?.RefreshSettings();
             System.Diagnostics.Debug.WriteLine($"[Settings] Icon position changed to: {tag}");
         }
@@ -195,46 +188,42 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void IconSizeNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.IconSize = (int)sender.Value;
             SaveSettings();
-            
-            // Apply size change in real-time
             ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
     }
 
     private void IdleOpacitySlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (_isLoading) return;
         var value = (int)e.NewValue;
         IdleOpacityText = $"{value}%";
         ServiceContainer.Settings.VolumeMixer.IdleOpacity = value;
         SaveSettings();
-        
-        // Apply opacity change in real-time
         ServiceContainer.VolumeOverlayService?.RefreshSettings();
     }
 
     private void HoverOpacitySlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (_isLoading) return;
         var value = (int)e.NewValue;
         HoverOpacityText = $"{value}%";
         ServiceContainer.Settings.VolumeMixer.HoverOpacity = value;
         SaveSettings();
-        
-        // Apply opacity change in real-time
         ServiceContainer.VolumeOverlayService?.RefreshSettings();
     }
 
     private void SliderWidthNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.SliderWidth = (int)sender.Value;
             SaveSettings();
-            
-            // Apply width change in real-time
             ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
     }
@@ -243,6 +232,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void HoverDelayNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.HoverDelayMs = (int)sender.Value;
@@ -252,6 +242,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void MixerHideDelayNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.MixerHideDelayMs = (int)sender.Value;
@@ -261,6 +252,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void AnimationSpeedNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.AnimationMs = (int)sender.Value;
@@ -270,6 +262,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void PollingIntervalNumberBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
+        if (_isLoading) return;
         if (!double.IsNaN(sender.Value))
         {
             ServiceContainer.Settings.VolumeMixer.PollingMs = (int)sender.Value;
@@ -279,18 +272,21 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
     private void DragModeToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
         ServiceContainer.Settings.VolumeMixer.DragMode = DragModeToggle.IsOn;
         SaveSettings();
     }
 
     private void OnlyActiveAppsToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
         ServiceContainer.Settings.VolumeMixer.OnlyActiveApps = OnlyActiveAppsToggle.IsOn;
         SaveSettings();
     }
 
     private async void StartWithWindowsToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
         var enabled = StartWithWindowsToggle.IsOn;
         try
         {

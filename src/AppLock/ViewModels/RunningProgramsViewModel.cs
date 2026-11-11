@@ -53,13 +53,7 @@ public partial class RunningProgramsViewModel : ObservableObject
         // Structural changes (new/closed windows) trigger a full re-enumeration
         _windowEventMonitor.WindowsChanged += OnWindowsChanged;
         
-        FilteredWindows.CollectionChanged += (s, e) =>
-        {
-            // Dispatch out of the CollectionChanged call to avoid re-entrancy in x:Bind generated code
-            _dispatcherQueue?.TryEnqueue(
-                Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal,
-                () => RunningCount = FilteredWindows.Count);
-        };
+        FilteredWindows.CollectionChanged += OnFilteredWindowsCollectionChanged;
         
         RefreshWindows();
         
@@ -73,6 +67,21 @@ public partial class RunningProgramsViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         FilterWindows();
+    }
+
+    // Re-subscribe CollectionChanged whenever the FilteredWindows collection is replaced
+    partial void OnFilteredWindowsChanged(ObservableCollection<RunningWindow> value)
+    {
+        value.CollectionChanged += OnFilteredWindowsCollectionChanged;
+        RunningCount = value.Count;
+    }
+
+    private void OnFilteredWindowsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        // Dispatch to avoid re-entrancy in x:Bind generated code
+        _dispatcherQueue?.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal,
+            () => RunningCount = FilteredWindows.Count);
     }
 
     partial void OnAutoRefreshEnabledChanged(bool value)
@@ -313,55 +322,10 @@ public partial class RunningProgramsViewModel : ObservableObject
             newItems.Add(representative);
         }
 
-        // Update FilteredWindows in-place to minimize UI changes
-        // Remove items that are no longer in the new list
-        for (int i = FilteredWindows.Count - 1; i >= 0; i--)
-        {
-            var existing = FilteredWindows[i];
-            if (!newItems.Any(n => n.Handle == existing.Handle))
-            {
-                FilteredWindows.RemoveAt(i);
-            }
-        }
-
-        // Add new items or move existing ones
-        for (int i = 0; i < newItems.Count; i++)
-        {
-            var newItem = newItems[i];
-            
-            // Find existing item in FilteredWindows
-            int existingIndex = -1;
-            for (int j = 0; j < FilteredWindows.Count; j++)
-            {
-                if (FilteredWindows[j].Handle == newItem.Handle)
-                {
-                    existingIndex = j;
-                    break;
-                }
-            }
-
-            if (existingIndex >= 0)
-            {
-                // Item exists - move to correct position if needed
-                if (existingIndex != i)
-                {
-                    FilteredWindows.Move(existingIndex, i);
-                }
-                // The object reference is the same, properties already updated
-            }
-            else
-            {
-                // New item - insert at correct position
-                if (i < FilteredWindows.Count)
-                {
-                    FilteredWindows.Insert(i, newItem);
-                }
-                else
-                {
-                    FilteredWindows.Add(newItem);
-                }
-            }
-        }
+        // Replace the collection in one shot — avoids multiple CollectionChanged events
+        // which cause RPC_E_WRONG_THREAD (0x8001010E) in WinRT's apartment marshaller
+        // when fired from incremental Move/Insert/Remove calls.
+        FilteredWindows = new ObservableCollection<RunningWindow>(newItems);
     }
 
     [RelayCommand]

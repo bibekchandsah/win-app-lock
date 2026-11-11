@@ -103,10 +103,13 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _iconResolver = new AppIconResolver();
-            
+
+            // Suppress slider ValueChanged from XAML default Value="50" writing to the audio device
+            _isUpdatingSlider = true;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Calling InitializeComponent...");
             this.InitializeComponent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] InitializeComponent complete");
+            _isUpdatingSlider = false;
             
             // Setup clipping for rounded corners on mixer panels
             SetupMixerPanelClipping();
@@ -390,14 +393,18 @@ public sealed partial class VolumeOverlayWindow : Window
             var settings = ServiceContainer.Settings.VolumeMixer;
 
             // Apply blacklist filter
-            var blacklist = settings.Blacklist.Select(b => b.ToLowerInvariant()).ToHashSet();
+            var blacklist = settings.Blacklist
+                .Select(b => b.ToLowerInvariant().TrimEnd())
+                // Normalize: strip .exe for comparison since GetProcessName returns name without extension
+                .Select(b => b.EndsWith(".exe") ? b[..^4] : b)
+                .ToHashSet();
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Blacklist: {string.Join(", ", blacklist)}");
             
             var beforeBlacklist = sessions.Count;
             sessions = sessions.Where(s =>
             {
-                var processName = GetProcessName(s.ProcessId);
-                var isBlacklisted = blacklist.Contains(processName.ToLowerInvariant());
+                var processName = GetProcessName(s.ProcessId); // already lowercase, no .exe
+                var isBlacklisted = blacklist.Contains(processName);
                 if (isBlacklisted)
                 {
                     System.Diagnostics.Debug.WriteLine($"[VolumeMixer] FILTERED (blacklist): {processName} (PID {s.ProcessId})");
@@ -959,7 +966,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
         _isUpdatingSlider = true;
         MasterVolumeSlider.Value = volume * 100;
+        if (PercentText != null) PercentText.Text = $"{(int)(volume * 100)}%";
         _isUpdatingSlider = false;
+        UpdateSpeakerIcon();
     }
 
     private void OnAudioMasterMuteChanged(object? sender, bool mute)
@@ -978,15 +987,18 @@ public sealed partial class VolumeOverlayWindow : Window
         try
         {
             var volume = _audioService.GetMasterVolume();
-            var mute = _audioService.GetMasterMute();
+
+            // Skip if audio thread hasn't initialized yet — MasterVolumeChanged will fire when ready
+            if (volume < 0) return;
 
             _isUpdatingSlider = true;
             MasterVolumeSlider.Value = volume * 100;
+            if (PercentText != null) PercentText.Text = $"{(int)(volume * 100)}%";
             _isUpdatingSlider = false;
 
             UpdateSpeakerIcon();
 
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Updated from audio: Volume={volume:P0}, Mute={mute}");
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Updated from audio: Volume={volume:P0}");
         }
         catch (Exception ex)
         {

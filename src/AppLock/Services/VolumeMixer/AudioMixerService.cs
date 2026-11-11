@@ -43,7 +43,7 @@ public sealed class AudioMixerService : IDisposable
 
     // ── Cached state (written on audio thread, read on any thread safely) ─────
 
-    private volatile float _cachedVolume = 0.5f;
+    private volatile float _cachedVolume = -1f; // -1 = not yet initialized from audio thread
     private volatile bool  _cachedMute   = false;
     private volatile bool  _hasDevice    = false;
     private string? _cachedDeviceName = null;  // Only updated on audio thread
