@@ -47,12 +47,16 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         // Subscribe to real-time updates
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
+
+        ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
+        ServiceContainer.VolumeMixerPositionChanged += OnVolumeMixerPositionChanged;
     }
 
     private void VolumeMixerSettingsPage_Unloaded(object sender, RoutedEventArgs e)
     {
         // Unsubscribe from events
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+        ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
     }
 
     private void OnVolumeMixerEnabledChanged(object? sender, bool enabled)
@@ -62,6 +66,34 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         {
             EnabledToggle.IsOn = enabled;
             System.Diagnostics.Debug.WriteLine($"[Settings] Volume Mixer UI updated: {enabled}");
+        });
+    }
+
+    private void OnVolumeMixerPositionChanged(object? sender, string positionId)
+    {
+        // Update the combo box when position is changed from the tray menu
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            // Guard against re-entrant saves: set _isLoading while we update the UI
+            _isLoading = true;
+            try
+            {
+                IconPositionComboBox.SelectedIndex = positionId switch
+                {
+                    "top-left"      => 0,
+                    "top-right"     => 1,
+                    "top-center"    => 2,
+                    "bottom-left"   => 3,
+                    "bottom-right"  => 4,
+                    "bottom-center" => 5,
+                    _               => 2
+                };
+                System.Diagnostics.Debug.WriteLine($"[Settings] Icon position combo synced to: {positionId}");
+            }
+            finally
+            {
+                _isLoading = false;
+            }
         });
     }
 
@@ -177,11 +209,9 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         if (_isLoading) return;
         if (IconPositionComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
-            ServiceContainer.Settings.VolumeMixer.IconPosition = tag;
-            ServiceContainer.Settings.VolumeMixer.CustomX = null;
-            ServiceContainer.Settings.VolumeMixer.CustomY = null;
-            SaveSettings();
-            ServiceContainer.VolumeOverlayService?.RefreshSettings();
+            // Use the central helper so the tray menu checkmarks are synced via
+            // the VolumeMixerPositionChanged event (custom drag position is cleared).
+            ServiceContainer.SetVolumeMixerPosition(tag);
             System.Diagnostics.Debug.WriteLine($"[Settings] Icon position changed to: {tag}");
         }
     }
@@ -378,7 +408,6 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     private void RestoreAppearanceDefaults_Click(object sender, RoutedEventArgs e)
     {
         var s = ServiceContainer.Settings.VolumeMixer;
-        s.IconPosition  = "top-center";
         s.IconSize      = 32;
         s.IdleOpacity   = 50;
         s.HoverOpacity  = 100;
@@ -386,14 +415,25 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         SaveSettings();
         ServiceContainer.VolumeOverlayService?.RefreshSettings();
 
+        // Use the central helper so the tray menu checkmarks are updated too
+        ServiceContainer.SetVolumeMixerPosition("top-center");
+
         // Reload UI
-        IconPositionComboBox.SelectedIndex = 2; // top-center
-        IconSizeNumberBox.Value            = 32;
-        IdleOpacitySlider.Value            = 50;
-        IdleOpacityText                    = "50%";
-        HoverOpacitySlider.Value           = 100;
-        HoverOpacityText                   = "100%";
-        SliderWidthNumberBox.Value         = 200;
+        _isLoading = true;
+        try
+        {
+            IconPositionComboBox.SelectedIndex = 2; // top-center
+            IconSizeNumberBox.Value            = 32;
+            IdleOpacitySlider.Value            = 50;
+            IdleOpacityText                    = "50%";
+            HoverOpacitySlider.Value           = 100;
+            HoverOpacityText                   = "100%";
+            SliderWidthNumberBox.Value         = 200;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
 
         System.Diagnostics.Debug.WriteLine("[Settings] Appearance defaults restored");
     }

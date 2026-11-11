@@ -566,6 +566,7 @@ public static class ServiceContainer
     public static AppLock.Services.VolumeMixer.VolumeOverlayService? VolumeOverlayService => _volumeOverlayService;
 
     public static event EventHandler<bool>? VolumeMixerEnabledChanged;
+    public static event EventHandler<string>? VolumeMixerPositionChanged;
 
     public static void SetVolumeMixerEnabled(bool enabled)
     {
@@ -585,6 +586,27 @@ public static class ServiceContainer
         TrayService?.UpdateVolumeMixerMenuItem();
         
         VolumeMixerEnabledChanged?.Invoke(null, enabled);
+    }
+
+    /// <summary>
+    /// Sets the volume mixer icon position, persists settings, refreshes the overlay,
+    /// and raises <see cref="VolumeMixerPositionChanged"/> so both the settings page
+    /// and the tray menu update in real-time.
+    /// </summary>
+    public static void SetVolumeMixerPosition(string positionId, double? customX = null, double? customY = null)
+    {
+        Settings.VolumeMixer.IconPosition = positionId;
+        Settings.VolumeMixer.CustomX = customX;
+        Settings.VolumeMixer.CustomY = customY;
+        SettingsStore.Save(Settings);
+
+        _volumeOverlayService?.RefreshSettings();
+
+        // Sync tray checkmarks
+        TrayService?.UpdateVolumeMixerPositionSubItem();
+
+        // Notify all subscribers (settings page, etc.)
+        VolumeMixerPositionChanged?.Invoke(null, positionId);
     }
 
     public static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? VolumeMixerHotkeyManager => _volumeMixerHotkeyManager;

@@ -424,19 +424,14 @@ public sealed class TrayService : IDisposable
                     _volumeMixerToggleMenuItem.Command = new RelayCommand(toggleVolumeMixer);
                 }
 
-                // Wire Volume Mixer icon position submenu
+                // Wire Volume Mixer icon position submenu.
+                // Uses ServiceContainer.SetVolumeMixerPosition so the central event
+                // (VolumeMixerPositionChanged) fires and both the settings page and the
+                // tray checkmarks update in real-time without duplicating logic.
                 void WireVmPosItem(ToggleMenuFlyoutItem? item, string positionId)
                 {
                     if (item == null) return;
-                    Action action = () =>
-                    {
-                        ServiceContainer.Settings.VolumeMixer.IconPosition = positionId;
-                        ServiceContainer.Settings.VolumeMixer.CustomX = null;
-                        ServiceContainer.Settings.VolumeMixer.CustomY = null;
-                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-                        ServiceContainer.VolumeOverlayService?.RefreshSettings();
-                        UpdateVolumeMixerPositionSubItem();
-                    };
+                    Action action = () => ServiceContainer.SetVolumeMixerPosition(positionId);
                     item.Click += (s, e) => action();
                     item.Command = new RelayCommand(action);
                 }
@@ -560,6 +555,9 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
             ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
+
+            ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
+            ServiceContainer.VolumeMixerPositionChanged += OnVolumeMixerPositionChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -807,6 +805,24 @@ public sealed class TrayService : IDisposable
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[TrayService] Error in OnVolumeMixerEnabledChanged: {ex.Message}");
+            }
+        });
+    }
+
+    private void OnVolumeMixerPositionChanged(object? sender, string positionId)
+    {
+        // Position changed externally (e.g. from settings page) — sync tray checkmarks.
+        var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+        dispatcher?.TryEnqueue(() =>
+        {
+            try
+            {
+                UpdateVolumeMixerPositionSubItem();
+                System.Diagnostics.Debug.WriteLine($"[TrayService] Tray position checkmarks synced → {positionId}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TrayService] Error in OnVolumeMixerPositionChanged: {ex.Message}");
             }
         });
     }
@@ -1240,6 +1256,7 @@ public sealed class TrayService : IDisposable
         ServiceContainer.RingLightService.SettingsLiveChanged -= OnRingLightSettingsLiveChanged;
 
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+        ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
 
         if (_isVolumeWatcherSubscribed)
         {
