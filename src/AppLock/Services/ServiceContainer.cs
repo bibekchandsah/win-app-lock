@@ -43,6 +43,7 @@ public static class ServiceContainer
     private static AppLock.Services.RingLight.RingLightService? _ringLightService;
     private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
     private static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? _volumeMixerHotkeyManager;
+    private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
 
     public static NotificationService NotificationService
     {
@@ -645,6 +646,44 @@ public static class ServiceContainer
         else
         {
             System.Diagnostics.Debug.WriteLine("[ServiceContainer] VolumeMixerHotkeyManager already exists");
+        }
+    }
+
+    // ── Notifications ──────────────────────────────────────────────────────────
+
+    public static AppLock.Services.Notifications.NotificationCustomizerService? NotificationCustomizerService => _notificationCustomizerService;
+
+    public static event EventHandler<bool>? NotificationCustomizerEnabledChanged;
+
+    public static void SetNotificationCustomizerEnabled(bool enabled)
+    {
+        Settings.NotificationCustom.Enabled = enabled;
+        SettingsStore.Save(Settings);
+        
+        if (enabled)
+        {
+            _notificationCustomizerService?.Start();
+        }
+        else
+        {
+            _notificationCustomizerService?.Stop();
+        }
+        
+        NotificationCustomizerEnabledChanged?.Invoke(null, enabled);
+    }
+
+    public static void InitializeNotificationCustomizer()
+    {
+        if (_notificationCustomizerService == null)
+        {
+            _notificationCustomizerService = new AppLock.Services.Notifications.NotificationCustomizerService(
+                Settings.NotificationCustom);
+            
+            // Auto-start if enabled
+            if (Settings.NotificationCustom.Enabled)
+            {
+                _notificationCustomizerService.Start();
+            }
         }
     }
 

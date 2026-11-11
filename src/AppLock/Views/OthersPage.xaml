@@ -150,13 +150,41 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Notifications Card Template -->
+        <DataTemplate x:Key="NotificationsTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Notifications Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Notification Customization"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable custom notification positioning"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind NotificationsEnabled, Mode=TwoWay}"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
                                            EyeCareTemplate="{StaticResource EyeCareTemplate}"
                                            ClipboardTemplate="{StaticResource ClipboardTemplate}"
                                            RingLightTemplate="{StaticResource RingLightTemplate}"
-                                           VolumeMixerTemplate="{StaticResource VolumeMixerTemplate}"/>
+                                           VolumeMixerTemplate="{StaticResource VolumeMixerTemplate}"
+                                           NotificationsTemplate="{StaticResource NotificationsTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

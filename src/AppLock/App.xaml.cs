@@ -68,6 +68,7 @@ public partial class App : Application
         if (_mainWindow?.DispatcherQueue != null)
         {
             AppLock.Services.ServiceContainer.InitializeVolumeMixer(_mainWindow.DispatcherQueue);
+            AppLock.Services.ServiceContainer.InitializeNotificationCustomizer();
         }
 
         // Wire session lock change to dismiss popup immediately on lock screen

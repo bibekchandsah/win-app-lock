@@ -70,6 +70,9 @@ public class AppSettings
     // Volume Mixer
     public VolumeMixerSettings VolumeMixer { get; set; } = new();
 
+    // Notifications
+    public NotificationCustomSettings NotificationCustom { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

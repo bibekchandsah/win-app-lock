@@ -45,6 +45,7 @@
     <Compile Include="..\..\src\AppLock\Models\ClipboardItem.cs" Link="Models\ClipboardItem.cs" />
     <Compile Include="..\..\src\AppLock\Models\RingLightSettings.cs" Link="Models\RingLightSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\VolumeMixerSettings.cs" Link="Models\VolumeMixerSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\NotificationCustomSettings.cs" Link="Models\NotificationCustomSettings.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\ColorTemperature.cs" Link="Services\RingLight\ColorTemperature.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\RingPresets.cs" Link="Services\RingLight\RingPresets.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\CameraUsageMonitor.cs" Link="Services\RingLight\CameraUsageMonitor.cs" />

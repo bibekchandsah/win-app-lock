@@ -58,6 +58,9 @@ public class LogService
         var logFile = Path.Combine(LogDirectory, $"{category}-{DateTime.Now:yyyy-MM}.log");
         var logMessage = $"[{timestamp}] {message}";
 
+        // Also write to Debug output for Visual Studio
+        System.Diagnostics.Debug.WriteLine($"[{category}] {logMessage}");
+
         try
         {
             lock (_lock)
@@ -65,9 +68,10 @@ public class LogService
                 File.AppendAllText(logFile, logMessage + Environment.NewLine, Encoding.UTF8);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail logging
+            // Write error to Debug output
+            System.Diagnostics.Debug.WriteLine($"[LogService] Failed to write to {logFile}: {ex.Message}");
         }
     }
 }

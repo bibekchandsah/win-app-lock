@@ -15,6 +15,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? ClipboardTemplate { get; set; }
     public DataTemplate? RingLightTemplate { get; set; }
     public DataTemplate? VolumeMixerTemplate { get; set; }
+    public DataTemplate? NotificationsTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -27,6 +28,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "clipboard" => ClipboardTemplate,
                 "ringlight" => RingLightTemplate,
                 "volumemixer" => VolumeMixerTemplate,
+                "notifications" => NotificationsTemplate,
                 _ => null
             };
         }
@@ -195,6 +197,23 @@ public sealed partial class OthersPage : Page
                 ClipboardEnabled = false,
                 RingLightEnabled = false,
                 VolumeMixerEnabled = ServiceContainer.Settings.VolumeMixer.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "notifications",
+                Order = 70,
+                Icon = "\uE91C", // Notification icon
+                Title = "Notifications",
+                Description = "Choose where notifications appear and how they animate",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = false,
+                ClipboardEnabled = false,
+                RingLightEnabled = false,
+                VolumeMixerEnabled = false,
+                NotificationsEnabled = ServiceContainer.Settings.NotificationCustom.Enabled
             }
         };
 
@@ -232,6 +251,10 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(VolumeMixerSettingsPage));
             }
+            else if (card.Id == "notifications")
+            {
+                Frame.Navigate(typeof(NotificationsPage));
+            }
         }
     }
 
@@ -257,10 +280,10 @@ public sealed partial class OthersPage : Page
 
     private void CardExpander_Loaded(object sender, RoutedEventArgs e)
     {
-        // Show expander for brightness, eyecare, clipboard, ringlight, and volumemixer cards
+        // Show expander for brightness, eyecare, clipboard, ringlight, volumemixer, and notifications cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer")
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer" || card.Id == "notifications")
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -365,12 +388,14 @@ public class UtilityCard : INotifyPropertyChanged
     public bool IsClipboardCard => Id == "clipboard";
     public bool IsRingLightCard => Id == "ringlight";
     public bool IsVolumeMixerCard => Id == "volumemixer";
+    public bool IsNotificationsCard => Id == "notifications";
     
     public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ClipboardContentVisibility => IsClipboardCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RingLightContentVisibility => IsRingLightCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility VolumeMixerContentVisibility => IsVolumeMixerCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility NotificationsContentVisibility => IsNotificationsCard ? Visibility.Visible : Visibility.Collapsed;
     
     public string Status
     {
@@ -462,6 +487,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_volumeMixerEnabled != value)
             {
                 _volumeMixerEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _notificationsEnabled;
+    public bool NotificationsEnabled
+    {
+        get => _notificationsEnabled;
+        set
+        {
+            if (_notificationsEnabled != value)
+            {
+                _notificationsEnabled = value;
                 OnPropertyChanged();
             }
         }

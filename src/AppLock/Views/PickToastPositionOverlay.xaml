@@ -1,0 +1,102 @@
+<Window
+    x:Class="AppLock.Views.PickToastPositionOverlay"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Background="#80000000">
+        <!-- Instructions -->
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,40,0,0"
+                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    Padding="24"
+                    CornerRadius="8">
+            <TextBlock Text="Pick Notification Position"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="Click to confirm position • Esc to cancel • Hold Shift to disable snapping"
+                       FontSize="13"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Ghost toast (follows mouse) -->
+        <Border x:Name="GhostToast"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Width="396"
+                Height="120"
+                Padding="16"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Opacity="0.9">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Sample Notification"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="This is how notifications will appear at the chosen position"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Snap guides (shown when snapping) -->
+        <Canvas x:Name="SnapGuidesCanvas">
+            <!-- Vertical guides -->
+            <Line x:Name="LeftGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  Y1="0"
+                  Y2="1080"/>
+            <Line x:Name="CenterVGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  Y1="0"
+                  Y2="1080"/>
+            <Line x:Name="RightGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  Y1="0"
+                  Y2="1080"/>
+            
+            <!-- Horizontal guides -->
+            <Line x:Name="TopGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  X1="0"
+                  X2="1920"/>
+            <Line x:Name="CenterHGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  X1="0"
+                  X2="1920"/>
+            <Line x:Name="BottomGuide"
+                  Stroke="{ThemeResource AccentFillColorDefaultBrush}"
+                  StrokeThickness="2"
+                  StrokeDashArray="4,4"
+                  Opacity="0"
+                  X1="0"
+                  X2="1920"/>
+        </Canvas>
+    </Grid>
+</Window>
