@@ -87,9 +87,82 @@ public sealed partial class VolumeOverlayWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    // DWM window corner preference & transparency interop
+    private const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const uint DWMWCP_DONOTROUND = 1;
+    private const uint DWMWCP_ROUND = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MARGINS
+    {
+        public int cxLeftWidth;
+        public int cxRightWidth;
+        public int cyTopHeight;
+        public int cyBottomHeight;
+        public MARGINS(int all)
+        {
+            cxLeftWidth = all;
+            cxRightWidth = all;
+            cyTopHeight = all;
+            cyBottomHeight = all;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DWM_BLURBEHIND
+    {
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fEnable;
+        public nint hRgnBlur;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fTransitionOnMaximized;
+    }
+
+    private const uint DWM_BB_ENABLE = 0x00000001;
+    private const uint DWM_BB_BLURREGION = 0x00000002;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, uint cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmExtendFrameIntoClientArea(nint hWnd, ref MARGINS pMarInset);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmEnableBlurBehindWindow(nint hWnd, ref DWM_BLURBEHIND pBlurBehind);
     
     [DllImport("user32.dll")]
     private static extern bool InvalidateRect(nint hWnd, IntPtr lpRect, bool bErase);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern nint CreateRoundRectRgn(int x1, int y1, int x2, int y2, int cx, int cy);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern nint CreateRectRgn(int x1, int y1, int x2, int y2);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern int CombineRgn(nint hrgnDest, nint hrgnSrc1, nint hrgnSrc2, int fnCombineMode);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern bool DeleteObject(nint hObject);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowRgn(nint hWnd, nint hRgn, bool bRedraw);
+
+    private const int RGN_OR = 2;
+
+    // Smooth size animation state
+    private DispatcherQueueTimer? _sizeAnimationTimer;
+    private int _animStartW;
+    private int _animTargetW;
+    private int _animStartH;
+    private int _animTargetH;
+    private DateTime _animStartTime;
+    private int _animDurationMs;
+    private bool _isExpanding;
+    private int? _customAnchorCenterX;
+    private int? _customAnchorY;
 
     // Media key via WM_APPCOMMAND
     private const int WM_APPCOMMAND = 0x0319;
@@ -223,6 +296,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         SetupClip(MixerPanelAbove);
         SetupClip(MixerPanelBelow);
+        SetupClip(CardBorder);
     }
 
     private void SetupWindow()
@@ -283,6 +357,9 @@ public sealed partial class VolumeOverlayWindow : Window
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             if (hWnd != 0)
             {
+                // Enable DWM full-frame alpha transparency (removes black backing/corners completely)
+                EnableTransparency(hWnd);
+
                 // Log current window state
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ApplyNoActivateStyle called. HWND: {hWnd}");
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Window Visible: {this.Visible}, Content: {this.Content != null}");
@@ -312,6 +389,58 @@ public sealed partial class VolumeOverlayWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ApplyNoActivateStyle error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Enables DWM glass/transparent frame across the entire HWND so that transparent XAML areas
+    /// are 100% see-through with subpixel anti-aliasing against the desktop, eliminating any black window background.
+    /// </summary>
+    private void EnableTransparency(nint hWnd)
+    {
+        try
+        {
+            if (hWnd == 0) return;
+
+            // 1. Extend the DWM frame into the entire client area (-1 margin = full alpha frame)
+            MARGINS margins = new MARGINS(-1);
+            DwmExtendFrameIntoClientArea(hWnd, ref margins);
+
+            // 2. Clear out solid DWM backing blocks using blur-behind with an empty offscreen region
+            nint hRgn = CreateRectRgn(-2, -2, -1, -1);
+            DWM_BLURBEHIND blurBehind = new DWM_BLURBEHIND
+            {
+                dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION,
+                fEnable = true,
+                hRgnBlur = hRgn
+            };
+            DwmEnableBlurBehindWindow(hWnd, ref blurBehind);
+            DeleteObject(hRgn);
+
+            // 3. Force square DWM bounds so DWM does not add its own rectangular/shadow artifacts
+            uint cornerPreference = DWMWCP_DONOTROUND;
+            DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPreference, sizeof(uint));
+
+            // 4. Clear any GDI window region so DirectComposition renders true per-pixel alpha transparency
+            SetWindowRgn(hWnd, nint.Zero, true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] EnableTransparency error: {ex}");
+        }
+    }
+
+    private void UpdateWindowRegion(int width, int height)
+    {
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == 0) return;
+            EnableTransparency(hWnd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UpdateWindowRegion error: {ex}");
         }
     }
 
@@ -382,10 +511,7 @@ public sealed partial class VolumeOverlayWindow : Window
             // Idle opacity
             RootGrid.Opacity = settings.IdleOpacity / 100.0;
 
-            // Drag mode outline and cursor
-            DragOutline.Visibility = settings.DragMode ? Visibility.Visible : Visibility.Collapsed;
-            // Note: Grid.Cursor not available in WinUI 3 - cursor change would need UIElement.ProtectedCursor
-            // Drag outline provides visual feedback instead
+            // Drag mode feedback handled via smooth opacity change during drag
 
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Settings applied: IconSize={settings.IconSize}, SliderWidth={settings.SliderWidth}, IdleOpacity={settings.IdleOpacity}, DragMode={settings.DragMode}");
         }
@@ -644,6 +770,7 @@ public sealed partial class VolumeOverlayWindow : Window
         };
         appIconHost.Children.Add(fallbackIcon);
         _ = TryLoadAppIconAsync(viewModel.ProcessName, appIconHost, fallbackIcon);
+        ToolTipService.SetToolTip(appIconHost, viewModel.Name);
         appIconHost.SetValue(Grid.ColumnProperty, 0);
         grid.Children.Add(appIconHost);
 
@@ -656,6 +783,7 @@ public sealed partial class VolumeOverlayWindow : Window
             Margin = new Thickness(0),
             UseSystemFocusVisuals = false
         };
+        ToolTipService.SetToolTip(slider, $"{viewModel.Name}: {viewModel.VolumePercent}%");
         slider.SetValue(Grid.ColumnProperty, 1);
         grid.Children.Add(slider);
 
@@ -686,7 +814,7 @@ public sealed partial class VolumeOverlayWindow : Window
             BorderThickness = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center
         };
-        ToolTipService.SetToolTip(playPauseButton, "Play / Pause");
+        ToolTipService.SetToolTip(playPauseButton, $"Play / Pause ({viewModel.Name})");
         playPauseButton.SetValue(Grid.ColumnProperty, 3);
         grid.Children.Add(playPauseButton);
 
@@ -703,10 +831,9 @@ public sealed partial class VolumeOverlayWindow : Window
             BorderThickness = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center
         };
+        ToolTipService.SetToolTip(muteButton, (viewModel.IsMuted ? "Unmute " : "Mute ") + viewModel.Name);
         muteButton.SetValue(Grid.ColumnProperty, 4);
         grid.Children.Add(muteButton);
-
-        ToolTipService.SetToolTip(grid, viewModel.Name);
 
         // Wire events
         slider.ValueChanged += (s, e) =>
@@ -1009,7 +1136,8 @@ public sealed partial class VolumeOverlayWindow : Window
                 Width = 20, Height = 20,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment   = VerticalAlignment.Center,
-                Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform
+                Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform,
+                IsHitTestVisible = false
             };
 
             host.Children.Remove(fallback);
@@ -1173,8 +1301,14 @@ public sealed partial class VolumeOverlayWindow : Window
         if (_hasActiveAppRow != show)
         {
             _hasActiveAppRow = show;
-            CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 20 : 24);
-            ResizeWindowToContent();
+            CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 18 : 20);
+
+            if (_state != OverlayState.Idle)
+            {
+                GetDimensionsForState(_state, out int targetW, out int targetH);
+                var settings = ServiceContainer.Settings.VolumeMixer;
+                AnimateToSize(targetW, targetH, isExpanding: true, durationMs: settings.AnimationMs);
+            }
         }
     }
 
@@ -1238,27 +1372,68 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         if (ActiveAppIconButton == null) return;
         var name = !string.IsNullOrEmpty(_activeAppDisplayName) ? _activeAppDisplayName : _activeAppProcessName;
+        if (!string.IsNullOrEmpty(name) && name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^4];
+        }
 
+        string action;
         if (_smtcManager != null && !string.IsNullOrEmpty(_activeAppProcessName))
         {
             var procKey = _activeAppProcessName.ToLowerInvariant();
-            var session = _smtcSessions.FirstOrDefault(kv =>
-                kv.Key.Equals(procKey, StringComparison.OrdinalIgnoreCase) ||
-                kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
-                procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+            if (procKey.EndsWith(".exe")) procKey = procKey[..^4];
+
+            GlobalSystemMediaTransportControlsSession? session = null;
+            if (_smtcSessions.TryGetValue(procKey, out var s))
+            {
+                session = s;
+            }
+            else
+            {
+                session = _smtcSessions.FirstOrDefault(kv =>
+                    kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
+                    procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+            }
+
+            if (session == null)
+            {
+                try
+                {
+                    var sessions = _smtcManager.GetSessions();
+                    session = sessions.FirstOrDefault(sess =>
+                    {
+                        var id = sess.SourceAppUserModelId ?? "";
+                        return id.Contains(procKey, StringComparison.OrdinalIgnoreCase);
+                    });
+                }
+                catch { }
+            }
 
             if (session != null)
             {
                 var status = session.GetPlaybackInfo()?.PlaybackStatus;
-                string action = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "Pause" : "Play";
-                ToolTipService.SetToolTip(ActiveAppIconButton, string.IsNullOrEmpty(name) ? action : $"{action} ({name})");
-                return;
+                action = status switch
+                {
+                    GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => "Pause",
+                    GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => "Play",
+                    _ => "Play / Pause"
+                };
+            }
+            else
+            {
+                bool isMuted = ActiveAppMuteIcon?.Glyph == "\uE74F";
+                action = isMuted ? "Unmute" : "Mute";
             }
         }
+        else
+        {
+            bool isMuted = ActiveAppMuteIcon?.Glyph == "\uE74F";
+            action = isMuted ? "Unmute" : "Mute";
+        }
 
-        bool isMuted = ActiveAppMuteIcon?.Glyph == "\uE74F";
-        string muteAction = isMuted ? "Unmute" : "Mute";
-        ToolTipService.SetToolTip(ActiveAppIconButton, string.IsNullOrEmpty(name) ? muteAction : $"{muteAction} ({name})");
+        string tooltipText = string.IsNullOrEmpty(name) ? action : $"{action} ({name})";
+
+        ToolTipService.SetToolTip(ActiveAppIconButton, tooltipText);
     }
 
     private async void ActiveAppIconButton_Click(object sender, RoutedEventArgs e)
@@ -1269,9 +1444,29 @@ public sealed partial class VolumeOverlayWindow : Window
         try
         {
             var procKey = _activeAppProcessName.ToLowerInvariant();
-            var session = _smtcSessions.FirstOrDefault(kv =>
-                kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
-                procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+            if (procKey.EndsWith(".exe")) procKey = procKey[..^4];
+
+            GlobalSystemMediaTransportControlsSession? session = null;
+            if (_smtcSessions.TryGetValue(procKey, out var s))
+            {
+                session = s;
+            }
+            else
+            {
+                session = _smtcSessions.FirstOrDefault(kv =>
+                    kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
+                    procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+            }
+
+            if (session == null && _smtcManager != null)
+            {
+                var sessions = _smtcManager.GetSessions();
+                session = sessions.FirstOrDefault(sess =>
+                {
+                    var id = sess.SourceAppUserModelId ?? "";
+                    return id.Contains(procKey, StringComparison.OrdinalIgnoreCase);
+                });
+            }
 
             if (session != null)
             {
@@ -1394,61 +1589,20 @@ public sealed partial class VolumeOverlayWindow : Window
         
         try
         {
-            var displayArea = DisplayArea.Primary;
-            var workArea = displayArea.WorkArea;
-            var dpi = (double)displayArea.OuterBounds.Width / (double)displayArea.WorkArea.Width;
+            GetDimensionsForState(_state, out int totalWidth, out int totalHeight);
 
-            // Calculate chip size (icon only)
-            int chipWidth = settings.IconSize + 24; // icon + padding
-            int chipHeight = settings.IconSize + 16;
-
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Calculated chip size: {chipWidth}x{chipHeight}");
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] WorkArea: X={workArea.X}, Y={workArea.Y}, W={workArea.Width}, H={workArea.Height}");
-
-            int x, y;
-
-            // If custom position exists, use it
             if (settings.CustomX.HasValue && settings.CustomY.HasValue)
             {
-                x = (int)settings.CustomX.Value;
-                y = (int)settings.CustomY.Value;
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Using custom position: ({x}, {y})");
-            }
-            else
-            {
-                // Calculate position based on IconPosition setting
-                const int margin = 12;
-
-                x = settings.IconPosition switch
-                {
-                    "top-left" => workArea.X + margin,
-                    "top-right" => workArea.X + workArea.Width - chipWidth - margin,
-                    "top-center" => workArea.X + (workArea.Width - chipWidth) / 2,
-                    "bottom-left" => workArea.X + margin,
-                    "bottom-right" => workArea.X + workArea.Width - chipWidth - margin,
-                    "bottom-center" => workArea.X + (workArea.Width - chipWidth) / 2,
-                    _ => workArea.X + (workArea.Width - chipWidth) / 2
-                };
-
-                y = settings.IconPosition switch
-                {
-                    "top-left" => workArea.Y + margin,
-                    "top-right" => workArea.Y + margin,
-                    "top-center" => workArea.Y + margin,
-                    "bottom-left" => workArea.Y + workArea.Height - chipHeight - margin,
-                    "bottom-right" => workArea.Y + workArea.Height - chipHeight - margin,
-                    "bottom-center" => workArea.Y + workArea.Height - chipHeight - margin,
-                    _ => workArea.Y + margin
-                };
-                
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Calculated position for '{settings.IconPosition}': ({x}, {y})");
+                _customAnchorCenterX = (int)settings.CustomX.Value + totalWidth / 2;
+                _customAnchorY = (int)settings.CustomY.Value;
             }
 
-            var bounds = new RectInt32(x, y, chipWidth, chipHeight);
+            ComputeWindowPosition(totalWidth, totalHeight, out int newX, out int newY);
+            var bounds = new RectInt32(newX, newY, totalWidth, totalHeight);
             AppWindow?.MoveAndResize(bounds);
+            UpdateWindowRegion(totalWidth, totalHeight);
 
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Positioned at ({x}, {y}) size ({chipWidth}x{chipHeight})");
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] AppWindow bounds after move: {AppWindow?.Position.X},{AppWindow?.Position.Y} {AppWindow?.Size.Width}x{AppWindow?.Size.Height}");
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Positioned at ({newX}, {newY}) size ({totalWidth}x{totalHeight})");
         }
         catch (Exception ex)
         {
@@ -1466,21 +1620,17 @@ public sealed partial class VolumeOverlayWindow : Window
         _state = OverlayState.Expanded;
         System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: Idle → Expanded");
 
-        // Show slider, percent, and mixer button
-        MasterVolumeSlider.Visibility = Visibility.Visible;
-        PercentText.Visibility = Visibility.Visible;
-        MixerButton.Visibility = Visibility.Visible;
-
-        // Animate opacity to HoverOpacity
         var settings = ServiceContainer.Settings.VolumeMixer;
+
+        // Animate opacity of root to HoverOpacity
         AnimateOpacity(settings.HoverOpacity / 100.0, settings.AnimationMs);
 
         // Capture foreground window and start polling sessions so the active app slider shows immediately
         CaptureForegroundWindow();
         StartPolling();
 
-        // Resize window to fit expanded content
-        ResizeWindowToContent();
+        GetDimensionsForState(OverlayState.Expanded, out int targetW, out int targetH);
+        AnimateToSize(targetW, targetH, isExpanding: true, durationMs: settings.AnimationMs);
     }
 
     private void StartCollapseTimer()
@@ -1520,20 +1670,16 @@ public sealed partial class VolumeOverlayWindow : Window
         _state = OverlayState.Idle;
         System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: Expanded → Idle");
 
-        // Hide slider, percent, and mixer button
-        MasterVolumeSlider.Visibility = Visibility.Collapsed;
-        PercentText.Visibility = Visibility.Collapsed;
-        MixerButton.Visibility = Visibility.Collapsed;
-
-        // Hide active app row
+        // Hide active app row state
         ShowActiveAppRow(false);
 
-        // Animate opacity to IdleOpacity
         var settings = ServiceContainer.Settings.VolumeMixer;
+
+        // Animate opacity of root to IdleOpacity
         AnimateOpacity(settings.IdleOpacity / 100.0, settings.AnimationMs);
 
-        // Resize window back to chip size
-        ResizeWindowToContent();
+        GetDimensionsForState(OverlayState.Idle, out int targetW, out int targetH);
+        AnimateToSize(targetW, targetH, isExpanding: false, durationMs: settings.AnimationMs);
     }
 
     private void ToggleMixerPanel()
@@ -1617,102 +1763,254 @@ public sealed partial class VolumeOverlayWindow : Window
         storyboard.Begin();
     }
 
+    private void GetDimensionsForState(OverlayState state, out int width, out int height)
+    {
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        int iconSize = settings.IconSize;
+        int baseBarHeight = iconSize + 12; // 32 + 12 = 44px
+        int barHeight = _hasActiveAppRow ? (iconSize * 2) + 16 : baseBarHeight; // 64 + 16 = 80px
+
+        if (state == OverlayState.Idle)
+        {
+            // Exact circular chip (iconSize + 12 padding, e.g. 44x44)
+            width = baseBarHeight;
+            height = baseBarHeight;
+        }
+        else if (state == OverlayState.MixerOpen)
+        {
+            int expandedW = iconSize + settings.SliderWidth + 102;
+            width = Math.Max(expandedW, 340);
+
+            // Calculate mixer panel height based on app count
+            int headerHeight = 28;
+            int dividerHeight = 15;
+            int rowHeight = 40;
+            int appCount = _appSessions.Count;
+            int spacingHeight = appCount > 1 ? (appCount - 1) * 6 : 0;
+            int contentHeight = (appCount * rowHeight) + spacingHeight;
+            int paddingHeight = 26;
+
+            int panelHeight = headerHeight + dividerHeight + contentHeight + paddingHeight;
+            panelHeight = Math.Max(panelHeight, 100);
+            panelHeight = Math.Min(panelHeight, 400);
+
+            height = barHeight + 4 + panelHeight; // Spacing = 4
+        }
+        else // Expanded
+        {
+            width = iconSize + settings.SliderWidth + 102;
+            height = barHeight;
+        }
+    }
+
+    private void ComputeWindowPosition(int totalWidth, int totalHeight, out int newX, out int newY)
+    {
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        var displayArea = DisplayArea.Primary;
+        var workArea = displayArea.WorkArea;
+        const int margin = 12;
+
+        int iconSize = settings.IconSize;
+        int baseBarHeight = iconSize + 12;
+        int barHeight = _hasActiveAppRow ? (iconSize * 2) + 16 : baseBarHeight;
+
+        if (settings.CustomX.HasValue && settings.CustomY.HasValue)
+        {
+            int anchorCenterX = _customAnchorCenterX ?? ((int)settings.CustomX.Value + totalWidth / 2);
+            newX = anchorCenterX - totalWidth / 2;
+            newY = _customAnchorY ?? (int)settings.CustomY.Value;
+
+            if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
+            {
+                int panelH = totalHeight - barHeight - 4;
+                newY = newY - panelH - 4;
+            }
+            else if (_hasActiveAppRow && settings.IconPosition.StartsWith("bottom"))
+            {
+                int diff = barHeight - baseBarHeight;
+                newY = newY - diff;
+            }
+
+            newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - totalWidth, newX));
+            newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - totalHeight, newY));
+        }
+        else
+        {
+            newX = settings.IconPosition switch
+            {
+                "top-left" or "bottom-left" => workArea.X + margin,
+                "top-right" or "bottom-right" => workArea.X + workArea.Width - totalWidth - margin,
+                "top-center" or "bottom-center" => workArea.X + (workArea.Width - totalWidth) / 2,
+                _ => workArea.X + (workArea.Width - totalWidth) / 2
+            };
+
+            newY = settings.IconPosition switch
+            {
+                "top-left" or "top-right" or "top-center" => workArea.Y + margin,
+                "bottom-left" or "bottom-right" or "bottom-center" => workArea.Y + workArea.Height - totalHeight - margin,
+                _ => workArea.Y + margin
+            };
+        }
+    }
+
+    private void AnimateToSize(int targetWidth, int targetHeight, bool isExpanding, int durationMs = 250)
+    {
+        var appWindow = AppWindow;
+        if (appWindow == null) return;
+
+        var currentSize = appWindow.Size;
+        int startW = currentSize.Width;
+        int startH = currentSize.Height;
+
+        if (startW == targetWidth && startH == targetHeight && _sizeAnimationTimer == null)
+        {
+            return;
+        }
+
+        if (durationMs <= 0)
+        {
+            _sizeAnimationTimer?.Stop();
+            _sizeAnimationTimer = null;
+            ComputeWindowPosition(targetWidth, targetHeight, out int x, out int y);
+            appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
+            UpdateWindowRegion(targetWidth, targetHeight);
+            CardBorder.Width = double.NaN;
+            if (isExpanding)
+            {
+                if (ExpandableControlsGrid != null)
+                {
+                    ExpandableControlsGrid.Visibility = Visibility.Visible;
+                    ExpandableControlsGrid.Opacity = 1.0;
+                }
+                CardBorder.Padding = new Thickness(8, 6, 8, 6);
+                CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 18 : 20);
+            }
+            else
+            {
+                if (ExpandableControlsGrid != null)
+                {
+                    ExpandableControlsGrid.Visibility = Visibility.Collapsed;
+                    ExpandableControlsGrid.Opacity = 0.0;
+                }
+                CardBorder.Padding = new Thickness(6);
+                int idleH = ServiceContainer.Settings.VolumeMixer.IconSize + 12;
+                CardBorder.CornerRadius = new CornerRadius(idleH / 2.0);
+            }
+            return;
+        }
+
+        _sizeAnimationTimer?.Stop();
+
+        _animStartW = startW;
+        _animTargetW = targetWidth;
+        _animStartH = startH;
+        _animTargetH = targetHeight;
+        _animStartTime = DateTime.UtcNow;
+        _animDurationMs = durationMs;
+        _isExpanding = isExpanding;
+
+        if (isExpanding)
+        {
+            if (ExpandableControlsGrid != null)
+            {
+                ExpandableControlsGrid.Visibility = Visibility.Visible;
+                ExpandableControlsGrid.Opacity = 0;
+            }
+            CardBorder.Padding = new Thickness(8, 6, 8, 6);
+        }
+
+        _sizeAnimationTimer = DispatcherQueue.CreateTimer();
+        _sizeAnimationTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _sizeAnimationTimer.IsRepeating = true;
+        _sizeAnimationTimer.Tick += (s, e) =>
+        {
+            var elapsed = (DateTime.UtcNow - _animStartTime).TotalMilliseconds;
+            var progress = Math.Min(1.0, elapsed / _animDurationMs);
+
+            // Cubic ease out: smooth decelerating motion
+            double ease = 1.0 - Math.Pow(1.0 - progress, 3);
+
+            int curW = (int)Math.Round(_animStartW + (_animTargetW - _animStartW) * ease);
+            int curH = (int)Math.Round(_animStartH + (_animTargetH - _animStartH) * ease);
+
+            // Compute X and Y based on current W and H
+            ComputeWindowPosition(curW, curH, out int curX, out int curY);
+
+            // Move and resize window
+            appWindow.MoveAndResize(new RectInt32(curX, curY, curW, curH));
+            UpdateWindowRegion(curW, curH);
+
+            // Adjust controls opacity during expansion/collapse
+            if (ExpandableControlsGrid != null)
+            {
+                if (_isExpanding)
+                {
+                    // Fade in once width has expanded slightly (past 20%)
+                    ExpandableControlsGrid.Opacity = Math.Clamp((progress - 0.2) / 0.8, 0.0, 1.0);
+                }
+                else
+                {
+                    // Fade out early in the collapse (during first 40%)
+                    ExpandableControlsGrid.Opacity = Math.Clamp(1.0 - (progress / 0.4), 0.0, 1.0);
+                }
+            }
+
+            // Adjust corner radius smoothly between pill (22) and rounded bar (18/20)
+            int idleH = ServiceContainer.Settings.VolumeMixer.IconSize + 12;
+            double targetRadius = _isExpanding ? (_hasActiveAppRow ? 18.0 : 20.0) : (idleH / 2.0);
+            double startRadius = _isExpanding ? (idleH / 2.0) : (_hasActiveAppRow ? 18.0 : 20.0);
+            double curRadius = startRadius + (targetRadius - startRadius) * ease;
+            CardBorder.CornerRadius = new CornerRadius(curRadius);
+
+            if (progress >= 1.0)
+            {
+                _sizeAnimationTimer?.Stop();
+                _sizeAnimationTimer = null;
+
+                if (!_isExpanding)
+                {
+                    if (ExpandableControlsGrid != null)
+                    {
+                        ExpandableControlsGrid.Visibility = Visibility.Collapsed;
+                        ExpandableControlsGrid.Opacity = 0.0;
+                    }
+                    CardBorder.Padding = new Thickness(6);
+                    CardBorder.CornerRadius = new CornerRadius(idleH / 2.0);
+                }
+                else
+                {
+                    if (ExpandableControlsGrid != null)
+                    {
+                        ExpandableControlsGrid.Opacity = 1.0;
+                    }
+                    CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 18 : 20);
+                }
+                CardBorder.Width = double.NaN;
+                UpdateWindowRegion(targetWidth, targetHeight);
+            }
+        };
+        _sizeAnimationTimer.Start();
+    }
+
     private void ResizeWindowToContent()
     {
         try
         {
-            var settings = ServiceContainer.Settings.VolumeMixer;
-            int baseBarHeight = settings.IconSize + 16; // chip/pill height (e.g. 48px)
-            int barHeight = _hasActiveAppRow ? baseBarHeight + settings.IconSize + 8 : baseBarHeight;
-            int barWidth;
-            int totalHeight;
-            int totalWidth;
+            GetDimensionsForState(_state, out int totalWidth, out int totalHeight);
 
-            if (_state == OverlayState.Idle)
+            if (_sizeAnimationTimer != null)
             {
-                // Chip: just the icon pill
-                barWidth = settings.IconSize + 24;
-                totalWidth = barWidth;
-                totalHeight = baseBarHeight;
-            }
-            else if (_state == OverlayState.MixerOpen)
-            {
-                // Bar width + at least 348 to fit the mixer panel (MinWidth=320 + 2*14 padding)
-                barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
-                totalWidth = Math.Max(barWidth, 348);
-                
-                // Calculate panel height based on app count (more reliable than Measure)
-                int headerHeight = 28;
-                int dividerHeight = 15;
-                int rowHeight = 40;
-                int appCount = _appSessions.Count;
-                int spacingHeight = appCount > 1 ? (appCount - 1) * 6 : 0;
-                int contentHeight = (appCount * rowHeight) + spacingHeight;
-                int paddingHeight = 26;
-                
-                int panelHeight = headerHeight + dividerHeight + contentHeight + paddingHeight;
-                panelHeight = Math.Max(panelHeight, 100); // minimum when empty
-                panelHeight = Math.Min(panelHeight, 400); // respect MaxHeight
-                
-                totalHeight = barHeight + 6 + panelHeight;
-                
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Calculated height: apps={appCount}, panelH={panelHeight}, totalH={totalHeight}");
-            }
-            else // Expanded
-            {
-                barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
-                totalWidth = barWidth;
-                totalHeight = barHeight;
+                _animTargetW = totalWidth;
+                _animTargetH = totalHeight;
+                return;
             }
 
             var appWindow = AppWindow;
             if (appWindow != null)
             {
-                var displayArea = DisplayArea.Primary;
-                var workArea = displayArea.WorkArea;
-                const int margin = 12;
-
-                int newX;
-                int newY;
-
-                if (settings.CustomX.HasValue && settings.CustomY.HasValue)
-                {
-                    newX = (int)settings.CustomX.Value;
-                    newY = (int)settings.CustomY.Value;
-
-                    if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
-                    {
-                        int panelH = totalHeight - barHeight - 6;
-                        newY = (int)settings.CustomY.Value - panelH - 6;
-                    }
-                    else if (_hasActiveAppRow && settings.IconPosition.StartsWith("bottom"))
-                    {
-                        int diff = barHeight - baseBarHeight;
-                        newY = (int)settings.CustomY.Value - diff;
-                    }
-
-                    newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - totalWidth, newX));
-                    newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - totalHeight, newY));
-                }
-                else
-                {
-                    newX = settings.IconPosition switch
-                    {
-                        "top-left" or "bottom-left" => workArea.X + margin,
-                        "top-right" or "bottom-right" => workArea.X + workArea.Width - totalWidth - margin,
-                        "top-center" or "bottom-center" => workArea.X + (workArea.Width - totalWidth) / 2,
-                        _ => workArea.X + (workArea.Width - totalWidth) / 2
-                    };
-
-                    newY = settings.IconPosition switch
-                    {
-                        "top-left" or "top-right" or "top-center" => workArea.Y + margin,
-                        "bottom-left" or "bottom-right" or "bottom-center" => workArea.Y + workArea.Height - totalHeight - margin,
-                        _ => workArea.Y + margin
-                    };
-                }
-
+                ComputeWindowPosition(totalWidth, totalHeight, out int newX, out int newY);
                 appWindow.MoveAndResize(new RectInt32(newX, newY, totalWidth, totalHeight));
+                UpdateWindowRegion(totalWidth, totalHeight);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized to {totalWidth}x{totalHeight} at ({newX},{newY})");
             }
         }
@@ -1731,6 +2029,14 @@ public sealed partial class VolumeOverlayWindow : Window
 
         // Capture current foreground window right as pointer enters
         CaptureForegroundWindow();
+
+        // If currently animating collapse, reverse immediately back to expanded!
+        if (_sizeAnimationTimer != null && !_isExpanding)
+        {
+            _hoverDelayTimer?.Stop();
+            TransitionToExpanded();
+            return;
+        }
 
         // Start hover delay timer
         if (_state == OverlayState.Idle)
@@ -1760,7 +2066,7 @@ public sealed partial class VolumeOverlayWindow : Window
         _hoverDelayTimer?.Stop();
 
         // Start hide delay timer if not dragging and not over panel
-        if (!_isDragging && !_isPointerOverPanel && _state != OverlayState.Idle)
+        if (!_isDragging && !_isPointerOverPanel && (_state != OverlayState.Idle || (_sizeAnimationTimer != null && _isExpanding)))
         {
             StartCollapseTimer();
         }
@@ -1928,9 +2234,13 @@ public sealed partial class VolumeOverlayWindow : Window
         if (appWindow != null)
         {
             var pos = appWindow.Position;
+            var size = appWindow.Size;
             ServiceContainer.Settings.VolumeMixer.CustomX = pos.X;
             ServiceContainer.Settings.VolumeMixer.CustomY = pos.Y;
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+            _customAnchorCenterX = pos.X + size.Width / 2;
+            _customAnchorY = pos.Y;
 
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Drag ended, position saved: ({pos.X}, {pos.Y})");
         }
@@ -1974,6 +2284,8 @@ public sealed partial class VolumeOverlayWindow : Window
         _hideDelayTimer?.Stop();
         _pollingTimer?.Stop();
         _topmostTimer?.Stop();
+        _sizeAnimationTimer?.Stop();
+        _sizeAnimationTimer = null;
 
         if (_foregroundEventHook != nint.Zero)
         {

@@ -26,24 +26,27 @@
           PointerReleased="RootGrid_PointerReleased"
           PointerCaptureLost="RootGrid_PointerCaptureLost"
           KeyDown="RootGrid_KeyDown"
-          HorizontalAlignment="Center"
-          VerticalAlignment="Center">
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Background="Transparent">
 
         <StackPanel x:Name="LayoutRoot"
                     Orientation="Vertical"
-                    Spacing="0">
+                    Spacing="4"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch">
 
             <!-- ══════════════════════════════════════════════════
                  MIXER PANEL — above the bar (bottom-* positions)
                  ══════════════════════════════════════════════════ -->
             <Border x:Name="MixerPanelAbove"
                     Visibility="Collapsed"
-                    CornerRadius="24"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="16"
+                    BorderThickness="0"
+                    BorderBrush="Transparent"
+                    Background="{ThemeResource OverlayCardBackgroundBrush}"
                     Padding="14,12,14,14"
-                    MinWidth="320"
+                    HorizontalAlignment="Stretch"
                     MaxHeight="400"
                     PointerEntered="MixerPanel_PointerEntered"
                     PointerExited="MixerPanel_PointerExited">
@@ -123,11 +126,13 @@
                  CONTROL BAR — the pill, always visible
                  ══════════════════════════════════════════════════ -->
             <Border x:Name="CardBorder"
-                    CornerRadius="24"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    Padding="10,6">
+                    CornerRadius="22"
+                    BorderThickness="0"
+                    BorderBrush="Transparent"
+                    Background="{ThemeResource OverlayCardBackgroundBrush}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Padding="6">
 
                 <Grid x:Name="ContentGrid">
                     <Grid.RowDefinitions>
@@ -136,13 +141,10 @@
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- ── Row 0: Master volume row ── -->
-                    <!-- Speaker / mute button -->
+                    <!-- ── Column 0, Row 0: Speaker / mute button ── -->
                     <Button x:Name="SpeakerButton"
                             Grid.Row="0"
                             Grid.Column="0"
@@ -161,58 +163,7 @@
                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     </Button>
 
-                    <!-- Volume slider (hidden when idle) -->
-                    <Slider x:Name="MasterVolumeSlider"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Minimum="0" Maximum="100" Value="50"
-                            Width="180"
-                            VerticalAlignment="Center"
-                            Margin="8,0,0,0"
-                            Visibility="Collapsed"
-                            ValueChanged="MasterVolumeSlider_ValueChanged"
-                            PointerWheelChanged="MasterVolumeSlider_PointerWheelChanged"
-                            AutomationProperties.Name="Master volume"
-                            AutomationProperties.HelpText="Adjust system volume. Use mouse wheel or arrow keys."/>
-
-                    <!-- Percent label (hidden when idle) -->
-                    <TextBlock x:Name="PercentText"
-                               Grid.Row="0"
-                               Grid.Column="2"
-                               Text="50%"
-                               FontSize="12"
-                               MinWidth="40"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center"
-                               Margin="6,0,0,0"
-                               Visibility="Collapsed"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               AutomationProperties.LiveSetting="Polite"/>
-
-                    <!-- Mixer-open button (hidden when idle) -->
-                    <Button x:Name="MixerButton"
-                            Grid.Row="0"
-                            Grid.Column="3"
-                            Click="MixerButton_Click"
-                            Width="28" Height="28"
-                            Padding="0"
-                            Margin="6,0,0,0"
-                            CornerRadius="14"
-                            Visibility="Collapsed"
-                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                            BorderThickness="1"
-                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                            VerticalAlignment="Center"
-                            AutomationProperties.Name="Open volume mixer"
-                            AutomationProperties.HelpText="Show per-application volume controls">
-                        <FontIcon x:Name="MixerButtonIcon"
-                                  Glyph="&#xE9E9;"
-                                  FontSize="13"
-                                  Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                    </Button>
-
-                    <!-- ── Row 1: Active application volume row (below master slider) ── -->
-                    <!-- Active App Icon / Host button -->
+                    <!-- ── Column 0, Row 1: Active App Icon / Host button ── -->
                     <Grid x:Name="ActiveAppHost"
                           Grid.Row="1"
                           Grid.Column="0"
@@ -228,67 +179,134 @@
                                 BorderThickness="0"
                                 CornerRadius="16"
                                 Click="ActiveAppIconButton_Click"
+                                ToolTipService.ToolTip="Play / Pause"
                                 AutomationProperties.Name="Active application icon">
-                            <Grid x:Name="ActiveAppIconContainer" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid x:Name="ActiveAppIconContainer" 
+                                  Width="20" Height="20" 
+                                  HorizontalAlignment="Center" 
+                                  VerticalAlignment="Center"
+                                  IsHitTestVisible="False">
                                 <FontIcon x:Name="ActiveAppFallbackIcon"
                                           Glyph="&#xE8A5;"
                                           FontSize="16"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
+                                          IsHitTestVisible="False"
                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </Grid>
                         </Button>
                     </Grid>
 
-                    <!-- Active App Volume slider -->
-                    <Slider x:Name="ActiveAppVolumeSlider"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Minimum="0" Maximum="100" Value="50"
-                            Width="180"
-                            VerticalAlignment="Center"
-                            Margin="8,4,0,0"
-                            Visibility="Collapsed"
-                            ValueChanged="ActiveAppVolumeSlider_ValueChanged"
-                            PointerWheelChanged="ActiveAppVolumeSlider_PointerWheelChanged"
-                            AutomationProperties.Name="Active application volume"
-                            AutomationProperties.HelpText="Adjust focused application volume."/>
+                    <!-- ── Column 1: Expandable controls (fade in/out smoothly with width animation) ── -->
+                    <Grid x:Name="ExpandableControlsGrid"
+                          Grid.Row="0"
+                          Grid.RowSpan="2"
+                          Grid.Column="1"
+                          Visibility="Collapsed"
+                          Opacity="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Active App Percent label -->
-                    <TextBlock x:Name="ActiveAppPercentText"
-                               Grid.Row="1"
-                               Grid.Column="2"
-                               Text="50%"
-                               FontSize="12"
-                               MinWidth="40"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center"
-                               Margin="6,4,0,0"
-                               Visibility="Collapsed"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               AutomationProperties.LiveSetting="Polite"/>
+                        <!-- Row 0: Master volume slider, percent label, mixer button -->
+                        <Slider x:Name="MasterVolumeSlider"
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Minimum="0" Maximum="100" Value="50"
+                                Width="180"
+                                VerticalAlignment="Center"
+                                Margin="8,0,0,0"
+                                ValueChanged="MasterVolumeSlider_ValueChanged"
+                                PointerWheelChanged="MasterVolumeSlider_PointerWheelChanged"
+                                AutomationProperties.Name="Master volume"
+                                AutomationProperties.HelpText="Adjust system volume. Use mouse wheel or arrow keys."/>
 
-                    <!-- Active App Mute button -->
-                    <Button x:Name="ActiveAppMuteButton"
-                            Grid.Row="1"
-                            Grid.Column="3"
-                            Click="ActiveAppMuteButton_Click"
-                            Width="28" Height="28"
-                            Padding="0"
-                            Margin="6,4,0,0"
-                            CornerRadius="14"
-                            Visibility="Collapsed"
-                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                            BorderThickness="1"
-                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                            VerticalAlignment="Center"
-                            AutomationProperties.Name="Mute active application"
-                            AutomationProperties.HelpText="Mute or unmute active application">
-                        <FontIcon x:Name="ActiveAppMuteIcon"
-                                  Glyph="&#xE767;"
-                                  FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                    </Button>
+                        <TextBlock x:Name="PercentText"
+                                   Grid.Row="0"
+                                   Grid.Column="1"
+                                   Text="50%"
+                                   FontSize="12"
+                                   MinWidth="38"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="6,0,0,0"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+
+                        <Button x:Name="MixerButton"
+                                Grid.Row="0"
+                                Grid.Column="2"
+                                Click="MixerButton_Click"
+                                Width="28" Height="28"
+                                Padding="0"
+                                Margin="6,0,0,0"
+                                CornerRadius="14"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderThickness="1"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Open volume mixer"
+                                AutomationProperties.HelpText="Show per-application volume controls">
+                            <FontIcon x:Name="MixerButtonIcon"
+                                      Glyph="&#xE9E9;"
+                                      FontSize="13"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Button>
+
+                        <!-- Row 1: Active App volume slider, percent label, mute button -->
+                        <Slider x:Name="ActiveAppVolumeSlider"
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                Minimum="0" Maximum="100" Value="50"
+                                Width="180"
+                                VerticalAlignment="Center"
+                                Margin="8,4,0,0"
+                                Visibility="Collapsed"
+                                ValueChanged="ActiveAppVolumeSlider_ValueChanged"
+                                PointerWheelChanged="ActiveAppVolumeSlider_PointerWheelChanged"
+                                AutomationProperties.Name="Active application volume"
+                                AutomationProperties.HelpText="Adjust focused application volume."/>
+
+                        <TextBlock x:Name="ActiveAppPercentText"
+                                   Grid.Row="1"
+                                   Grid.Column="1"
+                                   Text="50%"
+                                   FontSize="12"
+                                   MinWidth="38"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="6,4,0,0"
+                                   Visibility="Collapsed"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+
+                        <Button x:Name="ActiveAppMuteButton"
+                                Grid.Row="1"
+                                Grid.Column="2"
+                                Click="ActiveAppMuteButton_Click"
+                                Width="28" Height="28"
+                                Padding="0"
+                                Margin="6,4,0,0"
+                                CornerRadius="14"
+                                Visibility="Collapsed"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderThickness="1"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Mute active application"
+                                AutomationProperties.HelpText="Mute or unmute active application">
+                            <FontIcon x:Name="ActiveAppMuteIcon"
+                                      Glyph="&#xE767;"
+                                      FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Button>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -297,12 +315,12 @@
                  ══════════════════════════════════════════════════ -->
             <Border x:Name="MixerPanelBelow"
                     Visibility="Collapsed"
-                    CornerRadius="24"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="16"
+                    BorderThickness="0"
+                    BorderBrush="Transparent"
+                    Background="{ThemeResource OverlayCardBackgroundBrush}"
                     Padding="14,12,14,14"
-                    MinWidth="320"
+                    HorizontalAlignment="Stretch"
                     MaxHeight="400"
                     PointerEntered="MixerPanel_PointerEntered"
                     PointerExited="MixerPanel_PointerExited">
@@ -377,14 +395,7 @@
 
         </StackPanel>
 
-        <!-- Drag outline accent ring (non-interactive) -->
-        <Border x:Name="DragOutline"
-                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
-                BorderThickness="2"
-                CornerRadius="24"
-                Visibility="Collapsed"
-                IsHitTestVisible="False"
-                Opacity="0.6"/>
+
 
     </Grid>
 </Window>
