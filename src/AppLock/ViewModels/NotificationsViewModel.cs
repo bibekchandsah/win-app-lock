@@ -95,16 +95,26 @@ public partial class NotificationsViewModel : ObservableObject
             var picker = new Views.PickToastPositionOverlay(primaryMonitor, bounds);
             picker.Activate();
 
-            // Wait for picker to close (not ideal but works for now)
-            await Task.Delay(100);
+            // Wait for the picker window to actually close (confirmed or cancelled).
+            // WaitForCloseAsync completes when the user clicks or presses Esc.
+            await picker.WaitForCloseAsync();
 
-            // Check if position was confirmed
             if (picker.WasConfirmed)
             {
-                SelectedAnchor = "Custom";
+                // Save percentages BEFORE updating the anchor so the positioner
+                // already has the correct values when settings are read.
                 ServiceContainer.Settings.NotificationCustom.CustomPercentX = picker.SelectedPercentX;
                 ServiceContainer.Settings.NotificationCustom.CustomPercentY = picker.SelectedPercentY;
+
+                // Setting SelectedAnchor triggers OnSelectedAnchorChanged which saves + notifies
+                SelectedAnchor = "Custom";
+
+                // Persist (SelectedAnchor setter already calls Save, but call again to be sure
+                // the CustomPercent values are written together with the anchor)
                 ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+                LogService.LogAction("notifications",
+                    $"Custom position saved: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");
             }
         }
         catch (Exception ex)
@@ -112,6 +122,7 @@ public partial class NotificationsViewModel : ObservableObject
             LogService.LogAction("notifications", $"Error picking position: {ex.Message}");
         }
     }
+
 
     [RelayCommand]
     private async Task SendTestNotificationAsync()

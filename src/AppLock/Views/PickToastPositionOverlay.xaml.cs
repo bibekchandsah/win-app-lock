@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
 using System;
+using System.Threading.Tasks;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -18,16 +19,29 @@ public sealed partial class PickToastPositionOverlay : Window
     private const int ToastWidth = 396;
     private const int ToastHeight = 120;
 
+    // Last snapped position, kept in sync by OnPointerMoved so OnPointerPressed reads it
+    private double _snappedX;
+    private double _snappedY;
+
+    // Used to properly await the picker from the ViewModel without polling
+    private readonly TaskCompletionSource<bool> _closedTcs = new();
+
     public float SelectedPercentX { get; private set; }
     public float SelectedPercentY { get; private set; }
     public bool WasConfirmed { get; private set; }
 
+    /// <summary>Await this to block until the user confirms or cancels.</summary>
+    public Task WaitForCloseAsync() => _closedTcs.Task;
+
     public PickToastPositionOverlay(HMONITOR monitor, RectInt32 bounds)
     {
         this.InitializeComponent();
-        
+
         _targetMonitor = monitor;
         _monitorBounds = bounds;
+
+        // Signal the TCS when the window actually closes
+        this.Closed += (_, _) => _closedTcs.TrySetResult(WasConfirmed);
 
         SetupWindow();
         SetupEventHandlers();
@@ -112,11 +126,14 @@ public sealed partial class PickToastPositionOverlay : Window
         }
         else
         {
-            // Hide all guides when snapping is disabled
             HideAllGuides();
         }
 
-        // Position ghost toast
+        // Keep track of the snapped coordinates so OnPointerPressed uses them
+        _snappedX = x;
+        _snappedY = y;
+
+        // Position ghost toast (top-left corner of the ghost = snapped position)
         GhostToast.Margin = new Thickness(x, y, 0, 0);
     }
 
@@ -196,16 +213,12 @@ public sealed partial class PickToastPositionOverlay : Window
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (Content is not Microsoft.UI.Xaml.FrameworkElement rootElement)
-            return;
+        // Use the snapped position (kept by OnPointerMoved), not the raw cursor.
+        // The percentage is the top-left corner of the ghost toast relative to
+        // the monitor, so the positioner places it exactly where the ghost was.
+        SelectedPercentX = (float)(_snappedX / _monitorBounds.Width);
+        SelectedPercentY = (float)(_snappedY / _monitorBounds.Height);
 
-        // Confirm position
-        var point = e.GetCurrentPoint(rootElement);
-        
-        // Calculate percentages (0.0 to 1.0)
-        SelectedPercentX = (float)(point.Position.X / _monitorBounds.Width);
-        SelectedPercentY = (float)(point.Position.Y / _monitorBounds.Height);
-        
         WasConfirmed = true;
         this.Close();
     }
