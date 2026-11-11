@@ -93,6 +93,13 @@ public sealed partial class VolumeOverlayWindow : Window
     private const uint DWMWCP_DONOTROUND = 1;
     private const uint DWMWCP_ROUND = 2;
 
+    // DWM non-client rendering policy — set to DISABLED (1) to suppress outer shadow/glow
+    private const uint DWMWA_NCRENDERING_POLICY = 2;
+    private const uint DWMNCRP_DISABLED = 1;
+
+    // DWM window attributes for shadow control
+    private const uint DWMWA_ALLOW_NCPAINT = 4;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct MARGINS
     {
@@ -149,6 +156,14 @@ public sealed partial class VolumeOverlayWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowRgn(nint hWnd, nint hRgn, bool bRedraw);
+
+    // WS_EX_LAYERED + UpdateLayeredWindow for true per-pixel alpha (no DWM glow)
+    private const int WS_EX_LAYERED = 0x00080000;
+    private const uint LWA_ALPHA = 0x00000002;
+    private const uint LWA_COLORKEY = 0x00000001;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetLayeredWindowAttributes(nint hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
     private const int RGN_OR = 2;
 
@@ -393,8 +408,9 @@ public sealed partial class VolumeOverlayWindow : Window
     }
 
     /// <summary>
-    /// Enables DWM glass/transparent frame across the entire HWND so that transparent XAML areas
-    /// are 100% see-through with subpixel anti-aliasing against the desktop, eliminating any black window background.
+    /// Enables true transparent window rendering: disables DWM NC shadow/glow, extends glass frame
+    /// fully into client area, and uses per-pixel alpha so XAML transparent areas show the desktop
+    /// without any black backing, outer glow, or colored border artifact.
     /// </summary>
     private void EnableTransparency(nint hWnd)
     {
@@ -402,11 +418,19 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             if (hWnd == 0) return;
 
-            // 1. Extend the DWM frame into the entire client area (-1 margin = full alpha frame)
+            // 1. Disable DWM non-client rendering entirely — this removes the outer glow/shadow
+            //    that DWM adds around borderless windows (the purple/pink glow seen in screenshots).
+            uint ncPolicy = DWMNCRP_DISABLED;
+            DwmSetWindowAttribute(hWnd, DWMWA_NCRENDERING_POLICY, ref ncPolicy, sizeof(uint));
+
+            // 2. Extend the DWM glass frame into the ENTIRE client area (-1 = sheet of glass).
+            //    This makes DWM composite the XAML DirectComposition tree with per-pixel alpha
+            //    directly against the desktop, so transparent XAML pixels are truly see-through.
             MARGINS margins = new MARGINS(-1);
             DwmExtendFrameIntoClientArea(hWnd, ref margins);
 
-            // 2. Clear out solid DWM backing blocks using blur-behind with an empty offscreen region
+            // 3. Suppress blur-behind with an offscreen empty region so DWM doesn't add
+            //    any blurred backdrop that would appear as a tinted rectangle.
             nint hRgn = CreateRectRgn(-2, -2, -1, -1);
             DWM_BLURBEHIND blurBehind = new DWM_BLURBEHIND
             {
@@ -417,11 +441,13 @@ public sealed partial class VolumeOverlayWindow : Window
             DwmEnableBlurBehindWindow(hWnd, ref blurBehind);
             DeleteObject(hRgn);
 
-            // 3. Force square DWM bounds so DWM does not add its own rectangular/shadow artifacts
+            // 4. Prevent DWM from rounding corners — sharp geometry so our XAML CornerRadius
+            //    is the only rounding applied (no double-rounding artifact).
             uint cornerPreference = DWMWCP_DONOTROUND;
             DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref cornerPreference, sizeof(uint));
 
-            // 4. Clear any GDI window region so DirectComposition renders true per-pixel alpha transparency
+            // 5. Clear any GDI window region so DirectComposition can render true per-pixel alpha.
+            //    A set GDI region clips DComp and prevents transparency on transparent pixels.
             SetWindowRgn(hWnd, nint.Zero, true);
         }
         catch (Exception ex)
