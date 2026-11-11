@@ -110,9 +110,23 @@ public class NotificationCustomizerService : IDisposable
             LogService.LogAction("notifications",
                 $"Toast shown: 0x{hwnd.Value:X}, Anchor: {_settings.Anchor}");
 
-            // Apply position and opacity immediately, then start the hold loop on a background thread
+            // Read fresh settings to get latest opacity value
+            var currentSettings = ServiceContainer.Settings.NotificationCustom;
+
+            // Apply position immediately
             ApplyPosition(hwnd);
-            ToastOpacityApplier.ApplyOpacity(hwnd, _settings);
+            
+            // Only apply opacity if less than 100%
+            if (currentSettings.OpacityPercent < 100)
+            {
+                ToastOpacityApplier.ApplyOpacity(hwnd, currentSettings);
+            }
+            else
+            {
+                LogService.LogAction("notifications", 
+                    $"Opacity is {currentSettings.OpacityPercent}%, skipping opacity modification");
+            }
+            
             StartHoldLoop(hwnd, cts.Token);
         }
         catch (Exception ex)
@@ -225,8 +239,16 @@ public class NotificationCustomizerService : IDisposable
                     if (!Windows.Win32.PInvoke.IsWindow(hwnd))
                         break;
 
+                    // Read fresh settings each time in case opacity changed
+                    var currentSettings = ServiceContainer.Settings.NotificationCustom;
+                    
                     ApplyPosition(hwnd);
-                    ToastOpacityApplier.ApplyOpacity(hwnd, _settings);
+                    
+                    // Only apply opacity if less than 100%
+                    if (currentSettings.OpacityPercent < 100)
+                    {
+                        ToastOpacityApplier.ApplyOpacity(hwnd, currentSettings);
+                    }
                 }
 
                 LogService.LogAction("notifications",

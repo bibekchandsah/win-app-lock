@@ -44,6 +44,9 @@ public partial class NotificationsViewModel : ObservableObject
     public string AnchorDisplayText => $"Current: {SelectedAnchor}";
     public string MarginText => $"{ServiceContainer.Settings.NotificationCustom.MarginPx} px";
     public string OpacityText => $"{OpacityPercent}%";
+    
+    // Convert opacity percentage to 0.0-1.0 for XAML Opacity binding
+    public double PreviewOpacity => OpacityPercent / 100.0;
 
     public ObservableCollection<ToastCandidateViewModel> Candidates { get; } = new();
 
@@ -178,6 +181,7 @@ public partial class NotificationsViewModel : ObservableObject
         ServiceContainer.Settings.NotificationCustom.OpacityPercent = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         OnPropertyChanged(nameof(OpacityText));
+        OnPropertyChanged(nameof(PreviewOpacity));
     }
 
     partial void OnSelectedAnchorChanged(string value)

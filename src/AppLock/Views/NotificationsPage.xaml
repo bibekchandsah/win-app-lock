@@ -379,6 +379,7 @@
                                                         CornerRadius="6"
                                                         Width="120"
                                                         Height="32"
+                                                        Opacity="{x:Bind ViewModel.PreviewOpacity, Mode=OneWay}"
                                                         Canvas.Left="{x:Bind ViewModel.PreviewToastLeft, Mode=OneWay}"
                                                         Canvas.Top="{x:Bind ViewModel.PreviewToastTop, Mode=OneWay}">
                                                     <!-- Inner content to show it's a notification -->

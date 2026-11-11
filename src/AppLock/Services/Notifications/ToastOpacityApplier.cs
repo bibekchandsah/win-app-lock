@@ -34,31 +34,58 @@ public static class ToastOpacityApplier
     {
         try
         {
+            LogService.LogAction("notifications", 
+                $"ApplyOpacity called: HWND=0x{toastHwnd.Value:X}, OpacityPercent={settings.OpacityPercent}");
+
             // Only apply if opacity is less than 100%
             if (settings.OpacityPercent >= 100)
             {
+                LogService.LogAction("notifications", "Opacity is 100%, skipping (leaving window normal)");
+                return;
+            }
+
+            // Validate window exists
+            if (!PInvoke.IsWindow(toastHwnd))
+            {
+                LogService.LogAction("notifications", "Window is invalid, skipping opacity");
                 return;
             }
 
             // Get current window style
             var exStyle = GetWindowLong(toastHwnd.Value, GWL_EXSTYLE);
+            LogService.LogAction("notifications", 
+                $"Current exStyle: 0x{exStyle:X8}, Has WS_EX_LAYERED: {(exStyle & WS_EX_LAYERED) != 0}");
 
             // Add WS_EX_LAYERED if not already present
             if ((exStyle & WS_EX_LAYERED) == 0)
             {
                 exStyle |= WS_EX_LAYERED;
-                SetWindowLong(toastHwnd.Value, GWL_EXSTYLE, exStyle);
+                var result = SetWindowLong(toastHwnd.Value, GWL_EXSTYLE, exStyle);
+                LogService.LogAction("notifications", 
+                    $"Added WS_EX_LAYERED, SetWindowLong result: {result}, New exStyle: 0x{exStyle:X8}");
+                
+                // Force window to redraw with new style
+                PInvoke.SetWindowPos(toastHwnd, HWND.Null, 0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | 
+                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE | 
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | 
+                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                    SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
             }
 
             // Calculate alpha value (0-255, where 255 is fully opaque)
-            byte alpha = (byte)((settings.OpacityPercent / 100.0) * 255);
+            byte alpha = (byte)Math.Max(1, Math.Min(255, (settings.OpacityPercent / 100.0) * 255));
+            LogService.LogAction("notifications", 
+                $"Setting alpha to {alpha} (from {settings.OpacityPercent}%)");
 
             // Apply the alpha transparency
-            SetLayeredWindowAttributes(toastHwnd.Value, 0, alpha, LWA_ALPHA);
+            bool success = SetLayeredWindowAttributes(toastHwnd.Value, 0, alpha, LWA_ALPHA);
+            LogService.LogAction("notifications", 
+                $"SetLayeredWindowAttributes result: {success}, LastError: {Marshal.GetLastWin32Error()}");
         }
         catch (Exception ex)
         {
-            LogService.LogAction("notifications", $"Failed to apply opacity: {ex.Message}");
+            LogService.LogAction("notifications", $"Failed to apply opacity: {ex.Message}\n{ex.StackTrace}");
         }
     }
 }
