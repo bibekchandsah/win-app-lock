@@ -43,6 +43,13 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _eyeCareIntervalCustomItem;
     private MenuFlyoutItem? _ringLightToggleMenuItem;
     private MenuFlyoutItem? _volumeMixerToggleMenuItem;  // ADD THIS
+    private MenuFlyoutSubItem? _volumeMixerPositionSubItem;
+    private ToggleMenuFlyoutItem? _vmPosTopLeftItem;
+    private ToggleMenuFlyoutItem? _vmPosTopCenterItem;
+    private ToggleMenuFlyoutItem? _vmPosTopRightItem;
+    private ToggleMenuFlyoutItem? _vmPosBottomLeftItem;
+    private ToggleMenuFlyoutItem? _vmPosBottomCenterItem;
+    private ToggleMenuFlyoutItem? _vmPosBottomRightItem;
     private MenuFlyoutSubItem? _ringLightPresetsSubItem;
     private ToggleMenuFlyoutItem? _presetWarmMenuItem;
     private ToggleMenuFlyoutItem? _presetNeutralMenuItem;
@@ -170,6 +177,29 @@ public sealed class TrayService : IDisposable
                                         _eyeCareInterval60mItem = tmi;
                                     else if (tmi.Name == "EyeCareIntervalCustomItem" || st.Contains("Custom", StringComparison.OrdinalIgnoreCase))
                                         _eyeCareIntervalCustomItem = tmi;
+                                }
+                            }
+                        }
+                        else if (sub.Name == "VolumeMixerPositionSubItem" || (sub.Text != null && sub.Text.Contains("Icon Position", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _volumeMixerPositionSubItem = sub;
+                            foreach (var subItem in sub.Items)
+                            {
+                                if (subItem is ToggleMenuFlyoutItem tmi)
+                                {
+                                    var st = (tmi.Text ?? "").Trim();
+                                    if (tmi.Name == "VmPosTopLeftItem" || st.Equals("Top Left", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosTopLeftItem = tmi;
+                                    else if (tmi.Name == "VmPosTopCenterItem" || st.Equals("Top Center", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosTopCenterItem = tmi;
+                                    else if (tmi.Name == "VmPosTopRightItem" || st.Equals("Top Right", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosTopRightItem = tmi;
+                                    else if (tmi.Name == "VmPosBottomLeftItem" || st.Equals("Bottom Left", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosBottomLeftItem = tmi;
+                                    else if (tmi.Name == "VmPosBottomCenterItem" || st.Equals("Bottom Center", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosBottomCenterItem = tmi;
+                                    else if (tmi.Name == "VmPosBottomRightItem" || st.Equals("Bottom Right", StringComparison.OrdinalIgnoreCase))
+                                        _vmPosBottomRightItem = tmi;
                                 }
                             }
                         }
@@ -394,6 +424,30 @@ public sealed class TrayService : IDisposable
                     _volumeMixerToggleMenuItem.Command = new RelayCommand(toggleVolumeMixer);
                 }
 
+                // Wire Volume Mixer icon position submenu
+                void WireVmPosItem(ToggleMenuFlyoutItem? item, string positionId)
+                {
+                    if (item == null) return;
+                    Action action = () =>
+                    {
+                        ServiceContainer.Settings.VolumeMixer.IconPosition = positionId;
+                        ServiceContainer.Settings.VolumeMixer.CustomX = null;
+                        ServiceContainer.Settings.VolumeMixer.CustomY = null;
+                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                        ServiceContainer.VolumeOverlayService?.RefreshSettings();
+                        UpdateVolumeMixerPositionSubItem();
+                    };
+                    item.Click += (s, e) => action();
+                    item.Command = new RelayCommand(action);
+                }
+
+                WireVmPosItem(_vmPosTopLeftItem,      "top-left");
+                WireVmPosItem(_vmPosTopCenterItem,    "top-center");
+                WireVmPosItem(_vmPosTopRightItem,     "top-right");
+                WireVmPosItem(_vmPosBottomLeftItem,   "bottom-left");
+                WireVmPosItem(_vmPosBottomCenterItem, "bottom-center");
+                WireVmPosItem(_vmPosBottomRightItem,  "bottom-right");
+
                 void WirePresetItem(ToggleMenuFlyoutItem? item, string presetId)
                 {
                     if (item == null) return;
@@ -482,6 +536,7 @@ public sealed class TrayService : IDisposable
             UpdateEyeCareMenuItems();
             UpdateRingLightMenuItem();
             UpdateVolumeMixerMenuItem();
+            UpdateVolumeMixerPositionSubItem();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
 
@@ -747,6 +802,7 @@ public sealed class TrayService : IDisposable
             try
             {
                 UpdateVolumeMixerMenuItem();
+                UpdateVolumeMixerPositionSubItem();
             }
             catch (Exception ex)
             {
@@ -767,6 +823,25 @@ public sealed class TrayService : IDisposable
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating volume mixer menu: {ex.Message}");
+        }
+    }
+
+    public void UpdateVolumeMixerPositionSubItem()
+    {
+        try
+        {
+            if (_volumeMixerPositionSubItem == null) return;
+            var pos = ServiceContainer.Settings.VolumeMixer.IconPosition;
+            if (_vmPosTopLeftItem      != null) _vmPosTopLeftItem.IsChecked      = pos == "top-left";
+            if (_vmPosTopCenterItem    != null) _vmPosTopCenterItem.IsChecked    = pos == "top-center";
+            if (_vmPosTopRightItem     != null) _vmPosTopRightItem.IsChecked     = pos == "top-right";
+            if (_vmPosBottomLeftItem   != null) _vmPosBottomLeftItem.IsChecked   = pos == "bottom-left";
+            if (_vmPosBottomCenterItem != null) _vmPosBottomCenterItem.IsChecked = pos == "bottom-center";
+            if (_vmPosBottomRightItem  != null) _vmPosBottomRightItem.IsChecked  = pos == "bottom-right";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error updating volume mixer position menu: {ex.Message}");
         }
     }
 
