@@ -37,21 +37,27 @@ public sealed partial class VolumeOverlayWindow : Window
     private DispatcherQueueTimer? _topmostTimer;  // Periodically re-enforce topmost z-order
     private bool _isPointerOverBar;
     private bool _isPointerOverPanel;
-    private bool _isDragging;
     private bool _isUpdatingSlider; // Flag to prevent feedback loops
-    private Windows.Foundation.Point _dragStartPoint;
-    private int _dragStartX;
-    private int _dragStartY;
+
+    // Smooth drag tracking using screen coordinates (identical to ClipboardPopupWindow)
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    private bool _isDragging;
+    private POINT _dragStartCursor;
+    private Windows.Graphics.PointInt32 _dragStartWindowPos;
     private int _dragStartWidth;
     private int _dragStartHeight;
-    
-    // Drag optimization
-    private DateTime _lastDragUpdate = DateTime.MinValue;
-    private const int DragThrottleMs = 16; // Update every 16ms (60fps) for stability
-    private const int MinDragDistance = 3; // Increase to 3px to reduce updates
-    private int _lastDragX = 0;
-    private int _lastDragY = 0;
-    private bool _suspendRedraw = false;
+    private int _lastMoveX = int.MinValue;
+    private int _lastMoveY = int.MinValue;
 
     // Session tracking — ViewModel, session IDs, the row Grid, and the play/pause FontIcon for status sync
     private readonly Dictionary<string, (MixerSessionViewModel ViewModel, List<string> SessionIds, Grid Row, FontIcon PlayIcon)> _appSessions = new();
@@ -92,6 +98,38 @@ public sealed partial class VolumeOverlayWindow : Window
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SendMessage(nint hWnd, int Msg, nint wParam, nint lParam);
+
+    // Win32 foreground window tracking
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
+
+    private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+
+    private delegate void WinEventDelegate(nint hWinEventHook, uint eventType, nint hWnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SetWinEventHook(
+        uint eventMin, uint eventMax, nint hmodWinEventProc,
+        WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWinEvent(nint hWinEventHook);
+
+    // Active application session tracking
+    private string? _activeAppProcessName;
+    private string? _activeAppDisplayName;
+    private readonly List<string> _activeAppSessionIds = new();
+    private bool _isUpdatingActiveAppSlider;
+    private int _lastForegroundProcessId;
+    private nint _foregroundEventHook;
+    private WinEventDelegate? _foregroundEventDelegate;
+    private bool _hasActiveAppRow;
+    private string? _loadedActiveAppIconKey;
 
     // SMTC session cache: processName (no .exe) → SMTC session
     private GlobalSystemMediaTransportControlsSessionManager? _smtcManager;
@@ -143,6 +181,15 @@ public sealed partial class VolumeOverlayWindow : Window
 
             // Initialize SMTC session manager for accurate per-app play/pause
             _ = InitSmtcAsync();
+
+            // Setup foreground window tracking
+            _foregroundEventDelegate = OnForegroundEvent;
+            _foregroundEventHook = SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+                nint.Zero, _foregroundEventDelegate,
+                0, 0,
+                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+            CaptureForegroundWindow();
             
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Constructor complete");
 
@@ -313,8 +360,24 @@ public sealed partial class VolumeOverlayWindow : Window
             SpeakerButton.CornerRadius = new CornerRadius(settings.IconSize / 2);
             SpeakerIcon.FontSize = settings.IconSize * 0.625; // 20/32
 
+            if (ActiveAppIconButton != null)
+            {
+                ActiveAppIconButton.Width = settings.IconSize;
+                ActiveAppIconButton.Height = settings.IconSize;
+                ActiveAppIconButton.CornerRadius = new CornerRadius(settings.IconSize / 2);
+            }
+            if (ActiveAppHost != null)
+            {
+                ActiveAppHost.Width = settings.IconSize;
+                ActiveAppHost.Height = settings.IconSize;
+            }
+
             // Slider width
             MasterVolumeSlider.Width = settings.SliderWidth;
+            if (ActiveAppVolumeSlider != null)
+            {
+                ActiveAppVolumeSlider.Width = settings.SliderWidth;
+            }
 
             // Idle opacity
             RootGrid.Opacity = settings.IdleOpacity / 100.0;
@@ -450,6 +513,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
             // Update UI
             UpdateSessionRows(groups);
+            UpdateActiveAppSession(groups);
         }
         catch (Exception ex)
         {
@@ -763,6 +827,8 @@ public sealed partial class VolumeOverlayWindow : Window
         var universalGlyph = universalPlaying ? "\uE769" : "\uE768";
         if (UniversalPlayPauseIconAbove != null) UniversalPlayPauseIconAbove.Glyph = universalGlyph;
         if (UniversalPlayPauseIconBelow != null) UniversalPlayPauseIconBelow.Glyph = universalGlyph;
+
+        UpdateActiveAppTooltip();
     }
 
     /// <summary>
@@ -952,6 +1018,277 @@ public sealed partial class VolumeOverlayWindow : Window
         catch { /* keep fallback glyph */ }
     }
 
+    // ── Active Application Volume Row Support ─────────────────────────────────
+
+    private void CaptureForegroundWindow()
+    {
+        try
+        {
+            var myHwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var fg = GetForegroundWindow();
+            if (fg != 0 && fg != myHwnd)
+            {
+                GetWindowThreadProcessId(fg, out uint pid);
+                if (pid != 0 && pid != Environment.ProcessId)
+                {
+                    _lastForegroundProcessId = (int)pid;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] CaptureForegroundWindow error: {ex.Message}");
+        }
+    }
+
+    private void OnForegroundEvent(nint hWinEventHook, uint eventType, nint hWnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        try
+        {
+            if (hWnd == 0) return;
+            var myHwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == myHwnd) return;
+
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            if (pid != 0 && pid != Environment.ProcessId)
+            {
+                _lastForegroundProcessId = (int)pid;
+                if (_state == OverlayState.Expanded || _state == OverlayState.MixerOpen)
+                {
+                    DispatcherQueue.TryEnqueue(RefreshSessions);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void UpdateActiveAppSession(List<IGrouping<string, SessionInfo>> groups)
+    {
+        try
+        {
+            CaptureForegroundWindow();
+
+            IGrouping<string, SessionInfo>? targetGroup = null;
+
+            // 1. Direct match with current foreground process
+            if (_lastForegroundProcessId > 0)
+            {
+                var fgName = GetProcessName(_lastForegroundProcessId);
+                if (!string.IsNullOrEmpty(fgName) && !fgName.StartsWith("process-"))
+                {
+                    targetGroup = groups.FirstOrDefault(g =>
+                        g.Key.Equals(fgName, StringComparison.OrdinalIgnoreCase) ||
+                        g.Key.Contains(fgName, StringComparison.OrdinalIgnoreCase) ||
+                        fgName.Contains(g.Key, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            // 2. Match with SMTC active/playing media session (e.g. Edge or Chrome playing music in background)
+            if (targetGroup == null && _smtcManager != null)
+            {
+                var currentSmtc = _smtcManager.GetCurrentSession();
+                if (currentSmtc != null)
+                {
+                    var smtcAppId = currentSmtc.SourceAppUserModelId ?? string.Empty;
+                    var smtcKey = smtcAppId.Split('!')[0].Split('.').Last().ToLowerInvariant();
+                    if (!string.IsNullOrEmpty(smtcKey))
+                    {
+                        targetGroup = groups.FirstOrDefault(g =>
+                            g.Key.Equals(smtcKey, StringComparison.OrdinalIgnoreCase) ||
+                            g.Key.Contains(smtcKey, StringComparison.OrdinalIgnoreCase) ||
+                            smtcKey.Contains(g.Key, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+            }
+
+            // 3. Fallback to previously selected app if it still exists in the session list
+            if (targetGroup == null && !string.IsNullOrEmpty(_activeAppProcessName))
+            {
+                targetGroup = groups.FirstOrDefault(g => g.Key.Equals(_activeAppProcessName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // 4. Fallback to any app currently active/playing or first group
+            if (targetGroup == null && groups.Count > 0)
+            {
+                targetGroup = groups.FirstOrDefault(g => g.Any(s => s.State == 1)) ?? groups.First();
+            }
+
+            if (targetGroup != null)
+            {
+                _activeAppProcessName = targetGroup.Key;
+                _activeAppSessionIds.Clear();
+                _activeAppSessionIds.AddRange(targetGroup.Select(s => s.SessionIdentifier));
+
+                var first = targetGroup.First();
+                var (name, exePath) = _iconResolver.ResolveApp(first.ProcessId, first.DisplayName, first.IconPath);
+                _activeAppDisplayName = name;
+
+                float maxVol = targetGroup.Max(s => s.Volume);
+                bool allMuted = targetGroup.All(s => s.IsMuted);
+                int volPercent = (int)Math.Round(maxVol * 100);
+
+                _isUpdatingActiveAppSlider = true;
+                ActiveAppVolumeSlider.Value = volPercent;
+                ActiveAppPercentText.Text = $"{volPercent}%";
+                _isUpdatingActiveAppSlider = false;
+
+                ActiveAppMuteIcon.Glyph = allMuted ? "\uE74F" : "\uE767";
+
+                UpdateActiveAppTooltip();
+                ToolTipService.SetToolTip(ActiveAppVolumeSlider, $"{name}: {volPercent}%");
+                ToolTipService.SetToolTip(ActiveAppMuteButton, allMuted ? $"Unmute {name}" : $"Mute {name}");
+
+                if (_loadedActiveAppIconKey != targetGroup.Key)
+                {
+                    _loadedActiveAppIconKey = targetGroup.Key;
+                    _ = TryLoadAppIconAsync(targetGroup.Key + ".exe", ActiveAppIconContainer, ActiveAppFallbackIcon);
+                }
+
+                if (_state != OverlayState.Idle)
+                {
+                    ShowActiveAppRow(true);
+                }
+            }
+            else
+            {
+                _activeAppProcessName = null;
+                _activeAppSessionIds.Clear();
+                ShowActiveAppRow(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UpdateActiveAppSession error: {ex.Message}");
+        }
+    }
+
+    private void ShowActiveAppRow(bool show)
+    {
+        var vis = show ? Visibility.Visible : Visibility.Collapsed;
+        ActiveAppHost.Visibility = vis;
+        ActiveAppVolumeSlider.Visibility = vis;
+        ActiveAppPercentText.Visibility = vis;
+        ActiveAppMuteButton.Visibility = vis;
+
+        if (_hasActiveAppRow != show)
+        {
+            _hasActiveAppRow = show;
+            CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 20 : 24);
+            ResizeWindowToContent();
+        }
+    }
+
+    private void ActiveAppVolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (ActiveAppPercentText != null)
+        {
+            ActiveAppPercentText.Text = $"{(int)e.NewValue}%";
+        }
+
+        if (!_isUpdatingActiveAppSlider && _audioService != null && _activeAppSessionIds.Count > 0)
+        {
+            var vol = (float)(e.NewValue / 100.0);
+            foreach (var id in _activeAppSessionIds)
+            {
+                _audioService.SetSessionVolume(id, vol);
+            }
+        }
+    }
+
+    private void ActiveAppVolumeSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        var delta = e.GetCurrentPoint(null).Properties.MouseWheelDelta;
+        var step = e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift) ? 1 : 2;
+
+        if (delta > 0)
+        {
+            ActiveAppVolumeSlider.Value = Math.Min(100, ActiveAppVolumeSlider.Value + step);
+        }
+        else
+        {
+            ActiveAppVolumeSlider.Value = Math.Max(0, ActiveAppVolumeSlider.Value - step);
+        }
+
+        e.Handled = true;
+    }
+
+    private void ActiveAppMuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeAppSessionIds.Count == 0 || _audioService == null) return;
+
+        bool isCurrentlyMuted = ActiveAppMuteIcon.Glyph == "\uE74F";
+        bool newMute = !isCurrentlyMuted;
+
+        ActiveAppMuteIcon.Glyph = newMute ? "\uE74F" : "\uE767";
+
+        foreach (var id in _activeAppSessionIds)
+        {
+            _audioService.SetSessionMute(id, newMute);
+        }
+
+        if (!string.IsNullOrEmpty(_activeAppDisplayName))
+        {
+            ToolTipService.SetToolTip(ActiveAppMuteButton, newMute ? $"Unmute {_activeAppDisplayName}" : $"Mute {_activeAppDisplayName}");
+        }
+
+        UpdateActiveAppTooltip();
+    }
+
+    private void UpdateActiveAppTooltip()
+    {
+        if (ActiveAppIconButton == null) return;
+        var name = !string.IsNullOrEmpty(_activeAppDisplayName) ? _activeAppDisplayName : _activeAppProcessName;
+
+        if (_smtcManager != null && !string.IsNullOrEmpty(_activeAppProcessName))
+        {
+            var procKey = _activeAppProcessName.ToLowerInvariant();
+            var session = _smtcSessions.FirstOrDefault(kv =>
+                kv.Key.Equals(procKey, StringComparison.OrdinalIgnoreCase) ||
+                kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
+                procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+
+            if (session != null)
+            {
+                var status = session.GetPlaybackInfo()?.PlaybackStatus;
+                string action = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing ? "Pause" : "Play";
+                ToolTipService.SetToolTip(ActiveAppIconButton, string.IsNullOrEmpty(name) ? action : $"{action} ({name})");
+                return;
+            }
+        }
+
+        bool isMuted = ActiveAppMuteIcon?.Glyph == "\uE74F";
+        string muteAction = isMuted ? "Unmute" : "Mute";
+        ToolTipService.SetToolTip(ActiveAppIconButton, string.IsNullOrEmpty(name) ? muteAction : $"{muteAction} ({name})");
+    }
+
+    private async void ActiveAppIconButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_activeAppProcessName)) return;
+
+        bool toggled = false;
+        try
+        {
+            var procKey = _activeAppProcessName.ToLowerInvariant();
+            var session = _smtcSessions.FirstOrDefault(kv =>
+                kv.Key.Contains(procKey, StringComparison.OrdinalIgnoreCase) ||
+                procKey.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+
+            if (session != null)
+            {
+                await session.TryTogglePlayPauseAsync();
+                toggled = true;
+            }
+        }
+        catch { }
+
+        if (!toggled)
+        {
+            ActiveAppMuteButton_Click(sender, e);
+        }
+
+        UpdateActiveAppTooltip();
+    }
+
     private void SetupAudioEventHandlers()
     {
         _audioService.MasterVolumeChanged += OnAudioMasterVolumeChanged;
@@ -1138,6 +1475,10 @@ public sealed partial class VolumeOverlayWindow : Window
         var settings = ServiceContainer.Settings.VolumeMixer;
         AnimateOpacity(settings.HoverOpacity / 100.0, settings.AnimationMs);
 
+        // Capture foreground window and start polling sessions so the active app slider shows immediately
+        CaptureForegroundWindow();
+        StartPolling();
+
         // Resize window to fit expanded content
         ResizeWindowToContent();
     }
@@ -1172,8 +1513,9 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             MixerPanelAbove.Visibility = Visibility.Collapsed;
             MixerPanelBelow.Visibility = Visibility.Collapsed;
-            StopPolling();
         }
+
+        StopPolling();
 
         _state = OverlayState.Idle;
         System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: Expanded → Idle");
@@ -1182,6 +1524,9 @@ public sealed partial class VolumeOverlayWindow : Window
         MasterVolumeSlider.Visibility = Visibility.Collapsed;
         PercentText.Visibility = Visibility.Collapsed;
         MixerButton.Visibility = Visibility.Collapsed;
+
+        // Hide active app row
+        ShowActiveAppRow(false);
 
         // Animate opacity to IdleOpacity
         var settings = ServiceContainer.Settings.VolumeMixer;
@@ -1200,7 +1545,7 @@ public sealed partial class VolumeOverlayWindow : Window
             MixerPanelAbove.Visibility = Visibility.Collapsed;
             MixerPanelBelow.Visibility = Visibility.Collapsed;
             _state = OverlayState.Expanded;
-            StopPolling();
+            // Keep polling going while expanded so active app slider stays live
             ResizeWindowToContent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: MixerOpen → Expanded");
         }
@@ -1277,7 +1622,8 @@ public sealed partial class VolumeOverlayWindow : Window
         try
         {
             var settings = ServiceContainer.Settings.VolumeMixer;
-            int barHeight = settings.IconSize + 16; // pill height
+            int baseBarHeight = settings.IconSize + 16; // chip/pill height (e.g. 48px)
+            int barHeight = _hasActiveAppRow ? baseBarHeight + settings.IconSize + 8 : baseBarHeight;
             int barWidth;
             int totalHeight;
             int totalWidth;
@@ -1286,21 +1632,16 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 // Chip: just the icon pill
                 barWidth = settings.IconSize + 24;
-                totalWidth  = barWidth;
-                totalHeight = barHeight;
+                totalWidth = barWidth;
+                totalHeight = baseBarHeight;
             }
             else if (_state == OverlayState.MixerOpen)
             {
-                // Bar width + at least 340 to fit the mixer panel (MinWidth=320 + 2*14 padding)
+                // Bar width + at least 348 to fit the mixer panel (MinWidth=320 + 2*14 padding)
                 barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
-                totalWidth  = Math.Max(barWidth, 348);
+                totalWidth = Math.Max(barWidth, 348);
                 
                 // Calculate panel height based on app count (more reliable than Measure)
-                // - Header "Volume Mixer": ~28px
-                // - Divider: ~15px  
-                // - Each app row: ~40px (Grid with slider)
-                // - StackPanel spacing: 6px between rows
-                // - Border padding: 26px (top 12 + bottom 14)
                 int headerHeight = 28;
                 int dividerHeight = 15;
                 int rowHeight = 40;
@@ -1320,28 +1661,59 @@ public sealed partial class VolumeOverlayWindow : Window
             else // Expanded
             {
                 barWidth = settings.IconSize + 24 + settings.SliderWidth + 12 + 44 + 8 + 32 + 20;
-                totalWidth  = barWidth;
+                totalWidth = barWidth;
                 totalHeight = barHeight;
             }
 
             var appWindow = AppWindow;
             if (appWindow != null)
             {
-                var pos = appWindow.Position;
-                // For bottom-* positions the panel is ABOVE the bar, so shift Y up by panel height
-                int newY = pos.Y;
-                if (_state == OverlayState.MixerOpen &&
-                    settings.IconPosition.StartsWith("bottom"))
+                var displayArea = DisplayArea.Primary;
+                var workArea = displayArea.WorkArea;
+                const int margin = 12;
+
+                int newX;
+                int newY;
+
+                if (settings.CustomX.HasValue && settings.CustomY.HasValue)
                 {
-                    int panelH = totalHeight - barHeight - 6;
-                    newY = pos.Y - panelH - 6;
-                    // Don't go above the work area
-                    var wa = DisplayArea.Primary.WorkArea;
-                    if (newY < wa.Y) newY = wa.Y;
+                    newX = (int)settings.CustomX.Value;
+                    newY = (int)settings.CustomY.Value;
+
+                    if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
+                    {
+                        int panelH = totalHeight - barHeight - 6;
+                        newY = (int)settings.CustomY.Value - panelH - 6;
+                    }
+                    else if (_hasActiveAppRow && settings.IconPosition.StartsWith("bottom"))
+                    {
+                        int diff = barHeight - baseBarHeight;
+                        newY = (int)settings.CustomY.Value - diff;
+                    }
+
+                    newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - totalWidth, newX));
+                    newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - totalHeight, newY));
+                }
+                else
+                {
+                    newX = settings.IconPosition switch
+                    {
+                        "top-left" or "bottom-left" => workArea.X + margin,
+                        "top-right" or "bottom-right" => workArea.X + workArea.Width - totalWidth - margin,
+                        "top-center" or "bottom-center" => workArea.X + (workArea.Width - totalWidth) / 2,
+                        _ => workArea.X + (workArea.Width - totalWidth) / 2
+                    };
+
+                    newY = settings.IconPosition switch
+                    {
+                        "top-left" or "top-right" or "top-center" => workArea.Y + margin,
+                        "bottom-left" or "bottom-right" or "bottom-center" => workArea.Y + workArea.Height - totalHeight - margin,
+                        _ => workArea.Y + margin
+                    };
                 }
 
-                appWindow.MoveAndResize(new RectInt32(pos.X, newY, totalWidth, totalHeight));
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized to {totalWidth}x{totalHeight} at ({pos.X},{newY})");
+                appWindow.MoveAndResize(new RectInt32(newX, newY, totalWidth, totalHeight));
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized to {totalWidth}x{totalHeight} at ({newX},{newY})");
             }
         }
         catch (Exception ex)
@@ -1356,6 +1728,9 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         _isPointerOverBar = true;
         _hideDelayTimer?.Stop();
+
+        // Capture current foreground window right as pointer enters
+        CaptureForegroundWindow();
 
         // Start hover delay timer
         if (_state == OverlayState.Idle)
@@ -1384,8 +1759,8 @@ public sealed partial class VolumeOverlayWindow : Window
         _isPointerOverBar = false;
         _hoverDelayTimer?.Stop();
 
-        // Start hide delay timer if not over panel
-        if (!_isPointerOverPanel && _state != OverlayState.Idle)
+        // Start hide delay timer if not dragging and not over panel
+        if (!_isDragging && !_isPointerOverPanel && _state != OverlayState.Idle)
         {
             StartCollapseTimer();
         }
@@ -1470,62 +1845,64 @@ public sealed partial class VolumeOverlayWindow : Window
         }
     }
 
-    // ── Drag Mode ──────────────────────────────────────────────────────────────
+    // ── Drag Mode (Smooth screen-coordinate dragging like ClipboardPopupWindow) ──
 
     private void RootGrid_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         var settings = ServiceContainer.Settings.VolumeMixer;
-        if (!settings.DragMode)
+        if (!settings.DragMode || AppWindow == null)
             return;
 
         var pointer = e.GetCurrentPoint(RootGrid);
         if (pointer.Properties.IsLeftButtonPressed)
         {
             _isDragging = true;
-            _dragStartPoint = pointer.Position;
-            
-            var appWindow = AppWindow;
-            if (appWindow != null)
-            {
-                var pos = appWindow.Position;
-                var size = appWindow.Size;
-                _dragStartX = pos.X;
-                _dragStartY = pos.Y;
-                _dragStartWidth = size.Width;
-                _dragStartHeight = size.Height;
-            }
-            
+            _hideDelayTimer?.Stop();
+
+            GetCursorPos(out _dragStartCursor);
+            _dragStartWindowPos = AppWindow.Position;
+            var size = AppWindow.Size;
+            _dragStartWidth = size.Width;
+            _dragStartHeight = size.Height;
+            _lastMoveX = _dragStartWindowPos.X;
+            _lastMoveY = _dragStartWindowPos.Y;
+
             // Visual feedback
             RootGrid.Opacity = Math.Max(0.7, (settings.IdleOpacity / 100.0) - 0.1);
-            
-            RootGrid.CapturePointer(e.Pointer);
+
+            (sender as UIElement)?.CapturePointer(e.Pointer);
+            e.Handled = true;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Drag started");
         }
     }
 
     private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_isDragging)
+        if (!_isDragging || AppWindow == null)
             return;
 
         try
         {
-            var pointer = e.GetCurrentPoint(null);
-            var currentPos = pointer.Position;
+            GetCursorPos(out POINT currentCursor);
+            int dx = currentCursor.x - _dragStartCursor.x;
+            int dy = currentCursor.y - _dragStartCursor.y;
 
-            var deltaX = (int)(currentPos.X - _dragStartPoint.X);
-            var deltaY = (int)(currentPos.Y - _dragStartPoint.Y);
-
-            var newX = _dragStartX + deltaX;
-            var newY = _dragStartY + deltaY;
+            int targetX = _dragStartWindowPos.X + dx;
+            int targetY = _dragStartWindowPos.Y + dy;
 
             // Clamp to work area
             var workArea = DisplayArea.Primary.WorkArea;
-            newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - _dragStartWidth, newX));
-            newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - _dragStartHeight, newY));
+            int newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - _dragStartWidth, targetX));
+            int newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - _dragStartHeight, targetY));
 
-            // Use AppWindow.Move() - more reliable than Win32 SetWindowPos
-            AppWindow?.Move(new Windows.Graphics.PointInt32(newX, newY));
+            if (newX != _lastMoveX || newY != _lastMoveY)
+            {
+                _lastMoveX = newX;
+                _lastMoveY = newY;
+                AppWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+            }
+
+            e.Handled = true;
         }
         catch (Exception ex)
         {
@@ -1539,7 +1916,8 @@ public sealed partial class VolumeOverlayWindow : Window
             return;
 
         _isDragging = false;
-        RootGrid.ReleasePointerCapture(e.Pointer);
+        (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
 
         // Restore normal opacity
         var settings = ServiceContainer.Settings.VolumeMixer;
@@ -1555,6 +1933,25 @@ public sealed partial class VolumeOverlayWindow : Window
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Drag ended, position saved: ({pos.X}, {pos.Y})");
+        }
+    }
+
+    private void RootGrid_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDragging)
+            return;
+
+        _isDragging = false;
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        RootGrid.Opacity = settings.IdleOpacity / 100.0;
+
+        var appWindow = AppWindow;
+        if (appWindow != null)
+        {
+            var pos = appWindow.Position;
+            ServiceContainer.Settings.VolumeMixer.CustomX = pos.X;
+            ServiceContainer.Settings.VolumeMixer.CustomY = pos.Y;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
     }
 
@@ -1575,6 +1972,15 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         _hoverDelayTimer?.Stop();
         _hideDelayTimer?.Stop();
+        _pollingTimer?.Stop();
+        _topmostTimer?.Stop();
+
+        if (_foregroundEventHook != nint.Zero)
+        {
+            UnhookWinEvent(_foregroundEventHook);
+            _foregroundEventHook = nint.Zero;
+            _foregroundEventDelegate = null;
+        }
 
         // Unsubscribe from audio events
         _audioService.MasterVolumeChanged -= OnAudioMasterVolumeChanged;

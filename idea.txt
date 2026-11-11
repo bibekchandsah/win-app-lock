@@ -275,10 +275,12 @@ fixed - camera detection: browser web video calls (Chrome, Edge) not detected de
   - Frame Server fallback correlates active Frame Server session with running browser processes
 
 fixed - when user is in ring light page then "others" side navigation don't looks active
-currently when hovered in speaker icon it expands and shows main speaker slider can we make it such that for example currently i am playing music in edge and it will show edge volume mixture slider below the speaker sider so that if user want to make changes in volume of edge then without clicking on mixture button they can change and when i focus my chrome then it shows chrome slider .
+fixed - play/pause in volume mixture slider in right end side
+implemented - currently when hovered in speaker icon it expands and shows main speaker slider can we make it such that for example currently i am playing music in edge and it will show edge volume mixture slider below the speaker sider so that if user want to make changes in volume of edge then without clicking on mixture button they can change and when i focus my chrome then it shows chrome slider .
+optimize volume mixture dragging as we are dragging clipboard window 
+remove the outer body of pink border which is making looks like rectangular instead of pills shaped
 
 
-play/pause in volume mixture slider in right end side
 
 
 overflow stack fix (powershell)
