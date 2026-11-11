@@ -53,7 +53,13 @@ public partial class RunningProgramsViewModel : ObservableObject
         // Structural changes (new/closed windows) trigger a full re-enumeration
         _windowEventMonitor.WindowsChanged += OnWindowsChanged;
         
-        FilteredWindows.CollectionChanged += (s, e) => RunningCount = FilteredWindows.Count;
+        FilteredWindows.CollectionChanged += (s, e) =>
+        {
+            // Dispatch out of the CollectionChanged call to avoid re-entrancy in x:Bind generated code
+            _dispatcherQueue?.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal,
+                () => RunningCount = FilteredWindows.Count);
+        };
         
         RefreshWindows();
         

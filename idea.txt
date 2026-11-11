@@ -277,6 +277,8 @@ fixed - camera detection: browser web video calls (Chrome, Edge) not detected de
 fixed - when user is in ring light page then "others" side navigation don't looks active
 
 
+play/pause in volume mixture slider in right end side
+
 
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe

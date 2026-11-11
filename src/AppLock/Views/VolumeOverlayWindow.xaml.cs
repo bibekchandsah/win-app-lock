@@ -15,6 +15,7 @@ using AppLock.Services.VolumeMixer;
 using AppLock.Models;
 using AppLock.ViewModels;
 using Windows.Graphics;
+using Windows.Media.Control;
 
 namespace AppLock.Views;
 
@@ -43,9 +44,17 @@ public sealed partial class VolumeOverlayWindow : Window
     private int _dragStartY;
     private int _dragStartWidth;
     private int _dragStartHeight;
+    
+    // Drag optimization
+    private DateTime _lastDragUpdate = DateTime.MinValue;
+    private const int DragThrottleMs = 16; // Update every 16ms (60fps) for stability
+    private const int MinDragDistance = 3; // Increase to 3px to reduce updates
+    private int _lastDragX = 0;
+    private int _lastDragY = 0;
+    private bool _suspendRedraw = false;
 
-    // Session tracking
-    private readonly Dictionary<string, (MixerSessionViewModel ViewModel, List<string> SessionIds, Grid Row)> _appSessions = new();
+    // Session tracking — ViewModel, session IDs, the row Grid, and the play/pause FontIcon for status sync
+    private readonly Dictionary<string, (MixerSessionViewModel ViewModel, List<string> SessionIds, Grid Row, FontIcon PlayIcon)> _appSessions = new();
 
     // Win32 imports for window styling — use Ptr variants for 64-bit safety
     private const int GWL_EXSTYLE = -20;
@@ -65,9 +74,28 @@ public sealed partial class VolumeOverlayWindow : Window
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
+    private const uint SWP_NOREDRAW = 0x0008; // Prevents flicker during drag
+    private const uint SWP_NOCOPYBITS = 0x0100; // Don't preserve content
+    private const uint SWP_NOZORDER = 0x0004; // Don't change z-order
+    private const uint SWP_ASYNCWINDOWPOS = 0x4000; // Non-blocking updates
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    
+    [DllImport("user32.dll")]
+    private static extern bool InvalidateRect(nint hWnd, IntPtr lpRect, bool bErase);
+
+    // Media key via WM_APPCOMMAND
+    private const int WM_APPCOMMAND = 0x0319;
+    private const int APPCOMMAND_MEDIA_PLAY_PAUSE = 14;
+    private const int FAPPCOMMAND_OEM = 0x1000;
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(nint hWnd, int Msg, nint wParam, nint lParam);
+
+    // SMTC session cache: processName (no .exe) → SMTC session
+    private GlobalSystemMediaTransportControlsSessionManager? _smtcManager;
+    private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _smtcSessions = new();
 
     public VolumeOverlayWindow(AudioMixerService audioService)
     {
@@ -109,6 +137,9 @@ public sealed partial class VolumeOverlayWindow : Window
             _topmostTimer.IsRepeating = true;
             _topmostTimer.Tick += (s, e) => EnsureTopmost();
             _topmostTimer.Start();
+
+            // Initialize SMTC session manager for accurate per-app play/pause
+            _ = InitSmtcAsync();
             
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Constructor complete");
 
@@ -484,20 +515,22 @@ public sealed partial class VolumeOverlayWindow : Window
 
                 var row = CreateAppRow(viewModel, sessionIds);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Adding NEW: {name} ({processName})");
-                container.Children.Add(row);
+                container.Children.Add(row.Row);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer]     Container now has {container.Children.Count} children");
-                _appSessions[processName] = (viewModel, new List<string>(sessionIds), row);
+                _appSessions[processName] = (viewModel, new List<string>(sessionIds), row.Row, row.PlayIcon);
 
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Added app: {name} ({processName})");
             }
         }
 
         UpdateEmptyState();
+
+        // Sync play/pause icons after every row update so state is always current
+        SyncAllPlayPauseIcons();
         
         // Resize window to fit the new row count after a short delay to ensure layout is complete
         if (_state == OverlayState.MixerOpen)
         {
-            // Use DispatcherQueue to defer resize until after layout pass
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
                 ResizeWindowToContent();
@@ -518,19 +551,20 @@ public sealed partial class VolumeOverlayWindow : Window
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] No apps playing audio");
     }
 
-    private Grid CreateAppRow(MixerSessionViewModel viewModel, List<string> sessionIds)
+    private (Grid Row, FontIcon PlayIcon) CreateAppRow(MixerSessionViewModel viewModel, List<string> sessionIds)
     {
         var grid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });       // 0: icon
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 1: slider
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });       // 2: %
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });       // 3: play/pause
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });       // 4: mute
 
-        // App icon — start with generic glyph, replace with real icon if available
+        // Col 0 — App icon
         var appIconHost = new Grid { Width = 24, Height = 24, VerticalAlignment = VerticalAlignment.Center };
         var fallbackIcon = new FontIcon
         {
-            Glyph = "\uE8A5",   // generic app glyph
+            Glyph = "\uE8A5",
             FontSize = 18,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center,
@@ -538,26 +572,23 @@ public sealed partial class VolumeOverlayWindow : Window
                 Application.Current.Resources["TextFillColorSecondaryBrush"]
         };
         appIconHost.Children.Add(fallbackIcon);
-
-        // Try to load the real icon from disk
         _ = TryLoadAppIconAsync(viewModel.ProcessName, appIconHost, fallbackIcon);
-
         appIconHost.SetValue(Grid.ColumnProperty, 0);
         grid.Children.Add(appIconHost);
 
-        // Volume slider
+        // Col 1 — Volume slider
         var slider = new Slider
         {
             Minimum = 0, Maximum = 100,
             Value = viewModel.VolumePercent,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0),
-            UseSystemFocusVisuals = false  // Disable focus visual to prevent rectangular outline
+            UseSystemFocusVisuals = false
         };
         slider.SetValue(Grid.ColumnProperty, 1);
         grid.Children.Add(slider);
 
-        // Percent label
+        // Col 2 — Percent label
         var percentText = new TextBlock
         {
             Text = $"{viewModel.VolumePercent}%",
@@ -571,7 +602,24 @@ public sealed partial class VolumeOverlayWindow : Window
         percentText.SetValue(Grid.ColumnProperty, 2);
         grid.Children.Add(percentText);
 
-        // Mute button
+        // Col 3 — Play / Pause button (sends WM_APPCOMMAND to the app's window)
+        var playPauseIcon = new FontIcon { Glyph = "\uE768", FontSize = 11 }; // Play glyph default
+        var playPauseButton = new Button
+        {
+            Width = 28, Height = 28,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(14),
+            Content = playPauseIcon,
+            Background = (Microsoft.UI.Xaml.Media.Brush)
+                Application.Current.Resources["SubtleFillColorTransparentBrush"],
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTipService.SetToolTip(playPauseButton, "Play / Pause");
+        playPauseButton.SetValue(Grid.ColumnProperty, 3);
+        grid.Children.Add(playPauseButton);
+
+        // Col 4 — Mute button
         var muteIcon = new FontIcon { Glyph = viewModel.MuteIconGlyph, FontSize = 12 };
         var muteButton = new Button
         {
@@ -584,7 +632,7 @@ public sealed partial class VolumeOverlayWindow : Window
             BorderThickness = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center
         };
-        muteButton.SetValue(Grid.ColumnProperty, 3);
+        muteButton.SetValue(Grid.ColumnProperty, 4);
         grid.Children.Add(muteButton);
 
         ToolTipService.SetToolTip(grid, viewModel.Name);
@@ -606,7 +654,215 @@ public sealed partial class VolumeOverlayWindow : Window
             foreach (var id in sessionIds) _audioService.SetSessionMute(id, newMute);
         };
 
-        return grid;
+        playPauseButton.Click += (s, e) => _ = SendPlayPauseToProcessAsync(viewModel.ProcessName, playPauseIcon);
+
+        return (grid, playPauseIcon);
+    }
+
+    /// <summary>
+    /// Initializes the GlobalSystemMediaTransportControls session manager and
+    /// keeps _smtcSessions up to date whenever sessions change.
+    /// </summary>
+    private async System.Threading.Tasks.Task InitSmtcAsync()
+    {
+        try
+        {
+            _smtcManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+
+            if (_smtcManager == null) return;
+
+            RefreshSmtcSessions();
+            _smtcManager.SessionsChanged += (s, e) => DispatcherQueue.TryEnqueue(RefreshSmtcSessions);
+
+            // Sync icons immediately on init
+            DispatcherQueue.TryEnqueue(SyncAllPlayPauseIcons);
+
+            System.Diagnostics.Debug.WriteLine("[VolumeMixer] SMTC manager initialized");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] SMTC init error: {ex.Message}");
+        }
+    }
+
+    private void RefreshSmtcSessions()
+    {
+        if (_smtcManager == null) return;
+        _smtcSessions.Clear();
+        try
+        {
+            foreach (var session in _smtcManager.GetSessions())
+            {
+                var appId = session.SourceAppUserModelId ?? string.Empty;
+                var key = appId.Split('!')[0]
+                               .Split('.').Last()
+                               .ToLowerInvariant();
+                _smtcSessions[key] = session;
+
+                // Subscribe to playback status changes so icons stay in sync
+                session.PlaybackInfoChanged -= OnSmtcPlaybackInfoChanged;
+                session.PlaybackInfoChanged += OnSmtcPlaybackInfoChanged;
+
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] SMTC session: {key} ({appId})");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] RefreshSmtcSessions error: {ex.Message}");
+        }
+
+        // Sync all icons now
+        SyncAllPlayPauseIcons();
+    }
+
+    /// <summary>
+    /// Called by SMTC whenever any session's playback status changes.
+    /// Runs on a system thread — dispatches UI update to the DispatcherQueue.
+    /// </summary>
+    private void OnSmtcPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession session, PlaybackInfoChangedEventArgs args)
+    {
+        DispatcherQueue.TryEnqueue(SyncAllPlayPauseIcons);
+    }
+
+    /// <summary>
+    /// Reads the current playback status from SMTC for each known session and
+    /// updates the per-row play/pause icon and the universal header icon accordingly.
+    /// </summary>
+    private void SyncAllPlayPauseIcons()
+    {
+        // Sync per-app row icons
+        foreach (var (procName, entry) in _appSessions)
+        {
+            // Find the matching SMTC session for this process
+            GlobalSystemMediaTransportControlsSession? session = null;
+            if (!_smtcSessions.TryGetValue(procName, out session))
+                session = _smtcSessions.FirstOrDefault(kv =>
+                    kv.Key.Contains(procName, StringComparison.OrdinalIgnoreCase) ||
+                    procName.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+
+            if (session != null)
+            {
+                var status = session.GetPlaybackInfo()?.PlaybackStatus;
+                bool playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                entry.PlayIcon.Glyph = playing ? "\uE769" : "\uE768"; // ⏸ or ▶
+            }
+            // If no SMTC session, leave icon as-is (stays at ▶ for apps without media transport)
+        }
+
+        // Sync universal header icon from the current (foreground) session
+        var current = _smtcManager?.GetCurrentSession();
+        bool universalPlaying = current?.GetPlaybackInfo()?.PlaybackStatus
+                                == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        var universalGlyph = universalPlaying ? "\uE769" : "\uE768";
+        if (UniversalPlayPauseIconAbove != null) UniversalPlayPauseIconAbove.Glyph = universalGlyph;
+        if (UniversalPlayPauseIconBelow != null) UniversalPlayPauseIconBelow.Glyph = universalGlyph;
+    }
+
+    /// <summary>
+    /// Sends play/pause to a specific app via SMTC. Falls back to WM_APPCOMMAND if no SMTC session found.
+    /// </summary>
+    private async System.Threading.Tasks.Task SendPlayPauseToProcessAsync(string processExeName, FontIcon icon)
+    {
+        try
+        {
+            // Strip .exe
+            var procName = processExeName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                ? processExeName[..^4].ToLowerInvariant()
+                : processExeName.ToLowerInvariant();
+
+            // Refresh sessions right before acting to get the latest state
+            RefreshSmtcSessions();
+
+            // Try exact match first, then partial match
+            GlobalSystemMediaTransportControlsSession? session = null;
+            if (_smtcSessions.TryGetValue(procName, out var exactMatch))
+                session = exactMatch;
+            else
+                session = _smtcSessions.FirstOrDefault(kv =>
+                    kv.Key.Contains(procName, StringComparison.OrdinalIgnoreCase) ||
+                    procName.Contains(kv.Key, StringComparison.OrdinalIgnoreCase)).Value;
+
+            if (session != null)
+            {
+                await session.TryTogglePlayPauseAsync();
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] SMTC play/pause → {procName}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] No SMTC session for {procName}, skipping");
+            }
+
+            // Flip the glyph regardless (best-effort visual feedback)
+            icon.Glyph = icon.Glyph == "\uE768" ? "\uE769" : "\uE768";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] SendPlayPause error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Universal play/pause: toggles the currently active SMTC session.
+    /// </summary>
+    private async void UniversalPlayPause_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_smtcManager == null)
+                _smtcManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+
+            var current = _smtcManager?.GetCurrentSession();
+            if (current != null)
+            {
+                await current.TryTogglePlayPauseAsync();
+                System.Diagnostics.Debug.WriteLine("[VolumeMixer] Universal play/pause sent");
+            }
+
+            // Re-read status after the toggle and sync all icons
+            SyncAllPlayPauseIcons();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UniversalPlayPause error: {ex.Message}");
+        }
+    }
+
+    private async void UniversalPrev_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_smtcManager == null)
+                _smtcManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var current = _smtcManager?.GetCurrentSession();
+            if (current != null)
+            {
+                await current.TrySkipPreviousAsync();
+                System.Diagnostics.Debug.WriteLine("[VolumeMixer] Universal previous sent");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UniversalPrev error: {ex.Message}");
+        }
+    }
+
+    private async void UniversalNext_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_smtcManager == null)
+                _smtcManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var current = _smtcManager?.GetCurrentSession();
+            if (current != null)
+            {
+                await current.TrySkipNextAsync();
+                System.Diagnostics.Debug.WriteLine("[VolumeMixer] Universal next sent");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UniversalNext error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -964,6 +1220,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
             ResizeWindowToContent();
             StartPolling();
+
+            // Sync all play/pause icons when the panel opens
+            SyncAllPlayPauseIcons();
         }
     }
 
@@ -1124,6 +1383,10 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         _isPointerOverPanel = true;
         _hideDelayTimer?.Stop();
+        
+        // Apply hover opacity when hovering over mixer panel
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        AnimateOpacity(settings.HoverOpacity / 100.0, settings.AnimationMs);
     }
 
     private void MixerPanel_PointerExited(object sender, PointerRoutedEventArgs e)
@@ -1220,6 +1483,9 @@ public sealed partial class VolumeOverlayWindow : Window
                 _dragStartHeight = size.Height;
             }
             
+            // Visual feedback
+            RootGrid.Opacity = Math.Max(0.7, (settings.IdleOpacity / 100.0) - 0.1);
+            
             RootGrid.CapturePointer(e.Pointer);
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Drag started");
         }
@@ -1230,22 +1496,29 @@ public sealed partial class VolumeOverlayWindow : Window
         if (!_isDragging)
             return;
 
-        var pointer = e.GetCurrentPoint(null);
-        var currentPos = pointer.Position;
+        try
+        {
+            var pointer = e.GetCurrentPoint(null);
+            var currentPos = pointer.Position;
 
-        var deltaX = (int)(currentPos.X - _dragStartPoint.X);
-        var deltaY = (int)(currentPos.Y - _dragStartPoint.Y);
+            var deltaX = (int)(currentPos.X - _dragStartPoint.X);
+            var deltaY = (int)(currentPos.Y - _dragStartPoint.Y);
 
-        var newX = _dragStartX + deltaX;
-        var newY = _dragStartY + deltaY;
+            var newX = _dragStartX + deltaX;
+            var newY = _dragStartY + deltaY;
 
-        // Clamp to work area
-        var workArea = DisplayArea.Primary.WorkArea;
-        newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - _dragStartWidth, newX));
-        newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - _dragStartHeight, newY));
+            // Clamp to work area
+            var workArea = DisplayArea.Primary.WorkArea;
+            newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - _dragStartWidth, newX));
+            newY = Math.Max(workArea.Y, Math.Min(workArea.Y + workArea.Height - _dragStartHeight, newY));
 
-        var newBounds = new RectInt32(newX, newY, _dragStartWidth, _dragStartHeight);
-        AppWindow?.MoveAndResize(newBounds);
+            // Use AppWindow.Move() - more reliable than Win32 SetWindowPos
+            AppWindow?.Move(new Windows.Graphics.PointInt32(newX, newY));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Drag move error: {ex.Message}");
+        }
     }
 
     private void RootGrid_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -1255,6 +1528,10 @@ public sealed partial class VolumeOverlayWindow : Window
 
         _isDragging = false;
         RootGrid.ReleasePointerCapture(e.Pointer);
+
+        // Restore normal opacity
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        RootGrid.Opacity = settings.IdleOpacity / 100.0;
 
         // Save custom position
         var appWindow = AppWindow;

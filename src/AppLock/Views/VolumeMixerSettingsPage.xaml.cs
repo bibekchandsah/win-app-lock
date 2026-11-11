@@ -376,4 +376,63 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     }
 
     private void HideHint() => BlacklistHintTextBlock.Visibility = Visibility.Collapsed;
+
+    // ── Restore Defaults ──────────────────────────────────────────────────────
+
+    private void RestoreAppearanceDefaults_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.VolumeMixer;
+        s.IconPosition  = "top-center";
+        s.IconSize      = 32;
+        s.IdleOpacity   = 50;
+        s.HoverOpacity  = 100;
+        s.SliderWidth   = 200;
+        SaveSettings();
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
+
+        // Reload UI
+        IconPositionComboBox.SelectedIndex = 2; // top-center
+        IconSizeNumberBox.Value            = 32;
+        IdleOpacitySlider.Value            = 50;
+        IdleOpacityText                    = "50%";
+        HoverOpacitySlider.Value           = 100;
+        HoverOpacityText                   = "100%";
+        SliderWidthNumberBox.Value         = 200;
+
+        System.Diagnostics.Debug.WriteLine("[Settings] Appearance defaults restored");
+    }
+
+    private void RestoreBehaviorDefaults_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.VolumeMixer;
+        s.HoverDelayMs     = 500;
+        s.MixerHideDelayMs = 1000;
+        s.AnimationMs      = 250;
+        s.PollingMs        = 150;
+        s.DragMode         = false;
+        s.OnlyActiveApps   = false;
+        SaveSettings();
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
+
+        // Reload UI
+        HoverDelayNumberBox.Value     = 500;
+        MixerHideDelayNumberBox.Value = 1000;
+        AnimationSpeedNumberBox.Value = 250;
+        PollingIntervalNumberBox.Value = 150;
+        DragModeToggle.IsOn           = false;
+        OnlyActiveAppsToggle.IsOn     = false;
+
+        System.Diagnostics.Debug.WriteLine("[Settings] Behavior defaults restored");
+    }
+
+    private void ClearBlacklist_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.Settings.VolumeMixer.Blacklist.Clear();
+        SaveSettings();
+
+        if (BlacklistListView.ItemsSource is System.Collections.ObjectModel.ObservableCollection<string> list)
+            list.Clear();
+
+        System.Diagnostics.Debug.WriteLine("[Settings] Blacklist cleared");
+    }
 }

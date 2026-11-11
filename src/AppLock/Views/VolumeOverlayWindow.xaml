@@ -25,21 +25,22 @@
           PointerMoved="RootGrid_PointerMoved"
           PointerReleased="RootGrid_PointerReleased"
           KeyDown="RootGrid_KeyDown"
-          Background="Transparent">
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center">
 
         <StackPanel x:Name="LayoutRoot"
                     Orientation="Vertical"
-                    Spacing="6">
+                    Spacing="0">
 
             <!-- ══════════════════════════════════════════════════
                  MIXER PANEL — above the bar (bottom-* positions)
                  ══════════════════════════════════════════════════ -->
             <Border x:Name="MixerPanelAbove"
                     Visibility="Collapsed"
-                    CornerRadius="16"
+                    CornerRadius="24"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     Padding="14,12,14,14"
                     MinWidth="320"
                     MaxHeight="400"
@@ -54,10 +55,53 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0"
-                               Text="Volume Mixer"
-                               FontSize="13" FontWeight="SemiBold"
-                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <!-- Header row: title + universal media controls -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="Volume Mixer"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <!-- Prev / Play-Pause / Next -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button x:Name="UniversalPrevAbove"
+                                    Width="26" Height="26" Padding="0" CornerRadius="13"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalPrev_Click"
+                                    ToolTipService.ToolTip="Previous">
+                                <FontIcon Glyph="&#xE892;" FontSize="11"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                            <Button x:Name="UniversalPlayPauseAbove"
+                                    Width="28" Height="28" Padding="0" CornerRadius="14"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalPlayPause_Click"
+                                    ToolTipService.ToolTip="Play / Pause">
+                                <FontIcon x:Name="UniversalPlayPauseIconAbove"
+                                          Glyph="&#xE768;"
+                                          FontSize="12"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                            <Button x:Name="UniversalNextAbove"
+                                    Width="26" Height="26" Padding="0" CornerRadius="13"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalNext_Click"
+                                    ToolTipService.ToolTip="Next">
+                                <FontIcon Glyph="&#xE893;" FontSize="11"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                     <Border Grid.Row="1" Height="1"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                             Margin="0,2,0,0"/>
@@ -164,10 +208,10 @@
                  ══════════════════════════════════════════════════ -->
             <Border x:Name="MixerPanelBelow"
                     Visibility="Collapsed"
-                    CornerRadius="16"
+                    CornerRadius="24"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     Padding="14,12,14,14"
                     MinWidth="320"
                     MaxHeight="400"
@@ -179,10 +223,53 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0"
-                               Text="Volume Mixer"
-                               FontSize="13" FontWeight="SemiBold"
-                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <!-- Header row: title + universal media controls -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="Volume Mixer"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <!-- Prev / Play-Pause / Next -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button x:Name="UniversalPrevBelow"
+                                    Width="26" Height="26" Padding="0" CornerRadius="13"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalPrev_Click"
+                                    ToolTipService.ToolTip="Previous">
+                                <FontIcon Glyph="&#xE892;" FontSize="11"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                            <Button x:Name="UniversalPlayPauseBelow"
+                                    Width="28" Height="28" Padding="0" CornerRadius="14"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalPlayPause_Click"
+                                    ToolTipService.ToolTip="Play / Pause">
+                                <FontIcon x:Name="UniversalPlayPauseIconBelow"
+                                          Glyph="&#xE768;"
+                                          FontSize="12"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                            <Button x:Name="UniversalNextBelow"
+                                    Width="26" Height="26" Padding="0" CornerRadius="13"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    BorderThickness="1"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    Click="UniversalNext_Click"
+                                    ToolTipService.ToolTip="Next">
+                                <FontIcon Glyph="&#xE893;" FontSize="11"
+                                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                     <Border Grid.Row="1" Height="1"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}"
                             Margin="0,2,0,0"/>

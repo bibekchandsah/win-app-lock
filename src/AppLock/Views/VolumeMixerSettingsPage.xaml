@@ -287,6 +287,23 @@
                             </Grid>
                         </Border>
 
+                        <!-- Restore Defaults -->
+                        <Border BorderThickness="0" Padding="0,8,0,0">
+                            <Button x:Name="RestoreAppearanceDefaultsButton"
+                                    Content="Restore Appearance Defaults"
+                                    Click="RestoreAppearanceDefaults_Click"
+                                    HorizontalAlignment="Right">
+                                <Button.ContentTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE777;" FontSize="14"/>
+                                            <TextBlock Text="Restore Appearance Defaults"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </Button.ContentTemplate>
+                            </Button>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabViewItem>
@@ -477,6 +494,23 @@
                             </Grid>
                         </Border>
 
+                        <!-- Restore Defaults -->
+                        <Border BorderThickness="0" Padding="0,8,0,0">
+                            <Button x:Name="RestoreBehaviorDefaultsButton"
+                                    Content="Restore Behavior Defaults"
+                                    Click="RestoreBehaviorDefaults_Click"
+                                    HorizontalAlignment="Right">
+                                <Button.ContentTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE777;" FontSize="14"/>
+                                            <TextBlock Text="Restore Behavior Defaults"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </Button.ContentTemplate>
+                            </Button>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabViewItem>
@@ -573,6 +607,22 @@
                                            Visibility="Collapsed"/>
 
                             </StackPanel>
+                        </Border>
+
+                        <!-- Clear All -->
+                        <Border BorderThickness="0" Padding="0,8,0,0">
+                            <Button x:Name="ClearBlacklistButton"
+                                    Click="ClearBlacklist_Click"
+                                    HorizontalAlignment="Right">
+                                <Button.ContentTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                                            <TextBlock Text="Clear All"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </Button.ContentTemplate>
+                            </Button>
                         </Border>
 
                     </StackPanel>
