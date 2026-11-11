@@ -341,35 +341,60 @@
                                              HorizontalAlignment="Stretch" Margin="2"/>
                             </Grid>
 
-                            <!-- Right: Desktop Preview -->
+                            <!-- Right: Desktop Preview with Frame -->
                             <Border Grid.Column="1" 
-                                    x:Name="DesktopPreviewBorder"
-                                    Width="400" 
-                                    Height="225"
+                                    x:Name="DesktopPreviewContainer"
+                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="2"
-                                    CornerRadius="8"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="12"
                                     Margin="24,0,0,0"
                                     HorizontalAlignment="Left">
-                                <Grid>
-                                    <!-- Wallpaper background -->
-                                    <Image x:Name="WallpaperImage" 
-                                           Stretch="UniformToFill"
-                                           Source="{x:Bind ViewModel.WallpaperImageSource, Mode=OneWay}"/>
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Live Preview"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               HorizontalAlignment="Center"/>
                                     
-                                    <!-- Overlay showing toast position -->
-                                    <Canvas x:Name="ToastPreviewCanvas">
-                                        <Border x:Name="ToastPreviewRect"
-                                                Background="#40FF4444"
-                                                BorderBrush="#FFFF4444"
-                                                BorderThickness="2"
-                                                CornerRadius="8"
-                                                Width="80"
-                                                Height="40"
-                                                Canvas.Left="{x:Bind ViewModel.PreviewToastLeft, Mode=OneWay}"
-                                                Canvas.Top="{x:Bind ViewModel.PreviewToastTop, Mode=OneWay}"/>
-                                    </Canvas>
-                                </Grid>
+                                    <Border x:Name="DesktopPreviewBorder"
+                                            Width="320" 
+                                            Height="180"
+                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <!-- Wallpaper background -->
+                                            <Image x:Name="WallpaperImage" 
+                                                   Stretch="UniformToFill"
+                                                   Source="{x:Bind ViewModel.WallpaperImageSource, Mode=OneWay}"/>
+                                            
+                                            <!-- Overlay showing toast position -->
+                                            <Canvas x:Name="ToastPreviewCanvas">
+                                                <Border x:Name="ToastPreviewRect"
+                                                        Background="#40FFFFFF"
+                                                        BorderBrush="#FFFFFFFF"
+                                                        BorderThickness="2"
+                                                        CornerRadius="6"
+                                                        Width="120"
+                                                        Height="32"
+                                                        Canvas.Left="{x:Bind ViewModel.PreviewToastLeft, Mode=OneWay}"
+                                                        Canvas.Top="{x:Bind ViewModel.PreviewToastTop, Mode=OneWay}">
+                                                    <!-- Inner content to show it's a notification -->
+                                                    <Grid Padding="4">
+                                                        <TextBlock Text="Toast"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="White"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Border>
+                                            </Canvas>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
                             </Border>
                         </Grid>
 
@@ -403,6 +428,43 @@
                         <CheckBox Content="Respect taskbar"
                                   IsChecked="{x:Bind ViewModel.RespectTaskbar, Mode=TwoWay}"
                                   FontSize="13"/>
+
+                        <!-- Opacity Control -->
+                        <TextBlock Text="Notification Transparency:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,12,0,4"/>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Slider Grid.Column="0"
+                                    Minimum="10"
+                                    Maximum="100"
+                                    Value="{x:Bind ViewModel.OpacityPercent, Mode=TwoWay}"
+                                    StepFrequency="5"
+                                    TickFrequency="10"
+                                    TickPlacement="Outside"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0"/>
+                            
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Bind ViewModel.OpacityText, Mode=OneWay}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"
+                                       MinWidth="50"
+                                       TextAlignment="Right"/>
+                        </Grid>
+                        
+                        <TextBlock Text="Lower values make notifications more transparent"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 

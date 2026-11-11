@@ -110,8 +110,9 @@ public class NotificationCustomizerService : IDisposable
             LogService.LogAction("notifications",
                 $"Toast shown: 0x{hwnd.Value:X}, Anchor: {_settings.Anchor}");
 
-            // Apply immediately, then start the hold loop on a background thread
+            // Apply position and opacity immediately, then start the hold loop on a background thread
             ApplyPosition(hwnd);
+            ToastOpacityApplier.ApplyOpacity(hwnd, _settings);
             StartHoldLoop(hwnd, cts.Token);
         }
         catch (Exception ex)
@@ -225,6 +226,7 @@ public class NotificationCustomizerService : IDisposable
                         break;
 
                     ApplyPosition(hwnd);
+                    ToastOpacityApplier.ApplyOpacity(hwnd, _settings);
                 }
 
                 LogService.LogAction("notifications",

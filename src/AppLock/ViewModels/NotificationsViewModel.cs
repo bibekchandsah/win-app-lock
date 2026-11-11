@@ -38,15 +38,21 @@ public partial class NotificationsViewModel : ObservableObject
     [ObservableProperty]
     private double _previewToastTop;
 
+    [ObservableProperty]
+    private int _opacityPercent;
+
     public string AnchorDisplayText => $"Current: {SelectedAnchor}";
     public string MarginText => $"{ServiceContainer.Settings.NotificationCustom.MarginPx} px";
+    public string OpacityText => $"{OpacityPercent}%";
 
     public ObservableCollection<ToastCandidateViewModel> Candidates { get; } = new();
 
-    private const double PreviewWidth = 400;
-    private const double PreviewHeight = 225;
-    private const double ToastPreviewWidth = 80;
-    private const double ToastPreviewHeight = 40;
+    // Smaller, more realistic preview size (16:9 ratio, scaled down from 400x225)
+    private const double PreviewWidth = 320;
+    private const double PreviewHeight = 180;
+    // Realistic toast size scaled to preview (actual ~364x90, scaled to preview ratio)
+    private const double ToastPreviewWidth = 120;
+    private const double ToastPreviewHeight = 32;
 
     public NotificationsViewModel()
     {
@@ -61,6 +67,7 @@ public partial class NotificationsViewModel : ObservableObject
         Enabled = ServiceContainer.Settings.NotificationCustom.Enabled;
         RespectTaskbar = ServiceContainer.Settings.NotificationCustom.RespectTaskbar;
         SelectedAnchor = ServiceContainer.Settings.NotificationCustom.Anchor;
+        OpacityPercent = ServiceContainer.Settings.NotificationCustom.OpacityPercent;
     }
 
     private async void LoadWallpaperAsync()
@@ -164,6 +171,13 @@ public partial class NotificationsViewModel : ObservableObject
     {
         ServiceContainer.Settings.NotificationCustom.RespectTaskbar = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    partial void OnOpacityPercentChanged(int value)
+    {
+        ServiceContainer.Settings.NotificationCustom.OpacityPercent = value;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        OnPropertyChanged(nameof(OpacityText));
     }
 
     partial void OnSelectedAnchorChanged(string value)
