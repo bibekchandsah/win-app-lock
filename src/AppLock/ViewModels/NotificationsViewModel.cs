@@ -6,6 +6,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace AppLock.ViewModels;
 
@@ -28,15 +29,31 @@ public partial class NotificationsViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedAnchor = "BottomRight";
 
+    [ObservableProperty]
+    private BitmapImage? _wallpaperImageSource;
+
+    [ObservableProperty]
+    private double _previewToastLeft;
+
+    [ObservableProperty]
+    private double _previewToastTop;
+
     public string AnchorDisplayText => $"Current: {SelectedAnchor}";
     public string MarginText => $"{ServiceContainer.Settings.NotificationCustom.MarginPx} px";
 
     public ObservableCollection<ToastCandidateViewModel> Candidates { get; } = new();
 
+    private const double PreviewWidth = 400;
+    private const double PreviewHeight = 225;
+    private const double ToastPreviewWidth = 80;
+    private const double ToastPreviewHeight = 40;
+
     public NotificationsViewModel()
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         LoadSettings();
+        LoadWallpaperAsync();
+        UpdatePreviewPosition();
     }
 
     private void LoadSettings()
@@ -44,6 +61,94 @@ public partial class NotificationsViewModel : ObservableObject
         Enabled = ServiceContainer.Settings.NotificationCustom.Enabled;
         RespectTaskbar = ServiceContainer.Settings.NotificationCustom.RespectTaskbar;
         SelectedAnchor = ServiceContainer.Settings.NotificationCustom.Anchor;
+    }
+
+    private async void LoadWallpaperAsync()
+    {
+        try
+        {
+            var wallpaperPath = GetWallpaperPath();
+            if (!string.IsNullOrEmpty(wallpaperPath) && System.IO.File.Exists(wallpaperPath))
+            {
+                var bitmap = new BitmapImage();
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(wallpaperPath);
+                using var stream = await file.OpenReadAsync();
+                await bitmap.SetSourceAsync(stream);
+                WallpaperImageSource = bitmap;
+            }
+        }
+        catch
+        {
+            // Fallback: use a solid color if wallpaper can't be loaded
+            WallpaperImageSource = null;
+        }
+    }
+
+    private string? GetWallpaperPath()
+    {
+        try
+        {
+            // Get wallpaper path from registry
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop");
+            return key?.GetValue("Wallpaper") as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void UpdatePreviewPosition()
+    {
+        var margin = ServiceContainer.Settings.NotificationCustom.MarginPx;
+        var scaledMargin = margin * (PreviewWidth / 1920.0); // Scale margin to preview size
+
+        switch (SelectedAnchor)
+        {
+            case "TopLeft":
+                PreviewToastLeft = scaledMargin;
+                PreviewToastTop = scaledMargin;
+                break;
+            case "TopCenter":
+                PreviewToastLeft = (PreviewWidth - ToastPreviewWidth) / 2;
+                PreviewToastTop = scaledMargin;
+                break;
+            case "TopRight":
+                PreviewToastLeft = PreviewWidth - ToastPreviewWidth - scaledMargin;
+                PreviewToastTop = scaledMargin;
+                break;
+            case "MiddleLeft":
+                PreviewToastLeft = scaledMargin;
+                PreviewToastTop = (PreviewHeight - ToastPreviewHeight) / 2;
+                break;
+            case "Center":
+                PreviewToastLeft = (PreviewWidth - ToastPreviewWidth) / 2;
+                PreviewToastTop = (PreviewHeight - ToastPreviewHeight) / 2;
+                break;
+            case "MiddleRight":
+                PreviewToastLeft = PreviewWidth - ToastPreviewWidth - scaledMargin;
+                PreviewToastTop = (PreviewHeight - ToastPreviewHeight) / 2;
+                break;
+            case "BottomLeft":
+                PreviewToastLeft = scaledMargin;
+                PreviewToastTop = PreviewHeight - ToastPreviewHeight - scaledMargin;
+                break;
+            case "BottomCenter":
+                PreviewToastLeft = (PreviewWidth - ToastPreviewWidth) / 2;
+                PreviewToastTop = PreviewHeight - ToastPreviewHeight - scaledMargin;
+                break;
+            case "BottomRight":
+                PreviewToastLeft = PreviewWidth - ToastPreviewWidth - scaledMargin;
+                PreviewToastTop = PreviewHeight - ToastPreviewHeight - scaledMargin;
+                break;
+            case "Custom":
+                // For custom, use percentage-based positioning
+                var customX = ServiceContainer.Settings.NotificationCustom.CustomPercentX;
+                var customY = ServiceContainer.Settings.NotificationCustom.CustomPercentY;
+                PreviewToastLeft = (customX / 100.0) * PreviewWidth - (ToastPreviewWidth / 2);
+                PreviewToastTop = (customY / 100.0) * PreviewHeight - (ToastPreviewHeight / 2);
+                break;
+        }
     }
 
     partial void OnEnabledChanged(bool value)
@@ -64,6 +169,7 @@ public partial class NotificationsViewModel : ObservableObject
         ServiceContainer.Settings.NotificationCustom.Anchor = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         OnPropertyChanged(nameof(AnchorDisplayText));
+        UpdatePreviewPosition();
     }
 
     [RelayCommand]
@@ -112,6 +218,9 @@ public partial class NotificationsViewModel : ObservableObject
                 // Persist (SelectedAnchor setter already calls Save, but call again to be sure
                 // the CustomPercent values are written together with the anchor)
                 ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+                // Update preview to show custom position
+                UpdatePreviewPosition();
 
                 LogService.LogAction("notifications",
                     $"Custom position saved: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");

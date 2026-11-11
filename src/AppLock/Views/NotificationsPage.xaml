@@ -288,51 +288,89 @@
                                    FontSize="13"
                                    Margin="0,8,0,4"/>
                         
-                        <!-- 3x3 Anchor Grid -->
-                        <Grid MaxWidth="300" HorizontalAlignment="Left">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Row 1 -->
-                            <RadioButton Grid.Row="0" Grid.Column="0" Content="TL" GroupName="Anchor" 
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopLeft}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="0" Grid.Column="1" Content="TC" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopCenter}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="0" Grid.Column="2" Content="TR" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopRight}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
+                            <!-- Left: 3x3 Anchor Grid -->
+                            <Grid Grid.Column="0" MaxWidth="300">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                            <!-- Row 2 -->
-                            <RadioButton Grid.Row="1" Grid.Column="0" Content="ML" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleLeft}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="1" Grid.Column="1" Content="C" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=Center}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="1" Grid.Column="2" Content="MR" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleRight}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
+                                <!-- Row 1 -->
+                                <RadioButton Grid.Row="0" Grid.Column="0" Content="TL" GroupName="Anchor" 
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopLeft}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="0" Grid.Column="1" Content="TC" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopCenter}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="0" Grid.Column="2" Content="TR" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopRight}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
 
-                            <!-- Row 3 -->
-                            <RadioButton Grid.Row="2" Grid.Column="0" Content="BL" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomLeft}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="2" Grid.Column="1" Content="BC" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomCenter}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
-                            <RadioButton Grid.Row="2" Grid.Column="2" Content="BR" GroupName="Anchor"
-                                         IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomRight}"
-                                         HorizontalAlignment="Stretch" Margin="2"/>
+                                <!-- Row 2 -->
+                                <RadioButton Grid.Row="1" Grid.Column="0" Content="ML" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleLeft}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="1" Grid.Column="1" Content="C" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=Center}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="1" Grid.Column="2" Content="MR" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleRight}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+
+                                <!-- Row 3 -->
+                                <RadioButton Grid.Row="2" Grid.Column="0" Content="BL" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomLeft}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="2" Grid.Column="1" Content="BC" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomCenter}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                                <RadioButton Grid.Row="2" Grid.Column="2" Content="BR" GroupName="Anchor"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomRight}"
+                                             HorizontalAlignment="Stretch" Margin="2"/>
+                            </Grid>
+
+                            <!-- Right: Desktop Preview -->
+                            <Border Grid.Column="1" 
+                                    x:Name="DesktopPreviewBorder"
+                                    Width="400" 
+                                    Height="225"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="8"
+                                    Margin="24,0,0,0"
+                                    HorizontalAlignment="Left">
+                                <Grid>
+                                    <!-- Wallpaper background -->
+                                    <Image x:Name="WallpaperImage" 
+                                           Stretch="UniformToFill"
+                                           Source="{x:Bind ViewModel.WallpaperImageSource, Mode=OneWay}"/>
+                                    
+                                    <!-- Overlay showing toast position -->
+                                    <Canvas x:Name="ToastPreviewCanvas">
+                                        <Border x:Name="ToastPreviewRect"
+                                                Background="#40FF4444"
+                                                BorderBrush="#FFFF4444"
+                                                BorderThickness="2"
+                                                CornerRadius="8"
+                                                Width="80"
+                                                Height="40"
+                                                Canvas.Left="{x:Bind ViewModel.PreviewToastLeft, Mode=OneWay}"
+                                                Canvas.Top="{x:Bind ViewModel.PreviewToastTop, Mode=OneWay}"/>
+                                    </Canvas>
+                                </Grid>
+                            </Border>
                         </Grid>
 
                         <!-- Custom Position Button -->
