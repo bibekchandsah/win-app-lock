@@ -142,11 +142,13 @@ public partial class NotificationsViewModel : ObservableObject
                 PreviewToastTop = PreviewHeight - ToastPreviewHeight - scaledMargin;
                 break;
             case "Custom":
-                // For custom, use percentage-based positioning
+                // For custom, use fractional positioning (0.0-1.0, not 0-100)
                 var customX = ServiceContainer.Settings.NotificationCustom.CustomPercentX;
                 var customY = ServiceContainer.Settings.NotificationCustom.CustomPercentY;
-                PreviewToastLeft = (customX / 100.0) * PreviewWidth - (ToastPreviewWidth / 2);
-                PreviewToastTop = (customY / 100.0) * PreviewHeight - (ToastPreviewHeight / 2);
+                // customX/Y are already 0.0-1.0, so multiply directly
+                // Note: We position by top-left corner to match ToastPositioner behavior
+                PreviewToastLeft = customX * PreviewWidth;
+                PreviewToastTop = customY * PreviewHeight;
                 break;
         }
     }
