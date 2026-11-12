@@ -98,6 +98,38 @@
                     </Grid>
                 </Border>
 
+                <!-- About this feature Card -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <FontIcon Grid.Column="0"
+                                  Glyph="&#xE946;"
+                                  FontSize="20"
+                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,16,0"/>
+                        
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="About this feature"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"/>
+                            <TextBlock Text="This feature repositions Windows notification toasts. It relies on undocumented shell behavior and may break with Windows updates. Only toast banners are affected, not the Notification Center."
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Status and Test Card -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -216,39 +248,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Help Text -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        
-                        <FontIcon Grid.Column="0"
-                                  Glyph="&#xE946;"
-                                  FontSize="20"
-                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,16,0"/>
-                        
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="About this feature"
-                                       FontWeight="SemiBold"
-                                       FontSize="14"/>
-                            <TextBlock Text="This feature repositions Windows notification toasts. It relies on undocumented shell behavior and may break with Windows updates. Only toast banners are affected, not the Notification Center."
-                                       FontSize="12"
-                                       TextWrapping="Wrap"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- Position Settings (Milestone 2) -->
+<!-- Position Settings (Milestone 2) -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
@@ -286,10 +286,10 @@
                                    FontSize="13"
                                    Margin="0,8,0,4"/>
                         
-                        <Grid HorizontalAlignment="Left">
+                        <Grid HorizontalAlignment="Stretch">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Left: 3x3 Anchor Grid -->
@@ -357,7 +357,7 @@
                                     CornerRadius="12"
                                     Padding="12"
                                     Margin="16,0,0,0"
-                                    HorizontalAlignment="Left">
+                                    HorizontalAlignment="Stretch">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="Live Preview"
                                                FontSize="12"
@@ -366,8 +366,8 @@
                                                HorizontalAlignment="Center"/>
                                     
                                     <Border x:Name="DesktopPreviewBorder"
-                                            Width="320" 
-                                            Height="180"
+                                            Width="400" 
+                                            Height="225"
                                             BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
@@ -748,15 +748,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="Tray menu shortcuts"
-                                   FontWeight="SemiBold"
-                                   FontSize="13"
-                                   Margin="0,8,0,4"/>
-                        
-                        <TextBlock Text="Right-click the tray icon to toggle notifications on/off or open 'Anchor Position' to quickly select an anchor or pick a custom position"
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
                     </StackPanel>
                 </Border>
 

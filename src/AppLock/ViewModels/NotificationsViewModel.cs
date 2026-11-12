@@ -55,8 +55,8 @@ public partial class NotificationsViewModel : ObservableObject
     public ObservableCollection<ToastCandidateViewModel> Candidates { get; } = new();
 
     // Smaller, more realistic preview size (16:9 ratio, scaled down from 400x225)
-    private const double PreviewWidth = 320;
-    private const double PreviewHeight = 180;
+    private const double PreviewWidth = 400;
+    private const double PreviewHeight = 225;
     // Realistic toast size scaled to preview (actual ~364x90, scaled to preview ratio)
     private const double ToastPreviewWidth = 120;
     private const double ToastPreviewHeight = 32;
@@ -288,8 +288,9 @@ public partial class NotificationsViewModel : ObservableObject
                 var customY = ServiceContainer.Settings.NotificationCustom.CustomPercentY;
                 // customX/Y are already 0.0-1.0, so multiply directly
                 // Note: We position by top-left corner to match ToastPositioner behavior
-                PreviewToastLeft = customX * PreviewWidth;
-                PreviewToastTop = customY * PreviewHeight;
+                // Clamp to ensure toast doesn't go beyond preview boundaries
+                PreviewToastLeft = Math.Min(customX * PreviewWidth, PreviewWidth - ToastPreviewWidth);
+                PreviewToastTop = Math.Min(customY * PreviewHeight, PreviewHeight - ToastPreviewHeight);
                 break;
         }
     }
