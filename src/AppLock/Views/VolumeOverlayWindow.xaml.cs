@@ -1229,8 +1229,13 @@ public sealed partial class VolumeOverlayWindow : Window
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Group '{g.Key}': {g.Count()} sessions");
             }
 
-            // Update UI
-            UpdateSessionRows(groups);
+            // Update mixer panel rows only when panel is open
+            if (_state == OverlayState.MixerOpen)
+            {
+                UpdateSessionRows(groups);
+            }
+            
+            // Always update active app row when expanded or mixer open
             UpdateActiveAppSession(groups);
         }
         catch (Exception ex)
@@ -1681,7 +1686,22 @@ public sealed partial class VolumeOverlayWindow : Window
                 {
                     proc = Process.GetProcessesByName("WhatsApp").FirstOrDefault();
                 }
-                // Handle other edge cases here
+                // Handle Chrome's various worker processes
+                else if (name.Contains("chrome", StringComparison.OrdinalIgnoreCase))
+                {
+                    proc = Process.GetProcessesByName("chrome").FirstOrDefault();
+                }
+                // Handle Edge's worker processes
+                else if (name.Contains("msedge", StringComparison.OrdinalIgnoreCase) || 
+                         name.Contains("edgewebview", StringComparison.OrdinalIgnoreCase))
+                {
+                    proc = Process.GetProcessesByName("msedge").FirstOrDefault();
+                }
+                // Handle Spotify
+                else if (name.Contains("spotify", StringComparison.OrdinalIgnoreCase))
+                {
+                    proc = Process.GetProcessesByName("Spotify").FirstOrDefault();
+                }
             }
             
             if (proc == null)
@@ -1700,22 +1720,60 @@ public sealed partial class VolumeOverlayWindow : Window
             
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Loading icon from: {exePath}");
 
-            // Extract icon bytes on background thread
+            // Extract icon on background thread - try to get largest available size
             byte[]? pngBytes = await System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
-                    using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
-                    if (icon == null) return null;
-                    using var bmp = icon.ToBitmap();
-                    using var ms = new System.IO.MemoryStream();
-                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                    return ms.ToArray();
+                    // Try multiple sizes to get the best quality
+                    System.Drawing.Icon? bestIcon = null;
+                    
+                    // First try to extract large icon using shell
+                    try
+                    {
+                        // Extract all icons from the file
+                        var allIcons = ExtractIconsFromFile(exePath);
+                        if (allIcons != null && allIcons.Length > 0)
+                        {
+                            // Find the largest icon (prefer 32x32 or larger)
+                            bestIcon = allIcons.OrderByDescending(i => i.Width).FirstOrDefault();
+                            // Dispose all except the one we're using
+                            foreach (var ico in allIcons.Where(i => i != bestIcon))
+                            {
+                                ico?.Dispose();
+                            }
+                        }
+                    }
+                    catch { }
+                    
+                    // Fallback to ExtractAssociatedIcon if custom extraction failed
+                    if (bestIcon == null)
+                    {
+                        bestIcon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    }
+                    
+                    if (bestIcon == null) return null;
+                    
+                    using (bestIcon)
+                    {
+                        using var bmp = bestIcon.ToBitmap();
+                        using var ms = new System.IO.MemoryStream();
+                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                        return ms.ToArray();
+                    }
                 }
-                catch { return null; }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Icon extraction error: {ex.Message}");
+                    return null;
+                }
             });
 
-            if (pngBytes == null) return;
+            if (pngBytes == null || pngBytes.Length == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Icon bytes null or empty for '{name}'");
+                return;
+            }
 
             // Load BitmapImage on UI thread properly with await
             var imgSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
@@ -1725,7 +1783,8 @@ public sealed partial class VolumeOverlayWindow : Window
             var img = new Image
             {
                 Source = imgSource,
-                Width = 20, Height = 20,
+                Width = 20, 
+                Height = 20,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment   = VerticalAlignment.Center,
                 Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform,
@@ -1734,8 +1793,79 @@ public sealed partial class VolumeOverlayWindow : Window
 
             host.Children.Remove(fallback);
             host.Children.Add(img);
+            
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Icon loaded successfully for '{name}'");
         }
-        catch { /* keep fallback glyph */ }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] TryLoadAppIconAsync error: {ex.Message}");
+            /* keep fallback glyph */
+        }
+    }
+
+    // Helper method to extract all icon sizes from an executable
+    private static System.Drawing.Icon[]? ExtractIconsFromFile(string filePath)
+    {
+        try
+        {
+            // Use IconExtractor to get multiple sizes
+            var iconExtractor = new IconExtractor(filePath);
+            return iconExtractor.GetAllIcons();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // Simple icon extractor helper class
+    private class IconExtractor
+    {
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        private static extern uint ExtractIconEx(string szFileName, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, uint nIcons);
+
+        private readonly string _filePath;
+
+        public IconExtractor(string filePath)
+        {
+            _filePath = filePath;
+        }
+
+        public System.Drawing.Icon[]? GetAllIcons()
+        {
+            try
+            {
+                // Get count of icons
+                uint count = ExtractIconEx(_filePath, -1, null, null, 0);
+                if (count == 0) return null;
+
+                // Extract large icons
+                IntPtr[] largeIcons = new IntPtr[count];
+                uint extracted = ExtractIconEx(_filePath, 0, largeIcons, null, count);
+                
+                if (extracted == 0) return null;
+
+                // Convert to Icon array
+                var icons = new List<System.Drawing.Icon>();
+                for (int i = 0; i < extracted; i++)
+                {
+                    if (largeIcons[i] != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            icons.Add(System.Drawing.Icon.FromHandle(largeIcons[i]));
+                        }
+                        catch { }
+                    }
+                }
+
+                return icons.ToArray();
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     // ── Active Application Volume Row Support ─────────────────────────────────
@@ -2317,8 +2447,11 @@ public sealed partial class VolumeOverlayWindow : Window
             // Apply hover opacity when mixer panel opens (user just clicked the icon)
             AnimateOpacity(settings.HoverOpacity / 100.0, settings.AnimationMs);
 
-            ResizeWindowToContent();
+            // Start/restart polling - this will immediately refresh sessions with new state
+            StopPolling(); // Explicitly stop first to ensure clean restart
             StartPolling();
+            
+            ResizeWindowToContent();
 
             // Sync all play/pause icons when the panel opens
             SyncAllPlayPauseIcons();
@@ -2790,8 +2923,8 @@ public sealed partial class VolumeOverlayWindow : Window
             _lastMoveX = _dragStartWindowPos.X;
             _lastMoveY = _dragStartWindowPos.Y;
 
-            // Visual feedback
-            RootGrid.Opacity = Math.Max(0.7, (settings.IdleOpacity / 100.0) - 0.1);
+            // Visual feedback - use hover opacity for visibility during drag
+            RootGrid.Opacity = settings.HoverOpacity / 100.0;
 
             (sender as UIElement)?.CapturePointer(e.Pointer);
             e.Handled = true;
@@ -2842,9 +2975,16 @@ public sealed partial class VolumeOverlayWindow : Window
         (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
         e.Handled = true;
 
-        // Restore normal opacity
+        // Restore appropriate opacity based on pointer position
         var settings = ServiceContainer.Settings.VolumeMixer;
-        RootGrid.Opacity = settings.IdleOpacity / 100.0;
+        
+        // Check if pointer is still over the overlay after drag
+        var pointer = e.GetCurrentPoint(RootGrid);
+        var bounds = new Windows.Foundation.Rect(0, 0, RootGrid.ActualWidth, RootGrid.ActualHeight);
+        bool pointerStillOver = bounds.Contains(pointer.Position);
+        
+        // Use hover opacity if pointer is still over, otherwise idle
+        RootGrid.Opacity = pointerStillOver ? (settings.HoverOpacity / 100.0) : (settings.IdleOpacity / 100.0);
 
         // Save custom position
         var appWindow = AppWindow;
