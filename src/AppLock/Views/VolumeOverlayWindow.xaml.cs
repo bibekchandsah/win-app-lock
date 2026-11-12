@@ -30,6 +30,8 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private readonly AudioMixerService _audioService;
     private readonly AppIconResolver _iconResolver;
+    private readonly Services.Camera.CameraBrightnessService _cameraService;
+    private bool _isUpdatingCameraBrightness; // Flag to prevent feedback loops
     private OverlayState _state = OverlayState.Idle;
     private DispatcherQueueTimer? _hoverDelayTimer;
     private DispatcherQueueTimer? _hideDelayTimer;
@@ -219,6 +221,9 @@ public sealed partial class VolumeOverlayWindow : Window
     private bool _hasActiveAppRow;
     private string? _loadedActiveAppIconKey;
 
+    // Camera brightness state
+    private bool _hasCameraRow;
+
     // SMTC session cache: processName (no .exe) → SMTC session
     private GlobalSystemMediaTransportControlsSessionManager? _smtcManager;
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _smtcSessions = new();
@@ -229,13 +234,16 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _iconResolver = new AppIconResolver();
+            _cameraService = new Services.Camera.CameraBrightnessService();
 
             // Suppress slider ValueChanged from XAML default Value="50" writing to the audio device
             _isUpdatingSlider = true;
+            _isUpdatingCameraBrightness = true;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Calling InitializeComponent...");
             this.InitializeComponent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] InitializeComponent complete");
             _isUpdatingSlider = false;
+            _isUpdatingCameraBrightness = false;
             
             // Setup clipping for rounded corners on mixer panels
             SetupMixerPanelClipping();
@@ -278,6 +286,9 @@ public sealed partial class VolumeOverlayWindow : Window
                 0, 0,
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
             CaptureForegroundWindow();
+            
+            // Initialize camera brightness service
+            _ = InitializeCameraAsync();
             
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Constructor complete");
 
@@ -469,6 +480,150 @@ public sealed partial class VolumeOverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UpdateWindowRegion error: {ex}");
         }
     }
+
+    // ── Camera Brightness ──────────────────────────────────────────────────────
+
+    private async Task InitializeCameraAsync()
+    {
+        try
+        {
+            Debug.WriteLine("[VolumeMixer] Initializing camera brightness control...");
+            bool success = await _cameraService.InitializeAsync();
+            
+            if (success && _cameraService.SupportsBrightness)
+            {
+                Debug.WriteLine($"[VolumeMixer] Camera brightness control available");
+                Debug.WriteLine($"[VolumeMixer] Range: {_cameraService.MinBrightness} - {_cameraService.MaxBrightness}");
+                
+                // Update slider with current brightness
+                var currentBrightness = _cameraService.CurrentBrightness;
+                if (currentBrightness.HasValue)
+                {
+                    _isUpdatingCameraBrightness = true;
+                    
+                    // Map camera brightness range to 0-100 slider range
+                    double normalizedValue = MapCameraBrightnessToSlider(currentBrightness.Value);
+                    CameraBrightnessSlider.Value = normalizedValue;
+                    CameraBrightnessPercentText.Text = $"{(int)normalizedValue}%";
+                    
+                    _isUpdatingCameraBrightness = false;
+                    Debug.WriteLine($"[VolumeMixer] Initial camera brightness: {currentBrightness.Value} -> {(int)normalizedValue}%");
+                }
+                
+                // Subscribe to brightness changes
+                _cameraService.BrightnessChanged += OnCameraBrightnessChanged;
+                
+                // Show camera controls (always visible for now)
+                CameraIconHost.Visibility = Visibility.Visible;
+                CameraBrightnessSlider.Visibility = Visibility.Visible;
+                CameraBrightnessPercentText.Visibility = Visibility.Visible;
+                CameraBrightnessPlaceholder.Visibility = Visibility.Visible;
+                
+                // Mark that we have a camera row
+                _hasCameraRow = true;
+            }
+            else
+            {
+                Debug.WriteLine("[VolumeMixer] Camera brightness control not available");
+                // Hide camera controls if not supported
+                CameraIconHost.Visibility = Visibility.Collapsed;
+                CameraBrightnessSlider.Visibility = Visibility.Collapsed;
+                CameraBrightnessPercentText.Visibility = Visibility.Collapsed;
+                CameraBrightnessPlaceholder.Visibility = Visibility.Collapsed;
+                
+                // Mark that we don't have a camera row
+                _hasCameraRow = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] Camera initialization error: {ex.Message}");
+        }
+    }
+
+    private void OnCameraBrightnessChanged(object? sender, double brightness)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                if (_isUpdatingCameraBrightness)
+                    return;
+
+                _isUpdatingCameraBrightness = true;
+                double normalizedValue = MapCameraBrightnessToSlider(brightness);
+                CameraBrightnessSlider.Value = normalizedValue;
+                CameraBrightnessPercentText.Text = $"{(int)normalizedValue}%";
+                _isUpdatingCameraBrightness = false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VolumeMixer] OnCameraBrightnessChanged error: {ex.Message}");
+                _isUpdatingCameraBrightness = false;
+            }
+        });
+    }
+
+    private double MapCameraBrightnessToSlider(double cameraValue)
+    {
+        // Map camera's min/max range to 0-100 slider range
+        double min = _cameraService.MinBrightness;
+        double max = _cameraService.MaxBrightness;
+        
+        if (max <= min)
+            return 50; // Fallback
+        
+        return ((cameraValue - min) / (max - min)) * 100.0;
+    }
+
+    private double MapSliderToCameraBrightness(double sliderValue)
+    {
+        // Map 0-100 slider range to camera's min/max range
+        double min = _cameraService.MinBrightness;
+        double max = _cameraService.MaxBrightness;
+        
+        return min + (sliderValue / 100.0) * (max - min);
+    }
+
+    private void CameraBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_isUpdatingCameraBrightness)
+            return;
+
+        try
+        {
+            double sliderValue = e.NewValue;
+            CameraBrightnessPercentText.Text = $"{(int)sliderValue}%";
+            
+            // Map slider value to camera brightness range and apply
+            double cameraValue = MapSliderToCameraBrightness(sliderValue);
+            _cameraService.SetBrightness(cameraValue);
+            
+            Debug.WriteLine($"[VolumeMixer] Camera brightness set to {(int)sliderValue}% (raw: {cameraValue})");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] CameraBrightnessSlider_ValueChanged error: {ex.Message}");
+        }
+    }
+
+    private void CameraBrightnessSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        try
+        {
+            var delta = e.GetCurrentPoint(sender as UIElement).Properties.MouseWheelDelta;
+            var step = delta > 0 ? 5 : -5; // 5% increments
+            var newValue = Math.Clamp(CameraBrightnessSlider.Value + step, 0, 100);
+            CameraBrightnessSlider.Value = newValue;
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] CameraBrightnessSlider_PointerWheelChanged error: {ex.Message}");
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Periodically re-enforces topmost z-order to stay above other topmost windows.
@@ -1794,7 +1949,15 @@ public sealed partial class VolumeOverlayWindow : Window
         var settings = ServiceContainer.Settings.VolumeMixer;
         int iconSize = settings.IconSize;
         int baseBarHeight = iconSize + 12; // 32 + 12 = 44px
-        int barHeight = _hasActiveAppRow ? (iconSize * 2) + 16 : baseBarHeight; // 64 + 16 = 80px
+        
+        // Calculate height based on number of rows
+        int rowCount = 1; // Base: master volume
+        if (_hasActiveAppRow) rowCount++;
+        if (_hasCameraRow) rowCount++;
+        
+        int barHeight = rowCount == 1 
+            ? baseBarHeight 
+            : (iconSize * rowCount) + (rowCount * 4) + 8; // icon height * rows + spacing between rows + padding
 
         if (state == OverlayState.Idle)
         {
@@ -1838,7 +2001,14 @@ public sealed partial class VolumeOverlayWindow : Window
 
         int iconSize = settings.IconSize;
         int baseBarHeight = iconSize + 12;
-        int barHeight = _hasActiveAppRow ? (iconSize * 2) + 16 : baseBarHeight;
+        
+        // Calculate barHeight same way as GetDimensionsForState
+        int rowCount = 1;
+        if (_hasActiveAppRow) rowCount++;
+        if (_hasCameraRow) rowCount++;
+        int barHeight = rowCount == 1 
+            ? baseBarHeight 
+            : (iconSize * rowCount) + (rowCount * 4) + 8;
 
         if (settings.CustomX.HasValue && settings.CustomY.HasValue)
         {
@@ -2324,6 +2494,20 @@ public sealed partial class VolumeOverlayWindow : Window
         _audioService.MasterVolumeChanged -= OnAudioMasterVolumeChanged;
         _audioService.MasterMuteChanged -= OnAudioMasterMuteChanged;
         _audioService.DefaultDeviceChanged -= OnAudioDefaultDeviceChanged;
+
+        // Dispose camera service
+        try
+        {
+            if (_cameraService != null)
+            {
+                _cameraService.BrightnessChanged -= OnCameraBrightnessChanged;
+                _cameraService.Dispose();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Camera disposal error: {ex.Message}");
+        }
 
         try
         {

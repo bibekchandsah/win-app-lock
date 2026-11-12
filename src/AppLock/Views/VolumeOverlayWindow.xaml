@@ -138,6 +138,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -197,14 +198,41 @@
                         </Button>
                     </Grid>
 
+                    <!-- ── Column 0, Row 2: Camera icon ── -->
+                    <Grid x:Name="CameraIconHost"
+                          Grid.Row="2"
+                          Grid.Column="0"
+                          Width="32" Height="32"
+                          Margin="0,4,0,0"
+                          Visibility="Collapsed"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                        <Button x:Name="CameraButton"
+                                Width="32" Height="32"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="16"
+                                AutomationProperties.Name="Camera"
+                                AutomationProperties.HelpText="Camera brightness control">
+                            <FontIcon x:Name="CameraIcon"
+                                      Glyph="&#xE8B8;"
+                                      FontSize="16"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Button>
+                    </Grid>
+
                     <!-- ── Column 1: Expandable controls (fade in/out smoothly with width animation) ── -->
                     <Grid x:Name="ExpandableControlsGrid"
                           Grid.Row="0"
-                          Grid.RowSpan="2"
+                          Grid.RowSpan="3"
                           Grid.Column="1"
                           Visibility="Collapsed"
                           Opacity="0">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
@@ -306,6 +334,36 @@
                                       FontSize="12"
                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                         </Button>
+
+                        <!-- Row 2: Camera brightness slider, percent label -->
+                        <Slider x:Name="CameraBrightnessSlider"
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Minimum="0" Maximum="100" Value="50"
+                                Width="180"
+                                VerticalAlignment="Center"
+                                Margin="8,4,0,0"
+                                Visibility="Collapsed"
+                                ValueChanged="CameraBrightnessSlider_ValueChanged"
+                                PointerWheelChanged="CameraBrightnessSlider_PointerWheelChanged"
+                                AutomationProperties.Name="Camera brightness"
+                                AutomationProperties.HelpText="Adjust webcam brightness. Use mouse wheel or arrow keys."/>
+
+                        <TextBlock x:Name="CameraBrightnessPercentText"
+                                   Grid.Row="2"
+                                   Grid.Column="1"
+                                   Text="50%"
+                                   FontSize="12"
+                                   MinWidth="38"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="6,4,0,0"
+                                   Visibility="Collapsed"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+
+                        <!-- Empty space in column 2 to align with rows above -->
+                        <Border Grid.Row="2" Grid.Column="2" Width="28" Margin="6,4,0,0" Visibility="Collapsed" x:Name="CameraBrightnessPlaceholder"/>
                     </Grid>
                 </Grid>
             </Border>
