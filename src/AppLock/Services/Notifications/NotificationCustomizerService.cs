@@ -155,7 +155,7 @@ public class NotificationCustomizerService : IDisposable
             // Remember rest rect for exit animation
             lock (_lock) { _restRects[hwnd.Value] = restRect; }
 
-            StartEnterAnimation(hwnd, restRect, monitorBounds, currentSettings, cts.Token);
+            StartToastLifecycle(hwnd, restRect, monitorBounds, currentSettings, cts.Token);
 
             _clickThroughManager.ApplyClickThrough(hwnd, currentSettings, cts.Token);
         }
@@ -212,9 +212,7 @@ public class NotificationCustomizerService : IDisposable
     {
         try
         {
-            // 1. Stop the enter-animation / hold loop (it's done)
             CancellationTokenSource? holdCts = null;
-            System.Drawing.Rectangle restRect;
             nint snapshot = nint.Zero;
 
             lock (_lock)
@@ -223,14 +221,14 @@ public class NotificationCustomizerService : IDisposable
 
                 if (!_managedToasts.Remove(hwnd.Value, out holdCts))
                 {
-                    // Already dismissed / exit animation already dispatched
+                    // Already dismissed or our real-window exit animation already completed!
                     _hook?.ForgetToast(hwnd);
                     return;
                 }
 
                 _hook?.ForgetToast(hwnd);
-                _restRects.TryGetValue(hwnd.Value, out restRect);
                 _snapshots.Remove(hwnd.Value, out snapshot);
+                _restRects.Remove(hwnd.Value);
             }
 
             holdCts?.Cancel();
@@ -251,22 +249,12 @@ public class NotificationCustomizerService : IDisposable
             }
             catch { }
 
-            // 2. Start exit animation with its OWN, fresh CancellationTokenSource
-            var exitCts = new CancellationTokenSource();
-            lock (_lock)
+            if (snapshot != nint.Zero)
             {
-                // Cancel any old exit animation for this HWND
-                if (_exitAnimations.TryGetValue(hwnd.Value, out var oldExit))
-                {
-                    oldExit.Cancel();
-                    oldExit.Dispose();
-                }
-                _exitAnimations[hwnd.Value] = exitCts;
+                ToastAnimator.DeleteObjectPublic(snapshot);
             }
 
-            StartExitAnimation(hwnd, snapshot, restRect, exitCts);
-
-            // 3. Remove click-through
+            // Remove click-through
             _clickThroughManager.RemoveClickThrough(hwnd);
 
             LogService.LogAction("notifications", $"Toast hidden: 0x{hwnd.Value:X}");
@@ -280,7 +268,7 @@ public class NotificationCustomizerService : IDisposable
 
     // ── Animation helpers ─────────────────────────────────────────────────────
 
-    private void StartEnterAnimation(
+    private void StartToastLifecycle(
         HWND hwnd,
         System.Drawing.Rectangle restRect,
         System.Drawing.Rectangle monitorBounds,
@@ -289,123 +277,101 @@ public class NotificationCustomizerService : IDisposable
     {
         Task.Run(async () =>
         {
+            var animator = new ToastAnimator();
             lock (_lock) { _animatingToasts.Add(hwnd.Value); }
             try
             {
-                var animator = new ToastAnimator();
+                // 1. Enter animation (Strategy A: drive the real window)
                 await animator.AnimateEnterAsync(hwnd, restRect, monitorBounds, settings, ct);
-                animator.Dispose();
+
+                lock (_lock) { _animatingToasts.Remove(hwnd.Value); }
 
                 if (ct.IsCancellationRequested) return;
 
-                // Brief yield so the window is composited at restRect before taking snapshot
-                await Task.Delay(50, ct).ConfigureAwait(false);
+                // 2. Hold at restRect for the display duration, while monitoring hover
+                int displayDurationMs = GetSystemMessageDurationMs();
+                int holdMs = Math.Max(1000, displayDurationMs - settings.ExitMs - 150);
 
-                // Capture snapshot for the ghost exit animation
-                var snapshot = ToastAnimator.CaptureWindowSnapshot(hwnd, restRect);
+                var deadline = Environment.TickCount64 + holdMs;
+                while (!ct.IsCancellationRequested && Environment.TickCount64 < deadline)
+                {
+                    await Task.Delay(HoldIntervalMs, ct).ConfigureAwait(false);
+
+                    if (ct.IsCancellationRequested) break;
+                    if (!Windows.Win32.PInvoke.IsWindow(hwnd)) break;
+
+                    // If user is hovering over the toast, extend the hold deadline so it doesn't dismiss while being read
+                    if (Windows.Win32.PInvoke.GetCursorPos(out var pt))
+                    {
+                        if (restRect.Contains(pt.X, pt.Y))
+                        {
+                            deadline = Environment.TickCount64 + 2000;
+                        }
+                    }
+
+                    // Re-assert rest position during hold
+                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, restRect.X, restRect.Y, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                }
+
+                if (ct.IsCancellationRequested) return;
+                if (!Windows.Win32.PInvoke.IsWindow(hwnd)) return;
+
+                // 3. Exit animation on the REAL WINDOW (Strategy A)
+                // Runs BEFORE Windows initiates its native slide-out, providing 100% native rendering without black borders!
+                LogService.LogAction("notifications", $"Starting real-window exit animation for 0x{hwnd.Value:X}");
+                lock (_lock) { _animatingToasts.Add(hwnd.Value); }
+                await animator.AnimateExitRealWindowAsync(hwnd, restRect, monitorBounds, settings, ct);
+
+                // 4. Hide real window and move far offscreen so Windows dismisses it silently offscreen
+                if (Windows.Win32.PInvoke.IsWindow(hwnd))
+                {
+                    Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, -10000, -10000, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                        SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW);
+                }
+
+                LogService.LogAction("notifications", $"Real-window exit animation finished for 0x{hwnd.Value:X}");
+
+                // Remove from managed toasts so OnToastHidden knows the exit animation has already completed
                 lock (_lock)
                 {
-                    if (_managedToasts.ContainsKey(hwnd.Value))
-                    {
-                        if (_snapshots.Remove(hwnd.Value, out var prev) && prev != nint.Zero)
-                            ToastAnimator.DeleteObjectPublic(prev);
-                        _snapshots[hwnd.Value] = snapshot;
-                    }
-                    else if (snapshot != nint.Zero)
-                    {
-                        ToastAnimator.DeleteObjectPublic(snapshot);
-                    }
+                    _managedToasts.Remove(hwnd.Value);
+                    if (_snapshots.Remove(hwnd.Value, out var s) && s != nint.Zero)
+                        ToastAnimator.DeleteObjectPublic(s);
+                    _restRects.Remove(hwnd.Value);
                 }
             }
-            catch (OperationCanceledException) { /* expected */ }
+            catch (OperationCanceledException) { /* expected when dismissed early by user */ }
             catch (Exception ex)
             {
-                LogService.LogAction("notifications",
-                    $"Enter animation task error: {ex.Message}");
+                LogService.LogAction("notifications", $"Toast lifecycle error: {ex.Message}");
             }
             finally
             {
                 lock (_lock) { _animatingToasts.Remove(hwnd.Value); }
+                animator.Dispose();
             }
-
-            // After enter animation, hold at rest position
-            if (!ct.IsCancellationRequested)
-                await HoldLoopAsync(hwnd, restRect, ct);
         }, ct);
     }
 
-    private void StartExitAnimation(
-        HWND hwnd,
-        nint snapshot,
-        System.Drawing.Rectangle restRect,
-        CancellationTokenSource exitCts)
+    private static int GetSystemMessageDurationMs()
     {
         try
         {
-            var currentSettings = ServiceContainer.Settings.NotificationCustom;
-
-            var monitor     = ToastPositioner.GetTargetMonitor(hwnd, currentSettings);
-            var monitorInfo = GetMonitorInfo(monitor);
-            var monitorBounds = new System.Drawing.Rectangle(
-                monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top,
-                monitorInfo.rcMonitor.right  - monitorInfo.rcMonitor.left,
-                monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top);
-
-            // If restRect was not saved (edge-case), fall back to current window rect
-            if (restRect == default)
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Accessibility");
+            if (key?.GetValue("MessageDuration") is int seconds && seconds > 0)
             {
-                var target = ToastPositioner.GetTargetRect(hwnd, currentSettings);
-                restRect = new System.Drawing.Rectangle(target.left, target.top,
-                    target.right - target.left, target.bottom - target.top);
+                return seconds * 1000;
             }
-
-            ToastAnimator.AnimateExit(snapshot, restRect, monitorBounds, currentSettings, exitCts.Token);
-            LogService.LogAction("notifications", $"Exit animation initiated for 0x{hwnd.Value:X}");
         }
-        catch (Exception ex)
-        {
-            LogService.LogAction("notifications", $"Exit animation start error: {ex.Message}");
-            if (snapshot != nint.Zero) ToastAnimator.DeleteObjectPublic(snapshot);
-        }
-        finally
-        {
-            lock (_lock)
-            {
-                _exitAnimations.Remove(hwnd.Value);
-                _restRects.Remove(hwnd.Value);
-            }
-            exitCts.Dispose();
-        }
-    }
-
-    private static async Task HoldLoopAsync(
-        HWND hwnd,
-        System.Drawing.Rectangle restRect,
-        CancellationToken ct)
-    {
-        try
-        {
-            var deadline = Environment.TickCount64 + HoldLoopMs;
-            while (!ct.IsCancellationRequested && Environment.TickCount64 < deadline)
-            {
-                await Task.Delay(HoldIntervalMs, ct).ConfigureAwait(false);
-
-                if (ct.IsCancellationRequested) break;
-                if (!Windows.Win32.PInvoke.IsWindow(hwnd)) break;
-
-                Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, restRect.X, restRect.Y, 0, 0,
-                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-            }
-
-            LogService.LogAction("notifications", $"Hold loop ended for 0x{hwnd.Value:X}");
-        }
-        catch (OperationCanceledException) { /* expected */ }
-        catch (Exception ex)
-        {
-            LogService.LogAction("notifications", $"Hold loop error: {ex.Message}");
-        }
+        catch { }
+        return 5000;
     }
 
     // ── Live settings reapplication ───────────────────────────────────────────

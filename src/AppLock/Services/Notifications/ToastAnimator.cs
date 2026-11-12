@@ -346,6 +346,54 @@ public class ToastAnimator : IDisposable
         }
     }
 
+    /// <summary>
+    /// Animates the REAL toast window out (Strategy A).
+    /// Lerps position from restRect toward endRect while fading opacity from targetOpacity to 0.
+    /// Runs directly before Windows shell can start its native slide-out, providing a 100% native-rendered,
+    /// artifact-free exit animation with zero black borders or stuttering.
+    /// </summary>
+    public async Task AnimateExitRealWindowAsync(
+        HWND hwnd,
+        Rectangle restRect,
+        Rectangle monitorBounds,
+        NotificationCustomSettings settings,
+        CancellationToken ct)
+    {
+        if (settings.ExitTo == "None") return;
+
+        try
+        {
+            var exitDir   = ToastMotion.GetEffectiveExitDirection(restRect, monitorBounds, settings);
+            var endRect   = ToastMotion.GetExitEndRect(restRect, monitorBounds, settings);
+            int durationMs  = Math.Max(50, settings.ExitMs);
+
+            LogService.LogAction("notifications",
+                $"AnimateExitRealWindow: 0x{hwnd.Value:X} dir={exitDir} dur={durationMs}ms");
+
+            DisableTransitions(hwnd);
+
+            // Ensure window has WS_EX_LAYERED so we can modulate its alpha down to 0
+            var exStyle = GetWindowLong(hwnd.Value, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_LAYERED) == 0)
+            {
+                SetWindowLong(hwnd.Value, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                PInvoke.SetWindowPos(hwnd, HWND.Null, 0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                    SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+            }
+
+            await RunLoopAsync(hwnd, restRect, endRect, durationMs,
+                settings.Easing, exitDir, targetOpacityPercent: settings.OpacityPercent,
+                isEnter: false, ct);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"AnimateExitRealWindow error: {ex.Message}");
+        }
+    }
+
     // ── Exit animation (dedicated STA thread with message pump) ───────────────
 
     // We keep a static WNDPROC delegate alive so it doesn't get GC'd
@@ -491,8 +539,8 @@ public class ToastAnimator : IDisposable
                     AlphaFormat         = 0  // no per-pixel alpha in our bitmap
                 };
 
-                // Set the layered content BEFORE showing the window
-                bool ulwOk = UpdateLayeredWindow(ghost, screenDC, ref ptDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
+                // Set the layered content BEFORE showing the window (ULW_ALPHA | ULW_COLORKEY makes RGB 0,0,0 transparent)
+                bool ulwOk = UpdateLayeredWindow(ghost, screenDC, ref ptDst, ref size, memDC, ref ptSrc, 0 /* black is transparent */, ref blend, ULW_ALPHA | 0x00000001 /* ULW_COLORKEY */);
                 if (!ulwOk)
                     LogService.LogAction("notifications", $"ULW initial call failed: err={Marshal.GetLastWin32Error()}");
 
@@ -518,7 +566,7 @@ public class ToastAnimator : IDisposable
 
                     var pDst = new POINT { x = curRect.X, y = curRect.Y };
                     blend.SourceConstantAlpha = alpha;
-                    UpdateLayeredWindow(ghost, screenDC, ref pDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
+                    UpdateLayeredWindow(ghost, screenDC, ref pDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA | 0x00000001 /* ULW_COLORKEY */);
 
                     if (progress >= 1.0) break;
 
