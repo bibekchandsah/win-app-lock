@@ -769,13 +769,14 @@ public sealed partial class VolumeOverlayWindow : Window
             controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Percent
             controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Mute button
 
-            // Slider
+            // Slider - will be sized in ApplySettings
+            var settings = ServiceContainer.Settings.VolumeMixer;
             var slider = new Slider
             {
                 Minimum = 0,
                 Maximum = 100,
                 Value = mic.GetVolume(),
-                Width = 180,
+                Width = settings.SliderWidth,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 0, 0),
                 Tag = mic.DeviceId
@@ -1079,6 +1080,24 @@ public sealed partial class VolumeOverlayWindow : Window
             if (ActiveAppVolumeSlider != null)
             {
                 ActiveAppVolumeSlider.Width = settings.SliderWidth;
+            }
+            if (CameraBrightnessSlider != null)
+            {
+                CameraBrightnessSlider.Width = settings.SliderWidth;
+            }
+
+            // Update microphone sliders if any exist
+            foreach (var row in _microphoneRows.Values)
+            {
+                try
+                {
+                    var controlsGrid = row.ControlsGrid;
+                    if (controlsGrid?.Children.Count > 0 && controlsGrid.Children[0] is Slider micSlider)
+                    {
+                        micSlider.Width = settings.SliderWidth;
+                    }
+                }
+                catch { }
             }
 
             // Idle opacity
