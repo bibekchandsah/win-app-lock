@@ -94,6 +94,9 @@
                         
                         <ToggleSwitch Grid.Column="2"
                                       IsOn="{x:Bind ViewModel.Enabled, Mode=TwoWay}"
+                                      MinWidth="0"
+                                      OnContent=""
+                                      OffContent=""
                                       VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
@@ -713,7 +716,7 @@
                                 <TextBlock Text="Shortcuts"
                                            FontWeight="SemiBold"
                                            FontSize="14"/>
-                                <TextBlock Text="Quick access hotkeys and tray menu"
+                                <TextBlock Text="Keyboard shortcut to enable/disable notification"
                                            FontSize="12"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Margin="0,4,0,0"/>

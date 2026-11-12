@@ -1824,6 +1824,9 @@ public sealed partial class VolumeOverlayWindow : Window
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
         private static extern uint ExtractIconEx(string szFileName, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, uint nIcons);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
         private readonly string _filePath;
 
         public IconExtractor(string filePath)
@@ -1833,6 +1836,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         public System.Drawing.Icon[]? GetAllIcons()
         {
+            IntPtr[] largeIcons = null;
             try
             {
                 // Get count of icons
@@ -1840,12 +1844,12 @@ public sealed partial class VolumeOverlayWindow : Window
                 if (count == 0) return null;
 
                 // Extract large icons
-                IntPtr[] largeIcons = new IntPtr[count];
+                largeIcons = new IntPtr[count];
                 uint extracted = ExtractIconEx(_filePath, 0, largeIcons, null, count);
                 
                 if (extracted == 0) return null;
 
-                // Convert to Icon array
+                // Convert to Icon array - clone each icon so we can destroy handles
                 var icons = new List<System.Drawing.Icon>();
                 for (int i = 0; i < extracted; i++)
                 {
@@ -1853,17 +1857,34 @@ public sealed partial class VolumeOverlayWindow : Window
                     {
                         try
                         {
-                            icons.Add(System.Drawing.Icon.FromHandle(largeIcons[i]));
+                            // Clone the icon from handle so we own a copy
+                            var icon = System.Drawing.Icon.FromHandle(largeIcons[i]);
+                            var clonedIcon = (System.Drawing.Icon)icon.Clone();
+                            icons.Add(clonedIcon);
                         }
                         catch { }
                     }
                 }
 
-                return icons.ToArray();
+                return icons.Count > 0 ? icons.ToArray() : null;
             }
             catch
             {
                 return null;
+            }
+            finally
+            {
+                // Always destroy the icon handles to prevent memory leaks
+                if (largeIcons != null)
+                {
+                    foreach (var handle in largeIcons)
+                    {
+                        if (handle != IntPtr.Zero)
+                        {
+                            DestroyIcon(handle);
+                        }
+                    }
+                }
             }
         }
     }
