@@ -90,6 +90,18 @@ public class SettingsStore
             System.Diagnostics.Debug.WriteLine("[SettingsStore] Migrated Volume Mixer hotkey: Win+V → Alt+V");
         }
 
+        if (settings.NotificationCustom == null)
+        {
+            settings.NotificationCustom = new NotificationCustomSettings();
+            modified = true;
+        }
+
+        if (settings.NotificationCustom.ToggleHotkey == null || settings.NotificationCustom.ToggleHotkey.VirtualKey == 0)
+        {
+            settings.NotificationCustom.ToggleHotkey = new HotkeyBinding { Modifiers = 0x0001, VirtualKey = 0x4E }; // Alt+N
+            modified = true;
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         foreach (var rule in settings.LockRules)

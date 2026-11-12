@@ -1109,16 +1109,11 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var settings = ServiceContainer.Settings.NotificationCustom;
-                settings.Enabled = !settings.Enabled;
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-                ServiceContainer.SetNotificationCustomizerEnabled(settings.Enabled);
-                
-                // Update tray menu
-                ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
+                var newEnabled = !ServiceContainer.Settings.NotificationCustom.Enabled;
+                ServiceContainer.SetNotificationCustomizerEnabled(newEnabled);
                 
                 // Show notification
-                var status = settings.Enabled ? "enabled" : "disabled";
+                var status = newEnabled ? "enabled" : "disabled";
                 ServiceContainer.NotificationService.ShowInfo(
                     "Notification Positioning",
                     $"Notification positioning {status}",

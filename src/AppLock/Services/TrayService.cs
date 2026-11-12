@@ -44,6 +44,9 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _ringLightToggleMenuItem;
     private MenuFlyoutItem? _volumeMixerToggleMenuItem;  // ADD THIS
     private MenuFlyoutSubItem? _volumeMixerPositionSubItem;
+    private MenuFlyoutItem? _notificationEnabledMenuItem;
+    private MenuFlyoutSubItem? _notificationPositionSubItem;
+    private bool _isNotificationMenuInitialized;
     private ToggleMenuFlyoutItem? _vmPosTopLeftItem;
     private ToggleMenuFlyoutItem? _vmPosTopCenterItem;
     private ToggleMenuFlyoutItem? _vmPosTopRightItem;
@@ -129,6 +132,8 @@ public sealed class TrayService : IDisposable
                             _ringLightToggleMenuItem = mfi;
                         else if (mfi.Name == "VolumeMixerToggleMenuItem" || text.Contains("Volume Mixer", StringComparison.OrdinalIgnoreCase))
                             _volumeMixerToggleMenuItem = mfi;
+                        else if (mfi.Name == "NotificationEnabledMenuItem" || (text.Contains("Notification", StringComparison.OrdinalIgnoreCase) && !text.Contains("Position", StringComparison.OrdinalIgnoreCase)))
+                            _notificationEnabledMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -202,6 +207,10 @@ public sealed class TrayService : IDisposable
                                         _vmPosBottomRightItem = tmi;
                                 }
                             }
+                        }
+                        else if (sub.Name == "NotificationPositionSubItem" || (sub.Text != null && (sub.Text.Contains("Anchor", StringComparison.OrdinalIgnoreCase) || sub.Text.Contains("Notification", StringComparison.OrdinalIgnoreCase))))
+                        {
+                            _notificationPositionSubItem = sub;
                         }
                         else if (sub.Name == "ClipboardPauseSubItem" || (sub.Text != null && sub.Text.Contains("Pause", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -561,6 +570,12 @@ public sealed class TrayService : IDisposable
 
             ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
             ServiceContainer.VolumeMixerPositionChanged += OnVolumeMixerPositionChanged;
+
+            ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
+            ServiceContainer.NotificationCustomizerEnabledChanged += OnNotificationCustomizerEnabledChanged;
+
+            ServiceContainer.NotificationAnchorChanged -= OnNotificationAnchorChanged;
+            ServiceContainer.NotificationAnchorChanged += OnNotificationAnchorChanged;
 
             // Wire up volume change listener to keep BitLocker tray actions synced
             if (!_isVolumeWatcherSubscribed)
@@ -1261,6 +1276,9 @@ public sealed class TrayService : IDisposable
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
 
+        ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
+        ServiceContainer.NotificationAnchorChanged -= OnNotificationAnchorChanged;
+
         if (_isVolumeWatcherSubscribed)
         {
             ServiceContainer.VolumeWatcher.VolumeChanged -= OnVolumeWatcherChanged;
@@ -1280,53 +1298,74 @@ public sealed class TrayService : IDisposable
             if (_trayIcon?.ContextFlyout is not MenuFlyout menuFlyout)
                 return;
 
-            // Find and wire up enable/disable toggle
-            MenuFlyoutItem? enabledMenuItem = null;
-            MenuFlyoutSubItem? notifSubMenu = null;
-            
-            foreach (var item in menuFlyout.Items)
+            if (_notificationEnabledMenuItem == null || _notificationPositionSubItem == null)
             {
-                if (item is MenuFlyoutItem mfi && mfi.Name == "NotificationEnabledMenuItem")
+                foreach (var item in menuFlyout.Items)
                 {
-                    enabledMenuItem = mfi;
-                    mfi.Click += OnNotificationEnabledToggle;
-                }
-                else if (item is MenuFlyoutSubItem sub && sub.Name == "NotificationPositionSubItem")
-                {
-                    notifSubMenu = sub;
+                    if (item is MenuFlyoutItem mfi && (mfi.Name == "NotificationEnabledMenuItem" || (mfi.Text != null && mfi.Text.Contains("Notification", StringComparison.OrdinalIgnoreCase) && !mfi.Text.Contains("Position", StringComparison.OrdinalIgnoreCase))))
+                    {
+                        _notificationEnabledMenuItem = mfi;
+                    }
+                    else if (item is MenuFlyoutSubItem sub && (sub.Name == "NotificationPositionSubItem" || (sub.Text != null && (sub.Text.Contains("Anchor", StringComparison.OrdinalIgnoreCase) || sub.Text.Contains("Notification", StringComparison.OrdinalIgnoreCase)))))
+                    {
+                        _notificationPositionSubItem = sub;
+                    }
                 }
             }
 
-            if (notifSubMenu == null)
-                return;
-
-            // Wire up click handlers for each anchor
-            foreach (var item in notifSubMenu.Items)
+            if (!_isNotificationMenuInitialized)
             {
-                if (item is MenuFlyoutItem mfi && mfi.Name != null)
+                if (_notificationEnabledMenuItem != null)
                 {
-                    string? anchor = mfi.Name switch
-                    {
-                        "NotifTopLeftMenuItem" => "TopLeft",
-                        "NotifTopCenterMenuItem" => "TopCenter",
-                        "NotifTopRightMenuItem" => "TopRight",
-                        "NotifMiddleLeftMenuItem" => "MiddleLeft",
-                        "NotifCenterMenuItem" => "Center",
-                        "NotifMiddleRightMenuItem" => "MiddleRight",
-                        "NotifBottomLeftMenuItem" => "BottomLeft",
-                        "NotifBottomCenterMenuItem" => "BottomCenter",
-                        "NotifBottomRightMenuItem" => "BottomRight",
-                        "NotifCustomMenuItem" => "Custom",
-                        _ => null
-                    };
+                    _notificationEnabledMenuItem.Click += OnNotificationEnabledToggle;
+                }
 
-                    if (anchor != null)
+                if (_notificationPositionSubItem != null)
+                {
+                    foreach (var item in _notificationPositionSubItem.Items)
                     {
-                        // Capture anchor in closure
-                        string anchorCaptured = anchor;
-                        mfi.Click += (s, e) => OnNotificationAnchorSelected(anchorCaptured);
+                        if (item is MenuFlyoutItem mfi)
+                        {
+                            string? anchor = mfi.Name switch
+                            {
+                                "NotifTopLeftMenuItem" => "TopLeft",
+                                "NotifTopCenterMenuItem" => "TopCenter",
+                                "NotifTopRightMenuItem" => "TopRight",
+                                "NotifMiddleLeftMenuItem" => "MiddleLeft",
+                                "NotifCenterMenuItem" => "Center",
+                                "NotifMiddleRightMenuItem" => "MiddleRight",
+                                "NotifBottomLeftMenuItem" => "BottomLeft",
+                                "NotifBottomCenterMenuItem" => "BottomCenter",
+                                "NotifBottomRightMenuItem" => "BottomRight",
+                                "NotifCustomMenuItem" => "Custom",
+                                _ => null
+                            };
+
+                            if (anchor == null && mfi.Text != null)
+                            {
+                                var t = mfi.Text.Trim();
+                                if (t.Equals("Top Left", StringComparison.OrdinalIgnoreCase)) anchor = "TopLeft";
+                                else if (t.Equals("Top Center", StringComparison.OrdinalIgnoreCase)) anchor = "TopCenter";
+                                else if (t.Equals("Top Right", StringComparison.OrdinalIgnoreCase)) anchor = "TopRight";
+                                else if (t.Equals("Middle Left", StringComparison.OrdinalIgnoreCase)) anchor = "MiddleLeft";
+                                else if (t.Equals("Center", StringComparison.OrdinalIgnoreCase)) anchor = "Center";
+                                else if (t.Equals("Middle Right", StringComparison.OrdinalIgnoreCase)) anchor = "MiddleRight";
+                                else if (t.Equals("Bottom Left", StringComparison.OrdinalIgnoreCase)) anchor = "BottomLeft";
+                                else if (t.Equals("Bottom Center", StringComparison.OrdinalIgnoreCase)) anchor = "BottomCenter";
+                                else if (t.Equals("Bottom Right", StringComparison.OrdinalIgnoreCase)) anchor = "BottomRight";
+                                else if (t.StartsWith("Custom", StringComparison.OrdinalIgnoreCase)) anchor = "Custom";
+                            }
+
+                            if (anchor != null)
+                            {
+                                string anchorCaptured = anchor;
+                                mfi.Click += (s, e) => OnNotificationAnchorSelected(anchorCaptured);
+                            }
+                        }
                     }
                 }
+
+                _isNotificationMenuInitialized = true;
             }
 
             // Update initial state
@@ -1338,15 +1377,22 @@ public sealed class TrayService : IDisposable
         }
     }
 
+    private void OnNotificationCustomizerEnabledChanged(object? sender, bool enabled)
+    {
+        UpdateNotificationPositionMenuItems();
+    }
+
+    private void OnNotificationAnchorChanged(object? sender, string anchor)
+    {
+        UpdateNotificationPositionMenuItems();
+    }
+
     private void OnNotificationEnabledToggle(object sender, RoutedEventArgs e)
     {
         try
         {
             var enabled = ServiceContainer.Settings.NotificationCustom.Enabled;
-            ServiceContainer.Settings.NotificationCustom.Enabled = !enabled;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
             ServiceContainer.SetNotificationCustomizerEnabled(!enabled);
-            
             UpdateNotificationPositionMenuItems();
             
             LogService.LogAction("notifications", $"Notification positioning {(!enabled ? "enabled" : "disabled")} from tray");
@@ -1363,13 +1409,11 @@ public sealed class TrayService : IDisposable
         {
             if (anchor == "Custom")
             {
-                // Trigger custom position picker
                 await TriggerCustomPositionPickerAsync();
             }
             else
             {
-                ServiceContainer.Settings.NotificationCustom.Anchor = anchor;
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.SetNotificationAnchor(anchor);
                 UpdateNotificationPositionMenuItems();
                 
                 LogService.LogAction("notifications", $"Anchor changed from tray: {anchor}");
@@ -1385,53 +1429,56 @@ public sealed class TrayService : IDisposable
     {
         try
         {
-            // Get primary monitor bounds
-            var primaryMonitor = Windows.Win32.PInvoke.MonitorFromPoint(
-                new System.Drawing.Point(0, 0), 
-                Windows.Win32.Graphics.Gdi.MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+            if (_dispatcherQueue == null) return;
 
-            var info = new Windows.Win32.Graphics.Gdi.MONITORINFO
+            _dispatcherQueue.TryEnqueue(async () =>
             {
-                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Windows.Win32.Graphics.Gdi.MONITORINFO>()
-            };
-            
-            unsafe
-            {
-                Windows.Win32.PInvoke.GetMonitorInfo(primaryMonitor, ref info);
-            }
-
-            var bounds = new Windows.Graphics.RectInt32(
-                info.rcMonitor.left,
-                info.rcMonitor.top,
-                info.rcMonitor.right - info.rcMonitor.left,
-                info.rcMonitor.bottom - info.rcMonitor.top);
-
-            // Create and show picker on UI thread
-            if (_dispatcherQueue != null)
-            {
-                _dispatcherQueue.TryEnqueue(() =>
+                try
                 {
+                    // Get primary monitor bounds
+                    var primaryMonitor = Windows.Win32.PInvoke.MonitorFromPoint(
+                        new System.Drawing.Point(0, 0), 
+                        Windows.Win32.Graphics.Gdi.MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+
+                    var info = new Windows.Win32.Graphics.Gdi.MONITORINFO
+                    {
+                        cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Windows.Win32.Graphics.Gdi.MONITORINFO>()
+                    };
+                    
+                    unsafe
+                    {
+                        Windows.Win32.PInvoke.GetMonitorInfo(primaryMonitor, ref info);
+                    }
+
+                    var bounds = new Windows.Graphics.RectInt32(
+                        info.rcMonitor.left,
+                        info.rcMonitor.top,
+                        info.rcMonitor.right - info.rcMonitor.left,
+                        info.rcMonitor.bottom - info.rcMonitor.top);
+
                     var picker = new Views.PickToastPositionOverlay(primaryMonitor, bounds);
                     picker.Activate();
-                    
-                    // Wait for picker to close
-                    _ = picker.WaitForCloseAsync().ContinueWith(t =>
+
+                    await picker.WaitForCloseAsync();
+
+                    if (picker.WasConfirmed)
                     {
-                        if (picker.WasConfirmed)
-                        {
-                            ServiceContainer.Settings.NotificationCustom.CustomPercentX = picker.SelectedPercentX;
-                            ServiceContainer.Settings.NotificationCustom.CustomPercentY = picker.SelectedPercentY;
-                            ServiceContainer.Settings.NotificationCustom.Anchor = "Custom";
-                            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-                            
-                            UpdateNotificationPositionMenuItems();
-                            
-                            LogService.LogAction("notifications",
-                                $"Custom position saved from tray: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");
-                        }
-                    });
-                });
-            }
+                        ServiceContainer.SetNotificationCustomPosition(picker.SelectedPercentX, picker.SelectedPercentY);
+                        UpdateNotificationPositionMenuItems();
+                        
+                        LogService.LogAction("notifications",
+                            $"Custom position saved from tray: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");
+                    }
+                    else
+                    {
+                        UpdateNotificationPositionMenuItems();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogService.LogAction("tray", $"Error during custom position picker: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -1441,23 +1488,34 @@ public sealed class TrayService : IDisposable
 
     public void UpdateNotificationPositionMenuItems()
     {
+        if (_dispatcherQueue != null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(UpdateNotificationPositionMenuItems);
+            return;
+        }
+
         try
         {
             if (_trayIcon?.ContextFlyout is not MenuFlyout menuFlyout)
                 return;
 
-            MenuFlyoutItem? enabledMenuItem = null;
-            MenuFlyoutSubItem? notifSubMenu = null;
+            MenuFlyoutItem? enabledMenuItem = _notificationEnabledMenuItem;
+            MenuFlyoutSubItem? notifSubMenu = _notificationPositionSubItem;
             
-            foreach (var item in menuFlyout.Items)
+            if (enabledMenuItem == null || notifSubMenu == null)
             {
-                if (item is MenuFlyoutItem mfi && mfi.Name == "NotificationEnabledMenuItem")
+                foreach (var item in menuFlyout.Items)
                 {
-                    enabledMenuItem = mfi;
-                }
-                else if (item is MenuFlyoutSubItem sub && sub.Name == "NotificationPositionSubItem")
-                {
-                    notifSubMenu = sub;
+                    if (item is MenuFlyoutItem mfi && (mfi.Name == "NotificationEnabledMenuItem" || (mfi.Text != null && mfi.Text.Contains("Notification", StringComparison.OrdinalIgnoreCase) && !mfi.Text.Contains("Position", StringComparison.OrdinalIgnoreCase))))
+                    {
+                        enabledMenuItem = mfi;
+                        _notificationEnabledMenuItem = mfi;
+                    }
+                    else if (item is MenuFlyoutSubItem sub && (sub.Name == "NotificationPositionSubItem" || (sub.Text != null && (sub.Text.Contains("Anchor", StringComparison.OrdinalIgnoreCase) || sub.Text.Contains("Notification", StringComparison.OrdinalIgnoreCase)))))
+                    {
+                        notifSubMenu = sub;
+                        _notificationPositionSubItem = sub;
+                    }
                 }
             }
 
@@ -1467,7 +1525,7 @@ public sealed class TrayService : IDisposable
             if (enabledMenuItem != null)
             {
                 enabledMenuItem.Text = settings.Enabled 
-                    ? "✓ Notification Positioning Enabled" 
+                    ? "Disable Notification Positioning" 
                     : "Enable Notification Positioning";
                 enabledMenuItem.Icon = settings.Enabled 
                     ? new FontIcon { Glyph = "\uE73E" } 
@@ -1482,7 +1540,7 @@ public sealed class TrayService : IDisposable
             // Update checkmarks for position items
             foreach (var item in notifSubMenu.Items)
             {
-                if (item is MenuFlyoutItem mfi && mfi.Name != null)
+                if (item is MenuFlyoutItem mfi)
                 {
                     string? anchor = mfi.Name switch
                     {
@@ -1499,13 +1557,30 @@ public sealed class TrayService : IDisposable
                         _ => null
                     };
 
-                    if (anchor != null && anchor == currentAnchor)
+                    if (anchor == null && mfi.Text != null)
                     {
-                        mfi.Icon = new FontIcon { Glyph = "\uE73E" }; // Checkmark
+                        var t = mfi.Text.Trim();
+                        if (t.Equals("Top Left", StringComparison.OrdinalIgnoreCase)) anchor = "TopLeft";
+                        else if (t.Equals("Top Center", StringComparison.OrdinalIgnoreCase)) anchor = "TopCenter";
+                        else if (t.Equals("Top Right", StringComparison.OrdinalIgnoreCase)) anchor = "TopRight";
+                        else if (t.Equals("Middle Left", StringComparison.OrdinalIgnoreCase)) anchor = "MiddleLeft";
+                        else if (t.Equals("Center", StringComparison.OrdinalIgnoreCase)) anchor = "Center";
+                        else if (t.Equals("Middle Right", StringComparison.OrdinalIgnoreCase)) anchor = "MiddleRight";
+                        else if (t.Equals("Bottom Left", StringComparison.OrdinalIgnoreCase)) anchor = "BottomLeft";
+                        else if (t.Equals("Bottom Center", StringComparison.OrdinalIgnoreCase)) anchor = "BottomCenter";
+                        else if (t.Equals("Bottom Right", StringComparison.OrdinalIgnoreCase)) anchor = "BottomRight";
+                        else if (t.StartsWith("Custom", StringComparison.OrdinalIgnoreCase)) anchor = "Custom";
+                    }
+
+                    bool isSelected = anchor != null && string.Equals(anchor, currentAnchor, StringComparison.OrdinalIgnoreCase);
+
+                    if (mfi is ToggleMenuFlyoutItem tmfi)
+                    {
+                        tmfi.IsChecked = isSelected;
                     }
                     else
                     {
-                        mfi.Icon = null;
+                        mfi.Icon = isSelected ? new FontIcon { Glyph = "\uE73E" } : null;
                     }
                 }
             }

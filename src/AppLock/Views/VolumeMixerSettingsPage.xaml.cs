@@ -131,6 +131,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         HoverOpacitySlider.Value   = s.HoverOpacity;
         HoverOpacityText           = $"{s.HoverOpacity}%";
         SliderWidthNumberBox.Value = s.SliderWidth;
+        ShowCameraBrightnessToggle.IsOn = s.ShowCameraBrightness;
 
         // Behavior
         HoverDelayNumberBox.Value       = s.HoverDelayMs;
@@ -256,6 +257,15 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             SaveSettings();
             ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
+    }
+
+    private void ShowCameraBrightnessToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        ServiceContainer.Settings.VolumeMixer.ShowCameraBrightness = ShowCameraBrightnessToggle.IsOn;
+        SaveSettings();
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
+        System.Diagnostics.Debug.WriteLine($"[Settings] Camera brightness {(ShowCameraBrightnessToggle.IsOn ? "shown" : "hidden")}");
     }
 
     // ── Behavior ──────────────────────────────────────────────────────────────
@@ -412,6 +422,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         s.IdleOpacity   = 50;
         s.HoverOpacity  = 100;
         s.SliderWidth   = 200;
+        s.ShowCameraBrightness = true;
         SaveSettings();
         ServiceContainer.VolumeOverlayService?.RefreshSettings();
 
@@ -429,6 +440,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             HoverOpacitySlider.Value           = 100;
             HoverOpacityText                   = "100%";
             SliderWidthNumberBox.Value         = 200;
+            ShowCameraBrightnessToggle.IsOn    = true;
         }
         finally
         {

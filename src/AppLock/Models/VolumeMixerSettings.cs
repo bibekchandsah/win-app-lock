@@ -20,6 +20,7 @@ public sealed class VolumeMixerSettings
     public bool DragMode { get; set; } = false;
     public bool OnlyActiveApps { get; set; } = false;
     public bool StartWithWindows { get; set; } = false;
+    public bool ShowCameraBrightness { get; set; } = true; // Show camera brightness slider
     public string ThemeMode { get; set; } = "System";
     public List<string> Blacklist { get; set; } = new();
     public double? CustomX { get; set; }   // used when dragged

@@ -685,8 +685,7 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="16"
-                        Visibility="{x:Bind ViewModel.Enabled, Mode=OneWay}">
+                        Padding="16">
                     <StackPanel Spacing="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -741,7 +740,7 @@
                                    FontSize="13"
                                    Margin="0,8,0,4"/>
                         
-                        <TextBlock Text="Right-click the tray icon and select 'Notification Position' to quickly change anchors"
+                        <TextBlock Text="Right-click the tray icon to toggle notifications on/off or open 'Anchor Position' to quickly select an anchor or pick a custom position"
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>

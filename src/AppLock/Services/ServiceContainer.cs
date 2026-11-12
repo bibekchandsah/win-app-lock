@@ -654,6 +654,7 @@ public static class ServiceContainer
     public static AppLock.Services.Notifications.NotificationCustomizerService? NotificationCustomizerService => _notificationCustomizerService;
 
     public static event EventHandler<bool>? NotificationCustomizerEnabledChanged;
+    public static event EventHandler<string>? NotificationAnchorChanged;
 
     public static void SetNotificationCustomizerEnabled(bool enabled)
     {
@@ -670,6 +671,24 @@ public static class ServiceContainer
         }
         
         NotificationCustomizerEnabledChanged?.Invoke(null, enabled);
+    }
+
+    public static void SetNotificationAnchor(string anchor)
+    {
+        Settings.NotificationCustom.Anchor = anchor;
+        SettingsStore.Save(Settings);
+        _notificationCustomizerService?.ReapplyPositionToActiveToasts();
+        NotificationAnchorChanged?.Invoke(null, anchor);
+    }
+
+    public static void SetNotificationCustomPosition(float percentX, float percentY)
+    {
+        Settings.NotificationCustom.CustomPercentX = percentX;
+        Settings.NotificationCustom.CustomPercentY = percentY;
+        Settings.NotificationCustom.Anchor = "Custom";
+        SettingsStore.Save(Settings);
+        _notificationCustomizerService?.ReapplyPositionToActiveToasts();
+        NotificationAnchorChanged?.Invoke(null, "Custom");
     }
 
     public static void InitializeNotificationCustomizer()

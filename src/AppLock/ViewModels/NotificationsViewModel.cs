@@ -67,6 +67,39 @@ public partial class NotificationsViewModel : ObservableObject
         LoadSettings();
         LoadWallpaperAsync();
         UpdatePreviewPosition();
+
+        ServiceContainer.NotificationCustomizerEnabledChanged += OnGlobalEnabledChanged;
+        ServiceContainer.NotificationAnchorChanged += OnGlobalAnchorChanged;
+    }
+
+    public void Dispose()
+    {
+        ServiceContainer.NotificationCustomizerEnabledChanged -= OnGlobalEnabledChanged;
+        ServiceContainer.NotificationAnchorChanged -= OnGlobalAnchorChanged;
+    }
+
+    private void OnGlobalEnabledChanged(object? sender, bool enabled)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            if (Enabled != enabled)
+            {
+                Enabled = enabled;
+            }
+        });
+    }
+
+    private void OnGlobalAnchorChanged(object? sender, string anchor)
+    {
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            if (SelectedAnchor != anchor)
+            {
+                SelectedAnchor = anchor;
+            }
+            OnPropertyChanged(nameof(AnchorDisplayText));
+            UpdatePreviewPosition();
+        });
     }
 
     private void LoadSettings()
@@ -89,7 +122,7 @@ public partial class NotificationsViewModel : ObservableObject
         }
         else
         {
-            ToggleHotkeyText = "Not set";
+            ToggleHotkeyText = "Alt+N";
         }
     }
 
@@ -98,7 +131,9 @@ public partial class NotificationsViewModel : ObservableObject
     {
         try
         {
-            var currentHotkey = ServiceContainer.Settings.NotificationCustom.ToggleHotkey?.ToString() ?? "Not set";
+            var currentHotkey = !string.IsNullOrEmpty(ToggleHotkeyText) && ToggleHotkeyText != "Not set"
+                ? ToggleHotkeyText
+                : "Alt+N";
             var dialog = new Views.ChangeHotkeyDialog(currentHotkey);
             
             // Wait for XamlRoot to be available
@@ -229,12 +264,14 @@ public partial class NotificationsViewModel : ObservableObject
 
     partial void OnEnabledChanged(bool value)
     {
-        ServiceContainer.Settings.NotificationCustom.Enabled = value;
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-        ServiceContainer.SetNotificationCustomizerEnabled(value);
-        
-        // Update tray menu in real-time
-        ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
+        if (ServiceContainer.Settings.NotificationCustom.Enabled != value)
+        {
+            ServiceContainer.SetNotificationCustomizerEnabled(value);
+        }
+        else
+        {
+            ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
+        }
     }
 
     partial void OnRespectTaskbarChanged(bool value)
@@ -255,16 +292,16 @@ public partial class NotificationsViewModel : ObservableObject
 
     partial void OnSelectedAnchorChanged(string value)
     {
-        ServiceContainer.Settings.NotificationCustom.Anchor = value;
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        if (ServiceContainer.Settings.NotificationCustom.Anchor != value)
+        {
+            ServiceContainer.SetNotificationAnchor(value);
+        }
+        else
+        {
+            ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
+        }
         OnPropertyChanged(nameof(AnchorDisplayText));
         UpdatePreviewPosition();
-        
-        // Apply immediately to active toasts in real-time
-        ServiceContainer.NotificationCustomizerService?.ReapplyPositionToActiveToasts();
-
-        // Update tray menu in real-time
-        ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
     }
 
     [RelayCommand]
@@ -302,22 +339,14 @@ public partial class NotificationsViewModel : ObservableObject
 
             if (picker.WasConfirmed)
             {
-                // Save percentages BEFORE updating the anchor so the positioner
-                // already has the correct values when settings are read.
-                ServiceContainer.Settings.NotificationCustom.CustomPercentX = picker.SelectedPercentX;
-                ServiceContainer.Settings.NotificationCustom.CustomPercentY = picker.SelectedPercentY;
-
-                // Setting SelectedAnchor triggers OnSelectedAnchorChanged which saves + notifies
-                SelectedAnchor = "Custom";
-
-                // Persist (SelectedAnchor setter already calls Save, but call again to be sure
-                // the CustomPercent values are written together with the anchor)
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-
-                // Update preview to show custom position
+                ServiceContainer.SetNotificationCustomPosition(picker.SelectedPercentX, picker.SelectedPercentY);
+                if (SelectedAnchor != "Custom")
+                {
+                    SelectedAnchor = "Custom";
+                }
+                OnPropertyChanged(nameof(AnchorDisplayText));
                 UpdatePreviewPosition();
                 
-                // Update tray menu in real-time
                 ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
 
                 LogService.LogAction("notifications",

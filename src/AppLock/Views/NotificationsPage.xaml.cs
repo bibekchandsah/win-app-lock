@@ -23,6 +23,12 @@ public sealed partial class NotificationsPage : Page
         LoadAnimationSettings();
     }
 
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        ViewModel.Dispose();
+    }
+
     private void LoadAnimationSettings()
     {
         var settings = ServiceContainer.Settings.NotificationCustom;

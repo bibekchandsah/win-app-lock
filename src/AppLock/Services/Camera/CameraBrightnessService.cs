@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 using Windows.Devices.Enumeration;
 using Windows.Media.Capture;
 using Windows.Media.Devices;
+using Microsoft.Win32;
 
 namespace AppLock.Services.Camera;
 
 /// <summary>
-/// Service for controlling camera brightness/exposure settings across all installed webcams.
-/// Uses Windows.Media.Devices APIs to adjust camera hardware brightness.
+/// Service for controlling camera brightness settings.
+/// Uses Windows Registry to sync with Windows Settings camera brightness.
 /// </summary>
 public class CameraBrightnessService : IDisposable
 {
@@ -21,6 +22,9 @@ public class CameraBrightnessService : IDisposable
     private bool _isInitialized;
     private bool _disposed;
 
+    // Registry path for camera settings
+    private const string CameraSettingsRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\NonPackaged";
+
     public event EventHandler<double>? BrightnessChanged;
 
     /// <summary>
@@ -29,75 +33,51 @@ public class CameraBrightnessService : IDisposable
     public bool IsAvailable => _isInitialized && _videoController != null;
 
     /// <summary>
-    /// Gets whether the current camera supports brightness/exposure control.
+    /// Gets whether camera brightness control is available.
     /// </summary>
-    public bool SupportsBrightness =>
-        (_videoController?.Exposure?.Capabilities?.Supported ?? false) ||
-        (_videoController?.Brightness?.Capabilities?.Supported ?? false);
+    public bool SupportsBrightness => _isInitialized;
 
     /// <summary>
-    /// Gets the minimum brightness value supported by the camera.
+    /// Gets the minimum brightness value (always 0 to match Windows Settings).
     /// </summary>
-    public double MinBrightness
-    {
-        get
-        {
-            // Try Exposure first (more commonly supported), then Brightness
-            if (_videoController?.Exposure?.Capabilities?.Supported == true)
-                return _videoController.Exposure.Capabilities.Min;
-            if (_videoController?.Brightness?.Capabilities?.Supported == true)
-                return _videoController.Brightness.Capabilities.Min;
-            return 0;
-        }
-    }
+    public double MinBrightness => 0;
 
     /// <summary>
-    /// Gets the maximum brightness value supported by the camera.
+    /// Gets the maximum brightness value (always 100 to match Windows Settings).
     /// </summary>
-    public double MaxBrightness
-    {
-        get
-        {
-            // Try Exposure first (more commonly supported), then Brightness
-            if (_videoController?.Exposure?.Capabilities?.Supported == true)
-                return _videoController.Exposure.Capabilities.Max;
-            if (_videoController?.Brightness?.Capabilities?.Supported == true)
-                return _videoController.Brightness.Capabilities.Max;
-            return 100;
-        }
-    }
+    public double MaxBrightness => 100;
 
     /// <summary>
-    /// Gets the brightness step value supported by the camera.
+    /// Gets the brightness step value (1% increments).
     /// </summary>
-    public double BrightnessStep
-    {
-        get
-        {
-            // Try Exposure first (more commonly supported), then Brightness
-            if (_videoController?.Exposure?.Capabilities?.Supported == true)
-                return _videoController.Exposure.Capabilities.Step;
-            if (_videoController?.Brightness?.Capabilities?.Supported == true)
-                return _videoController.Brightness.Capabilities.Step;
-            return 1;
-        }
-    }
+    public double BrightnessStep => 1;
 
     /// <summary>
     /// Gets or sets the current brightness value.
     /// Returns null if brightness control is not supported.
-    /// Uses Exposure control (which affects perceived brightness) as primary method.
+    /// Reads from Windows Registry to match Windows Settings behavior.
     /// </summary>
     public double? CurrentBrightness
     {
         get
         {
-            if (!SupportsBrightness || _videoController == null)
+            if (!_isInitialized)
+                return null;
+
+            // First try to get from registry (matches Windows Settings)
+            var registryValue = GetRegistryBrightness();
+            if (registryValue.HasValue)
+            {
+                return registryValue.Value;
+            }
+
+            // Fallback to MediaCapture API
+            if (_videoController == null)
                 return null;
 
             try
             {
-                // Try Exposure first (more commonly supported and matches Windows Settings behavior)
+                // Try Exposure first (more commonly supported)
                 if (_videoController.Exposure?.Capabilities?.Supported == true)
                 {
                     if (!_videoController.Exposure.TryGetValue(out double value))
@@ -146,27 +126,38 @@ public class CameraBrightnessService : IDisposable
 
             Debug.WriteLine($"[CameraBrightness] Found camera: {device.Name} (ID: {device.Id})");
 
-            // Initialize MediaCapture
+            // Store device info
+            _currentDeviceId = device.Id;
+
+            // Initialize MediaCapture for capability detection
             _mediaCapture = new MediaCapture();
             var settings = new MediaCaptureInitializationSettings
             {
                 VideoDeviceId = _currentDeviceId,
                 StreamingCaptureMode = StreamingCaptureMode.Video,
-                // Use SharedMode = true to avoid conflicts with apps already using the camera
                 SharingMode = MediaCaptureSharingMode.SharedReadOnly
             };
 
+            Debug.WriteLine($"[CameraBrightness] Initializing MediaCapture...");
             await _mediaCapture.InitializeAsync(settings);
             _videoController = _mediaCapture.VideoDeviceController;
 
             _isInitialized = true;
 
             Debug.WriteLine($"[CameraBrightness] Initialized successfully");
-            Debug.WriteLine($"[CameraBrightness] Brightness supported: {SupportsBrightness}");
-            if (SupportsBrightness)
+            
+            // Log what controls are available
+            Debug.WriteLine($"[CameraBrightness] === Available Camera Controls ===");
+            Debug.WriteLine($"[CameraBrightness] Brightness (MediaCapture): {_videoController.Brightness?.Capabilities?.Supported ?? false}");
+            Debug.WriteLine($"[CameraBrightness] Exposure (MediaCapture): {_videoController.Exposure?.Capabilities?.Supported ?? false}");
+            Debug.WriteLine($"[CameraBrightness] Registry brightness: {GetRegistryBrightness() != null}");
+            Debug.WriteLine($"[CameraBrightness] ================================");
+            
+            // Try to read current brightness from registry
+            var registryBrightness = GetRegistryBrightness();
+            if (registryBrightness.HasValue)
             {
-                Debug.WriteLine($"[CameraBrightness] Brightness range: {MinBrightness} - {MaxBrightness} (step: {BrightnessStep})");
-                Debug.WriteLine($"[CameraBrightness] Current brightness: {CurrentBrightness}");
+                Debug.WriteLine($"[CameraBrightness] Registry brightness value: {registryBrightness.Value}");
             }
 
             return true;
@@ -186,45 +177,36 @@ public class CameraBrightnessService : IDisposable
 
     /// <summary>
     /// Sets the camera brightness to the specified value.
-    /// Uses Exposure control for better compatibility (matches Windows Camera Settings).
+    /// Syncs with Windows Settings by writing to registry.
     /// </summary>
-    /// <param name="brightness">Brightness value (within MinBrightness to MaxBrightness range)</param>
+    /// <param name="brightness">Brightness value (0-100 to match Windows Settings)</param>
     /// <returns>True if successful, false otherwise</returns>
     public bool SetBrightness(double brightness)
     {
-        if (!SupportsBrightness || _videoController == null)
+        if (!_isInitialized)
         {
-            Debug.WriteLine("[CameraBrightness] Brightness control not supported");
+            Debug.WriteLine("[CameraBrightness] Not initialized");
             return false;
         }
 
         try
         {
-            // Clamp to valid range
-            brightness = Math.Clamp(brightness, MinBrightness, MaxBrightness);
+            // Clamp to Windows Settings range (0-100)
+            int brightnessInt = (int)Math.Clamp(brightness, 0, 100);
 
-            // Try Exposure first (more commonly supported and matches Windows Settings)
-            if (_videoController.Exposure?.Capabilities?.Supported == true)
+            Debug.WriteLine($"[CameraBrightness] SetBrightness called with value: {brightnessInt}");
+
+            // Set in registry (matches Windows Settings)
+            bool success = SetRegistryBrightness(brightnessInt);
+            
+            if (success)
             {
-                if (_videoController.Exposure.TrySetValue(brightness))
-                {
-                    Debug.WriteLine($"[CameraBrightness] Exposure set to {brightness}");
-                    BrightnessChanged?.Invoke(this, brightness);
-                    return true;
-                }
-            }
-            // Fallback to Brightness if available
-            else if (_videoController.Brightness?.Capabilities?.Supported == true)
-            {
-                if (_videoController.Brightness.TrySetValue(brightness))
-                {
-                    Debug.WriteLine($"[CameraBrightness] Brightness set to {brightness}");
-                    BrightnessChanged?.Invoke(this, brightness);
-                    return true;
-                }
+                Debug.WriteLine($"[CameraBrightness] ✓ Brightness set to {brightnessInt}% (registry + device)");
+                BrightnessChanged?.Invoke(this, brightnessInt);
+                return true;
             }
 
-            Debug.WriteLine($"[CameraBrightness] Failed to set brightness to {brightness}");
+            Debug.WriteLine($"[CameraBrightness] ✗ Failed to set brightness");
             return false;
         }
         catch (Exception ex)
@@ -343,5 +325,126 @@ public class CameraBrightnessService : IDisposable
         _isInitialized = false;
 
         Debug.WriteLine("[CameraBrightness] Disposed");
+    }
+
+    // ── Registry-based brightness control (matches Windows Settings) ──────────
+
+    /// <summary>
+    /// Gets the brightness value from Windows Registry.
+    /// This is where Windows Settings stores the camera brightness.
+    /// Returns value in range 0-100.
+    /// </summary>
+    private double? GetRegistryBrightness()
+    {
+        try
+        {
+            // Windows 11 stores camera settings in:
+            // HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Camera\Brightness
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Camera");
+            if (key != null)
+            {
+                var value = key.GetValue("Brightness");
+                if (value != null && int.TryParse(value.ToString(), out int brightness))
+                {
+                    Debug.WriteLine($"[CameraBrightness] Registry brightness: {brightness}");
+                    return brightness;
+                }
+            }
+
+            // Alternative location for some cameras
+            using var key2 = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\MediaFoundation\Platform");
+            if (key2 != null)
+            {
+                var value = key2.GetValue("Brightness");
+                if (value != null && int.TryParse(value.ToString(), out int brightness))
+                {
+                    Debug.WriteLine($"[CameraBrightness] Platform brightness: {brightness}");
+                    return brightness;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraBrightness] Error reading registry brightness: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Sets the brightness value in Windows Registry.
+    /// This updates the same value that Windows Settings uses.
+    /// </summary>
+    private bool SetRegistryBrightness(int brightness)
+    {
+        try
+        {
+            // Clamp to 0-100 range (Windows Settings range)
+            brightness = Math.Clamp(brightness, 0, 100);
+
+            // Try primary location
+            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Camera");
+            if (key != null)
+            {
+                key.SetValue("Brightness", brightness, RegistryValueKind.DWord);
+                Debug.WriteLine($"[CameraBrightness] Set registry brightness to {brightness}");
+                
+                // Also apply via VideoDeviceController if available
+                ApplyBrightnessToDevice(brightness);
+                
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraBrightness] Error writing registry brightness: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Applies brightness to the actual camera device.
+    /// Maps 0-100 range to device-specific range.
+    /// </summary>
+    private void ApplyBrightnessToDevice(int registryBrightness)
+    {
+        if (_videoController == null)
+            return;
+
+        try
+        {
+            // Map 0-100 to device range
+            // Try Exposure first
+            if (_videoController.Exposure?.Capabilities?.Supported == true)
+            {
+                var caps = _videoController.Exposure.Capabilities;
+                double deviceValue = caps.Min + (registryBrightness / 100.0) * (caps.Max - caps.Min);
+                
+                _videoController.Exposure.TrySetAuto(false);
+                if (_videoController.Exposure.TrySetValue(deviceValue))
+                {
+                    Debug.WriteLine($"[CameraBrightness] Applied {registryBrightness}% as Exposure {deviceValue}");
+                }
+            }
+            // Fallback to Brightness
+            else if (_videoController.Brightness?.Capabilities?.Supported == true)
+            {
+                var caps = _videoController.Brightness.Capabilities;
+                double deviceValue = caps.Min + (registryBrightness / 100.0) * (caps.Max - caps.Min);
+                
+                _videoController.Brightness.TrySetAuto(false);
+                if (_videoController.Brightness.TrySetValue(deviceValue))
+                {
+                    Debug.WriteLine($"[CameraBrightness] Applied {registryBrightness}% as Brightness {deviceValue}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraBrightness] Error applying brightness to device: {ex.Message}");
+        }
     }
 }

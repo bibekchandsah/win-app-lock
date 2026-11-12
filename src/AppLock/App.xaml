@@ -192,6 +192,32 @@
                         </MenuFlyoutSubItem>
                         
                         <MenuFlyoutSeparator/>
+
+                        <!-- Notification Position Controls -->
+                        <MenuFlyoutItem x:Name="NotificationEnabledMenuItem" Text="Enable Notification Positioning">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE91C;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <MenuFlyoutSubItem x:Name="NotificationPositionSubItem" Text="Anchor Position">
+                            <MenuFlyoutSubItem.Icon>
+                                <FontIcon Glyph="&#xE762;"/>
+                            </MenuFlyoutSubItem.Icon>
+                            <ToggleMenuFlyoutItem x:Name="NotifTopLeftMenuItem"      Text="Top Left"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifTopCenterMenuItem"    Text="Top Center"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifTopRightMenuItem"     Text="Top Right"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifMiddleLeftMenuItem"   Text="Middle Left"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifCenterMenuItem"       Text="Center"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifMiddleRightMenuItem"  Text="Middle Right"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifBottomLeftMenuItem"   Text="Bottom Left"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifBottomCenterMenuItem" Text="Bottom Center"/>
+                            <ToggleMenuFlyoutItem x:Name="NotifBottomRightMenuItem"  Text="Bottom Right"/>
+                            <MenuFlyoutSeparator/>
+                            <ToggleMenuFlyoutItem x:Name="NotifCustomMenuItem"       Text="Custom..."/>
+                        </MenuFlyoutSubItem>
+                        
+                        <MenuFlyoutSeparator/>
                         
                         <MenuFlyoutItem x:Name="ExitMenuItem" Text="Exit">
                             <MenuFlyoutItem.Icon>

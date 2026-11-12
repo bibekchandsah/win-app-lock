@@ -487,8 +487,24 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
+            // Check if user wants to show camera brightness
+            var settings = ServiceContainer.Settings.VolumeMixer;
+            if (!settings.ShowCameraBrightness)
+            {
+                Debug.WriteLine("[VolumeMixer] Camera brightness disabled in settings");
+                _hasCameraRow = false;
+                CameraIconHost.Visibility = Visibility.Collapsed;
+                CameraBrightnessSlider.Visibility = Visibility.Collapsed;
+                CameraBrightnessPercentText.Visibility = Visibility.Collapsed;
+                CameraBrightnessPlaceholder.Visibility = Visibility.Collapsed;
+                return;
+            }
+
             Debug.WriteLine("[VolumeMixer] Initializing camera brightness control...");
             bool success = await _cameraService.InitializeAsync();
+            
+            Debug.WriteLine($"[VolumeMixer] Camera init result: {success}");
+            Debug.WriteLine($"[VolumeMixer] Supports brightness: {_cameraService.SupportsBrightness}");
             
             if (success && _cameraService.SupportsBrightness)
             {
@@ -497,6 +513,8 @@ public sealed partial class VolumeOverlayWindow : Window
                 
                 // Update slider with current brightness
                 var currentBrightness = _cameraService.CurrentBrightness;
+                Debug.WriteLine($"[VolumeMixer] Current camera brightness: {currentBrightness}");
+                
                 if (currentBrightness.HasValue)
                 {
                     _isUpdatingCameraBrightness = true;
@@ -509,11 +527,17 @@ public sealed partial class VolumeOverlayWindow : Window
                     _isUpdatingCameraBrightness = false;
                     Debug.WriteLine($"[VolumeMixer] Initial camera brightness: {currentBrightness.Value} -> {(int)normalizedValue}%");
                 }
+                else
+                {
+                    Debug.WriteLine("[VolumeMixer] WARNING: CurrentBrightness returned null - camera may be in auto mode");
+                    // Try setting to manual mode
+                    _cameraService.SetAutoBrightness(false);
+                }
                 
                 // Subscribe to brightness changes
                 _cameraService.BrightnessChanged += OnCameraBrightnessChanged;
                 
-                // Show camera controls (always visible for now)
+                // Show camera controls
                 CameraIconHost.Visibility = Visibility.Visible;
                 CameraBrightnessSlider.Visibility = Visibility.Visible;
                 CameraBrightnessPercentText.Visibility = Visibility.Visible;
@@ -538,6 +562,7 @@ public sealed partial class VolumeOverlayWindow : Window
         catch (Exception ex)
         {
             Debug.WriteLine($"[VolumeMixer] Camera initialization error: {ex.Message}");
+            Debug.WriteLine($"[VolumeMixer] Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -566,23 +591,14 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private double MapCameraBrightnessToSlider(double cameraValue)
     {
-        // Map camera's min/max range to 0-100 slider range
-        double min = _cameraService.MinBrightness;
-        double max = _cameraService.MaxBrightness;
-        
-        if (max <= min)
-            return 50; // Fallback
-        
-        return ((cameraValue - min) / (max - min)) * 100.0;
+        // Camera now uses 0-100 range, same as slider
+        return cameraValue;
     }
 
     private double MapSliderToCameraBrightness(double sliderValue)
     {
-        // Map 0-100 slider range to camera's min/max range
-        double min = _cameraService.MinBrightness;
-        double max = _cameraService.MaxBrightness;
-        
-        return min + (sliderValue / 100.0) * (max - min);
+        // Camera now uses 0-100 range, same as slider
+        return sliderValue;
     }
 
     private void CameraBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
