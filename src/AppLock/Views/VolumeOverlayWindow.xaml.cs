@@ -738,7 +738,8 @@ public sealed partial class VolumeOverlayWindow : Window
 
             var icon = new FontIcon
             {
-                Glyph = mic.IsMuted() ? "\uE74F" : "\uE720",
+                // E720 = Microphone, EC54 = Microphone Off (crossed out mic)
+                Glyph = mic.IsMuted() ? "\uEC54" : "\uE720",
                 FontSize = 16,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
             };
@@ -842,7 +843,8 @@ public sealed partial class VolumeOverlayWindow : Window
 
             var muteIcon = new FontIcon
             {
-                Glyph = mic.IsMuted() ? "\uE74F" : "\uE720",
+                // E720 = Microphone, EC54 = Microphone Off (crossed out mic)
+                Glyph = mic.IsMuted() ? "\uEC54" : "\uE720",
                 FontSize = 12,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
             };
@@ -897,7 +899,8 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             var device = row.Device;
             bool isMuted = device.IsMuted();
-            string glyph = isMuted ? "\uE74F" : "\uE720";
+            // E720 = Microphone, EC54 = Microphone Off (crossed out mic, not speaker)
+            string glyph = isMuted ? "\uEC54" : "\uE720";
 
             // Update icon button
             if (row.IconButton?.Content is FontIcon iconFontIcon)
@@ -2255,6 +2258,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private void ToggleMixerPanel()
     {
         bool panelIsBelow = !ServiceContainer.Settings.VolumeMixer.IconPosition.StartsWith("bottom");
+        var settings = ServiceContainer.Settings.VolumeMixer;
 
         if (_state == OverlayState.MixerOpen)
         {
@@ -2290,6 +2294,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
             _state = OverlayState.MixerOpen;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] State: Expanded → MixerOpen");
+
+            // Apply hover opacity when mixer panel opens (user just clicked the icon)
+            AnimateOpacity(settings.HoverOpacity / 100.0, settings.AnimationMs);
 
             ResizeWindowToContent();
             StartPolling();
@@ -2370,7 +2377,8 @@ public sealed partial class VolumeOverlayWindow : Window
             int paddingHeight = 26;
 
             int panelHeight = headerHeight + dividerHeight + contentHeight + paddingHeight;
-            panelHeight = Math.Max(panelHeight, 100);
+            // Minimum height: ensure empty state message fits (text + 48px margins)
+            panelHeight = Math.Max(panelHeight, 120);
             panelHeight = Math.Min(panelHeight, 400);
 
             height = barHeight + 4 + panelHeight; // Spacing = 4
