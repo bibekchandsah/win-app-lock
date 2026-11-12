@@ -181,9 +181,29 @@ public class NotificationCustomizerService : IDisposable
             return;
 
         bool isManaged;
-        lock (_lock) { isManaged = _managedToasts.ContainsKey(hwnd.Value); }
+        System.Drawing.Rectangle restRect;
+        lock (_lock)
+        {
+            isManaged = _managedToasts.ContainsKey(hwnd.Value);
+            _restRects.TryGetValue(hwnd.Value, out restRect);
+        }
         if (!isManaged)
             return;
+
+        // Check if the shell is attempting to dismiss the toast by moving it away from restRect
+        if (restRect != default && Windows.Win32.PInvoke.GetWindowRect(hwnd, out var wr))
+        {
+            int dx = Math.Abs(wr.left - restRect.X);
+            int dy = Math.Abs(wr.top - restRect.Y);
+            if (dx > 10 || dy > 10)
+            {
+                // Shell is moving the window away -> this is a dismissal gesture or animation!
+                LogService.LogAction("notifications",
+                    $"Shell dismissal detected via movement (dx={dx}, dy={dy}) for 0x{hwnd.Value:X}");
+                OnToastHidden(sender, hwnd);
+                return;
+            }
+        }
 
         ApplyPosition(hwnd);
     }
@@ -216,12 +236,17 @@ public class NotificationCustomizerService : IDisposable
             holdCts?.Cancel();
             holdCts?.Dispose();
 
-            // Hide the real window immediately so the shell's native slide-out is invisible
+            // Hide and move the real window offscreen immediately so the shell's native slide-out is completely invisible
             try
             {
                 if (Windows.Win32.PInvoke.IsWindow(hwnd))
                 {
                     Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, -10000, -10000, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                        SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW);
                 }
             }
             catch { }

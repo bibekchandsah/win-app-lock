@@ -23,28 +23,25 @@ namespace AppLock.Services.Notifications;
 ///   The shell often hides the window before our event fires, so exit
 ///   uses a "ghost" layered window (Strategy B) that is captured from the
 ///   toast's last visible appearance and animated out independently.
-///   If the toast window is still alive we drive it directly first.
+///   The ghost runs its own Win32 message pump on an STA thread.
 /// </summary>
 public class ToastAnimator : IDisposable
 {
     // ── P/Invoke ──────────────────────────────────────────────────────────────
     private const uint WS_EX_LAYERED    = 0x00080000;
-    private const uint WS_EX_TRANSPARENT = 0x00000020;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
     private const uint WS_EX_NOACTIVATE  = 0x08000000;
+    private const uint WS_EX_TOPMOST     = 0x00000008;
     private const uint LWA_ALPHA         = 0x00000002;
     private const int  GWL_EXSTYLE       = -20;
-    private const int  GWL_STYLE         = -16;
     private const uint WS_POPUP          = 0x80000000;
+    private const uint WS_VISIBLE        = 0x10000000;
 
     private const int WatchdogMs = 2000;
     private const int DWMWA_TRANSITIONS_FORCEDISABLED = 3;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
-
-    [DllImport("user32.dll")]
-    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
 
     [DllImport("gdi32.dll")]
     private static extern bool BitBlt(nint hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, nint hdcSrc, int nXSrc, int nYSrc, uint dwRop);
@@ -53,8 +50,6 @@ public class ToastAnimator : IDisposable
     private static extern uint GetPixel(nint hdc, int x, int y);
 
     private const uint SRCCOPY = 0x00CC0020;
-    private const uint STM_SETIMAGE = 0x0172;
-    private const uint SS_BITMAP = 0x0000000E;
 
     public static void DeleteObjectPublic(nint ho)
     {
@@ -101,10 +96,13 @@ public class ToastAnimator : IDisposable
 
             if (!captured)
             {
+                // Fallback: grab from screen at the toast's location
                 BitBlt(memDC, 0, 0, rect.Width, rect.Height, screenDC, rect.X, rect.Y, SRCCOPY);
             }
 
             SelectObject(memDC, oldBmp);
+            LogService.LogAction("notifications",
+                $"CaptureWindowSnapshot for 0x{hwnd.Value:X} completed (pwCaptured={captured}): {rect.Width}x{rect.Height}, handle=0x{hBmp:X}");
             return hBmp;
         }
         catch (Exception ex)
@@ -158,11 +156,37 @@ public class ToastAnimator : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetLayeredWindowAttributes(nint hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern nint CreateWindowEx(
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint GetModuleHandleW(string? lpModuleName);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WNDCLASSEXW
+    {
+        public uint    cbSize;
+        public uint    style;
+        public nint    lpfnWndProc;
+        public int     cbClsExtra;
+        public int     cbWndExtra;
+        public nint    hInstance;
+        public nint    hIcon;
+        public nint    hCursor;
+        public nint    hbrBackground;
+        public string? lpszMenuName;
+        public string  lpszClassName;
+        public nint    hIconSm;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "RegisterClassExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern ushort RegisterClassExW(ref WNDCLASSEXW lpwcx);
+
+    [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern nint CreateWindowExW(
         uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle,
         int x, int y, int nWidth, int nHeight,
         nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
+
+    [DllImport("user32.dll", EntryPoint = "DefWindowProcW", CharSet = CharSet.Unicode)]
+    private static extern nint DefWindowProcW(nint hWnd, uint uMsg, nint wParam, nint lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyWindow(nint hWnd);
@@ -191,11 +215,33 @@ public class ToastAnimator : IDisposable
     [DllImport("user32.dll")]
     private static extern int ReleaseDC(nint hWnd, nint hDC);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UpdateLayeredWindow(
         nint hWnd, nint hdcDst, ref POINT pptDst, ref SIZE psize,
         nint hdcSrc, ref POINT pptSrc, uint crKey,
         ref BLENDFUNCTION pblend, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool PeekMessage(out MSG lpMsg, nint hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+    [DllImport("user32.dll")]
+    private static extern bool TranslateMessage(ref MSG lpMsg);
+
+    [DllImport("user32.dll")]
+    private static extern nint DispatchMessage(ref MSG lpMsg);
+
+    private const uint PM_REMOVE = 0x0001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public nint hwnd;
+        public uint message;
+        public nint wParam;
+        public nint lParam;
+        public uint time;
+        public POINT pt;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int x, y; }
@@ -209,9 +255,10 @@ public class ToastAnimator : IDisposable
         public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat;
     }
 
-    private const uint ULW_ALPHA = 0x00000002;
+    private const uint ULW_ALPHA     = 0x00000002;
     private const byte AC_SRC_OVER  = 0x00;
-    private const byte AC_SRC_ALPHA = 0x01;
+    private const uint WM_DESTROY   = 0x0002;
+    private const uint WM_QUIT      = 0x0012;
 
     // ── State ─────────────────────────────────────────────────────────────────
     private bool   _disposed;
@@ -299,11 +346,59 @@ public class ToastAnimator : IDisposable
         }
     }
 
-    // ── Exit animation (dedicated STA thread) ────────────────────────────────
+    // ── Exit animation (dedicated STA thread with message pump) ───────────────
+
+    // We keep a static WNDPROC delegate alive so it doesn't get GC'd
+    private delegate nint WndProcDelegate(nint hWnd, uint uMsg, nint wParam, nint lParam);
+    private static readonly WndProcDelegate _ghostWndProc = GhostWndProc;
+    private static nint GhostWndProc(nint hWnd, uint uMsg, nint wParam, nint lParam)
+        => DefWindowProcW(hWnd, uMsg, wParam, lParam);
+
+    private static readonly object _classRegLock = new();
+    private static bool _classRegistered;
+    private const string GhostClassName = "AppLockToastGhost";
+
+    private static void EnsureGhostClassRegistered()
+    {
+        if (_classRegistered) return;
+        lock (_classRegLock)
+        {
+            if (_classRegistered) return;
+
+            var hInstance = GetModuleHandleW(null);
+            var wc = new WNDCLASSEXW
+            {
+                cbSize        = (uint)Marshal.SizeOf<WNDCLASSEXW>(),
+                style         = 0,
+                lpfnWndProc   = Marshal.GetFunctionPointerForDelegate(_ghostWndProc),
+                cbClsExtra    = 0,
+                cbWndExtra    = 0,
+                hInstance     = hInstance,
+                hIcon         = nint.Zero,
+                hCursor       = nint.Zero,
+                hbrBackground = nint.Zero,
+                lpszMenuName  = null,
+                lpszClassName = GhostClassName,
+                hIconSm       = nint.Zero
+            };
+
+            ushort atom = RegisterClassExW(ref wc);
+            int err = Marshal.GetLastWin32Error();
+            if (atom == 0 && err != 1410 /* ERROR_CLASS_ALREADY_EXISTS */)
+            {
+                LogService.LogAction("notifications", $"RegisterClassExW failed: err={err}");
+            }
+            else
+            {
+                LogService.LogAction("notifications", $"Ghost window class registered successfully (atom=0x{atom:X})");
+            }
+            _classRegistered = true;
+        }
+    }
 
     /// <summary>
-    /// Animates the toast exit using a lightweight ghost window on an isolated STA background thread.
-    /// This completely avoids threadpool task blocking and prevents freezing the main application UI.
+    /// Animates the toast exit using a layered ghost window driven by UpdateLayeredWindow.
+    /// Runs on an isolated STA thread with its own Win32 message pump.
     /// </summary>
     public static void AnimateExit(
         nint hSnapshotBmp,
@@ -318,83 +413,153 @@ public class ToastAnimator : IDisposable
             return;
         }
 
-        var thread = new System.Threading.Thread(() =>
+        // Capture these on calling thread before handing off
+        var exitDir   = ToastMotion.GetEffectiveExitDirection(restRect, monitorBounds, settings);
+        var endRect   = ToastMotion.GetExitEndRect(restRect, monitorBounds, settings);
+        int durationMs  = Math.Max(50, settings.ExitMs);
+        string easing   = settings.Easing;
+        int opacityPercent = settings.OpacityPercent;
+        int w = restRect.Width;
+        int h = restRect.Height;
+
+        var thread = new Thread(() =>
         {
-            nint ghost = nint.Zero;
+            nint ghost    = nint.Zero;
+            nint screenDC = nint.Zero;
+            nint memDC    = nint.Zero;
+            nint drawBmp  = nint.Zero;
+            nint oldBmp   = nint.Zero;
+
             try
             {
-                var exitDir = ToastMotion.GetEffectiveExitDirection(restRect, monitorBounds, settings);
-                var endRect = ToastMotion.GetExitEndRect(restRect, monitorBounds, settings);
+                EnsureGhostClassRegistered();
 
-                const string ClassName = "STATIC";
-                uint ghostExStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | 0x00000008 /* WS_EX_TOPMOST */;
-                uint ghostStyle = WS_POPUP | SS_BITMAP | 0x10000000 /* WS_VISIBLE */;
+                // Create a WS_EX_LAYERED window using our custom class
+                uint ghostExStyle = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+                uint ghostStyle   = WS_POPUP;
 
-                ghost = CreateWindowEx(
-                    ghostExStyle, ClassName, "", ghostStyle,
-                    restRect.X, restRect.Y, restRect.Width, restRect.Height,
-                    nint.Zero, nint.Zero, nint.Zero, nint.Zero);
+                var hInst = GetModuleHandleW(null);
+                ghost = CreateWindowExW(
+                    ghostExStyle, GhostClassName, "", ghostStyle,
+                    restRect.X, restRect.Y, w, h,
+                    nint.Zero, nint.Zero, hInst, nint.Zero);
 
                 if (ghost == nint.Zero)
                 {
-                    LogService.LogAction("notifications", "Ghost window creation failed — skipping exit animation");
+                    int err = Marshal.GetLastWin32Error();
+                    LogService.LogAction("notifications", $"Ghost CreateWindowExW failed: err={err} — skipping exit animation");
                     return;
                 }
 
-                var ghostHwnd = new HWND(ghost);
-                DisableTransitions(ghostHwnd);
+                // Suppress DWM transitions on the ghost too
+                DisableTransitions(new HWND(ghost));
 
+                // Build a memory DC with the snapshot bitmap
+                screenDC = GetDC(nint.Zero);
+                memDC    = CreateCompatibleDC(screenDC);
+                drawBmp  = CreateCompatibleBitmap(screenDC, w, h);
+                oldBmp   = SelectObject(memDC, drawBmp);
+
+                // Copy snapshot into drawBmp via memDC
                 if (hSnapshotBmp != nint.Zero)
                 {
-                    SendMessage(ghost, STM_SETIMAGE, nint.Zero, hSnapshotBmp);
+                    nint snapDC  = CreateCompatibleDC(screenDC);
+                    nint prevBmp = SelectObject(snapDC, hSnapshotBmp);
+                    BitBlt(memDC, 0, 0, w, h, snapDC, 0, 0, SRCCOPY);
+                    SelectObject(snapDC, prevBmp);
+                    DeleteDC(snapDC);
+                    LogService.LogAction("notifications", "Ghost using snapshot bitmap");
+                }
+                else
+                {
+                    // Fallback: capture current screen at restRect
+                    BitBlt(memDC, 0, 0, w, h, screenDC, restRect.X, restRect.Y, SRCCOPY);
+                    LogService.LogAction("notifications", "Ghost using screen capture fallback");
                 }
 
-                // Make ghost topmost and show at restRect
-                PInvoke.SetWindowPos(ghostHwnd, new HWND(new nint(-1)), // HWND_TOPMOST
-                    restRect.X, restRect.Y, restRect.Width, restRect.Height,
+                // Initial alpha for the ghost
+                byte startAlpha = (byte)Math.Max(1, Math.Min(255, opacityPercent / 100.0 * 255));
+
+                var ptDst  = new POINT { x = restRect.X, y = restRect.Y };
+                var size   = new SIZE  { cx = w, cy = h };
+                var ptSrc  = new POINT { x = 0, y = 0 };
+                var blend  = new BLENDFUNCTION
+                {
+                    BlendOp             = AC_SRC_OVER,
+                    BlendFlags          = 0,
+                    SourceConstantAlpha = startAlpha,
+                    AlphaFormat         = 0  // no per-pixel alpha in our bitmap
+                };
+
+                // Set the layered content BEFORE showing the window
+                bool ulwOk = UpdateLayeredWindow(ghost, screenDC, ref ptDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
+                if (!ulwOk)
+                    LogService.LogAction("notifications", $"ULW initial call failed: err={Marshal.GetLastWin32Error()}");
+
+                // Now make the ghost visible (topmost, no activation)
+                PInvoke.SetWindowPos(new HWND(ghost), new HWND(new nint(-1) /* HWND_TOPMOST */),
+                    restRect.X, restRect.Y, w, h,
                     SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
 
-                byte startAlpha = (byte)Math.Max(1, Math.Min(255, settings.OpacityPercent / 100.0 * 255));
-                SetLayeredWindowAttributes(ghost, 0, startAlpha, LWA_ALPHA);
+                LogService.LogAction("notifications",
+                    $"Ghost shown at ({restRect.X},{restRect.Y}) {w}x{h}, alpha={startAlpha}, ulw={ulwOk}");
 
+                // Animation loop — drive via timer/sleep, peek message to stay responsive
                 var sw = Stopwatch.StartNew();
-                int durationMs = Math.Max(50, settings.ExitMs);
 
                 while (!ct.IsCancellationRequested)
                 {
                     double progress = Math.Min(1.0, sw.ElapsedMilliseconds / (double)durationMs);
-                    double eased    = ToastMotion.ApplyEasing(progress, settings.Easing);
+                    double eased    = ToastMotion.ApplyEasing(progress, easing);
 
                     var curRect = ToastMotion.LerpRect(restRect, endRect, eased);
-                    double opacityFraction = GetExitOpacity(eased, exitDir, settings.OpacityPercent);
+                    double opacityFraction = GetExitOpacity(eased, exitDir, opacityPercent);
                     byte alpha = (byte)Math.Max(0, Math.Min(255, opacityFraction * 255));
 
-                    PInvoke.SetWindowPos(ghostHwnd, HWND.Null,
-                        curRect.X, curRect.Y, 0, 0,
-                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-                    SetLayeredWindowAttributes(ghost, 0, alpha, LWA_ALPHA);
+                    var pDst = new POINT { x = curRect.X, y = curRect.Y };
+                    blend.SourceConstantAlpha = alpha;
+                    UpdateLayeredWindow(ghost, screenDC, ref pDst, ref size, memDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
 
                     if (progress >= 1.0) break;
 
-                    System.Threading.Thread.Sleep(16);
+                    // Pump messages so the window stays responsive
+                    while (PeekMessage(out var msg, ghost, 0, 0, PM_REMOVE))
+                    {
+                        TranslateMessage(ref msg);
+                        DispatchMessage(ref msg);
+                    }
+
+                    // Sleep ~16ms for ~60fps
+                    Thread.Sleep(16);
                 }
 
                 LogService.LogAction("notifications", $"Exit animation finished cleanly in {sw.ElapsedMilliseconds}ms");
             }
             catch (Exception ex)
             {
-                LogService.LogAction("notifications", $"Ghost exit error: {ex.Message}");
+                LogService.LogAction("notifications", $"Ghost exit error: {ex.Message}\n{ex.StackTrace}");
             }
             finally
             {
-                if (ghost != nint.Zero) DestroyWindow(ghost);
+                // Hide immediately so there's no leftover ghost on screen
+                if (ghost != nint.Zero)
+                {
+                    PInvoke.ShowWindow(new HWND(ghost), SHOW_WINDOW_CMD.SW_HIDE);
+                }
+
+                if (oldBmp  != nint.Zero && memDC != nint.Zero) SelectObject(memDC, oldBmp);
+                if (drawBmp != nint.Zero) DeleteObject(drawBmp);
+                if (memDC   != nint.Zero) DeleteDC(memDC);
+                if (screenDC != nint.Zero) ReleaseDC(nint.Zero, screenDC);
                 if (hSnapshotBmp != nint.Zero) DeleteObject(hSnapshotBmp);
+
+                // DestroyWindow must be called from the same thread that created the window
+                if (ghost != nint.Zero) DestroyWindow(ghost);
             }
         });
 
         thread.IsBackground = true;
-        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.SetApartmentState(ApartmentState.STA);
         thread.Name = "ToastExitAnimationThread";
         thread.Start();
     }
@@ -441,7 +606,7 @@ public class ToastAnimator : IDisposable
 
             if (progress >= 1.0) break;
 
-            // ~60 fps pacing with Task.Delay (DwmFlush was blocking the thread)
+            // ~60 fps pacing
             await Task.Delay(16, ct).ConfigureAwait(false);
         }
     }

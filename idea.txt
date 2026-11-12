@@ -300,3 +300,5 @@ To view logs, run in your PowerShell:
 notepad "$env:APPDATA\AppLock\logs\firewall-2026-11.log"
 # Or view all logs
 Get-ChildItem "$env:APPDATA\AppLock\logs\" | ForEach-Object { Write-Host "`n=== $($_.Name) ===" -ForegroundColor Cyan; Get-Content $_.FullName -Tail 20 }
+
+Get-Content "$env:APPDATA\AppLock\logs\notifications-2026-11.log" -Tail 100

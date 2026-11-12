@@ -104,6 +104,25 @@ public class ToastWindowFinder
         processName.Equals("svchost",             StringComparison.OrdinalIgnoreCase)  ||
         processName.Equals("explorer",            StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Quick check: is this HWND owned by a toast host process with the right class?
+    /// Does NOT check size or visibility — used for the retry path before final sizing.
+    /// </summary>
+    public static bool IsLikelyToastHost(HWND hwnd)
+    {
+        try
+        {
+            if (!PInvoke.IsWindow(hwnd)) return false;
+            var className = GetClassName(hwnd);
+            if (!className.Equals("Windows.UI.Core.CoreWindow", StringComparison.Ordinal)) return false;
+            uint processId = 0;
+            unsafe { PInvoke.GetWindowThreadProcessId(hwnd, &processId); }
+            var processName = GetProcessName((int)processId);
+            return IsToastHostProcess(processName);
+        }
+        catch { return false; }
+    }
+
     public static List<HWND> FindToastWindows()
     {
         var toasts = new List<HWND>();

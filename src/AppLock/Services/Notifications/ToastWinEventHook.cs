@@ -118,8 +118,36 @@ public class ToastWinEventHook : IDisposable
                 case EVENT_OBJECT_UNCLOAKED:
                 case EVENT_OBJECT_NAMECHANGE:
                 case EVENT_OBJECT_LOCATIONCHANGE:
-                    if (!ToastWindowFinder.IsToastWindow(hwnd))
+                {
+                    // For SHOW/CREATE: the window may not yet have its final size
+                    // (shell sizes it asynchronously). If IsToastWindow fails due to
+                    // bad size, schedule a single retry after 80ms.
+                    bool isToast = ToastWindowFinder.IsToastWindow(hwnd);
+
+                    if (!isToast &&
+                        (eventType == EVENT_OBJECT_SHOW || eventType == EVENT_OBJECT_CREATE || eventType == EVENT_OBJECT_UNCLOAKED))
+                    {
+                        // Check class + process quickly (cheap); if likely a toast host,
+                        // retry once after the shell has had time to resize the window.
+                        if (ToastWindowFinder.IsLikelyToastHost(hwnd))
+                        {
+                            var capturedHwnd = hwnd;
+                            var capturedEvent = eventType;
+                            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                            {
+                                System.Threading.Thread.Sleep(100);
+                                if (!ToastWindowFinder.IsToastWindow(capturedHwnd)) return;
+                                if (_seenToasts.Contains(capturedHwnd.Value)) return;
+                                _seenToasts.Add(capturedHwnd.Value);
+                                LogService.LogAction("notifications",
+                                    $"✓ Toast appeared (delayed) via {GetEventName(capturedEvent)}: 0x{capturedHwnd.Value:X}");
+                                ToastShown?.Invoke(this, capturedHwnd);
+                            });
+                        }
                         break;
+                    }
+
+                    if (!isToast) break;
 
                     if (!_seenToasts.Contains(hwnd.Value))
                     {
@@ -142,6 +170,7 @@ public class ToastWinEventHook : IDisposable
                         ToastMoved?.Invoke(this, hwnd);
                     }
                     break;
+                }
 
                 case EVENT_OBJECT_HIDE:
                 case EVENT_OBJECT_DESTROY:

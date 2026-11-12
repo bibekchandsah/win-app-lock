@@ -29,12 +29,16 @@ public class ToastPositioner
         var monitor = GetTargetMonitor(settings);
         var monitorInfo = GetMonitorInfo(monitor);
         
-        RECT workArea = settings.RespectTaskbar ? monitorInfo.rcWork : monitorInfo.rcMonitor;
+        RECT workArea   = settings.RespectTaskbar ? monitorInfo.rcWork : monitorInfo.rcMonitor;
+        // Custom positions are always relative to the FULL monitor (the picker shows rcMonitor),
+        // so we pass rcMonitor for custom regardless of RespectTaskbar.
+        RECT customArea = monitorInfo.rcMonitor;
 
         // Calculate position based on anchor
         var (x, y) = CalculatePosition(
             settings.Anchor,
             workArea,
+            customArea,
             toastWidth,
             toastHeight,
             settings.MarginPx,
@@ -78,31 +82,36 @@ public class ToastPositioner
     private static (int x, int y) CalculatePosition(
         string anchor,
         RECT area,
+        RECT customArea,
         int width,
         int height,
         int margin,
         float customX,
         float customY)
     {
-        int areaWidth = area.right - area.left;
-        int areaHeight = area.bottom - area.top;
+        int areaWidth   = area.right   - area.left;
+        int areaHeight  = area.bottom  - area.top;
+        int customAreaW = customArea.right  - customArea.left;
+        int customAreaH = customArea.bottom - customArea.top;
 
         return anchor switch
         {
-            "TopLeft" => (area.left + margin, area.top + margin),
-            "TopCenter" => (area.left + (areaWidth - width) / 2, area.top + margin),
-            "TopRight" => (area.right - width - margin, area.top + margin),
+            "TopLeft"    => (area.left + margin, area.top + margin),
+            "TopCenter"  => (area.left + (areaWidth - width) / 2, area.top + margin),
+            "TopRight"   => (area.right - width - margin, area.top + margin),
             "MiddleLeft" => (area.left + margin, area.top + (areaHeight - height) / 2),
-            "Center" => (area.left + (areaWidth - width) / 2, area.top + (areaHeight - height) / 2),
-            "MiddleRight" => (area.right - width - margin, area.top + (areaHeight - height) / 2),
+            "Center"     => (area.left + (areaWidth - width) / 2, area.top + (areaHeight - height) / 2),
+            "MiddleRight"=> (area.right - width - margin, area.top + (areaHeight - height) / 2),
             "BottomLeft" => (area.left + margin, area.bottom - height - margin),
-            "BottomCenter" => (area.left + (areaWidth - width) / 2, area.bottom - height - margin),
-            "BottomRight" => (area.right - width - margin, area.bottom - height - margin),
+            "BottomCenter"=> (area.left + (areaWidth - width) / 2, area.bottom - height - margin),
+            "BottomRight"=> (area.right - width - margin, area.bottom - height - margin),
+            // Custom: percentages were saved relative to the full monitor (rcMonitor),
+            // so we apply them against customArea (rcMonitor), not the work area.
             "Custom" => (
-                area.left + (int)(areaWidth * customX),
-                area.top + (int)(areaHeight * customY)
+                customArea.left + (int)(customAreaW * customX),
+                customArea.top  + (int)(customAreaH * customY)
             ),
-            _ => (area.right - width - margin, area.bottom - height - margin) // Default: BottomRight
+            _ => (area.right - width - margin, area.bottom - height - margin)
         };
     }
 
