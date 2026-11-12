@@ -197,6 +197,17 @@ public sealed partial class NotificationsPage : Page
         }
     }
 
+    private void AnchorRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton rb && rb.Tag is string anchor && !string.IsNullOrEmpty(anchor))
+        {
+            if (ViewModel.SelectedAnchor != anchor)
+            {
+                ViewModel.SelectedAnchor = anchor;
+            }
+        }
+    }
+
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
         Frame.GoBack();

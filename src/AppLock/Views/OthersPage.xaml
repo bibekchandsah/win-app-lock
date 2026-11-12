@@ -170,6 +170,7 @@
                     </StackPanel>
                     <ToggleSwitch Grid.Column="1"
                                   IsOn="{x:Bind NotificationsEnabled, Mode=TwoWay}"
+                                  Toggled="NotificationsToggle_Toggled"
                                   MinWidth="0"
                                   OffContent=""
                                   OnContent=""/>

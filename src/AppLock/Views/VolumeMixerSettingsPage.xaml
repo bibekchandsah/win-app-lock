@@ -287,6 +287,31 @@
                             </Grid>
                         </Border>
 
+                        <!-- Show Microphone Volume -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Show Microphone Volume" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Display microphone volume slider in the volume mixer overlay"
+                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowMicrophoneVolumeToggle"
+                                              Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              MinWidth="0"
+                                              OffContent=""
+                                              OnContent=""
+                                              Toggled="ShowMicrophoneVolumeToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
                         <!-- Show Camera Brightness -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"

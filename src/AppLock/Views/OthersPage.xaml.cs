@@ -65,10 +65,13 @@ public sealed partial class OthersPage : Page
         ServiceContainer.RingLightService.EnabledChanged += OnRingLightServiceChanged;
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
+        ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
+        ServiceContainer.NotificationCustomizerEnabledChanged += OnNotificationCustomizerEnabledChanged;
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
         UpdateRingLightCardState();
         UpdateVolumeMixerCardState();
+        UpdateNotificationCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -79,6 +82,7 @@ public sealed partial class OthersPage : Page
         ServiceContainer.RingLightEnabledChanged -= OnRingLightEnabledChanged;
         ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
+        ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
     }
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
@@ -87,6 +91,7 @@ public sealed partial class OthersPage : Page
     private void OnRingLightEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
     private void OnRingLightServiceChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateRingLightCardState);
     private void OnVolumeMixerEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateVolumeMixerCardState);
+    private void OnNotificationCustomizerEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateNotificationCardState);
 
     private void UpdateClipboardCardState()
     {
@@ -120,6 +125,15 @@ public sealed partial class OthersPage : Page
         if (card != null)
         {
             card.VolumeMixerEnabled = ServiceContainer.Settings.VolumeMixer.Enabled;
+        }
+    }
+
+    private void UpdateNotificationCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "notifications");
+        if (card != null)
+        {
+            card.NotificationsEnabled = ServiceContainer.Settings.NotificationCustom.Enabled;
         }
     }
 
@@ -364,6 +378,18 @@ public sealed partial class OthersPage : Page
         {
             card.VolumeMixerEnabled = toggle.IsOn;
             ServiceContainer.SetVolumeMixerEnabled(toggle.IsOn);
+        }
+    }
+
+    private void NotificationsToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
+        {
+            card.NotificationsEnabled = toggle.IsOn;
+            if (ServiceContainer.Settings.NotificationCustom.Enabled != toggle.IsOn)
+            {
+                ServiceContainer.SetNotificationCustomizerEnabled(toggle.IsOn);
+            }
         }
     }
 }

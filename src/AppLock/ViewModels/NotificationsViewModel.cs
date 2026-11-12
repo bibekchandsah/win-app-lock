@@ -142,12 +142,12 @@ public partial class NotificationsViewModel : ObservableObject
                 dialog.XamlRoot = App.MainWindowInstance.Content.XamlRoot;
             }
             
-            var result = await dialog.ShowAsync();
+            await dialog.ShowAsync();
             
-            if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && dialog.HotkeyChanged)
+            if (dialog.HotkeyChanged && !string.IsNullOrEmpty(dialog.NewHotkey))
             {
                 // Parse the hotkey string
-                var (modifiers, key) = HotkeyService.ParseHotkey(dialog.NewHotkey ?? "");
+                var (modifiers, key) = HotkeyService.ParseHotkey(dialog.NewHotkey);
                 
                 if (key != 0)
                 {
@@ -162,6 +162,10 @@ public partial class NotificationsViewModel : ObservableObject
                     // Re-register the hotkey
                     (App.MainWindowInstance as MainWindow)?.RegisterNotificationToggleHotkey();
                     
+                    ServiceContainer.NotificationService.ShowSuccess(
+                        "Hotkey Changed",
+                        $"Notification toggle hotkey changed to: {dialog.NewHotkey}");
+
                     LogService.LogAction("notifications", $"Toggle hotkey changed to: {dialog.NewHotkey}");
                 }
             }
@@ -169,6 +173,34 @@ public partial class NotificationsViewModel : ObservableObject
         catch (Exception ex)
         {
             LogService.LogAction("notifications", $"Error changing hotkey: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ResetToggleHotkey()
+    {
+        try
+        {
+            ServiceContainer.Settings.NotificationCustom.ToggleHotkey = new HotkeyBinding
+            {
+                Modifiers = 0x0001, // Alt
+                VirtualKey = 0x4E   // N
+            };
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            UpdateToggleHotkeyText();
+
+            // Re-register the hotkey
+            (App.MainWindowInstance as MainWindow)?.RegisterNotificationToggleHotkey();
+
+            ServiceContainer.NotificationService.ShowSuccess(
+                "Hotkey Reset",
+                "Notification toggle hotkey reset to default: Alt+N");
+
+            LogService.LogAction("notifications", "Toggle hotkey reset to default: Alt+N");
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"Error resetting hotkey: {ex.Message}");
         }
     }
 

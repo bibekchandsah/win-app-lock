@@ -139,6 +139,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -164,9 +165,36 @@
                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     </Button>
 
-                    <!-- ── Column 0, Row 1: Active App Icon / Host button ── -->
-                    <Grid x:Name="ActiveAppHost"
+                    <!-- ── Column 0, Row 1: Microphone icon ── -->
+                    <Grid x:Name="MicrophoneIconHost"
                           Grid.Row="1"
+                          Grid.Column="0"
+                          Width="32" Height="32"
+                          Margin="0,4,0,0"
+                          Visibility="Collapsed"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                        <Button x:Name="MicrophoneButton"
+                                Width="32" Height="32"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="16"
+                                Click="MicrophoneButton_Click"
+                                AutomationProperties.Name="Microphone"
+                                AutomationProperties.HelpText="Microphone volume control. Click to mute or unmute.">
+                            <FontIcon x:Name="MicrophoneIcon"
+                                      Glyph="&#xE720;"
+                                      FontSize="16"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- ── Column 0, Row 2: Active App Icon / Host button ── -->
+                    <Grid x:Name="ActiveAppHost"
+                          Grid.Row="2"
                           Grid.Column="0"
                           Width="32" Height="32"
                           Margin="0,4,0,0"
@@ -198,9 +226,9 @@
                         </Button>
                     </Grid>
 
-                    <!-- ── Column 0, Row 2: Camera icon ── -->
+                    <!-- ── Column 0, Row 3: Camera icon ── -->
                     <Grid x:Name="CameraIconHost"
-                          Grid.Row="2"
+                          Grid.Row="3"
                           Grid.Column="0"
                           Width="32" Height="32"
                           Margin="0,4,0,0"
@@ -227,11 +255,12 @@
                     <!-- ── Column 1: Expandable controls (fade in/out smoothly with width animation) ── -->
                     <Grid x:Name="ExpandableControlsGrid"
                           Grid.Row="0"
-                          Grid.RowSpan="3"
+                          Grid.RowSpan="4"
                           Grid.Column="1"
                           Visibility="Collapsed"
                           Opacity="0">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -287,8 +316,8 @@
                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                         </Button>
 
-                        <!-- Row 1: Active App volume slider, percent label, mute button -->
-                        <Slider x:Name="ActiveAppVolumeSlider"
+                        <!-- Row 1: Microphone volume slider, percent label, mute button -->
+                        <Slider x:Name="MicrophoneVolumeSlider"
                                 Grid.Row="1"
                                 Grid.Column="0"
                                 Minimum="0" Maximum="100" Value="50"
@@ -296,12 +325,12 @@
                                 VerticalAlignment="Center"
                                 Margin="8,4,0,0"
                                 Visibility="Collapsed"
-                                ValueChanged="ActiveAppVolumeSlider_ValueChanged"
-                                PointerWheelChanged="ActiveAppVolumeSlider_PointerWheelChanged"
-                                AutomationProperties.Name="Active application volume"
-                                AutomationProperties.HelpText="Adjust focused application volume."/>
+                                ValueChanged="MicrophoneVolumeSlider_ValueChanged"
+                                PointerWheelChanged="MicrophoneVolumeSlider_PointerWheelChanged"
+                                AutomationProperties.Name="Microphone volume"
+                                AutomationProperties.HelpText="Adjust microphone volume. Use mouse wheel or arrow keys."/>
 
-                        <TextBlock x:Name="ActiveAppPercentText"
+                        <TextBlock x:Name="MicrophonePercentText"
                                    Grid.Row="1"
                                    Grid.Column="1"
                                    Text="50%"
@@ -314,8 +343,56 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    AutomationProperties.LiveSetting="Polite"/>
 
-                        <Button x:Name="ActiveAppMuteButton"
+                        <Button x:Name="MicrophoneMuteButton"
                                 Grid.Row="1"
+                                Grid.Column="2"
+                                Click="MicrophoneMuteButton_Click"
+                                Width="28" Height="28"
+                                Padding="0"
+                                Margin="6,4,0,0"
+                                CornerRadius="14"
+                                Visibility="Collapsed"
+                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                BorderThickness="1"
+                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Mute microphone"
+                                AutomationProperties.HelpText="Mute or unmute microphone">
+                            <FontIcon x:Name="MicrophoneMuteIcon"
+                                      Glyph="&#xE720;"
+                                      FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </Button>
+
+                        <!-- Row 2: Active App volume slider, percent label, mute button -->
+                        <Slider x:Name="ActiveAppVolumeSlider"
+                                Grid.Row="2"
+                                Grid.Column="0"
+                                Minimum="0" Maximum="100" Value="50"
+                                Width="180"
+                                VerticalAlignment="Center"
+                                Margin="8,4,0,0"
+                                Visibility="Collapsed"
+                                ValueChanged="ActiveAppVolumeSlider_ValueChanged"
+                                PointerWheelChanged="ActiveAppVolumeSlider_PointerWheelChanged"
+                                AutomationProperties.Name="Active application volume"
+                                AutomationProperties.HelpText="Adjust focused application volume."/>
+
+                        <TextBlock x:Name="ActiveAppPercentText"
+                                   Grid.Row="2"
+                                   Grid.Column="1"
+                                   Text="50%"
+                                   FontSize="12"
+                                   MinWidth="38"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="6,4,0,0"
+                                   Visibility="Collapsed"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   AutomationProperties.LiveSetting="Polite"/>
+
+                        <Button x:Name="ActiveAppMuteButton"
+                                Grid.Row="2"
                                 Grid.Column="2"
                                 Click="ActiveAppMuteButton_Click"
                                 Width="28" Height="28"
@@ -335,9 +412,9 @@
                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                         </Button>
 
-                        <!-- Row 2: Camera brightness slider, percent label -->
+                        <!-- Row 3: Camera brightness slider, percent label -->
                         <Slider x:Name="CameraBrightnessSlider"
-                                Grid.Row="2"
+                                Grid.Row="3"
                                 Grid.Column="0"
                                 Minimum="0" Maximum="100" Value="50"
                                 Width="180"
@@ -350,7 +427,7 @@
                                 AutomationProperties.HelpText="Adjust webcam brightness. Use mouse wheel or arrow keys."/>
 
                         <TextBlock x:Name="CameraBrightnessPercentText"
-                                   Grid.Row="2"
+                                   Grid.Row="3"
                                    Grid.Column="1"
                                    Text="50%"
                                    FontSize="12"
@@ -363,7 +440,7 @@
                                    AutomationProperties.LiveSetting="Polite"/>
 
                         <!-- Empty space in column 2 to align with rows above -->
-                        <Border Grid.Row="2" Grid.Column="2" Width="28" Margin="6,4,0,0" Visibility="Collapsed" x:Name="CameraBrightnessPlaceholder"/>
+                        <Border Grid.Row="3" Grid.Column="2" Width="28" Margin="6,4,0,0" Visibility="Collapsed" x:Name="CameraBrightnessPlaceholder"/>
                     </Grid>
                 </Grid>
             </Border>

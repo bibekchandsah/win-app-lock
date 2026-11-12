@@ -131,6 +131,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         HoverOpacitySlider.Value   = s.HoverOpacity;
         HoverOpacityText           = $"{s.HoverOpacity}%";
         SliderWidthNumberBox.Value = s.SliderWidth;
+        ShowMicrophoneVolumeToggle.IsOn = s.ShowMicrophoneVolume;
         ShowCameraBrightnessToggle.IsOn = s.ShowCameraBrightness;
 
         // Behavior
@@ -257,6 +258,15 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             SaveSettings();
             ServiceContainer.VolumeOverlayService?.RefreshSettings();
         }
+    }
+
+    private void ShowMicrophoneVolumeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+        ServiceContainer.Settings.VolumeMixer.ShowMicrophoneVolume = ShowMicrophoneVolumeToggle.IsOn;
+        SaveSettings();
+        ServiceContainer.VolumeOverlayService?.RefreshSettings();
+        System.Diagnostics.Debug.WriteLine($"[Settings] Microphone volume {(ShowMicrophoneVolumeToggle.IsOn ? "shown" : "hidden")}");
     }
 
     private void ShowCameraBrightnessToggle_Toggled(object sender, RoutedEventArgs e)

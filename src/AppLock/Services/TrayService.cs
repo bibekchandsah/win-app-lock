@@ -1317,7 +1317,9 @@ public sealed class TrayService : IDisposable
             {
                 if (_notificationEnabledMenuItem != null)
                 {
-                    _notificationEnabledMenuItem.Click += OnNotificationEnabledToggle;
+                    Action toggleNotif = () => OnNotificationEnabledToggle(this, new RoutedEventArgs());
+                    _notificationEnabledMenuItem.Click += (s, e) => toggleNotif();
+                    _notificationEnabledMenuItem.Command = new RelayCommand(toggleNotif);
                 }
 
                 if (_notificationPositionSubItem != null)
@@ -1359,7 +1361,9 @@ public sealed class TrayService : IDisposable
                             if (anchor != null)
                             {
                                 string anchorCaptured = anchor;
-                                mfi.Click += (s, e) => OnNotificationAnchorSelected(anchorCaptured);
+                                Action anchorAction = () => OnNotificationAnchorSelected(anchorCaptured);
+                                mfi.Click += (s, e) => anchorAction();
+                                mfi.Command = new RelayCommand(anchorAction);
                             }
                         }
                     }

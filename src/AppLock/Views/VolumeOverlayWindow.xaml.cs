@@ -31,7 +31,9 @@ public sealed partial class VolumeOverlayWindow : Window
     private readonly AudioMixerService _audioService;
     private readonly AppIconResolver _iconResolver;
     private readonly Services.Camera.CameraBrightnessService _cameraService;
+    private readonly Services.Audio.MicrophoneVolumeService _microphoneService;
     private bool _isUpdatingCameraBrightness; // Flag to prevent feedback loops
+    private bool _isUpdatingMicrophoneVolume; // Flag to prevent feedback loops
     private OverlayState _state = OverlayState.Idle;
     private DispatcherQueueTimer? _hoverDelayTimer;
     private DispatcherQueueTimer? _hideDelayTimer;
@@ -223,6 +225,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
     // Camera brightness state
     private bool _hasCameraRow;
+    
+    // Microphone volume state
+    private bool _hasMicrophoneRow;
 
     // SMTC session cache: processName (no .exe) → SMTC session
     private GlobalSystemMediaTransportControlsSessionManager? _smtcManager;
@@ -235,15 +240,18 @@ public sealed partial class VolumeOverlayWindow : Window
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _iconResolver = new AppIconResolver();
             _cameraService = new Services.Camera.CameraBrightnessService();
+            _microphoneService = new Services.Audio.MicrophoneVolumeService();
 
             // Suppress slider ValueChanged from XAML default Value="50" writing to the audio device
             _isUpdatingSlider = true;
             _isUpdatingCameraBrightness = true;
+            _isUpdatingMicrophoneVolume = true;
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Calling InitializeComponent...");
             this.InitializeComponent();
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] InitializeComponent complete");
             _isUpdatingSlider = false;
             _isUpdatingCameraBrightness = false;
+            _isUpdatingMicrophoneVolume = false;
             
             // Setup clipping for rounded corners on mixer panels
             SetupMixerPanelClipping();
@@ -289,6 +297,9 @@ public sealed partial class VolumeOverlayWindow : Window
             
             // Initialize camera brightness service
             _ = InitializeCameraAsync();
+            
+            // Initialize microphone volume service
+            _ = InitializeMicrophoneAsync();
             
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Constructor complete");
 
@@ -636,6 +647,166 @@ public sealed partial class VolumeOverlayWindow : Window
         catch (Exception ex)
         {
             Debug.WriteLine($"[VolumeMixer] CameraBrightnessSlider_PointerWheelChanged error: {ex.Message}");
+        }
+    }
+
+    // ── Microphone Volume ───────────────────────────────────────────────────────
+
+    private async Task InitializeMicrophoneAsync()
+    {
+        try
+        {
+            // Check if user wants to show microphone volume
+            var settings = ServiceContainer.Settings.VolumeMixer;
+            if (!settings.ShowMicrophoneVolume)
+            {
+                Debug.WriteLine("[VolumeMixer] Microphone volume disabled in settings");
+                _hasMicrophoneRow = false;
+                MicrophoneIconHost.Visibility = Visibility.Collapsed;
+                MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
+                MicrophonePercentText.Visibility = Visibility.Collapsed;
+                MicrophoneMuteButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Debug.WriteLine("[VolumeMixer] Initializing microphone volume control...");
+            bool success = _microphoneService.Initialize();
+            
+            Debug.WriteLine($"[VolumeMixer] Microphone init result: {success}");
+            
+            if (success)
+            {
+                Debug.WriteLine($"[VolumeMixer] Microphone volume control available");
+                Debug.WriteLine($"[VolumeMixer] Device: {_microphoneService.GetDeviceName()}");
+                
+                // Update slider with current volume
+                var currentVolume = _microphoneService.GetVolume();
+                Debug.WriteLine($"[VolumeMixer] Current microphone volume: {currentVolume}%");
+                
+                _isUpdatingMicrophoneVolume = true;
+                MicrophoneVolumeSlider.Value = currentVolume;
+                MicrophonePercentText.Text = $"{(int)currentVolume}%";
+                _isUpdatingMicrophoneVolume = false;
+                
+                // Update mute icon
+                bool isMuted = _microphoneService.IsMuted();
+                MicrophoneIcon.Glyph = isMuted ? "\uE74F" : "\uE720"; // Muted : Unmuted
+                MicrophoneMuteIcon.Glyph = isMuted ? "\uE74F" : "\uE720";
+                
+                // Show microphone controls
+                MicrophoneIconHost.Visibility = Visibility.Visible;
+                MicrophoneVolumeSlider.Visibility = Visibility.Visible;
+                MicrophonePercentText.Visibility = Visibility.Visible;
+                MicrophoneMuteButton.Visibility = Visibility.Visible;
+                
+                // Mark that we have a microphone row
+                _hasMicrophoneRow = true;
+                
+                Debug.WriteLine($"[VolumeMixer] Microphone initialized: Volume={currentVolume}%, Muted={isMuted}");
+            }
+            else
+            {
+                Debug.WriteLine("[VolumeMixer] Microphone volume control not available");
+                // Hide microphone controls if not supported
+                MicrophoneIconHost.Visibility = Visibility.Collapsed;
+                MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
+                MicrophonePercentText.Visibility = Visibility.Collapsed;
+                MicrophoneMuteButton.Visibility = Visibility.Collapsed;
+                
+                // Mark that we don't have a microphone row
+                _hasMicrophoneRow = false;
+            }
+            
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] Microphone initialization error: {ex.Message}");
+            Debug.WriteLine($"[VolumeMixer] Stack trace: {ex.StackTrace}");
+            
+            // Hide controls on error
+            MicrophoneIconHost.Visibility = Visibility.Collapsed;
+            MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
+            MicrophonePercentText.Visibility = Visibility.Collapsed;
+            MicrophoneMuteButton.Visibility = Visibility.Collapsed;
+            _hasMicrophoneRow = false;
+        }
+    }
+
+    private void MicrophoneButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Toggle mute
+            bool currentMute = _microphoneService.IsMuted();
+            _microphoneService.SetMute(!currentMute);
+            
+            // Update icons
+            bool newMute = _microphoneService.IsMuted();
+            MicrophoneIcon.Glyph = newMute ? "\uE74F" : "\uE720";
+            MicrophoneMuteIcon.Glyph = newMute ? "\uE74F" : "\uE720";
+            
+            Debug.WriteLine($"[VolumeMixer] Microphone mute toggled: {newMute}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] MicrophoneButton_Click error: {ex.Message}");
+        }
+    }
+
+    private void MicrophoneMuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Toggle mute (same as icon click)
+            bool currentMute = _microphoneService.IsMuted();
+            _microphoneService.SetMute(!currentMute);
+            
+            // Update icons
+            bool newMute = _microphoneService.IsMuted();
+            MicrophoneIcon.Glyph = newMute ? "\uE74F" : "\uE720";
+            MicrophoneMuteIcon.Glyph = newMute ? "\uE74F" : "\uE720";
+            
+            Debug.WriteLine($"[VolumeMixer] Microphone mute toggled: {newMute}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] MicrophoneMuteButton_Click error: {ex.Message}");
+        }
+    }
+
+    private void MicrophoneVolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        try
+        {
+            if (_isUpdatingMicrophoneVolume)
+                return;
+
+            float volume = (float)e.NewValue;
+            _microphoneService.SetVolume(volume);
+            MicrophonePercentText.Text = $"{(int)volume}%";
+            
+            Debug.WriteLine($"[VolumeMixer] Microphone volume changed: {(int)volume}%");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] MicrophoneVolumeSlider_ValueChanged error: {ex.Message}");
+        }
+    }
+
+    private void MicrophoneVolumeSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        try
+        {
+            var delta = e.GetCurrentPoint(sender as UIElement).Properties.MouseWheelDelta;
+            var step = delta > 0 ? 5 : -5; // 5% increments
+            var newValue = Math.Clamp(MicrophoneVolumeSlider.Value + step, 0, 100);
+            MicrophoneVolumeSlider.Value = newValue;
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] MicrophoneVolumeSlider_PointerWheelChanged error: {ex.Message}");
         }
     }
 
@@ -1968,6 +2139,7 @@ public sealed partial class VolumeOverlayWindow : Window
         
         // Calculate height based on number of rows
         int rowCount = 1; // Base: master volume
+        if (_hasMicrophoneRow) rowCount++;
         if (_hasActiveAppRow) rowCount++;
         if (_hasCameraRow) rowCount++;
         
@@ -2020,6 +2192,7 @@ public sealed partial class VolumeOverlayWindow : Window
         
         // Calculate barHeight same way as GetDimensionsForState
         int rowCount = 1;
+        if (_hasMicrophoneRow) rowCount++;
         if (_hasActiveAppRow) rowCount++;
         if (_hasCameraRow) rowCount++;
         int barHeight = rowCount == 1 
@@ -2488,6 +2661,10 @@ public sealed partial class VolumeOverlayWindow : Window
         ApplySettings();
         ApplyTheme();
         PositionWindow();
+        
+        // Reinitialize camera and microphone to reflect visibility changes
+        _ = InitializeCameraAsync();
+        _ = InitializeMicrophoneAsync();
     }
 
     public new void Close()
@@ -2523,6 +2700,16 @@ public sealed partial class VolumeOverlayWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Camera disposal error: {ex.Message}");
+        }
+
+        // Dispose microphone service
+        try
+        {
+            _microphoneService?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Microphone disposal error: {ex.Message}");
         }
 
         try

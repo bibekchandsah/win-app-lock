@@ -306,36 +306,45 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Row 1 -->
-                                <RadioButton Grid.Row="0" Grid.Column="0" Content="TL" GroupName="Anchor" 
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopLeft}"
+                                <RadioButton Grid.Row="0" Grid.Column="0" Content="TL" GroupName="Anchor" Tag="TopLeft"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopLeft}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="0" Grid.Column="1" Content="TC" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopCenter}"
+                                <RadioButton Grid.Row="0" Grid.Column="1" Content="TC" GroupName="Anchor" Tag="TopCenter"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopCenter}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="0" Grid.Column="2" Content="TR" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopRight}"
+                                <RadioButton Grid.Row="0" Grid.Column="2" Content="TR" GroupName="Anchor" Tag="TopRight"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=TopRight}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
 
                                 <!-- Row 2 -->
-                                <RadioButton Grid.Row="1" Grid.Column="0" Content="ML" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleLeft}"
+                                <RadioButton Grid.Row="1" Grid.Column="0" Content="ML" GroupName="Anchor" Tag="MiddleLeft"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleLeft}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="1" Grid.Column="1" Content="C" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=Center}"
+                                <RadioButton Grid.Row="1" Grid.Column="1" Content="C" GroupName="Anchor" Tag="Center"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=Center}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="1" Grid.Column="2" Content="MR" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleRight}"
+                                <RadioButton Grid.Row="1" Grid.Column="2" Content="MR" GroupName="Anchor" Tag="MiddleRight"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=MiddleRight}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
 
                                 <!-- Row 3 -->
-                                <RadioButton Grid.Row="2" Grid.Column="0" Content="BL" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomLeft}"
+                                <RadioButton Grid.Row="2" Grid.Column="0" Content="BL" GroupName="Anchor" Tag="BottomLeft"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomLeft}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="2" Grid.Column="1" Content="BC" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomCenter}"
+                                <RadioButton Grid.Row="2" Grid.Column="1" Content="BC" GroupName="Anchor" Tag="BottomCenter"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomCenter}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
-                                <RadioButton Grid.Row="2" Grid.Column="2" Content="BR" GroupName="Anchor"
-                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=TwoWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomRight}"
+                                <RadioButton Grid.Row="2" Grid.Column="2" Content="BR" GroupName="Anchor" Tag="BottomRight"
+                                             IsChecked="{x:Bind ViewModel.SelectedAnchor, Mode=OneWay, Converter={StaticResource AnchorToBoolConverter}, ConverterParameter=BottomRight}"
+                                             Checked="AnchorRadio_Checked"
                                              HorizontalAlignment="Stretch" Margin="2"/>
                             </Grid>
 
@@ -729,10 +738,14 @@
                                        Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                        VerticalAlignment="Center"/>
                             
-                            <Button Grid.Column="1"
-                                    Content="Change"
-                                    Command="{x:Bind ViewModel.ChangeToggleHotkeyCommand}"
-                                    FontSize="12"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Button Content="Change"
+                                        Command="{x:Bind ViewModel.ChangeToggleHotkeyCommand}"
+                                        FontSize="12"/>
+                                <Button Content="Reset"
+                                        Command="{x:Bind ViewModel.ResetToggleHotkeyCommand}"
+                                        FontSize="12"/>
+                            </StackPanel>
                         </Grid>
 
                         <TextBlock Text="Tray menu shortcuts"
