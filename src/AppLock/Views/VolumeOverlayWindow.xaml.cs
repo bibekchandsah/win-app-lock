@@ -66,6 +66,9 @@ public sealed partial class VolumeOverlayWindow : Window
     // Session tracking — ViewModel, session IDs, the row Grid, and the play/pause FontIcon for status sync
     private readonly Dictionary<string, (MixerSessionViewModel ViewModel, List<string> SessionIds, Grid Row, FontIcon PlayIcon)> _appSessions = new();
 
+    // Microphone tracking — deviceId → (MicrophoneDevice, Icon Button, Controls Grid)
+    private readonly Dictionary<string, (Services.Audio.MicrophoneDevice Device, Button IconButton, Grid ControlsGrid)> _microphoneRows = new();
+
     // Win32 imports for window styling — use Ptr variants for 64-bit safety
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_NOACTIVATE = 0x08000000;
@@ -227,7 +230,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private bool _hasCameraRow;
     
     // Microphone volume state
-    private bool _hasMicrophoneRow;
+    private int _microphoneRowCount = 0;
 
     // SMTC session cache: processName (no .exe) → SMTC session
     private GlobalSystemMediaTransportControlsSessionManager? _smtcManager;
@@ -661,60 +664,44 @@ public sealed partial class VolumeOverlayWindow : Window
             if (!settings.ShowMicrophoneVolume)
             {
                 Debug.WriteLine("[VolumeMixer] Microphone volume disabled in settings");
-                _hasMicrophoneRow = false;
-                MicrophoneIconHost.Visibility = Visibility.Collapsed;
-                MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
-                MicrophonePercentText.Visibility = Visibility.Collapsed;
-                MicrophoneMuteButton.Visibility = Visibility.Collapsed;
+                ClearMicrophoneRows();
                 return;
             }
 
-            Debug.WriteLine("[VolumeMixer] Initializing microphone volume control...");
+            Debug.WriteLine("[VolumeMixer] Initializing microphone volume controls...");
             bool success = _microphoneService.Initialize();
             
             Debug.WriteLine($"[VolumeMixer] Microphone init result: {success}");
             
             if (success)
             {
-                Debug.WriteLine($"[VolumeMixer] Microphone volume control available");
-                Debug.WriteLine($"[VolumeMixer] Device: {_microphoneService.GetDeviceName()}");
+                var microphones = _microphoneService.GetMicrophones();
+                Debug.WriteLine($"[VolumeMixer] Found {microphones.Count} microphone(s)");
                 
-                // Update slider with current volume
-                var currentVolume = _microphoneService.GetVolume();
-                Debug.WriteLine($"[VolumeMixer] Current microphone volume: {currentVolume}%");
+                // Clear existing rows
+                ClearMicrophoneRows();
                 
-                _isUpdatingMicrophoneVolume = true;
-                MicrophoneVolumeSlider.Value = currentVolume;
-                MicrophonePercentText.Text = $"{(int)currentVolume}%";
-                _isUpdatingMicrophoneVolume = false;
+                // Create a row for each microphone
+                foreach (var mic in microphones)
+                {
+                    CreateMicrophoneRow(mic);
+                }
                 
-                // Update mute icon
-                bool isMuted = _microphoneService.IsMuted();
-                MicrophoneIcon.Glyph = isMuted ? "\uE74F" : "\uE720"; // Muted : Unmuted
-                MicrophoneMuteIcon.Glyph = isMuted ? "\uE74F" : "\uE720";
+                _microphoneRowCount = microphones.Count;
                 
-                // Show microphone controls
-                MicrophoneIconHost.Visibility = Visibility.Visible;
-                MicrophoneVolumeSlider.Visibility = Visibility.Visible;
-                MicrophonePercentText.Visibility = Visibility.Visible;
-                MicrophoneMuteButton.Visibility = Visibility.Visible;
+                // Show container if we have microphones
+                if (_microphoneRowCount > 0)
+                {
+                    MicrophoneIconsContainer.Visibility = Visibility.Visible;
+                    MicrophoneControlsContainer.Visibility = Visibility.Visible;
+                }
                 
-                // Mark that we have a microphone row
-                _hasMicrophoneRow = true;
-                
-                Debug.WriteLine($"[VolumeMixer] Microphone initialized: Volume={currentVolume}%, Muted={isMuted}");
+                Debug.WriteLine($"[VolumeMixer] Microphone initialization complete: {_microphoneRowCount} device(s)");
             }
             else
             {
-                Debug.WriteLine("[VolumeMixer] Microphone volume control not available");
-                // Hide microphone controls if not supported
-                MicrophoneIconHost.Visibility = Visibility.Collapsed;
-                MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
-                MicrophonePercentText.Visibility = Visibility.Collapsed;
-                MicrophoneMuteButton.Visibility = Visibility.Collapsed;
-                
-                // Mark that we don't have a microphone row
-                _hasMicrophoneRow = false;
+                Debug.WriteLine("[VolumeMixer] No microphone devices found");
+                ClearMicrophoneRows();
             }
             
             await Task.CompletedTask;
@@ -723,90 +710,305 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             Debug.WriteLine($"[VolumeMixer] Microphone initialization error: {ex.Message}");
             Debug.WriteLine($"[VolumeMixer] Stack trace: {ex.StackTrace}");
-            
-            // Hide controls on error
-            MicrophoneIconHost.Visibility = Visibility.Collapsed;
-            MicrophoneVolumeSlider.Visibility = Visibility.Collapsed;
-            MicrophonePercentText.Visibility = Visibility.Collapsed;
-            MicrophoneMuteButton.Visibility = Visibility.Collapsed;
-            _hasMicrophoneRow = false;
+            ClearMicrophoneRows();
         }
+    }
+
+    private void CreateMicrophoneRow(Services.Audio.MicrophoneDevice mic)
+    {
+        try
+        {
+            // Create icon button for idle view (Column 0 only)
+            var iconButton = new Button
+            {
+                Width = 32,
+                Height = 32,
+                Padding = new Thickness(0),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(16),
+                Margin = new Thickness(0, 4, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = mic.DeviceId
+            };
+
+            // Add tooltip with device name
+            ToolTipService.SetToolTip(iconButton, mic.FriendlyName + (mic.IsDefault ? " (Default)" : ""));
+
+            var icon = new FontIcon
+            {
+                Glyph = mic.IsMuted() ? "\uE74F" : "\uE720",
+                FontSize = 16,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
+            };
+
+            iconButton.Content = icon;
+            iconButton.Click += (s, e) =>
+            {
+                var deviceId = (string)((Button)s).Tag;
+                var device = _microphoneService.GetMicrophone(deviceId);
+                if (device != null)
+                {
+                    bool currentMute = device.IsMuted();
+                    device.SetMute(!currentMute);
+                    UpdateMicrophoneIcon(deviceId);
+                }
+            };
+
+            // Create controls grid for expanded view
+            var controlsGrid = new Grid
+            {
+                Margin = new Thickness(0, 4, 0, 0),
+                Visibility = Visibility.Collapsed,
+                Opacity = 0
+            };
+
+            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Slider
+            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Percent
+            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Mute button
+
+            // Slider
+            var slider = new Slider
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = mic.GetVolume(),
+                Width = 180,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0),
+                Tag = mic.DeviceId
+            };
+            ToolTipService.SetToolTip(slider, mic.FriendlyName + (mic.IsDefault ? " (Default)" : ""));
+
+            slider.ValueChanged += (s, e) =>
+            {
+                if (_isUpdatingMicrophoneVolume) return;
+                var deviceId = (string)((Slider)s).Tag;
+                var device = _microphoneService.GetMicrophone(deviceId);
+                if (device != null)
+                {
+                    device.SetVolume((float)e.NewValue);
+                    UpdateMicrophonePercent(deviceId, (int)e.NewValue);
+                }
+            };
+
+            slider.PointerWheelChanged += (s, e) =>
+            {
+                try
+                {
+                    var delta = e.GetCurrentPoint(s as UIElement).Properties.MouseWheelDelta;
+                    var step = delta > 0 ? 5 : -5;
+                    var newValue = Math.Clamp(((Slider)s).Value + step, 0, 100);
+                    ((Slider)s).Value = newValue;
+                    e.Handled = true;
+                }
+                catch { }
+            };
+
+            Grid.SetColumn(slider, 0);
+            controlsGrid.Children.Add(slider);
+
+            // Percent text
+            var percentText = new TextBlock
+            {
+                Text = $"{(int)mic.GetVolume()}%",
+                FontSize = 12,
+                MinWidth = 38,
+                TextAlignment = TextAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            };
+
+            Grid.SetColumn(percentText, 1);
+            controlsGrid.Children.Add(percentText);
+
+            // Mute button
+            var muteButton = new Button
+            {
+                Width = 28,
+                Height = 28,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0),
+                CornerRadius = new CornerRadius(14),
+                Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+                BorderThickness = new Thickness(1),
+                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = mic.DeviceId
+            };
+            ToolTipService.SetToolTip(muteButton, "Mute " + mic.FriendlyName);
+
+            var muteIcon = new FontIcon
+            {
+                Glyph = mic.IsMuted() ? "\uE74F" : "\uE720",
+                FontSize = 12,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
+            };
+
+            muteButton.Content = muteIcon;
+            muteButton.Click += (s, e) =>
+            {
+                var deviceId = (string)((Button)s).Tag;
+                var device = _microphoneService.GetMicrophone(deviceId);
+                if (device != null)
+                {
+                    bool currentMute = device.IsMuted();
+                    device.SetMute(!currentMute);
+                    UpdateMicrophoneIcon(deviceId);
+                }
+            };
+
+            Grid.SetColumn(muteButton, 2);
+            controlsGrid.Children.Add(muteButton);
+
+            // Add to separate containers
+            MicrophoneIconsContainer.Children.Add(iconButton);
+            MicrophoneControlsContainer.Children.Add(controlsGrid);
+            
+            // Store references (icon button and controls grid)
+            _microphoneRows[mic.DeviceId] = (mic, iconButton, controlsGrid);
+            
+            Debug.WriteLine($"[VolumeMixer] Created row for: {mic.FriendlyName} ({(mic.IsDefault ? "Default" : "Secondary")})");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] CreateMicrophoneRow error: {ex.Message}");
+        }
+    }
+
+    private void ClearMicrophoneRows()
+    {
+        MicrophoneIconsContainer.Children.Clear();
+        MicrophoneControlsContainer.Children.Clear();
+        _microphoneRows.Clear();
+        _microphoneRowCount = 0;
+        MicrophoneIconsContainer.Visibility = Visibility.Collapsed;
+        MicrophoneControlsContainer.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateMicrophoneIcon(string deviceId)
+    {
+        if (!_microphoneRows.TryGetValue(deviceId, out var row))
+            return;
+
+        try
+        {
+            var device = row.Device;
+            bool isMuted = device.IsMuted();
+            string glyph = isMuted ? "\uE74F" : "\uE720";
+
+            // Update icon button
+            if (row.IconButton?.Content is FontIcon iconFontIcon)
+            {
+                iconFontIcon.Glyph = glyph;
+            }
+
+            // Update mute button in controls grid (Column 2: 0=slider, 1=percent, 2=mute)
+            var controlsGrid = row.ControlsGrid;
+            if (controlsGrid != null && controlsGrid.Children.Count > 2)
+            {
+                var muteButton = controlsGrid.Children[2] as Button;
+                if (muteButton?.Content is FontIcon muteFontIcon)
+                {
+                    muteFontIcon.Glyph = glyph;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] UpdateMicrophoneIcon error: {ex.Message}");
+        }
+    }
+
+    private void UpdateMicrophonePercent(string deviceId, int percent)
+    {
+        if (!_microphoneRows.TryGetValue(deviceId, out var row))
+            return;
+
+        try
+        {
+            var controlsGrid = row.ControlsGrid;
+            if (controlsGrid != null && controlsGrid.Children.Count > 1)
+            {
+                // Column 1 is the percent text (0=slider, 1=percent, 2=mute)
+                var percentText = controlsGrid.Children[1] as TextBlock;
+                if (percentText != null)
+                {
+                    percentText.Text = $"{percent}%";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] UpdateMicrophonePercent error: {ex.Message}");
+        }
+    }
+
+    private void OnMicrophoneAdded(object sender, string deviceId)
+    {
+        // Hot-plug support removed for compatibility
+        // Call Refresh() manually if needed
+    }
+
+    private void OnMicrophoneRemoved(object sender, string deviceId)
+    {
+        // Hot-plug support removed for compatibility
+        // Call Refresh() manually if needed
     }
 
     private void MicrophoneButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            // Toggle mute
-            bool currentMute = _microphoneService.IsMuted();
-            _microphoneService.SetMute(!currentMute);
-            
-            // Update icons
-            bool newMute = _microphoneService.IsMuted();
-            MicrophoneIcon.Glyph = newMute ? "\uE74F" : "\uE720";
-            MicrophoneMuteIcon.Glyph = newMute ? "\uE74F" : "\uE720";
-            
-            Debug.WriteLine($"[VolumeMixer] Microphone mute toggled: {newMute}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VolumeMixer] MicrophoneButton_Click error: {ex.Message}");
-        }
+        // Kept for compatibility - not used in multi-device mode
     }
 
     private void MicrophoneMuteButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            // Toggle mute (same as icon click)
-            bool currentMute = _microphoneService.IsMuted();
-            _microphoneService.SetMute(!currentMute);
-            
-            // Update icons
-            bool newMute = _microphoneService.IsMuted();
-            MicrophoneIcon.Glyph = newMute ? "\uE74F" : "\uE720";
-            MicrophoneMuteIcon.Glyph = newMute ? "\uE74F" : "\uE720";
-            
-            Debug.WriteLine($"[VolumeMixer] Microphone mute toggled: {newMute}");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VolumeMixer] MicrophoneMuteButton_Click error: {ex.Message}");
-        }
+        // Kept for compatibility - not used in multi-device mode
     }
 
     private void MicrophoneVolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
-        try
-        {
-            if (_isUpdatingMicrophoneVolume)
-                return;
-
-            float volume = (float)e.NewValue;
-            _microphoneService.SetVolume(volume);
-            MicrophonePercentText.Text = $"{(int)volume}%";
-            
-            Debug.WriteLine($"[VolumeMixer] Microphone volume changed: {(int)volume}%");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[VolumeMixer] MicrophoneVolumeSlider_ValueChanged error: {ex.Message}");
-        }
+        // Kept for compatibility - not used in multi-device mode
     }
 
     private void MicrophoneVolumeSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        try
+        // Kept for compatibility - not used in multi-device mode
+    }
+
+    private void ShowMicrophoneControls()
+    {
+        foreach (var row in _microphoneRows.Values)
         {
-            var delta = e.GetCurrentPoint(sender as UIElement).Properties.MouseWheelDelta;
-            var step = delta > 0 ? 5 : -5; // 5% increments
-            var newValue = Math.Clamp(MicrophoneVolumeSlider.Value + step, 0, 100);
-            MicrophoneVolumeSlider.Value = newValue;
-            e.Handled = true;
+            try
+            {
+                var controlsGrid = row.ControlsGrid;
+                if (controlsGrid != null)
+                {
+                    controlsGrid.Visibility = Visibility.Visible;
+                    controlsGrid.Opacity = 1.0;
+                }
+            }
+            catch { }
         }
-        catch (Exception ex)
+    }
+
+    private void HideMicrophoneControls()
+    {
+        foreach (var row in _microphoneRows.Values)
         {
-            Debug.WriteLine($"[VolumeMixer] MicrophoneVolumeSlider_PointerWheelChanged error: {ex.Message}");
+            try
+            {
+                var controlsGrid = row.ControlsGrid;
+                if (controlsGrid != null)
+                {
+                    controlsGrid.Visibility = Visibility.Collapsed;
+                    controlsGrid.Opacity = 0.0;
+                }
+            }
+            catch { }
         }
     }
 
@@ -2139,7 +2341,7 @@ public sealed partial class VolumeOverlayWindow : Window
         
         // Calculate height based on number of rows
         int rowCount = 1; // Base: master volume
-        if (_hasMicrophoneRow) rowCount++;
+        rowCount += _microphoneRowCount; // Add each microphone
         if (_hasActiveAppRow) rowCount++;
         if (_hasCameraRow) rowCount++;
         
@@ -2192,7 +2394,7 @@ public sealed partial class VolumeOverlayWindow : Window
         
         // Calculate barHeight same way as GetDimensionsForState
         int rowCount = 1;
-        if (_hasMicrophoneRow) rowCount++;
+        rowCount += _microphoneRowCount;
         if (_hasActiveAppRow) rowCount++;
         if (_hasCameraRow) rowCount++;
         int barHeight = rowCount == 1 
@@ -2267,6 +2469,7 @@ public sealed partial class VolumeOverlayWindow : Window
                     ExpandableControlsGrid.Visibility = Visibility.Visible;
                     ExpandableControlsGrid.Opacity = 1.0;
                 }
+                ShowMicrophoneControls();
                 CardBorder.Padding = new Thickness(8, 6, 8, 6);
                 CardBorder.CornerRadius = new CornerRadius(_hasActiveAppRow ? 18 : 20);
             }
@@ -2277,6 +2480,7 @@ public sealed partial class VolumeOverlayWindow : Window
                     ExpandableControlsGrid.Visibility = Visibility.Collapsed;
                     ExpandableControlsGrid.Opacity = 0.0;
                 }
+                HideMicrophoneControls();
                 CardBorder.Padding = new Thickness(6);
                 int idleH = ServiceContainer.Settings.VolumeMixer.IconSize + 12;
                 CardBorder.CornerRadius = new CornerRadius(idleH / 2.0);
@@ -2301,6 +2505,7 @@ public sealed partial class VolumeOverlayWindow : Window
                 ExpandableControlsGrid.Visibility = Visibility.Visible;
                 ExpandableControlsGrid.Opacity = 0;
             }
+            ShowMicrophoneControls();
             CardBorder.Padding = new Thickness(8, 6, 8, 6);
         }
 

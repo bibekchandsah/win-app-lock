@@ -165,32 +165,13 @@
                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     </Button>
 
-                    <!-- ── Column 0, Row 1: Microphone icon ── -->
-                    <Grid x:Name="MicrophoneIconHost"
-                          Grid.Row="1"
-                          Grid.Column="0"
-                          Width="32" Height="32"
-                          Margin="0,4,0,0"
-                          Visibility="Collapsed"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center">
-                        <Button x:Name="MicrophoneButton"
-                                Width="32" Height="32"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                CornerRadius="16"
-                                Click="MicrophoneButton_Click"
-                                AutomationProperties.Name="Microphone"
-                                AutomationProperties.HelpText="Microphone volume control. Click to mute or unmute.">
-                            <FontIcon x:Name="MicrophoneIcon"
-                                      Glyph="&#xE720;"
-                                      FontSize="16"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                        </Button>
-                    </Grid>
+                    <!-- ── Column 0, Row 1: Microphone icon buttons container (dynamic) ── -->
+                    <StackPanel x:Name="MicrophoneIconsContainer"
+                                Grid.Row="1"
+                                Grid.Column="0"
+                                Orientation="Vertical"
+                                Spacing="4"
+                                Visibility="Collapsed"/>
 
                     <!-- ── Column 0, Row 2: Active App Icon / Host button ── -->
                     <Grid x:Name="ActiveAppHost"
@@ -316,53 +297,14 @@
                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                         </Button>
 
-                        <!-- Row 1: Microphone volume slider, percent label, mute button -->
-                        <Slider x:Name="MicrophoneVolumeSlider"
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Minimum="0" Maximum="100" Value="50"
-                                Width="180"
-                                VerticalAlignment="Center"
-                                Margin="8,4,0,0"
-                                Visibility="Collapsed"
-                                ValueChanged="MicrophoneVolumeSlider_ValueChanged"
-                                PointerWheelChanged="MicrophoneVolumeSlider_PointerWheelChanged"
-                                AutomationProperties.Name="Microphone volume"
-                                AutomationProperties.HelpText="Adjust microphone volume. Use mouse wheel or arrow keys."/>
-
-                        <TextBlock x:Name="MicrophonePercentText"
-                                   Grid.Row="1"
-                                   Grid.Column="1"
-                                   Text="50%"
-                                   FontSize="12"
-                                   MinWidth="38"
-                                   TextAlignment="Right"
-                                   VerticalAlignment="Center"
-                                   Margin="6,4,0,0"
-                                   Visibility="Collapsed"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   AutomationProperties.LiveSetting="Polite"/>
-
-                        <Button x:Name="MicrophoneMuteButton"
-                                Grid.Row="1"
-                                Grid.Column="2"
-                                Click="MicrophoneMuteButton_Click"
-                                Width="28" Height="28"
-                                Padding="0"
-                                Margin="6,4,0,0"
-                                CornerRadius="14"
-                                Visibility="Collapsed"
-                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                BorderThickness="1"
-                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                                VerticalAlignment="Center"
-                                AutomationProperties.Name="Mute microphone"
-                                AutomationProperties.HelpText="Mute or unmute microphone">
-                            <FontIcon x:Name="MicrophoneMuteIcon"
-                                      Glyph="&#xE720;"
-                                      FontSize="12"
-                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                        </Button>
+                        <!-- Row 1: Microphone controls container (dynamic, spans all columns) -->
+                        <StackPanel x:Name="MicrophoneControlsContainer"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Orientation="Vertical"
+                                    Spacing="4"
+                                    Visibility="Collapsed"/>
 
                         <!-- Row 2: Active App volume slider, percent label, mute button -->
                         <Slider x:Name="ActiveAppVolumeSlider"

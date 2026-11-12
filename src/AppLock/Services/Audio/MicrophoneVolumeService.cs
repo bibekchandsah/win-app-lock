@@ -1,16 +1,84 @@
 using NAudio.CoreAudioApi;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace AppLock.Services.Audio
 {
     /// <summary>
-    /// Service for controlling microphone (input device) volume
+    /// Represents a single microphone device with its control interface
+    /// </summary>
+    public class MicrophoneDevice
+    {
+        public string DeviceId { get; set; }
+        public string FriendlyName { get; set; }
+        public MMDevice Device { get; set; }
+
+        public float GetVolume()
+        {
+            try
+            {
+                return Device?.AudioEndpointVolume.MasterVolumeLevelScalar * 100f ?? 0f;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
+        public void SetVolume(float volume)
+        {
+            try
+            {
+                if (Device != null)
+                {
+                    volume = Math.Max(0, Math.Min(100, volume));
+                    Device.AudioEndpointVolume.MasterVolumeLevelScalar = volume / 100f;
+                }
+            }
+            catch
+            {
+                // Silently fail
+            }
+        }
+
+        public bool IsMuted()
+        {
+            try
+            {
+                return Device?.AudioEndpointVolume.Mute ?? false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void SetMute(bool mute)
+        {
+            try
+            {
+                if (Device != null)
+                {
+                    Device.AudioEndpointVolume.Mute = mute;
+                }
+            }
+            catch
+            {
+                // Silently fail
+            }
+        }
+
+        public bool IsDefault { get; set; }
+    }
+
+    /// <summary>
+    /// Service for controlling all connected microphone (input device) volumes
     /// </summary>
     public class MicrophoneVolumeService : IDisposable
     {
-        private MMDevice _microphoneDevice;
         private readonly MMDeviceEnumerator _deviceEnumerator;
+        private readonly Dictionary<string, MicrophoneDevice> _microphones = new();
 
         public MicrophoneVolumeService()
         {
@@ -18,16 +86,50 @@ namespace AppLock.Services.Audio
         }
 
         /// <summary>
-        /// Initialize and find the default microphone device
+        /// Initialize and enumerate all connected microphone devices
         /// </summary>
         public bool Initialize()
         {
             try
             {
-                // Get default capture (microphone) device
-                _microphoneDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                _microphones.Clear();
                 
-                return _microphoneDevice != null;
+                // Get all active capture devices
+                var devices = _deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+                
+                if (devices == null || devices.Count == 0)
+                    return false;
+
+                // Get default device ID for marking
+                string defaultDeviceId = null;
+                try
+                {
+                    var defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+                    defaultDeviceId = defaultDevice?.ID;
+                }
+                catch { }
+
+                foreach (var device in devices)
+                {
+                    try
+                    {
+                        var micDevice = new MicrophoneDevice
+                        {
+                            DeviceId = device.ID,
+                            FriendlyName = device.FriendlyName,
+                            Device = device,
+                            IsDefault = device.ID == defaultDeviceId
+                        };
+                        
+                        _microphones[device.ID] = micDevice;
+                    }
+                    catch
+                    {
+                        // Skip devices we can't access
+                    }
+                }
+                
+                return _microphones.Count > 0;
             }
             catch (Exception)
             {
@@ -36,106 +138,44 @@ namespace AppLock.Services.Audio
         }
 
         /// <summary>
-        /// Get current microphone volume (0-100)
+        /// Get all connected microphone devices
         /// </summary>
-        public float GetVolume()
+        public IReadOnlyList<MicrophoneDevice> GetMicrophones()
         {
-            if (_microphoneDevice == null)
-                return 0;
-
-            try
-            {
-                // Get volume as percentage (0.0 to 1.0)
-                float volumeLevel = _microphoneDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
-                return volumeLevel * 100f;
-            }
-            catch (Exception)
-            {
-                return 0;
-            }
+            // Return sorted: default first, then alphabetically
+            return _microphones.Values
+                .OrderByDescending(m => m.IsDefault)
+                .ThenBy(m => m.FriendlyName)
+                .ToList();
         }
 
         /// <summary>
-        /// Set microphone volume (0-100)
+        /// Get a specific microphone by device ID
         /// </summary>
-        public void SetVolume(float volume)
+        public MicrophoneDevice GetMicrophone(string deviceId)
         {
-            if (_microphoneDevice == null)
-                return;
-
-            try
-            {
-                // Clamp to 0-100 range
-                volume = Math.Max(0, Math.Min(100, volume));
-                
-                // Convert to 0.0-1.0 range
-                float volumeLevel = volume / 100f;
-                
-                _microphoneDevice.AudioEndpointVolume.MasterVolumeLevelScalar = volumeLevel;
-            }
-            catch (Exception)
-            {
-                // Silently fail - device might be disconnected
-            }
+            return _microphones.TryGetValue(deviceId, out var mic) ? mic : null;
         }
 
         /// <summary>
-        /// Get microphone mute state
+        /// Refresh device list - call when devices might have changed
         /// </summary>
-        public bool IsMuted()
+        public void Refresh()
         {
-            if (_microphoneDevice == null)
-                return false;
-
-            try
-            {
-                return _microphoneDevice.AudioEndpointVolume.Mute;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Set microphone mute state
-        /// </summary>
-        public void SetMute(bool mute)
-        {
-            if (_microphoneDevice == null)
-                return;
-
-            try
-            {
-                _microphoneDevice.AudioEndpointVolume.Mute = mute;
-            }
-            catch (Exception)
-            {
-                // Silently fail
-            }
-        }
-
-        /// <summary>
-        /// Get the friendly name of the microphone device
-        /// </summary>
-        public string GetDeviceName()
-        {
-            if (_microphoneDevice == null)
-                return "Microphone";
-
-            try
-            {
-                return _microphoneDevice.FriendlyName;
-            }
-            catch (Exception)
-            {
-                return "Microphone";
-            }
+            Initialize();
         }
 
         public void Dispose()
         {
-            _microphoneDevice?.Dispose();
+            foreach (var mic in _microphones.Values)
+            {
+                try
+                {
+                    mic.Device?.Dispose();
+                }
+                catch { }
+            }
+            _microphones.Clear();
             _deviceEnumerator?.Dispose();
         }
     }
