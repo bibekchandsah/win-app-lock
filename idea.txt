@@ -280,6 +280,7 @@ implemented - currently when hovered in speaker icon it expands and shows main s
 optimize volume mixture dragging as we are dragging clipboard window 
 remove the outer body of pink border which is making looks like rectangular instead of pills shaped
 i have applied some animation setting for notification but it's not working as it need to be, currently for first time when notification enters it shows applied animation and while exit it exit as window default that is from left to right and applied animation isn't working. make it effective and working while it enters and exit and all changes effects in realtime
+i have implemented setting for hotkey and system tray menu for notification but it don't show on the UI and default i have set "alt + n" for toggling notification and it syncs in  realtime in window UI and tray menu and in tray menu the menu are "enable/disable notification, Anchor positon > Top Left, Top Center, ......Bottom Right, custom" when user will click custom then it will trigger "pick custom position on screen" and let user pick custom position. sync all those in realtime in UI and tray menu too
 
 
 

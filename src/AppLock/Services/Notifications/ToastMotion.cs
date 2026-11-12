@@ -121,6 +121,8 @@ public static class ToastMotion
 
     /// <summary>
     /// Resolve exit direction (handles "Reverse").
+    /// For "Reverse", the exit goes back toward the same edge the toast entered from,
+    /// i.e. the toast exits in the SAME direction it came from (not opposite).
     /// </summary>
     public static string GetEffectiveExitDirection(
         Rectangle restRect,
@@ -130,18 +132,20 @@ public static class ToastMotion
         if (settings.ExitTo != "Reverse")
             return settings.ExitTo;
         
-        // Reverse of the enter direction
+        // Mirror the enter direction for the exit:
+        // If it entered from Top  → exit toward Top  (slides back up out)
+        // If it entered from Right→ exit toward Right (slides back right out)
         var enterDir = GetEffectiveEnterDirection(restRect, monitorBounds, settings.EnterFrom);
         
         return enterDir switch
         {
-            "Top" => "Top",
-            "Bottom" => "Bottom",
-            "Left" => "Left",
-            "Right" => "Right",
+            "Top"       => "Top",
+            "Bottom"    => "Bottom",
+            "Left"      => "Left",
+            "Right"     => "Right",
             "ScaleFade" => "Fade",
-            "Fade" => "Fade",
-            _ => "Fade"
+            "Fade"      => "Fade",
+            _           => "Fade"
         };
     }
 

@@ -39,10 +39,19 @@ public class ToastWinEventHook : IDisposable
         const uint WINEVENT_OUTOFCONTEXT = 0x0000;
         const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
-        // Single hook spanning CREATE to NAMECHANGE (covers SHOW, HIDE, LOCATIONCHANGE)
+        // Hook spanning CREATE to CLOAKED (0x8000 to 0x8017)
+        // This covers:
+        //   0x8000 EVENT_OBJECT_CREATE
+        //   0x8001 EVENT_OBJECT_DESTROY
+        //   0x8002 EVENT_OBJECT_SHOW
+        //   0x8003 EVENT_OBJECT_HIDE
+        //   0x800B EVENT_OBJECT_LOCATIONCHANGE
+        //   0x800C EVENT_OBJECT_NAMECHANGE
+        //   0x8017 EVENT_OBJECT_CLOAKED
+        //   0x8018 EVENT_OBJECT_UNCLOAKED
         _eventHook = PInvoke.SetWinEventHook(
             0x8000, // EVENT_OBJECT_CREATE
-            0x800C, // EVENT_OBJECT_NAMECHANGE
+            0x8018, // EVENT_OBJECT_UNCLOAKED
             HMODULE.Null,
             _eventDelegate,
             0,
@@ -50,7 +59,7 @@ public class ToastWinEventHook : IDisposable
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
         );
 
-        LogService.LogAction("notifications", $"WinEventHook started (0x8000-0x800C): handle=0x{_eventHook.Value:X}");
+        LogService.LogAction("notifications", $"WinEventHook started (0x8000-0x8018): handle=0x{_eventHook.Value:X}");
     }
 
     public void Stop()
@@ -94,15 +103,19 @@ public class ToastWinEventHook : IDisposable
                 return;
 
             const uint EVENT_OBJECT_CREATE        = 0x8000;
+            const uint EVENT_OBJECT_DESTROY       = 0x8001;
             const uint EVENT_OBJECT_SHOW          = 0x8002;
             const uint EVENT_OBJECT_HIDE          = 0x8003;
             const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
             const uint EVENT_OBJECT_NAMECHANGE    = 0x800C;
+            const uint EVENT_OBJECT_CLOAKED       = 0x8017;
+            const uint EVENT_OBJECT_UNCLOAKED     = 0x8018;
 
             switch (eventType)
             {
                 case EVENT_OBJECT_CREATE:
                 case EVENT_OBJECT_SHOW:
+                case EVENT_OBJECT_UNCLOAKED:
                 case EVENT_OBJECT_NAMECHANGE:
                 case EVENT_OBJECT_LOCATIONCHANGE:
                     if (!ToastWindowFinder.IsToastWindow(hwnd))
@@ -110,7 +123,7 @@ public class ToastWinEventHook : IDisposable
 
                     if (!_seenToasts.Contains(hwnd.Value))
                     {
-                        // First time we see this toast window
+                        // First time we see this toast window (or freshly uncloaked toast)
                         _seenToasts.Add(hwnd.Value);
                         LogService.LogAction("notifications",
                             $"✓ Toast appeared via {GetEventName(eventType)}: 0x{hwnd.Value:X}");
@@ -131,9 +144,12 @@ public class ToastWinEventHook : IDisposable
                     break;
 
                 case EVENT_OBJECT_HIDE:
+                case EVENT_OBJECT_DESTROY:
+                case EVENT_OBJECT_CLOAKED:
                     if (_seenToasts.Remove(hwnd.Value))
                     {
-                        LogService.LogAction("notifications", $"Toast hidden: 0x{hwnd.Value:X}");
+                        LogService.LogAction("notifications",
+                            $"Toast hidden/closed via {GetEventName(eventType)}: 0x{hwnd.Value:X}");
                         ToastHidden?.Invoke(this, hwnd);
                     }
                     break;
@@ -148,10 +164,13 @@ public class ToastWinEventHook : IDisposable
     private static string GetEventName(uint eventType) => eventType switch
     {
         0x8000 => "CREATE",
+        0x8001 => "DESTROY",
         0x8002 => "SHOW",
         0x8003 => "HIDE",
         0x800B => "LOCATIONCHANGE",
         0x800C => "NAMECHANGE",
+        0x8017 => "CLOAKED",
+        0x8018 => "UNCLOAKED",
         _ => $"0x{eventType:X}"
     };
 

@@ -34,6 +34,11 @@ public class ToastWindowFinder
     private const int MinToastHeight = 60;
     private const int MaxToastHeight = 300;
 
+    private const int DWMWA_CLOAKED = 14;
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
     /// <summary>
     /// Returns true if <paramref name="hwnd"/> looks like a Windows toast banner.
     /// This is intentionally strict to avoid repositioning unrelated shell windows.
@@ -42,7 +47,16 @@ public class ToastWindowFinder
     {
         try
         {
-            if (!PInvoke.IsWindow(hwnd) || !PInvoke.IsWindowVisible(hwnd))
+            if (!PInvoke.IsWindow(hwnd))
+                return false;
+
+            // Reject cloaked windows (cloaked by DWM, not visible to user)
+            int cloaked = 0;
+            int hr = DwmGetWindowAttribute(hwnd.Value, DWMWA_CLOAKED, out cloaked, sizeof(int));
+            if (hr == 0 && cloaked != 0)
+                return false;
+
+            if (!PInvoke.IsWindowVisible(hwnd))
                 return false;
 
             var className = GetClassName(hwnd);

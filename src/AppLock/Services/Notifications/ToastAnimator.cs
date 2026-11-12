@@ -6,29 +6,148 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Win32;
 using Windows.Win32.Foundation;
-using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.UI.WindowsAndMessaging;
 using AppLock.Models;
 
 namespace AppLock.Services.Notifications;
 
 /// <summary>
-/// Animates toast notifications using Strategy A (drive the real window).
-/// Runs on a dedicated high-priority thread paced with DwmFlush.
+/// Animates toast notifications (Strategy A: drive the real window).
+///
+/// Enter:
+///   1. Move toast to start pose (off-edge or short-offset), set alpha=0.
+///   2. Each frame: lerp position + alpha from start→rest over EnterMs.
+///   3. Finish at rest pose with user's configured opacity.
+///
+/// Exit:
+///   The shell often hides the window before our event fires, so exit
+///   uses a "ghost" layered window (Strategy B) that is captured from the
+///   toast's last visible appearance and animated out independently.
+///   If the toast window is still alive we drive it directly first.
 /// </summary>
 public class ToastAnimator : IDisposable
 {
-    private const uint WS_EX_LAYERED = 0x00080000;
-    private const uint LWA_ALPHA = 0x00000002;
-    private const int GWL_EXSTYLE = -20;
-    
-    // Watchdog: never leave a toast transparent longer than 2 seconds
-    private const int WatchdogTimeoutMs = 2000;
-    
-    private bool _disposed;
-    private uint _originalExStyle;
-    private bool _styleModified;
-    private System.Threading.Timer? _watchdogTimer;
+    // ── P/Invoke ──────────────────────────────────────────────────────────────
+    private const uint WS_EX_LAYERED    = 0x00080000;
+    private const uint WS_EX_TRANSPARENT = 0x00000020;
+    private const uint WS_EX_TOOLWINDOW = 0x00000080;
+    private const uint WS_EX_NOACTIVATE  = 0x08000000;
+    private const uint LWA_ALPHA         = 0x00000002;
+    private const int  GWL_EXSTYLE       = -20;
+    private const int  GWL_STYLE         = -16;
+    private const uint WS_POPUP          = 0x80000000;
+
+    private const int WatchdogMs = 2000;
+    private const int DWMWA_TRANSITIONS_FORCEDISABLED = 3;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool BitBlt(nint hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, nint hdcSrc, int nXSrc, int nYSrc, uint dwRop);
+
+    [DllImport("gdi32.dll")]
+    private static extern uint GetPixel(nint hdc, int x, int y);
+
+    private const uint SRCCOPY = 0x00CC0020;
+    private const uint STM_SETIMAGE = 0x0172;
+    private const uint SS_BITMAP = 0x0000000E;
+
+    public static void DeleteObjectPublic(nint ho)
+    {
+        if (ho != nint.Zero) DeleteObject(ho);
+    }
+
+    /// <summary>
+    /// Captures a pixel-perfect snapshot of the toast window while it is resting on screen.
+    /// This snapshot is used for the ghost window exit animation so Windows' native slide-out is replaced.
+    /// </summary>
+    public static nint CaptureWindowSnapshot(HWND hwnd, Rectangle rect)
+    {
+        nint hBmp = nint.Zero;
+        nint screenDC = nint.Zero;
+        nint memDC = nint.Zero;
+
+        try
+        {
+            if (rect.Width <= 0 || rect.Height <= 0)
+                return nint.Zero;
+
+            screenDC = GetDC(nint.Zero);
+            if (screenDC == nint.Zero) return nint.Zero;
+
+            memDC = CreateCompatibleDC(screenDC);
+            if (memDC == nint.Zero) return nint.Zero;
+
+            hBmp = CreateCompatibleBitmap(screenDC, rect.Width, rect.Height);
+            if (hBmp == nint.Zero) return nint.Zero;
+
+            var oldBmp = SelectObject(memDC, hBmp);
+
+            bool captured = false;
+            if (PInvoke.IsWindow(hwnd))
+            {
+                captured = PrintWindow(hwnd.Value, memDC, 2 /* PW_RENDERFULLCONTENT */);
+            }
+
+            if (captured)
+            {
+                uint centerPixel = GetPixel(memDC, rect.Width / 2, rect.Height / 2);
+                if (centerPixel == 0) captured = false;
+            }
+
+            if (!captured)
+            {
+                BitBlt(memDC, 0, 0, rect.Width, rect.Height, screenDC, rect.X, rect.Y, SRCCOPY);
+            }
+
+            SelectObject(memDC, oldBmp);
+            return hBmp;
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"CaptureWindowSnapshot error: {ex.Message}");
+            if (hBmp != nint.Zero) { DeleteObject(hBmp); hBmp = nint.Zero; }
+            return nint.Zero;
+        }
+        finally
+        {
+            if (memDC != nint.Zero) DeleteDC(memDC);
+            if (screenDC != nint.Zero) ReleaseDC(nint.Zero, screenDC);
+        }
+    }
+
+    /// <summary>
+    /// Disables Windows DWM native window transition animations (the default slide from right)
+    /// on the toast window so our custom animation loop has complete control without visual conflict.
+    /// </summary>
+    public static void DisableTransitions(HWND hwnd)
+    {
+        try
+        {
+            if (!PInvoke.IsWindow(hwnd)) return;
+            int forceDisable = 1;
+            DwmSetWindowAttribute(hwnd.Value, DWMWA_TRANSITIONS_FORCEDISABLED, ref forceDisable, sizeof(int));
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Restores Windows native DWM transitions when done.
+    /// </summary>
+    public static void EnableTransitions(HWND hwnd)
+    {
+        try
+        {
+            if (!PInvoke.IsWindow(hwnd)) return;
+            int forceDisable = 0;
+            DwmSetWindowAttribute(hwnd.Value, DWMWA_TRANSITIONS_FORCEDISABLED, ref forceDisable, sizeof(int));
+        }
+        catch { }
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowLong(nint hWnd, int nIndex, uint dwNewLong);
@@ -39,12 +158,69 @@ public class ToastAnimator : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetLayeredWindowAttributes(nint hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    private static extern int DwmFlush();
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint CreateWindowEx(
+        uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle,
+        int x, int y, int nWidth, int nHeight,
+        nint hWndParent, nint hMenu, nint hInstance, nint lpParam);
 
-    /// <summary>
-    /// Animate a toast window entering.
-    /// </summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool PrintWindow(nint hwnd, nint hdcBlt, uint nFlags);
+
+    [DllImport("gdi32.dll")]
+    private static extern nint CreateCompatibleDC(nint hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern nint CreateCompatibleBitmap(nint hdc, int nWidth, int nHeight);
+
+    [DllImport("gdi32.dll")]
+    private static extern nint SelectObject(nint hdc, nint h);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(nint hdc);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(nint ho);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetDC(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(nint hWnd, nint hDC);
+
+    [DllImport("user32.dll")]
+    private static extern bool UpdateLayeredWindow(
+        nint hWnd, nint hdcDst, ref POINT pptDst, ref SIZE psize,
+        nint hdcSrc, ref POINT pptSrc, uint crKey,
+        ref BLENDFUNCTION pblend, uint dwFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int x, y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SIZE  { public int cx, cy; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BLENDFUNCTION
+    {
+        public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat;
+    }
+
+    private const uint ULW_ALPHA = 0x00000002;
+    private const byte AC_SRC_OVER  = 0x00;
+    private const byte AC_SRC_ALPHA = 0x01;
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    private bool   _disposed;
+    private uint   _originalExStyle;
+    private bool   _styleModified;
+    private System.Threading.Timer? _watchdog;
+
+    // ── Enter animation ───────────────────────────────────────────────────────
+
     public async Task AnimateEnterAsync(
         HWND hwnd,
         Rectangle restRect,
@@ -54,142 +230,179 @@ public class ToastAnimator : IDisposable
     {
         try
         {
-            LogService.LogAction("notifications", 
-                $"AnimateEnter: HWND=0x{hwnd.Value:X}, Direction={settings.EnterFrom}, Duration={settings.EnterMs}ms");
+            LogService.LogAction("notifications",
+                $"AnimateEnter: 0x{hwnd.Value:X} dir={settings.EnterFrom} dur={settings.EnterMs}ms");
 
-            // Animation disabled
             if (settings.EnterFrom == "None")
             {
-                // Just position it
-                PInvoke.SetWindowPos(hwnd, HWND.Null, restRect.X, restRect.Y, 0, 0,
-                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-                
-                // Apply target opacity
-                ApplyOpacity(hwnd, settings.OpacityPercent);
+                // Instant position, no animation
+                SafeSetWindowPos(hwnd, restRect.X, restRect.Y);
+                ApplyFinalOpacity(hwnd, settings.OpacityPercent);
                 return;
             }
 
-            // Compute start position
+            // Force Windows to suppress native DWM transitions so our custom enter animation isn't overridden
+            DisableTransitions(hwnd);
+
             var startRect = ToastMotion.GetEnterStartRect(restRect, monitorBounds, settings);
-            
-            LogService.LogAction("notifications", 
-                $"Enter: Start={startRect.X},{startRect.Y}, Rest={restRect.X},{restRect.Y}");
 
-            // Save original extended style
+            // Save & modify extended style so we can set alpha
             _originalExStyle = GetWindowLong(hwnd.Value, GWL_EXSTYLE);
-            _styleModified = false;
-
-            // Make window layered for alpha control
             if ((_originalExStyle & WS_EX_LAYERED) == 0)
             {
                 SetWindowLong(hwnd.Value, GWL_EXSTYLE, _originalExStyle | WS_EX_LAYERED);
                 _styleModified = true;
+                // Force Windows to apply the new style before we set alpha
+                PInvoke.SetWindowPos(hwnd, HWND.Null, 0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                    SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
             }
 
-            // Move to start position and make fully transparent
+            // Move to start pose, fully transparent, before first frame is visible
+            SetLayeredWindowAttributes(hwnd.Value, 0, 0, LWA_ALPHA);
             PInvoke.SetWindowPos(hwnd, HWND.Null, startRect.X, startRect.Y, 0, 0,
-                SET_WINDOW_POS_FLAGS.SWP_NOSIZE | 
-                SET_WINDOW_POS_FLAGS.SWP_NOZORDER | 
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
                 SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
                 SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
-            
-            SetLayeredWindowAttributes(hwnd.Value, 0, 0, LWA_ALPHA);
 
-            // Small delay to ensure window is positioned before animation starts
-            await Task.Delay(10, ct);
+            // Brief yield so the compositor processes the move before animation begins
+            await Task.Delay(8, ct);
 
-            // Start watchdog timer to restore window if animation gets stuck
             StartWatchdog(hwnd, settings.OpacityPercent);
 
-            // Run animation
-            await RunAnimationLoopAsync(hwnd, startRect, restRect, settings.EnterMs, 
-                settings.Easing, settings.EnterFrom, settings.OpacityPercent, ct);
-
-            LogService.LogAction("notifications", "Enter animation complete");
+            var effectiveDir = ToastMotion.GetEffectiveEnterDirection(restRect, monitorBounds, settings.EnterFrom);
+            await RunLoopAsync(hwnd, startRect, restRect, settings.EnterMs,
+                settings.Easing, effectiveDir, targetOpacityPercent: settings.OpacityPercent,
+                isEnter: true, ct);
         }
-        catch (OperationCanceledException)
-        {
-            LogService.LogAction("notifications", "Enter animation cancelled");
-        }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            LogService.LogAction("notifications", $"Enter animation error: {ex.Message}");
+            LogService.LogAction("notifications", $"AnimateEnter error: {ex.Message}");
         }
         finally
         {
-            // Stop watchdog and ensure window is left at rest position with target opacity
             StopWatchdog();
-            RestoreWindow(hwnd, settings.OpacityPercent);
+            // Always ensure window ends at correct position/opacity
+            if (!ct.IsCancellationRequested && PInvoke.IsWindow(hwnd))
+            {
+                SafeSetWindowPos(hwnd, restRect.X, restRect.Y);
+                ApplyFinalOpacity(hwnd, settings.OpacityPercent);
+            }
+            else
+            {
+                // Cancelled (toast disappeared) — restore style
+                RestoreExStyle(hwnd);
+            }
         }
     }
 
+    // ── Exit animation (dedicated STA thread) ────────────────────────────────
+
     /// <summary>
-    /// Animate a toast window exiting.
+    /// Animates the toast exit using a lightweight ghost window on an isolated STA background thread.
+    /// This completely avoids threadpool task blocking and prevents freezing the main application UI.
     /// </summary>
-    public async Task AnimateExitAsync(
-        HWND hwnd,
+    public static void AnimateExit(
+        nint hSnapshotBmp,
         Rectangle restRect,
         Rectangle monitorBounds,
         NotificationCustomSettings settings,
         CancellationToken ct)
     {
-        try
+        if (settings.ExitTo == "None")
         {
-            LogService.LogAction("notifications", 
-                $"AnimateExit: HWND=0x{hwnd.Value:X}, Direction={settings.ExitTo}, Duration={settings.ExitMs}ms");
+            if (hSnapshotBmp != nint.Zero) DeleteObject(hSnapshotBmp);
+            return;
+        }
 
-            // Animation disabled
-            if (settings.ExitTo == "None")
+        var thread = new System.Threading.Thread(() =>
+        {
+            nint ghost = nint.Zero;
+            try
             {
-                // Just hide it
-                PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
-                return;
+                var exitDir = ToastMotion.GetEffectiveExitDirection(restRect, monitorBounds, settings);
+                var endRect = ToastMotion.GetExitEndRect(restRect, monitorBounds, settings);
+
+                const string ClassName = "STATIC";
+                uint ghostExStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | 0x00000008 /* WS_EX_TOPMOST */;
+                uint ghostStyle = WS_POPUP | SS_BITMAP | 0x10000000 /* WS_VISIBLE */;
+
+                ghost = CreateWindowEx(
+                    ghostExStyle, ClassName, "", ghostStyle,
+                    restRect.X, restRect.Y, restRect.Width, restRect.Height,
+                    nint.Zero, nint.Zero, nint.Zero, nint.Zero);
+
+                if (ghost == nint.Zero)
+                {
+                    LogService.LogAction("notifications", "Ghost window creation failed — skipping exit animation");
+                    return;
+                }
+
+                var ghostHwnd = new HWND(ghost);
+                DisableTransitions(ghostHwnd);
+
+                if (hSnapshotBmp != nint.Zero)
+                {
+                    SendMessage(ghost, STM_SETIMAGE, nint.Zero, hSnapshotBmp);
+                }
+
+                // Make ghost topmost and show at restRect
+                PInvoke.SetWindowPos(ghostHwnd, new HWND(new nint(-1)), // HWND_TOPMOST
+                    restRect.X, restRect.Y, restRect.Width, restRect.Height,
+                    SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+
+                byte startAlpha = (byte)Math.Max(1, Math.Min(255, settings.OpacityPercent / 100.0 * 255));
+                SetLayeredWindowAttributes(ghost, 0, startAlpha, LWA_ALPHA);
+
+                var sw = Stopwatch.StartNew();
+                int durationMs = Math.Max(50, settings.ExitMs);
+
+                while (!ct.IsCancellationRequested)
+                {
+                    double progress = Math.Min(1.0, sw.ElapsedMilliseconds / (double)durationMs);
+                    double eased    = ToastMotion.ApplyEasing(progress, settings.Easing);
+
+                    var curRect = ToastMotion.LerpRect(restRect, endRect, eased);
+                    double opacityFraction = GetExitOpacity(eased, exitDir, settings.OpacityPercent);
+                    byte alpha = (byte)Math.Max(0, Math.Min(255, opacityFraction * 255));
+
+                    PInvoke.SetWindowPos(ghostHwnd, HWND.Null,
+                        curRect.X, curRect.Y, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                    SetLayeredWindowAttributes(ghost, 0, alpha, LWA_ALPHA);
+
+                    if (progress >= 1.0) break;
+
+                    System.Threading.Thread.Sleep(16);
+                }
+
+                LogService.LogAction("notifications", $"Exit animation finished cleanly in {sw.ElapsedMilliseconds}ms");
             }
-
-            // Compute end position
-            var endRect = ToastMotion.GetExitEndRect(restRect, monitorBounds, settings);
-            
-            LogService.LogAction("notifications", 
-                $"Exit: Rest={restRect.X},{restRect.Y}, End={endRect.X},{endRect.Y}");
-
-            // Ensure window is layered
-            var exStyle = GetWindowLong(hwnd.Value, GWL_EXSTYLE);
-            if ((exStyle & WS_EX_LAYERED) == 0)
+            catch (Exception ex)
             {
-                SetWindowLong(hwnd.Value, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                LogService.LogAction("notifications", $"Ghost exit error: {ex.Message}");
             }
+            finally
+            {
+                if (ghost != nint.Zero) DestroyWindow(ghost);
+                if (hSnapshotBmp != nint.Zero) DeleteObject(hSnapshotBmp);
+            }
+        });
 
-            // Run animation
-            var exitDirection = ToastMotion.GetEffectiveExitDirection(restRect, monitorBounds, settings);
-            
-            // Start watchdog
-            StartWatchdog(hwnd, 0); // Exit to transparent
-            
-            await RunAnimationLoopAsync(hwnd, restRect, endRect, settings.ExitMs, 
-                settings.Easing, exitDirection, 0, ct);
-
-            LogService.LogAction("notifications", "Exit animation complete");
-        }
-        catch (OperationCanceledException)
-        {
-            LogService.LogAction("notifications", "Exit animation cancelled");
-        }
-        catch (Exception ex)
-        {
-            LogService.LogAction("notifications", $"Exit animation error: {ex.Message}");
-        }
-        finally
-        {
-            StopWatchdog();
-        }
+        thread.IsBackground = true;
+        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.Name = "ToastExitAnimationThread";
+        thread.Start();
     }
 
-    /// <summary>
-    /// Core animation loop paced with DwmFlush or high-resolution timer.
-    /// </summary>
-    private async Task RunAnimationLoopAsync(
+    // ── Core animation loop ───────────────────────────────────────────────────
+
+    /// <param name="isEnter">true = alpha goes 0→target; false = alpha goes target→0.</param>
+    private async Task RunLoopAsync(
         HWND hwnd,
         Rectangle fromRect,
         Rectangle toRect,
@@ -197,145 +410,167 @@ public class ToastAnimator : IDisposable
         string easing,
         string direction,
         int targetOpacityPercent,
+        bool isEnter,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        var targetMs = durationMs;
 
         while (!ct.IsCancellationRequested)
         {
-            var elapsedMs = sw.ElapsedMilliseconds;
-            
-            // Calculate linear progress
-            double linearProgress = Math.Min(1.0, elapsedMs / (double)targetMs);
-            
-            // Apply easing
-            double easedProgress = ToastMotion.ApplyEasing(linearProgress, easing);
-            
-            // Interpolate position
-            var currentRect = ToastMotion.LerpRect(fromRect, toRect, easedProgress);
-            
-            // Interpolate opacity
-            double opacity = ToastMotion.GetOpacityForProgress(easedProgress, direction, targetOpacityPercent);
-            byte alpha = (byte)Math.Max(0, Math.Min(255, opacity * 255));
-            
-            // Apply position
-            if (PInvoke.IsWindow(hwnd))
-            {
-                PInvoke.SetWindowPos(hwnd, HWND.Null, currentRect.X, currentRect.Y, 0, 0,
-                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
-                
-                SetLayeredWindowAttributes(hwnd.Value, 0, alpha, LWA_ALPHA);
-            }
+            if (!PInvoke.IsWindow(hwnd)) break;
+
+            double progress = Math.Min(1.0, sw.ElapsedMilliseconds / (double)durationMs);
+            double eased    = ToastMotion.ApplyEasing(progress, easing);
+
+            var curRect = ToastMotion.LerpRect(fromRect, toRect, eased);
+
+            // Alpha
+            double opacityFraction;
+            if (isEnter)
+                opacityFraction = GetEnterOpacity(eased, direction, targetOpacityPercent);
             else
-            {
-                break; // Window destroyed
-            }
-            
-            // Done?
-            if (linearProgress >= 1.0)
-                break;
-            
-            // Wait for next frame (~60fps)
-            try
-            {
-                // Try to use DwmFlush for vsync-paced animation
-                DwmFlush();
-            }
-            catch
-            {
-                // Fallback to 16ms delay if DwmFlush fails
-                await Task.Delay(16, ct);
-            }
+                opacityFraction = GetExitOpacity(eased, direction, targetOpacityPercent);
+
+            byte alpha = (byte)Math.Max(0, Math.Min(255, opacityFraction * 255));
+
+            PInvoke.SetWindowPos(hwnd, HWND.Null, curRect.X, curRect.Y, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            SetLayeredWindowAttributes(hwnd.Value, 0, alpha, LWA_ALPHA);
+
+            if (progress >= 1.0) break;
+
+            // ~60 fps pacing with Task.Delay (DwmFlush was blocking the thread)
+            await Task.Delay(16, ct).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// Apply opacity to a window without animation.
-    /// </summary>
-    private void ApplyOpacity(HWND hwnd, int opacityPercent)
+    // ── Opacity helpers ───────────────────────────────────────────────────────
+
+    /// <summary>Alpha for enter frame: starts at 0, ends at targetOpacityPercent/100.</summary>
+    private static double GetEnterOpacity(double eased, string direction, int targetOpacityPct)
     {
-        if (opacityPercent >= 100)
-            return;
+        double target = targetOpacityPct / 100.0;
 
-        var exStyle = GetWindowLong(hwnd.Value, GWL_EXSTYLE);
-        if ((exStyle & WS_EX_LAYERED) == 0)
-        {
-            SetWindowLong(hwnd.Value, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
-        }
+        // Fade-only: opacity directly tracks progress
+        if (direction is "Fade" or "ScaleFade")
+            return eased * target;
 
-        byte alpha = (byte)((opacityPercent / 100.0) * 255);
-        SetLayeredWindowAttributes(hwnd.Value, 0, alpha, LWA_ALPHA);
+        // Slide: quick fade-in during first 40% of travel, then full opacity
+        double fadeIn = Math.Min(1.0, eased / 0.4);
+        return fadeIn * target;
     }
 
-    /// <summary>
-    /// Restore window to normal state after animation.
-    /// </summary>
-    private void RestoreWindow(HWND hwnd, int targetOpacityPercent)
+    /// <summary>Alpha for exit frame: starts at targetOpacityPercent/100, ends at 0.</summary>
+    private static double GetExitOpacity(double eased, string direction, int targetOpacityPct)
+    {
+        double start = targetOpacityPct / 100.0;
+
+        // Fade-only: opacity directly tracks progress (inverted)
+        if (direction is "Fade" or "ScaleFade")
+            return start * (1.0 - eased);
+
+        // Slide: fade out during last 40% of travel
+        double fadeOut = Math.Min(1.0, (eased - 0.6) / 0.4);
+        fadeOut = Math.Max(0, fadeOut);
+        return start * (1.0 - fadeOut);
+    }
+
+    // ── Utility helpers ───────────────────────────────────────────────────────
+
+    private static void SafeSetWindowPos(HWND hwnd, int x, int y)
     {
         try
         {
-            if (!PInvoke.IsWindow(hwnd))
-                return;
+            if (!PInvoke.IsWindow(hwnd)) return;
+            PInvoke.SetWindowPos(hwnd, HWND.Null, x, y, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+        }
+        catch { }
+    }
 
-            // Apply final opacity
-            ApplyOpacity(hwnd, targetOpacityPercent);
+    private void ApplyFinalOpacity(HWND hwnd, int opacityPercent)
+    {
+        try
+        {
+            if (!PInvoke.IsWindow(hwnd)) return;
 
-            // Restore original style if we modified it
-            if (_styleModified && _originalExStyle != 0)
+            if (opacityPercent >= 100)
             {
-                SetWindowLong(hwnd.Value, GWL_EXSTYLE, _originalExStyle);
-                _styleModified = false;
+                // Remove layered style so the window renders normally
+                RestoreExStyle(hwnd);
+                return;
             }
+
+            var exStyle = GetWindowLong(hwnd.Value, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_LAYERED) == 0)
+            {
+                SetWindowLong(hwnd.Value, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                PInvoke.SetWindowPos(hwnd, HWND.Null, 0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                    SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+            }
+
+            byte alpha = (byte)Math.Max(1, Math.Min(255, opacityPercent / 100.0 * 255));
+            SetLayeredWindowAttributes(hwnd.Value, 0, alpha, LWA_ALPHA);
         }
         catch (Exception ex)
         {
-            LogService.LogAction("notifications", $"RestoreWindow error: {ex.Message}");
+            LogService.LogAction("notifications", $"ApplyFinalOpacity error: {ex.Message}");
         }
     }
 
-    public void Dispose()
+    private void RestoreExStyle(HWND hwnd)
     {
-        if (_disposed)
-            return;
-        
-        StopWatchdog();
-        _disposed = true;
+        try
+        {
+            if (!PInvoke.IsWindow(hwnd)) return;
+            if (!_styleModified || _originalExStyle == 0) return;
+
+            SetWindowLong(hwnd.Value, GWL_EXSTYLE, _originalExStyle);
+            PInvoke.SetWindowPos(hwnd, HWND.Null, 0, 0, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+            _styleModified = false;
+        }
+        catch { }
     }
 
-    /// <summary>
-    /// Start a watchdog timer that restores window if animation gets stuck.
-    /// </summary>
+    // ── Watchdog ──────────────────────────────────────────────────────────────
+
     private void StartWatchdog(HWND hwnd, int targetOpacity)
     {
         StopWatchdog();
-        
-        _watchdogTimer = new System.Threading.Timer(_ =>
+        _watchdog = new System.Threading.Timer(_ =>
         {
             try
             {
-                LogService.LogAction("notifications", 
-                    $"Watchdog triggered for 0x{hwnd.Value:X}, restoring window");
-                RestoreWindow(hwnd, targetOpacity);
+                LogService.LogAction("notifications",
+                    $"Watchdog: restoring 0x{hwnd.Value:X}");
+                if (PInvoke.IsWindow(hwnd))
+                    ApplyFinalOpacity(hwnd, targetOpacity);
             }
-            catch (Exception ex)
-            {
-                LogService.LogAction("notifications", $"Watchdog error: {ex.Message}");
-            }
-        }, null, WatchdogTimeoutMs, Timeout.Infinite);
+            catch { }
+        }, null, WatchdogMs, Timeout.Infinite);
     }
 
-    /// <summary>
-    /// Stop the watchdog timer.
-    /// </summary>
     private void StopWatchdog()
     {
-        if (_watchdogTimer != null)
-        {
-            _watchdogTimer.Dispose();
-            _watchdogTimer = null;
-        }
+        _watchdog?.Dispose();
+        _watchdog = null;
+    }
+
+    // ── IDisposable ───────────────────────────────────────────────────────────
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        StopWatchdog();
+        _disposed = true;
     }
 }

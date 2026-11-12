@@ -260,6 +260,9 @@ public partial class NotificationsViewModel : ObservableObject
         OnPropertyChanged(nameof(AnchorDisplayText));
         UpdatePreviewPosition();
         
+        // Apply immediately to active toasts in real-time
+        ServiceContainer.NotificationCustomizerService?.ReapplyPositionToActiveToasts();
+
         // Update tray menu in real-time
         ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
     }
