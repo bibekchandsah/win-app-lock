@@ -19,6 +19,10 @@ public sealed partial class PickToastPositionOverlay : Window
     private const int ToastWidth = 396;
     private const int ToastHeight = 120;
 
+    // DPI scale factor for this monitor (physical pixels / DIPs).
+    // Pointer events arrive in DIPs; monitor bounds are in physical pixels.
+    private float _dpiScale = 1.0f;
+
     // Last snapped position, kept in sync by OnPointerMoved so OnPointerPressed reads it
     private double _snappedX;
     private double _snappedY;
@@ -65,6 +69,9 @@ public sealed partial class PickToastPositionOverlay : Window
             presenter.IsAlwaysOnTop = true;
         }
 
+        // Capture DPI so pointer events (DIPs) can be converted to physical pixels
+        _dpiScale = PInvoke.GetDpiForWindow((HWND)hwnd) / 96f;
+
         // Set extended styles - toolwindow and noactivate
         var currentStyle = (int)PInvoke.GetWindowLongPtr((HWND)hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         currentStyle |= 0x00000080; // WS_EX_TOOLWINDOW
@@ -88,22 +95,25 @@ public sealed partial class PickToastPositionOverlay : Window
 
     private void UpdateGuidePositions()
     {
-        int width = _monitorBounds.Width;
-        int height = _monitorBounds.Height;
+        // Guide lines are drawn in DIPs (XAML canvas coordinates).
+        // _monitorBounds is in physical pixels, so divide by _dpiScale.
+        double dipWidth  = _monitorBounds.Width  / _dpiScale;
+        double dipHeight = _monitorBounds.Height / _dpiScale;
+        double dipSnap   = SnapDistance          / _dpiScale;
 
         // Vertical guides
-        LeftGuide.X1 = LeftGuide.X2 = SnapDistance;
-        CenterVGuide.X1 = CenterVGuide.X2 = width / 2;
-        RightGuide.X1 = RightGuide.X2 = width - SnapDistance;
+        LeftGuide.X1    = LeftGuide.X2    = dipSnap;
+        CenterVGuide.X1 = CenterVGuide.X2 = dipWidth / 2;
+        RightGuide.X1   = RightGuide.X2   = dipWidth - dipSnap;
 
-        LeftGuide.Y2 = CenterVGuide.Y2 = RightGuide.Y2 = height;
+        LeftGuide.Y2 = CenterVGuide.Y2 = RightGuide.Y2 = dipHeight;
 
         // Horizontal guides
-        TopGuide.Y1 = TopGuide.Y2 = SnapDistance;
-        CenterHGuide.Y1 = CenterHGuide.Y2 = height / 2;
-        BottomGuide.Y1 = BottomGuide.Y2 = height - SnapDistance;
+        TopGuide.Y1     = TopGuide.Y2     = dipSnap;
+        CenterHGuide.Y1 = CenterHGuide.Y2 = dipHeight / 2;
+        BottomGuide.Y1  = BottomGuide.Y2  = dipHeight - dipSnap;
 
-        TopGuide.X2 = CenterHGuide.X2 = BottomGuide.X2 = width;
+        TopGuide.X2 = CenterHGuide.X2 = BottomGuide.X2 = dipWidth;
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -144,22 +154,30 @@ public sealed partial class PickToastPositionOverlay : Window
         bool snappedH = false;
         bool snappedV = false;
 
+        // All snap targets must be in DIPs to match the pointer event coordinates.
+        // _monitorBounds is in physical pixels, so divide by _dpiScale.
+        double dipWidth      = _monitorBounds.Width  / _dpiScale;
+        double dipHeight     = _monitorBounds.Height / _dpiScale;
+        double dipToastW     = ToastWidth            / _dpiScale;
+        double dipToastH     = ToastHeight           / _dpiScale;
+        double dipSnap       = SnapDistance          / _dpiScale;
+
         // Snap horizontal
-        if (Math.Abs(x - SnapDistance) < SnapDistance)
+        if (Math.Abs(x - dipSnap) < dipSnap)
         {
-            snappedX = SnapDistance;
+            snappedX = dipSnap;
             LeftGuide.Opacity = 1;
             snappedH = true;
         }
-        else if (Math.Abs(x - (_monitorBounds.Width / 2.0)) < SnapDistance)
+        else if (Math.Abs(x - (dipWidth / 2.0)) < dipSnap)
         {
-            snappedX = _monitorBounds.Width / 2.0;
+            snappedX = dipWidth / 2.0;
             CenterVGuide.Opacity = 1;
             snappedH = true;
         }
-        else if (Math.Abs(x - (_monitorBounds.Width - ToastWidth - SnapDistance)) < SnapDistance)
+        else if (Math.Abs(x - (dipWidth - dipToastW - dipSnap)) < dipSnap)
         {
-            snappedX = _monitorBounds.Width - ToastWidth - SnapDistance;
+            snappedX = dipWidth - dipToastW - dipSnap;
             RightGuide.Opacity = 1;
             snappedH = true;
         }
@@ -172,21 +190,21 @@ public sealed partial class PickToastPositionOverlay : Window
         }
 
         // Snap vertical
-        if (Math.Abs(y - SnapDistance) < SnapDistance)
+        if (Math.Abs(y - dipSnap) < dipSnap)
         {
-            snappedY = SnapDistance;
+            snappedY = dipSnap;
             TopGuide.Opacity = 1;
             snappedV = true;
         }
-        else if (Math.Abs(y - (_monitorBounds.Height / 2.0)) < SnapDistance)
+        else if (Math.Abs(y - (dipHeight / 2.0)) < dipSnap)
         {
-            snappedY = _monitorBounds.Height / 2.0;
+            snappedY = dipHeight / 2.0;
             CenterHGuide.Opacity = 1;
             snappedV = true;
         }
-        else if (Math.Abs(y - (_monitorBounds.Height - ToastHeight - SnapDistance)) < SnapDistance)
+        else if (Math.Abs(y - (dipHeight - dipToastH - dipSnap)) < dipSnap)
         {
-            snappedY = _monitorBounds.Height - ToastHeight - SnapDistance;
+            snappedY = dipHeight - dipToastH - dipSnap;
             BottomGuide.Opacity = 1;
             snappedV = true;
         }
@@ -213,11 +231,12 @@ public sealed partial class PickToastPositionOverlay : Window
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        // Use the snapped position (kept by OnPointerMoved), not the raw cursor.
-        // The percentage is the top-left corner of the ghost toast relative to
-        // the monitor, so the positioner places it exactly where the ghost was.
-        SelectedPercentX = (float)(_snappedX / _monitorBounds.Width);
-        SelectedPercentY = (float)(_snappedY / _monitorBounds.Height);
+        // _snappedX/_snappedY are in DIPs (XAML units).
+        // _monitorBounds is in physical pixels.
+        // Convert DIPs → physical pixels using the per-monitor DPI scale before
+        // computing the fraction, so the saved percentage is correct at all DPI settings.
+        SelectedPercentX = (float)((_snappedX * _dpiScale) / _monitorBounds.Width);
+        SelectedPercentY = (float)((_snappedY * _dpiScale) / _monitorBounds.Height);
 
         WasConfirmed = true;
         this.Close();

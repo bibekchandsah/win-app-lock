@@ -117,6 +117,16 @@ public class ToastPositioner
         };
     }
 
+    /// <summary>
+    /// Get target monitor for a toast (public for animator).
+    /// </summary>
+    public static HMONITOR GetTargetMonitor(HWND toastHwnd, NotificationCustomSettings settings)
+    {
+        // For now, just use settings-based monitor selection
+        // Could enhance to use toastHwnd's current monitor as a hint
+        return GetTargetMonitor(settings);
+    }
+
     private static HMONITOR GetMonitorFromCursor()
     {
         if (PInvoke.GetCursorPos(out var pt))

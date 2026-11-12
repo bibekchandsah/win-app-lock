@@ -22,4 +22,6 @@ public class NotificationCustomSettings
     public int OpacityPercent { get; set; } = 100;
     public bool ClickThrough { get; set; }
     public bool AltToInteract { get; set; } = true;
+    public HotkeyBinding? ToggleHotkey { get; set; } = new HotkeyBinding { Modifiers = 0x0001, VirtualKey = 0x4E }; // Alt+N by default
+    // public List<AppNotificationOverride> AppOverrides { get; set; } = new(); // phase 2, not implemented
 }

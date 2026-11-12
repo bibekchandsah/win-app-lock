@@ -279,6 +279,8 @@ fixed - play/pause in volume mixture slider in right end side
 implemented - currently when hovered in speaker icon it expands and shows main speaker slider can we make it such that for example currently i am playing music in edge and it will show edge volume mixture slider below the speaker sider so that if user want to make changes in volume of edge then without clicking on mixture button they can change and when i focus my chrome then it shows chrome slider .
 optimize volume mixture dragging as we are dragging clipboard window 
 remove the outer body of pink border which is making looks like rectangular instead of pills shaped
+i have applied some animation setting for notification but it's not working as it need to be, currently for first time when notification enters it shows applied animation and while exit it exit as window default that is from left to right and applied animation isn't working. make it effective and working while it enters and exit and all changes effects in realtime
+
 
 
 

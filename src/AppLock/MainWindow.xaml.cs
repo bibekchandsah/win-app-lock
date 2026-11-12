@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
     private bool _isMainAuthenticated = false;
     private int _emergencyHotkeyId = -1;
     private int _ringLightHotkeyId = -1;
+    private int _notificationToggleHotkeyId = -1;
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
     private bool _isNavPaneExpanded = false;
@@ -691,6 +692,9 @@ public sealed partial class MainWindow : Window
         // Register Ring Light toggle hotkey (Ctrl+Shift+L)
         RegisterRingLightHotkey();
 
+        // Register Notification toggle hotkey (Alt+N)
+        RegisterNotificationToggleHotkey();
+
         // Start idle monitoring if configured
         StartIdleMonitoring();
 
@@ -1059,6 +1063,78 @@ public sealed partial class MainWindow : Window
         return success;
     }
 
+    internal void RegisterNotificationToggleHotkey()
+    {
+        UnregisterNotificationToggleHotkey();
+        try
+        {
+            var hotkey = ServiceContainer.Settings.NotificationCustom.ToggleHotkey;
+            if (hotkey == null || hotkey.VirtualKey == 0) return;
+
+            _notificationToggleHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(
+                (Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS)hotkey.Modifiers,
+                hotkey.VirtualKey,
+                OnNotificationToggleHotkey
+            );
+
+            if (_notificationToggleHotkeyId > 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"Notification toggle hotkey registered: {HotkeyParser.FormatHotkey(hotkey.Modifiers, hotkey.VirtualKey)}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to register notification toggle hotkey");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error registering notification toggle hotkey: {ex.Message}");
+        }
+    }
+
+    internal void UnregisterNotificationToggleHotkey()
+    {
+        if (_notificationToggleHotkeyId > 0)
+        {
+            ServiceContainer.HotkeyService.UnregisterHotkey(_notificationToggleHotkeyId);
+            _notificationToggleHotkeyId = -1;
+        }
+    }
+
+    private void OnNotificationToggleHotkey()
+    {
+        System.Diagnostics.Debug.WriteLine("Notification toggle hotkey pressed!");
+        
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                var settings = ServiceContainer.Settings.NotificationCustom;
+                settings.Enabled = !settings.Enabled;
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.SetNotificationCustomizerEnabled(settings.Enabled);
+                
+                // Update tray menu
+                ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
+                
+                // Show notification
+                var status = settings.Enabled ? "enabled" : "disabled";
+                ServiceContainer.NotificationService.ShowInfo(
+                    "Notification Positioning",
+                    $"Notification positioning {status}",
+                    TimeSpan.FromSeconds(2)
+                );
+                
+                LogService.LogAction("notifications", $"Toggled via hotkey: {status}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error toggling notification positioning: {ex.Message}");
+                LogService.LogAction("notifications", $"Error toggling via hotkey: {ex.Message}");
+            }
+        });
+    }
+
     private void InitializeInAppToast()
     {
         _toastTimer = new DispatcherTimer();
@@ -1234,6 +1310,7 @@ public sealed partial class MainWindow : Window
         // Actual cleanup when exiting app
         UnregisterEmergencyHotkey();
         UnregisterRingLightHotkey();
+        UnregisterNotificationToggleHotkey();
         // Remove WndProc subclass
         if (_subclassProc != null)
         {

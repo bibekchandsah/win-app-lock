@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using AppLock.Services;
 using AppLock.Services.Notifications;
+using AppLock.Models;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -41,6 +42,9 @@ public partial class NotificationsViewModel : ObservableObject
     [ObservableProperty]
     private int _opacityPercent;
 
+    [ObservableProperty]
+    private string _toggleHotkeyText = "Not set";
+
     public string AnchorDisplayText => $"Current: {SelectedAnchor}";
     public string MarginText => $"{ServiceContainer.Settings.NotificationCustom.MarginPx} px";
     public string OpacityText => $"{OpacityPercent}%";
@@ -71,6 +75,66 @@ public partial class NotificationsViewModel : ObservableObject
         RespectTaskbar = ServiceContainer.Settings.NotificationCustom.RespectTaskbar;
         SelectedAnchor = ServiceContainer.Settings.NotificationCustom.Anchor;
         OpacityPercent = ServiceContainer.Settings.NotificationCustom.OpacityPercent;
+        
+        // Load hotkey text
+        UpdateToggleHotkeyText();
+    }
+
+    private void UpdateToggleHotkeyText()
+    {
+        var hotkey = ServiceContainer.Settings.NotificationCustom.ToggleHotkey;
+        if (hotkey != null && hotkey.VirtualKey != 0)
+        {
+            ToggleHotkeyText = HotkeyParser.FormatHotkey(hotkey.Modifiers, hotkey.VirtualKey);
+        }
+        else
+        {
+            ToggleHotkeyText = "Not set";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChangeToggleHotkeyAsync()
+    {
+        try
+        {
+            var currentHotkey = ServiceContainer.Settings.NotificationCustom.ToggleHotkey?.ToString() ?? "Not set";
+            var dialog = new Views.ChangeHotkeyDialog(currentHotkey);
+            
+            // Wait for XamlRoot to be available
+            if (App.MainWindowInstance?.Content?.XamlRoot != null)
+            {
+                dialog.XamlRoot = App.MainWindowInstance.Content.XamlRoot;
+            }
+            
+            var result = await dialog.ShowAsync();
+            
+            if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && dialog.HotkeyChanged)
+            {
+                // Parse the hotkey string
+                var (modifiers, key) = HotkeyService.ParseHotkey(dialog.NewHotkey ?? "");
+                
+                if (key != 0)
+                {
+                    ServiceContainer.Settings.NotificationCustom.ToggleHotkey = new HotkeyBinding
+                    {
+                        VirtualKey = key,
+                        Modifiers = (uint)modifiers
+                    };
+                    ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                    UpdateToggleHotkeyText();
+                    
+                    // Re-register the hotkey
+                    (App.MainWindowInstance as MainWindow)?.RegisterNotificationToggleHotkey();
+                    
+                    LogService.LogAction("notifications", $"Toggle hotkey changed to: {dialog.NewHotkey}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"Error changing hotkey: {ex.Message}");
+        }
     }
 
     private async void LoadWallpaperAsync()
@@ -168,6 +232,9 @@ public partial class NotificationsViewModel : ObservableObject
         ServiceContainer.Settings.NotificationCustom.Enabled = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.SetNotificationCustomizerEnabled(value);
+        
+        // Update tray menu in real-time
+        ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
     }
 
     partial void OnRespectTaskbarChanged(bool value)
@@ -182,6 +249,8 @@ public partial class NotificationsViewModel : ObservableObject
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         OnPropertyChanged(nameof(OpacityText));
         OnPropertyChanged(nameof(PreviewOpacity));
+        // Apply immediately to any currently-visible toast (no toggle required)
+        ServiceContainer.NotificationCustomizerService?.ReapplyOpacityToActiveToasts();
     }
 
     partial void OnSelectedAnchorChanged(string value)
@@ -190,6 +259,9 @@ public partial class NotificationsViewModel : ObservableObject
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         OnPropertyChanged(nameof(AnchorDisplayText));
         UpdatePreviewPosition();
+        
+        // Update tray menu in real-time
+        ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
     }
 
     [RelayCommand]
@@ -241,6 +313,9 @@ public partial class NotificationsViewModel : ObservableObject
 
                 // Update preview to show custom position
                 UpdatePreviewPosition();
+                
+                // Update tray menu in real-time
+                ServiceContainer.TrayService?.UpdateNotificationPositionMenuItems();
 
                 LogService.LogAction("notifications",
                     $"Custom position saved: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");

@@ -532,6 +532,9 @@ public sealed class TrayService : IDisposable
             UpdateRingLightMenuItem();
             UpdateVolumeMixerMenuItem();
             UpdateVolumeMixerPositionSubItem();
+            
+            // Initialize notification menu (M6)
+            InitializeNotificationMenu();
 
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() ?? _trayIcon.DispatcherQueue;
 
@@ -1266,5 +1269,250 @@ public sealed class TrayService : IDisposable
 
         // Don't dispose the tray icon as it's managed by App.xaml resources
         _trayIcon = null;
+    }
+
+    // ── Notification Position Tray Menu (M6) ──────────────────────────────────
+    
+    public void InitializeNotificationMenu()
+    {
+        try
+        {
+            if (_trayIcon?.ContextFlyout is not MenuFlyout menuFlyout)
+                return;
+
+            // Find and wire up enable/disable toggle
+            MenuFlyoutItem? enabledMenuItem = null;
+            MenuFlyoutSubItem? notifSubMenu = null;
+            
+            foreach (var item in menuFlyout.Items)
+            {
+                if (item is MenuFlyoutItem mfi && mfi.Name == "NotificationEnabledMenuItem")
+                {
+                    enabledMenuItem = mfi;
+                    mfi.Click += OnNotificationEnabledToggle;
+                }
+                else if (item is MenuFlyoutSubItem sub && sub.Name == "NotificationPositionSubItem")
+                {
+                    notifSubMenu = sub;
+                }
+            }
+
+            if (notifSubMenu == null)
+                return;
+
+            // Wire up click handlers for each anchor
+            foreach (var item in notifSubMenu.Items)
+            {
+                if (item is MenuFlyoutItem mfi && mfi.Name != null)
+                {
+                    string? anchor = mfi.Name switch
+                    {
+                        "NotifTopLeftMenuItem" => "TopLeft",
+                        "NotifTopCenterMenuItem" => "TopCenter",
+                        "NotifTopRightMenuItem" => "TopRight",
+                        "NotifMiddleLeftMenuItem" => "MiddleLeft",
+                        "NotifCenterMenuItem" => "Center",
+                        "NotifMiddleRightMenuItem" => "MiddleRight",
+                        "NotifBottomLeftMenuItem" => "BottomLeft",
+                        "NotifBottomCenterMenuItem" => "BottomCenter",
+                        "NotifBottomRightMenuItem" => "BottomRight",
+                        "NotifCustomMenuItem" => "Custom",
+                        _ => null
+                    };
+
+                    if (anchor != null)
+                    {
+                        // Capture anchor in closure
+                        string anchorCaptured = anchor;
+                        mfi.Click += (s, e) => OnNotificationAnchorSelected(anchorCaptured);
+                    }
+                }
+            }
+
+            // Update initial state
+            UpdateNotificationPositionMenuItems();
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("tray", $"Error initializing notification menu: {ex.Message}");
+        }
+    }
+
+    private void OnNotificationEnabledToggle(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var enabled = ServiceContainer.Settings.NotificationCustom.Enabled;
+            ServiceContainer.Settings.NotificationCustom.Enabled = !enabled;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            ServiceContainer.SetNotificationCustomizerEnabled(!enabled);
+            
+            UpdateNotificationPositionMenuItems();
+            
+            LogService.LogAction("notifications", $"Notification positioning {(!enabled ? "enabled" : "disabled")} from tray");
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("tray", $"Error toggling notification enabled: {ex.Message}");
+        }
+    }
+
+    private async void OnNotificationAnchorSelected(string anchor)
+    {
+        try
+        {
+            if (anchor == "Custom")
+            {
+                // Trigger custom position picker
+                await TriggerCustomPositionPickerAsync();
+            }
+            else
+            {
+                ServiceContainer.Settings.NotificationCustom.Anchor = anchor;
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                UpdateNotificationPositionMenuItems();
+                
+                LogService.LogAction("notifications", $"Anchor changed from tray: {anchor}");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("tray", $"Error changing notification anchor: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerCustomPositionPickerAsync()
+    {
+        try
+        {
+            // Get primary monitor bounds
+            var primaryMonitor = Windows.Win32.PInvoke.MonitorFromPoint(
+                new System.Drawing.Point(0, 0), 
+                Windows.Win32.Graphics.Gdi.MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+
+            var info = new Windows.Win32.Graphics.Gdi.MONITORINFO
+            {
+                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Windows.Win32.Graphics.Gdi.MONITORINFO>()
+            };
+            
+            unsafe
+            {
+                Windows.Win32.PInvoke.GetMonitorInfo(primaryMonitor, ref info);
+            }
+
+            var bounds = new Windows.Graphics.RectInt32(
+                info.rcMonitor.left,
+                info.rcMonitor.top,
+                info.rcMonitor.right - info.rcMonitor.left,
+                info.rcMonitor.bottom - info.rcMonitor.top);
+
+            // Create and show picker on UI thread
+            if (_dispatcherQueue != null)
+            {
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    var picker = new Views.PickToastPositionOverlay(primaryMonitor, bounds);
+                    picker.Activate();
+                    
+                    // Wait for picker to close
+                    _ = picker.WaitForCloseAsync().ContinueWith(t =>
+                    {
+                        if (picker.WasConfirmed)
+                        {
+                            ServiceContainer.Settings.NotificationCustom.CustomPercentX = picker.SelectedPercentX;
+                            ServiceContainer.Settings.NotificationCustom.CustomPercentY = picker.SelectedPercentY;
+                            ServiceContainer.Settings.NotificationCustom.Anchor = "Custom";
+                            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                            
+                            UpdateNotificationPositionMenuItems();
+                            
+                            LogService.LogAction("notifications",
+                                $"Custom position saved from tray: X={picker.SelectedPercentX:P1} Y={picker.SelectedPercentY:P1}");
+                        }
+                    });
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("tray", $"Error opening custom position picker: {ex.Message}");
+        }
+    }
+
+    public void UpdateNotificationPositionMenuItems()
+    {
+        try
+        {
+            if (_trayIcon?.ContextFlyout is not MenuFlyout menuFlyout)
+                return;
+
+            MenuFlyoutItem? enabledMenuItem = null;
+            MenuFlyoutSubItem? notifSubMenu = null;
+            
+            foreach (var item in menuFlyout.Items)
+            {
+                if (item is MenuFlyoutItem mfi && mfi.Name == "NotificationEnabledMenuItem")
+                {
+                    enabledMenuItem = mfi;
+                }
+                else if (item is MenuFlyoutSubItem sub && sub.Name == "NotificationPositionSubItem")
+                {
+                    notifSubMenu = sub;
+                }
+            }
+
+            var settings = ServiceContainer.Settings.NotificationCustom;
+            
+            // Update enable/disable menu item
+            if (enabledMenuItem != null)
+            {
+                enabledMenuItem.Text = settings.Enabled 
+                    ? "✓ Notification Positioning Enabled" 
+                    : "Enable Notification Positioning";
+                enabledMenuItem.Icon = settings.Enabled 
+                    ? new FontIcon { Glyph = "\uE73E" } 
+                    : new FontIcon { Glyph = "\uE91C" };
+            }
+
+            if (notifSubMenu == null)
+                return;
+
+            var currentAnchor = settings.Anchor;
+
+            // Update checkmarks for position items
+            foreach (var item in notifSubMenu.Items)
+            {
+                if (item is MenuFlyoutItem mfi && mfi.Name != null)
+                {
+                    string? anchor = mfi.Name switch
+                    {
+                        "NotifTopLeftMenuItem" => "TopLeft",
+                        "NotifTopCenterMenuItem" => "TopCenter",
+                        "NotifTopRightMenuItem" => "TopRight",
+                        "NotifMiddleLeftMenuItem" => "MiddleLeft",
+                        "NotifCenterMenuItem" => "Center",
+                        "NotifMiddleRightMenuItem" => "MiddleRight",
+                        "NotifBottomLeftMenuItem" => "BottomLeft",
+                        "NotifBottomCenterMenuItem" => "BottomCenter",
+                        "NotifBottomRightMenuItem" => "BottomRight",
+                        "NotifCustomMenuItem" => "Custom",
+                        _ => null
+                    };
+
+                    if (anchor != null && anchor == currentAnchor)
+                    {
+                        mfi.Icon = new FontIcon { Glyph = "\uE73E" }; // Checkmark
+                    }
+                    else
+                    {
+                        mfi.Icon = null;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("tray", $"Error updating notification menu: {ex.Message}");
+        }
     }
 }

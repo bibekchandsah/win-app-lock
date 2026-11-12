@@ -8,7 +8,7 @@ using AppLock.Models;
 namespace AppLock.Services.Notifications;
 
 /// <summary>
-/// Applies opacity/transparency to toast notification windows.
+/// Applies opacity/transparency to toast notification windows using WS_EX_LAYERED.
 /// </summary>
 public static class ToastOpacityApplier
 {
@@ -25,67 +25,70 @@ public static class ToastOpacityApplier
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetLayeredWindowAttributes(nint hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-    /// <summary>
-    /// Applies opacity to a toast window.
-    /// </summary>
-    /// <param name="toastHwnd">The toast window handle</param>
-    /// <param name="settings">Notification settings containing OpacityPercent</param>
+    /// <summary>Applies opacity from settings to a toast window.</summary>
     public static void ApplyOpacity(HWND toastHwnd, NotificationCustomSettings settings)
     {
         try
         {
-            LogService.LogAction("notifications", 
-                $"ApplyOpacity called: HWND=0x{toastHwnd.Value:X}, OpacityPercent={settings.OpacityPercent}");
+            if (!PInvoke.IsWindow(toastHwnd))
+                return;
 
-            // Only apply if opacity is less than 100%
             if (settings.OpacityPercent >= 100)
             {
-                LogService.LogAction("notifications", "Opacity is 100%, skipping (leaving window normal)");
+                RemoveOpacity(toastHwnd);
                 return;
             }
 
-            // Validate window exists
-            if (!PInvoke.IsWindow(toastHwnd))
-            {
-                LogService.LogAction("notifications", "Window is invalid, skipping opacity");
-                return;
-            }
-
-            // Get current window style
             var exStyle = GetWindowLong(toastHwnd.Value, GWL_EXSTYLE);
-            LogService.LogAction("notifications", 
-                $"Current exStyle: 0x{exStyle:X8}, Has WS_EX_LAYERED: {(exStyle & WS_EX_LAYERED) != 0}");
-
-            // Add WS_EX_LAYERED if not already present
             if ((exStyle & WS_EX_LAYERED) == 0)
             {
                 exStyle |= WS_EX_LAYERED;
-                var result = SetWindowLong(toastHwnd.Value, GWL_EXSTYLE, exStyle);
-                LogService.LogAction("notifications", 
-                    $"Added WS_EX_LAYERED, SetWindowLong result: {result}, New exStyle: 0x{exStyle:X8}");
-                
-                // Force window to redraw with new style
+                SetWindowLong(toastHwnd.Value, GWL_EXSTYLE, exStyle);
                 PInvoke.SetWindowPos(toastHwnd, HWND.Null, 0, 0, 0, 0,
-                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | 
-                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
                     SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
             }
 
-            // Calculate alpha value (0-255, where 255 is fully opaque)
             byte alpha = (byte)Math.Max(1, Math.Min(255, (settings.OpacityPercent / 100.0) * 255));
-            LogService.LogAction("notifications", 
-                $"Setting alpha to {alpha} (from {settings.OpacityPercent}%)");
+            SetLayeredWindowAttributes(toastHwnd.Value, 0, alpha, LWA_ALPHA);
 
-            // Apply the alpha transparency
-            bool success = SetLayeredWindowAttributes(toastHwnd.Value, 0, alpha, LWA_ALPHA);
-            LogService.LogAction("notifications", 
-                $"SetLayeredWindowAttributes result: {success}, LastError: {Marshal.GetLastWin32Error()}");
+            LogService.LogAction("notifications",
+                $"ApplyOpacity: 0x{toastHwnd.Value:X} → {settings.OpacityPercent}% (alpha={alpha})");
         }
         catch (Exception ex)
         {
-            LogService.LogAction("notifications", $"Failed to apply opacity: {ex.Message}\n{ex.StackTrace}");
+            LogService.LogAction("notifications", $"ApplyOpacity error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Removes layered transparency, restoring toast to fully opaque.</summary>
+    public static void RemoveOpacity(HWND toastHwnd)
+    {
+        try
+        {
+            if (!PInvoke.IsWindow(toastHwnd))
+                return;
+
+            var exStyle = GetWindowLong(toastHwnd.Value, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_LAYERED) == 0)
+                return;
+
+            // First set alpha to 255 so the window is fully visible before stripping the flag
+            SetLayeredWindowAttributes(toastHwnd.Value, 0, 255, LWA_ALPHA);
+
+            exStyle &= ~WS_EX_LAYERED;
+            SetWindowLong(toastHwnd.Value, GWL_EXSTYLE, exStyle);
+            PInvoke.SetWindowPos(toastHwnd, HWND.Null, 0, 0, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
+                SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED);
+
+            LogService.LogAction("notifications", $"RemoveOpacity: 0x{toastHwnd.Value:X} restored to full opacity");
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"RemoveOpacity error: {ex.Message}");
         }
     }
 }

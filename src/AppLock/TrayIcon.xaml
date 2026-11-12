@@ -53,6 +53,33 @@
                 </MenuFlyoutSubItem>
 
                 <MenuFlyoutSeparator/>
+
+                <MenuFlyoutItem x:Name="NotificationEnabledMenuItem" Text="Enable Notification Positioning">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE91C;"/>
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+
+                <MenuFlyoutSubItem x:Name="NotificationPositionSubItem" Text="Notification Position">
+                    <MenuFlyoutSubItem.Icon>
+                        <FontIcon Glyph="&#xE8B7;"/>
+                    </MenuFlyoutSubItem.Icon>
+                    <MenuFlyoutItem x:Name="NotifTopLeftMenuItem" Text="Top Left"/>
+                    <MenuFlyoutItem x:Name="NotifTopCenterMenuItem" Text="Top Center"/>
+                    <MenuFlyoutItem x:Name="NotifTopRightMenuItem" Text="Top Right"/>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem x:Name="NotifMiddleLeftMenuItem" Text="Middle Left"/>
+                    <MenuFlyoutItem x:Name="NotifCenterMenuItem" Text="Center"/>
+                    <MenuFlyoutItem x:Name="NotifMiddleRightMenuItem" Text="Middle Right"/>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem x:Name="NotifBottomLeftMenuItem" Text="Bottom Left"/>
+                    <MenuFlyoutItem x:Name="NotifBottomCenterMenuItem" Text="Bottom Center"/>
+                    <MenuFlyoutItem x:Name="NotifBottomRightMenuItem" Text="Bottom Right (Default)"/>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem x:Name="NotifCustomMenuItem" Text="Custom..."/>
+                </MenuFlyoutSubItem>
+
+                <MenuFlyoutSeparator/>
                 
                 <MenuFlyoutItem Text="Exit" Click="ExitMenuItem_Click">
                     <MenuFlyoutItem.Icon>

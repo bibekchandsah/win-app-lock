@@ -60,7 +60,7 @@
 
         <!-- Content -->
         <ScrollViewer Grid.Row="2">
-            <StackPanel Spacing="12">
+            <StackPanel Spacing="12" MaxWidth="900" HorizontalAlignment="Left">
                 
                 <!-- Master Toggle Card -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -94,8 +94,6 @@
                         
                         <ToggleSwitch Grid.Column="2"
                                       IsOn="{x:Bind ViewModel.Enabled, Mode=TwoWay}"
-                                      OnContent="On"
-                                      OffContent="Off"
                                       VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
@@ -288,14 +286,14 @@
                                    FontSize="13"
                                    Margin="0,8,0,4"/>
                         
-                        <Grid>
+                        <Grid HorizontalAlignment="Left">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Left: 3x3 Anchor Grid -->
-                            <Grid Grid.Column="0" MaxWidth="300">
+                            <Grid Grid.Column="0" Width="200">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -349,7 +347,7 @@
                                     BorderThickness="1"
                                     CornerRadius="12"
                                     Padding="12"
-                                    Margin="24,0,0,0"
+                                    Margin="16,0,0,0"
                                     HorizontalAlignment="Left">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="Live Preview"
@@ -466,6 +464,287 @@
                                    FontSize="11"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                    Margin="0,4,0,0"/>
+
+                        <!-- Click-through -->
+                        <CheckBox x:Name="ClickThroughCheckBox"
+                                  Content="Click-through (notifications don't capture mouse clicks)"
+                                  IsChecked="False"
+                                  Checked="ClickThroughCheckBox_Changed"
+                                  Unchecked="ClickThroughCheckBox_Changed"
+                                  Margin="0,12,0,0"
+                                  FontSize="13"/>
+
+                        <CheckBox x:Name="AltToInteractCheckBox"
+                                  Content="Hold Alt key to interact with click-through notifications"
+                                  IsChecked="True"
+                                  Checked="AltToInteractCheckBox_Changed"
+                                  Unchecked="AltToInteractCheckBox_Changed"
+                                  IsEnabled="{x:Bind ClickThroughCheckBox.IsChecked.Value, Mode=OneWay, FallbackValue=False}"
+                                  Margin="24,4,0,0"
+                                  FontSize="12"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Animation Settings (Milestone 4) -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16"
+                        Visibility="{x:Bind ViewModel.Enabled, Mode=OneWay}">
+                    <StackPanel Spacing="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <FontIcon Grid.Column="0"
+                                      Glyph="&#xE945;"
+                                      FontSize="20"
+                                      Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,16,0"/>
+                            
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Animation Settings"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"/>
+                                <TextBlock Text="Control how notifications animate in and out"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Reduce Motion InfoBar -->
+                        <InfoBar x:Name="ReduceMotionInfoBar"
+                                 Severity="Informational"
+                                 IsOpen="False"
+                                 IsClosable="False"
+                                 Title="Accessibility: Reduce Motion Enabled"
+                                 Message="Windows Animation effects are disabled. Animations will default to fade for better accessibility. You can still override these defaults."
+                                 Margin="0,0,0,8"/>
+
+                        <!-- Enter Animation -->
+                        <TextBlock Text="Enter from:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,8,0,4"/>
+                        
+                        <ComboBox x:Name="EnterFromComboBox"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="EnterFromComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Automatic (nearest edge)" Tag="Auto" IsSelected="True"/>
+                            <ComboBoxItem Content="From top" Tag="Top"/>
+                            <ComboBoxItem Content="From bottom" Tag="Bottom"/>
+                            <ComboBoxItem Content="From left" Tag="Left"/>
+                            <ComboBoxItem Content="From right" Tag="Right"/>
+                            <ComboBoxItem Content="Fade only" Tag="Fade"/>
+                            <ComboBoxItem Content="Scale + fade" Tag="ScaleFade"/>
+                            <ComboBoxItem Content="None (instant)" Tag="None"/>
+                        </ComboBox>
+
+                        <!-- Distance Mode -->
+                        <TextBlock Text="Distance:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,8,0,4"/>
+                        
+                        <RadioButtons x:Name="DistanceModeRadio" 
+                                      SelectionChanged="DistanceModeRadio_SelectionChanged">
+                            <RadioButton Content="From screen edge" Tag="Edge" IsChecked="True"/>
+                            <RadioButton Content="Short slide" Tag="Short"/>
+                        </RadioButtons>
+
+                        <!-- Short Distance Slider (only visible when Short is selected) -->
+                        <StackPanel x:Name="ShortDistancePanel" 
+                                    Visibility="Collapsed"
+                                    Spacing="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <TextBlock Grid.Column="0"
+                                           Text="Slide distance:"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1"
+                                           x:Name="ShortDistanceText"
+                                           Text="60 px"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                            
+                            <Slider x:Name="ShortDistanceSlider"
+                                    Minimum="40"
+                                    Maximum="200"
+                                    Value="60"
+                                    StepFrequency="10"
+                                    ValueChanged="ShortDistanceSlider_ValueChanged"/>
+                        </StackPanel>
+
+                        <!-- Enter Duration -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0"
+                                       Text="Enter duration:"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       x:Name="EnterDurationText"
+                                       Text="300 ms"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <Slider x:Name="EnterDurationSlider"
+                                Minimum="100"
+                                Maximum="1500"
+                                Value="300"
+                                StepFrequency="50"
+                                TickFrequency="200"
+                                ValueChanged="EnterDurationSlider_ValueChanged"/>
+
+                        <!-- Easing -->
+                        <TextBlock Text="Easing:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,8,0,4"/>
+                        
+                        <ComboBox x:Name="EasingComboBox"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="EasingComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Ease out (smooth deceleration)" Tag="EaseOut" IsSelected="True"/>
+                            <ComboBoxItem Content="Ease in-out (smooth acceleration and deceleration)" Tag="EaseInOut"/>
+                            <ComboBoxItem Content="Linear (constant speed)" Tag="Linear"/>
+                            <ComboBoxItem Content="Spring (slight overshoot)" Tag="Spring"/>
+                            <ComboBoxItem Content="Bounce (bouncy effect)" Tag="Bounce"/>
+                        </ComboBox>
+
+                        <!-- Exit Animation -->
+                        <TextBlock Text="Exit to:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,12,0,4"/>
+                        
+                        <ComboBox x:Name="ExitToComboBox"
+                                  HorizontalAlignment="Stretch"
+                                  SelectionChanged="ExitToComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Same as enter (reverse)" Tag="Reverse" IsSelected="True"/>
+                            <ComboBoxItem Content="To top" Tag="Top"/>
+                            <ComboBoxItem Content="To bottom" Tag="Bottom"/>
+                            <ComboBoxItem Content="To left" Tag="Left"/>
+                            <ComboBoxItem Content="To right" Tag="Right"/>
+                            <ComboBoxItem Content="Fade only" Tag="Fade"/>
+                            <ComboBoxItem Content="None (instant)" Tag="None"/>
+                        </ComboBox>
+
+                        <!-- Exit Duration -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0"
+                                       Text="Exit duration:"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       x:Name="ExitDurationText"
+                                       Text="250 ms"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        
+                        <Slider x:Name="ExitDurationSlider"
+                                Minimum="100"
+                                Maximum="1500"
+                                Value="250"
+                                StepFrequency="50"
+                                TickFrequency="200"
+                                ValueChanged="ExitDurationSlider_ValueChanged"/>
+
+                    </StackPanel>
+                </Border>
+
+                <!-- Hotkey and Shortcuts (Milestone 6) -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16"
+                        Visibility="{x:Bind ViewModel.Enabled, Mode=OneWay}">
+                    <StackPanel Spacing="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <FontIcon Grid.Column="0"
+                                      Glyph="&#xE92E;"
+                                      FontSize="20"
+                                      Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,16,0"/>
+                            
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Shortcuts"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"/>
+                                <TextBlock Text="Quick access hotkeys and tray menu"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Toggle Hotkey -->
+                        <TextBlock Text="Toggle customization on/off:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,8,0,4"/>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0"
+                                       Text="{x:Bind ViewModel.ToggleHotkeyText, Mode=OneWay}"
+                                       FontSize="13"
+                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"/>
+                            
+                            <Button Grid.Column="1"
+                                    Content="Change"
+                                    Command="{x:Bind ViewModel.ChangeToggleHotkeyCommand}"
+                                    FontSize="12"/>
+                        </Grid>
+
+                        <TextBlock Text="Tray menu shortcuts"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,8,0,4"/>
+                        
+                        <TextBlock Text="Right-click the tray icon and select 'Notification Position' to quickly change anchors"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
                 </Border>
 
