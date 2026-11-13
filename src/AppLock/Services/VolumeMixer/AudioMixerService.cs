@@ -351,6 +351,24 @@ public sealed class AudioMixerService : IDisposable
         });
     }
 
+    /// <summary>
+    /// NAudio snapshots the IAudioSessionEnumerator when the AudioSessionManager is created, and
+    /// MMDevice caches that manager for the lifetime of the device. Without an explicit refresh,
+    /// sessions created after startup (e.g. Chrome starting playback later) never show up.
+    /// Must only be called from the audio thread.
+    /// </summary>
+    private static void RefreshSessionList(AudioSessionManager sessionManager)
+    {
+        try
+        {
+            sessionManager.RefreshSessions();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AudioMixer] RefreshSessions error: {ex.Message}");
+        }
+    }
+
     private List<SessionInfo> ReadSessionsOnAudioThread()
     {
         var sessions = new List<SessionInfo>();
@@ -359,7 +377,9 @@ public sealed class AudioMixerService : IDisposable
             if (_defaultDevice?.AudioSessionManager == null)
                 return sessions;
 
-            var col = _defaultDevice.AudioSessionManager.Sessions;
+            var sessionManager = _defaultDevice.AudioSessionManager;
+            RefreshSessionList(sessionManager);
+            var col = sessionManager.Sessions;
             for (int i = 0; i < col.Count; i++)
             {
                 try
@@ -367,6 +387,11 @@ public sealed class AudioMixerService : IDisposable
                     var s = col[i];
                     var pid = (int)s.GetProcessID;
                     if (pid == 0 || pid == Environment.ProcessId)
+                        continue;
+
+                    // Drop sessions whose owner has already ended (AudioSessionStateExpired = 2);
+                    // Windows keeps them enumerated for a moment after the process exits.
+                    if ((int)s.State == 2)
                         continue;
 
                     sessions.Add(new SessionInfo
@@ -405,7 +430,9 @@ public sealed class AudioMixerService : IDisposable
             try
             {
                 if (_defaultDevice?.AudioSessionManager == null) return;
-                var col = _defaultDevice.AudioSessionManager.Sessions;
+                var sessionManager = _defaultDevice.AudioSessionManager;
+                RefreshSessionList(sessionManager);
+                var col = sessionManager.Sessions;
                 for (int i = 0; i < col.Count; i++)
                 {
                     try
@@ -431,7 +458,9 @@ public sealed class AudioMixerService : IDisposable
             try
             {
                 if (_defaultDevice?.AudioSessionManager == null) return;
-                var col = _defaultDevice.AudioSessionManager.Sessions;
+                var sessionManager = _defaultDevice.AudioSessionManager;
+                RefreshSessionList(sessionManager);
+                var col = sessionManager.Sessions;
                 for (int i = 0; i < col.Count; i++)
                 {
                     try
