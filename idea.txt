@@ -287,8 +287,8 @@ fixed - fix the refreshing style in protection page, it should get refreshed lik
 fixed - smooth animation when collapsing and non collapsing sidebar
 fixed - hover effect in sidebar in light mode isn't seen 
 fixed - in "protected applications" when there is no application locked then show message of no application is locked, lock the application from "running application" tab to see the list or show some meaningful message
+fixed - make the sidebar rounded in the top right side as like whatsapp has rounded edge in sidebar
 add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
-make the sidebar rounded in the top right side as like whatsapp has rounded edge in sidebar
 auto lock whatever page is in currently on Idle
 rounded edge in "import firewall rule, add from installed apps" dialog box
 background mica window 11 effect in all page 

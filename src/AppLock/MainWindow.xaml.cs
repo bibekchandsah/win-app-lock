@@ -810,7 +810,13 @@ public sealed partial class MainWindow : Window
             storyboard.Completed += (_, __) =>
             {
                 if (NavRailCard != null) NavRailCard.Width = to;
-                SetNavLabelsVisible(to > NavPaneCollapsedWidth + 1);
+
+                var expandedNow = to > NavPaneCollapsedWidth + 1;
+                SetNavLabelsVisible(expandedNow);
+
+                // Park the collapsed labels at opacity 0 so the next expand starts from a clean base.
+                if (!expandedNow) SetNavLabelsOpacity(0);
+
                 _navRailStoryboard = null;
             };
 
@@ -821,7 +827,9 @@ public sealed partial class MainWindow : Window
         {
             // If the width animation cannot run, still land on the requested width.
             NavRailCard.Width = to;
-            SetNavLabelsVisible(to > NavPaneCollapsedWidth + 1);
+            var landingExpanded = to > NavPaneCollapsedWidth + 1;
+            SetNavLabelsVisible(landingExpanded);
+            SetNavLabelsOpacity(landingExpanded ? 1 : 0);
             _navRailStoryboard = null;
             System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav rail animation error: {ex.Message}");
         }
@@ -855,8 +863,17 @@ public sealed partial class MainWindow : Window
             foreach (var label in GetNavLabels())
             {
                 var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(label);
+
+                // Set the resting opacity first. A row going Collapsed -> Visible is re-realized, which can
+                // drop a composition animation started in the same pass; with the base value already at 1
+                // the text is still visible if that happens (the cause of the "no labels on first expand"
+                // bug), and the fade simply plays when it survives.
+                visual.StopAnimation("Opacity");
+                label.Opacity = 1;
+
                 var animation = compositor.CreateScalarKeyFrameAnimation();
                 animation.Duration = TimeSpan.FromMilliseconds(to > 0.5f ? 160 : 120);
+                animation.InsertKeyFrame(0f, to > 0.5f ? 0f : 1f);
                 animation.InsertKeyFrame(1f, to, ease);
                 visual.StartAnimation("Opacity", animation);
             }

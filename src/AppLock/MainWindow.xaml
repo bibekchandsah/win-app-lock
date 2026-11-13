@@ -62,7 +62,7 @@
                 <Button x:Name="NavTogglePaneButton"
                         Grid.Row="0"
                         Width="40" Height="40"
-                        Margin="8,10,4,2"
+                        Margin="4,10,4,2"
                         Padding="0"
                         CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                         Click="NavTogglePaneButton_Click"
