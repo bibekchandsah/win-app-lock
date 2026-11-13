@@ -164,6 +164,21 @@ public sealed partial class VolumeOverlayWindow : Window
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowRgn(nint hWnd, nint hRgn, bool bRedraw);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetWindowRect(nint hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hWnd);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
     // WS_EX_LAYERED + UpdateLayeredWindow for true per-pixel alpha (no DWM glow)
     private const int WS_EX_LAYERED = 0x00080000;
     private const uint LWA_ALPHA = 0x00000002;
@@ -474,10 +489,56 @@ public sealed partial class VolumeOverlayWindow : Window
             // 5. Clear any GDI window region so DirectComposition can render true per-pixel alpha.
             //    A set GDI region clips DComp and prevents transparency on transparent pixels.
             SetWindowRgn(hWnd, nint.Zero, true);
+
+            // 6. WinUI 3 paints an opaque (theme-colored) surface for the window itself, so the
+            //    transparent XAML corners still show a black square corner behind the rounded card.
+            //    Clip the window to the card's rounded rectangle so the outer edge is rounded too.
+            ApplyRoundedWindowRegion(hWnd);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] EnableTransparency error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Clips the window (HWND) to the same rounded rectangle as the XAML card. Without this the
+    /// opaque WinUI window background shows square black corners around the card. The radius is
+    /// read from the live CardBorder.CornerRadius so it follows the idle circle, the expanded
+    /// pill and the size animation.
+    /// </summary>
+    private void ApplyRoundedWindowRegion(nint hWnd)
+    {
+        try
+        {
+            if (hWnd == 0 || !GetWindowRect(hWnd, out RECT rect)) return;
+
+            int width  = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
+            if (width <= 0 || height <= 0) return;
+
+            double cornerRadius = CardBorder?.CornerRadius.TopLeft ?? 22.0;
+            uint dpi = GetDpiForWindow(hWnd);
+            double scale = dpi > 0 ? dpi / 96.0 : 1.0;
+
+            // CreateRoundRectRgn takes the corner ellipse width/height, i.e. the diameter.
+            int diameter = (int)Math.Round(cornerRadius * 2 * scale);
+            int maxDiameter = Math.Min(width, height);
+            if (diameter > maxDiameter) diameter = maxDiameter;
+            if (diameter < 2) diameter = 2;
+
+            nint hRgn = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter + 1, diameter + 1);
+            if (hRgn == nint.Zero) return;
+
+            if (SetWindowRgn(hWnd, hRgn, true) == 0)
+            {
+                // On failure the caller still owns the region, so release it.
+                DeleteObject(hRgn);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ApplyRoundedWindowRegion error: {ex.Message}");
         }
     }
 
