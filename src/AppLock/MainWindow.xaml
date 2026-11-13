@@ -8,6 +8,21 @@
     Title="AppLock">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.Resources>
+        <!-- Burger spin: the settings-style 180° turn with a short settle when the pane toggles. -->
+        <Storyboard x:Name="NavToggleSpinStoryboard">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NavTogglePaneIcon"
+                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.26" Value="180">
+                    <EasingDoubleKeyFrame.EasingFunction>
+                        <BackEase EasingMode="EaseOut" Amplitude="0.25"/>
+                    </EasingDoubleKeyFrame.EasingFunction>
+                </EasingDoubleKeyFrame>
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -36,8 +51,12 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Pane-coloured backdrop behind both panes. The rounded content panel reveals it in its
+                 corner, which is the seam WhatsApp draws between its rail and the chat list. -->
+            <Border Grid.ColumnSpan="2" Background="{ThemeResource LayerFillColorDefaultBrush}"/>
+
             <!-- Left Navigation Rail -->
-            <Grid x:Name="NavRail" Grid.Column="0" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid x:Name="NavRail" Grid.Column="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -56,7 +75,13 @@
                         BorderThickness="0"
                         HorizontalAlignment="Left"
                         ToolTipService.ToolTip="Toggle navigation pane">
-                    <FontIcon x:Name="NavTogglePaneIcon" Glyph="&#xE700;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <FontIcon x:Name="NavTogglePaneIcon" Glyph="&#xE700;" FontSize="16"
+                              RenderTransformOrigin="0.5,0.5"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                        <FontIcon.RenderTransform>
+                            <RotateTransform/>
+                        </FontIcon.RenderTransform>
+                    </FontIcon>
                 </Button>
 
                 <!-- Top Navigation Items -->
@@ -433,8 +458,13 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Main Content Area -->
-            <Frame x:Name="ContentFrame" Grid.Column="1" />
+            <!-- Main Content Area: a rounded panel, rounded in the top-left like WhatsApp's chat list. -->
+            <Border x:Name="ContentHost"
+                    Grid.Column="1"
+                    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                    SizeChanged="ContentHost_SizeChanged">
+                <Frame x:Name="ContentFrame"/>
+            </Border>
         </Grid>
 
         <!-- In-App Toast Notification Host (Matches Professional Fluent Style) -->

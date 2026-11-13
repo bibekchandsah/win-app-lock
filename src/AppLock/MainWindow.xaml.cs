@@ -628,7 +628,45 @@ public sealed partial class MainWindow : Window
 
     private void NavTogglePaneButton_Click(object sender, RoutedEventArgs e)
     {
+        // Same feel as the Windows Settings burger: a quick 180° turn that settles into place.
+        NavToggleSpinStoryboard.Begin();
         SetNavPaneExpanded(!_isNavPaneExpanded, saveSetting: true);
+    }
+
+    /// <summary>Radius of the content panel's rounded corner, matching the pane/chat-list seam.</summary>
+    private const float ContentCornerRadius = 16f;
+
+    private void ContentHost_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ApplyContentCornerClip(e.NewSize);
+    }
+
+    /// <summary>
+    /// Clips the content panel to a rounded rectangle. Page backgrounds are opaque, so a XAML corner
+    /// radius alone would be painted over; the clip keeps every page inside the rounded corner.
+    /// The rectangle is oversized so only the top-left corner is rounded (right and bottom stay flush).
+    /// </summary>
+    private void ApplyContentCornerClip(Windows.Foundation.Size size)
+    {
+        if (size.Width <= 0 || size.Height <= 0) return;
+
+        try
+        {
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ContentHost);
+            var compositor = visual.Compositor;
+
+            var geometry = compositor.CreateRoundedRectangleGeometry();
+            geometry.CornerRadius = new System.Numerics.Vector2(ContentCornerRadius, ContentCornerRadius);
+            geometry.Size = new System.Numerics.Vector2(
+                (float)size.Width + ContentCornerRadius,
+                (float)size.Height + ContentCornerRadius);
+
+            visual.Clip = compositor.CreateGeometricClip(geometry);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Content corner clip error: {ex.Message}");
+        }
     }
 
     public void SetNavPaneExpanded(bool expanded, bool saveSetting = true)

@@ -185,8 +185,13 @@ public sealed partial class ProtectionPage : Page
         {
             CheckAutostartWarning();
             ApplyLocalization();
+            RunningViewModel.StartAutoRefresh();
         };
-        Unloaded += (s, e) => ServiceContainer.LocalizationService.LanguageChanged -= LocalizationService_LanguageChanged;
+        Unloaded += (s, e) =>
+        {
+            ServiceContainer.LocalizationService.LanguageChanged -= LocalizationService_LanguageChanged;
+            RunningViewModel.StopAutoRefresh();
+        };
         ApplyLocalization();
     }
 
@@ -395,6 +400,11 @@ public sealed partial class ProtectionPage : Page
     private void MainTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         // Handle tab changes if needed
+    }
+
+    private void BrowseRunningPrograms_Click(object sender, RoutedEventArgs e)
+    {
+        MainTabView.SelectedItem = RunningProgramsTab;
     }
 
     private void LockButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
@@ -906,11 +916,25 @@ public sealed partial class ProtectionPage : Page
 
     private void RefreshButton_Click(SplitButton sender, SplitButtonClickEventArgs args)
     {
-        RunningViewModel.RefreshWindowsCommand.Execute(null);
+        RefreshRunningPrograms(showFeedback: true);
     }
 
     private void RefreshNowMenuItem_Click(object sender, RoutedEventArgs e)
     {
+        RefreshRunningPrograms(showFeedback: true);
+    }
+
+    /// <summary>
+    /// Re-reads the running windows. Only rows that actually changed are touched, so the list updates
+    /// in place; the icon spins briefly so the click is acknowledged even when nothing changed.
+    /// </summary>
+    private void RefreshRunningPrograms(bool showFeedback)
+    {
+        if (showFeedback)
+        {
+            try { RefreshSpinStoryboard.Begin(); } catch { }
+        }
+
         RunningViewModel.RefreshWindowsCommand.Execute(null);
     }
 

@@ -22,6 +22,10 @@ public partial class LockedProgramsViewModel : ObservableObject
     [ObservableProperty]
     private int _lockedCount;
 
+    /// <summary>True when nothing is locked at all, so the page can explain what to do instead.</summary>
+    [ObservableProperty]
+    private bool _isEmpty;
+
     public LockedProgramsViewModel(LockManager lockManager)
     {
         _lockManager = lockManager;
@@ -94,6 +98,7 @@ public partial class LockedProgramsViewModel : ObservableObject
     private void UpdateCount()
     {
         LockedCount = LockedRules.Count;
+        IsEmpty = LockedRules.Count == 0;
     }
 
     [RelayCommand]

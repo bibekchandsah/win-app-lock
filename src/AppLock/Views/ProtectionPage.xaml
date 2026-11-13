@@ -17,6 +17,19 @@
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <local:CustomPasswordMenuTextConverter x:Key="CustomPasswordMenuTextConverter"/>
+
+        <!-- Spins the refresh glyph once so a manual refresh is visibly acknowledged. -->
+        <Storyboard x:Name="RefreshSpinStoryboard">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="RefreshIcon"
+                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.5" Value="360">
+                    <EasingDoubleKeyFrame.EasingFunction>
+                        <CubicEase EasingMode="EaseInOut"/>
+                    </EasingDoubleKeyFrame.EasingFunction>
+                </EasingDoubleKeyFrame>
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
     </Page.Resources>
 
     <Grid Margin="24">
@@ -180,7 +193,12 @@
                                     </ToolTip>
                                 </ToolTipService.ToolTip>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="14"/>
+                                    <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="14"
+                                              RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform/>
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
                                     <TextBlock Text="Refresh"/>
                                 </StackPanel>
                                 <SplitButton.Flyout>
@@ -222,12 +240,12 @@
                             <ListView x:Name="RunningProgramsList"
                                       ItemsSource="{x:Bind RunningViewModel.FilteredWindows, Mode=OneWay}"
                                       SelectionMode="None">
+                                <!-- Only added/removed rows animate, so a refresh fades rows instead of
+                                     replaying an entrance animation over the whole list. -->
                                 <ListView.ItemContainerTransitions>
                                     <TransitionCollection>
                                         <AddDeleteThemeTransition/>
-                                        <ContentThemeTransition/>
                                         <ReorderThemeTransition/>
-                                        <EntranceThemeTransition IsStaggeringEnabled="False"/>
                                     </TransitionCollection>
                                 </ListView.ItemContainerTransitions>
                                 <ListView.ItemTemplate>
@@ -386,7 +404,8 @@
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
-                                CornerRadius="8">
+                                CornerRadius="8"
+                                Visibility="{x:Bind LockedViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
                             <ListView x:Name="LockedProgramsList"
                                       ItemsSource="{x:Bind LockedViewModel.FilteredRules, Mode=OneWay}"
                                       SelectionMode="None">
@@ -529,6 +548,37 @@
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
+                        </Border>
+
+                        <!-- Empty state: nothing is locked yet -->
+                        <Border Grid.Row="1"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="32"
+                                Visibility="{x:Bind LockedViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel Spacing="10"
+                                        MaxWidth="420"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE72E;" FontSize="30"
+                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                <TextBlock Text="No applications are locked yet"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"/>
+                                <TextBlock Text="Lock an application from the “Running programs” tab and it will appear here, protected by your password."
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                                <Button Content="Browse running programs"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,6,0,0"
+                                        Click="BrowseRunningPrograms_Click"/>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </TabViewItem>

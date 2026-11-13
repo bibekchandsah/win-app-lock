@@ -34,6 +34,8 @@ public partial class RunningProgramsViewModel : ObservableObject
     [ObservableProperty]
     private bool _autoRefreshEnabled = true;
 
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _autoRefreshTimer;
+
     public RunningProgramsViewModel(LockManager lockManager)
     {
         _windowEnumerator = ServiceContainer.WindowEnumerator;
@@ -89,13 +91,45 @@ public partial class RunningProgramsViewModel : ObservableObject
         if (value)
         {
             _windowEventMonitor.Start();
+            StartAutoRefresh();
             System.Diagnostics.Debug.WriteLine("Auto-refresh enabled");
         }
         else
         {
             _windowEventMonitor.Stop();
+            StopAutoRefresh();
             System.Diagnostics.Debug.WriteLine("Auto-refresh disabled");
         }
+    }
+
+    /// <summary>
+    /// Refreshes the list on a fixed interval, the same way the Active connections tab does, so the
+    /// running list and its status line stay current without the user pressing Refresh.
+    /// </summary>
+    public void StartAutoRefresh(int intervalSeconds = 3)
+    {
+        StopAutoRefresh();
+        if (_dispatcherQueue == null) return;
+
+        var timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(intervalSeconds);
+        timer.Tick += (_, _) =>
+        {
+            if (!AutoRefreshEnabled) return;
+
+            // Show the busy state for a frame, then refresh on the next dispatcher pass.
+            IsLoading = true;
+            _dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, RefreshWindows);
+        };
+        timer.Start();
+        _autoRefreshTimer = timer;
+    }
+
+    /// <summary>Stops the periodic refresh (page left the visual tree).</summary>
+    public void StopAutoRefresh()
+    {
+        _autoRefreshTimer?.Stop();
+        _autoRefreshTimer = null;
     }
 
     private void OnWindowsChanged(object? sender, EventArgs e)
@@ -238,7 +272,7 @@ public partial class RunningProgramsViewModel : ObservableObject
             }
 
             FilterWindows();
-            
+
             System.Diagnostics.Debug.WriteLine($"[RefreshWindows] Updated {seenHandles.Count} windows, added {currentWindows.Count - seenHandles.Count} new windows, total: {Windows.Count}");
         }
         finally
@@ -275,6 +309,14 @@ public partial class RunningProgramsViewModel : ObservableObject
 
     private void FilterWindows()
     {
+        // Lock/rules events can arrive from a background thread; ObservableCollection changes must be
+        // made on the UI thread.
+        if (_dispatcherQueue != null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(FilterWindows);
+            return;
+        }
+
         var query = SearchText?.Trim().ToLowerInvariant() ?? string.Empty;
 
         // Filter first
@@ -322,10 +364,34 @@ public partial class RunningProgramsViewModel : ObservableObject
             newItems.Add(representative);
         }
 
-        // Replace the collection in one shot — avoids multiple CollectionChanged events
-        // which cause RPC_E_WRONG_THREAD (0x8001010E) in WinRT's apartment marshaller
-        // when fired from incremental Move/Insert/Remove calls.
-        FilteredWindows = new ObservableCollection<RunningWindow>(newItems);
+        // Update the shown collection in place, the same way Internet Access > Active connections does:
+        // rows that are still present keep their container (no rebuild, no page-wide flash) and only
+        // added/removed rows play the list's add/delete fade.
+        for (int i = FilteredWindows.Count - 1; i >= 0; i--)
+        {
+            if (!newItems.Contains(FilteredWindows[i]))
+            {
+                FilteredWindows.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < newItems.Count; i++)
+        {
+            var item = newItems[i];
+            int existingIndex = FilteredWindows.IndexOf(item);
+
+            if (existingIndex < 0)
+            {
+                if (i < FilteredWindows.Count)
+                    FilteredWindows.Insert(i, item);
+                else
+                    FilteredWindows.Add(item);
+            }
+            else if (existingIndex != i)
+            {
+                FilteredWindows.Move(existingIndex, i);
+            }
+        }
     }
 
     [RelayCommand]
