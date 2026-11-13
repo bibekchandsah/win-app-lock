@@ -43,6 +43,12 @@ public sealed partial class VolumeOverlayWindow : Window
     private bool _isPointerOverPanel;
     private bool _isUpdatingSlider; // Flag to prevent feedback loops
 
+    // Window-level translucency — idle opacity is applied as layered-window alpha so the desktop
+    // behind the overlay is visible instead of the card fading against an opaque black surface.
+    private DispatcherQueueTimer? _opacityTimer;
+    private bool _layeredAlphaReady;
+    private double _overlayOpacity = 1.0;
+
     // Smooth drag tracking using screen coordinates (identical to ClipboardPopupWindow)
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -91,6 +97,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private const uint SWP_NOCOPYBITS = 0x0100; // Don't preserve content
     private const uint SWP_NOZORDER = 0x0004; // Don't change z-order
     private const uint SWP_ASYNCWINDOWPOS = 0x4000; // Non-blocking updates
+    private const uint SWP_FRAMECHANGED = 0x0020; // Applies style changes to the frame
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
@@ -424,10 +431,17 @@ public sealed partial class VolumeOverlayWindow : Window
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Current ExStyle: 0x{exStyle:X}");
                 
                 // NOTE: Removed WS_EX_TOOLWINDOW as it can make the window invisible in some scenarios
-                // We only need WS_EX_NOACTIVATE (prevents focus steal) and WS_EX_TOPMOST (always on top)
+                // We only need WS_EX_NOACTIVATE (prevents focus steal) and WS_EX_TOPMOST (always on top).
                 exStyle |= WS_EX_NOACTIVATE | WS_EX_TOPMOST;
                 SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] New ExStyle: 0x{exStyle:X}");
+
+                // Enable window-wide translucency (WS_EX_LAYERED + LWA_ALPHA) so the configured
+                // idle opacity really blends with the desktop instead of darkening the card against
+                // the opaque window surface. A layered window must have its alpha set before it is
+                // shown, so this runs before the SWP_SHOWWINDOW below.
+                _layeredAlphaReady = true;
+                ApplyWindowAlpha(_overlayOpacity);
 
                 // Force window to the top of the z-order without activating it
                 bool result = SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, 
@@ -1161,8 +1175,21 @@ public sealed partial class VolumeOverlayWindow : Window
                 catch { }
             }
 
-            // Idle opacity
-            RootGrid.Opacity = settings.IdleOpacity / 100.0;
+            // Idle opacity — applied as window (layered) alpha so the desktop behind the idle
+            // chip is visible. Fading RootGrid.Opacity alone only blends the card against the
+            // opaque window surface, which still looks solid.
+            RootGrid.Opacity = 1.0;
+            var targetOpacity = _state == OverlayState.Idle
+                ? settings.IdleOpacity / 100.0
+                : settings.HoverOpacity / 100.0;
+            if (_layeredAlphaReady)
+            {
+                ApplyWindowAlpha(targetOpacity);
+            }
+            else
+            {
+                _overlayOpacity = Math.Clamp(targetOpacity, 0.0, 1.0);
+            }
 
             // Drag mode feedback handled via smooth opacity change during drag
 
@@ -2682,24 +2709,68 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void AnimateOpacity(double targetOpacity, int durationMs)
     {
-        if (durationMs == 0)
+        double target = Math.Clamp(targetOpacity, 0.0, 1.0);
+
+        _opacityTimer?.Stop();
+        _opacityTimer = null;
+
+        if (!_layeredAlphaReady || durationMs <= 0)
         {
-            RootGrid.Opacity = targetOpacity;
+            ApplyWindowAlpha(target);
             return;
         }
 
-        var animation = new DoubleAnimation
-        {
-            To = targetOpacity,
-            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
+        double startOpacity = _overlayOpacity;
+        var startTime = DateTime.UtcNow;
 
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(animation);
-        Storyboard.SetTarget(animation, RootGrid);
-        Storyboard.SetTargetProperty(animation, "Opacity");
-        storyboard.Begin();
+        _opacityTimer = DispatcherQueue.CreateTimer();
+        _opacityTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _opacityTimer.IsRepeating = true;
+        _opacityTimer.Tick += (s, e) =>
+        {
+            double progress = Math.Min(1.0, (DateTime.UtcNow - startTime).TotalMilliseconds / durationMs);
+            double ease = 1.0 - Math.Pow(1.0 - progress, 3);
+            ApplyWindowAlpha(startOpacity + (target - startOpacity) * ease);
+
+            if (progress >= 1.0)
+            {
+                _opacityTimer?.Stop();
+                _opacityTimer = null;
+            }
+        };
+        _opacityTimer.Start();
+    }
+
+    /// <summary>
+    /// Sets the whole window's opacity through Win32 layered-window alpha. Unlike RootGrid.Opacity
+    /// this really blends the overlay with whatever is behind it, so the idle chip is see-through
+    /// at the configured idle opacity.
+    /// </summary>
+    private void ApplyWindowAlpha(double opacity)
+    {
+        _overlayOpacity = Math.Clamp(opacity, 0.0, 1.0);
+        if (!_layeredAlphaReady) return;
+
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == 0) return;
+
+            nint exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_LAYERED) == 0)
+            {
+                SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                SetWindowPos(hWnd, nint.Zero, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            }
+
+            byte alpha = (byte)Math.Clamp((int)Math.Round(_overlayOpacity * 255.0), 1, 255);
+            SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ApplyWindowAlpha error: {ex.Message}");
+        }
     }
 
     private void GetDimensionsForState(OverlayState state, out int width, out int height)
@@ -3134,7 +3205,7 @@ public sealed partial class VolumeOverlayWindow : Window
             _lastMoveY = _dragStartWindowPos.Y;
 
             // Visual feedback - use hover opacity for visibility during drag
-            RootGrid.Opacity = settings.HoverOpacity / 100.0;
+            ApplyWindowAlpha(settings.HoverOpacity / 100.0);
 
             (sender as UIElement)?.CapturePointer(e.Pointer);
             e.Handled = true;
@@ -3194,7 +3265,7 @@ public sealed partial class VolumeOverlayWindow : Window
         bool pointerStillOver = bounds.Contains(pointer.Position);
         
         // Use hover opacity if pointer is still over, otherwise idle
-        RootGrid.Opacity = pointerStillOver ? (settings.HoverOpacity / 100.0) : (settings.IdleOpacity / 100.0);
+        ApplyWindowAlpha(pointerStillOver ? (settings.HoverOpacity / 100.0) : (settings.IdleOpacity / 100.0));
 
         // Save custom position
         var appWindow = AppWindow;
@@ -3220,7 +3291,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         _isDragging = false;
         var settings = ServiceContainer.Settings.VolumeMixer;
-        RootGrid.Opacity = settings.IdleOpacity / 100.0;
+        ApplyWindowAlpha(settings.IdleOpacity / 100.0);
 
         var appWindow = AppWindow;
         if (appWindow != null)
