@@ -909,6 +909,9 @@ public sealed partial class RingLightPage : Page
         try
         {
             var result = await ServiceContainer.RingLightService.CameraMonitor.CheckCameraStatusAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"[RingLight] Test camera detection: streaming={result.IsStreaming} " +
+                $"apps=[{string.Join(", ", result.ActiveApps)}] reason={result.Reason}");
 
             string hardwareInfo = result.InstalledCameras.Count > 0
                 ? $"Camera found: {string.Join(", ", result.InstalledCameras)}."
@@ -916,27 +919,70 @@ public sealed partial class RingLightPage : Page
 
             if (result.IsStreaming)
             {
-                string appsInfo = result.ActiveApps.Count > 0
-                    ? $"Currently in use by: {string.Join(", ", result.ActiveApps)}."
-                    : "Camera is actively streaming (in use).";
-
-                TestCameraStatusText.Text = $"{hardwareInfo} {appsInfo}";
+                TestCameraStatusText.Text = $"{hardwareInfo} In use by: {string.Join(", ", result.ActiveApps)}.";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
             }
             else
             {
-                TestCameraStatusText.Text = $"{hardwareInfo} No apps currently streaming camera.";
+                TestCameraStatusText.Text = $"{hardwareInfo} Not in use by any app.";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
             }
+
+            ShowCameraCheckDetails(result);
         }
         catch (Exception ex)
         {
             TestCameraStatusText.Text = $"Check failed: {ex.Message}";
+            TestCameraDetailsPanel.Children.Clear();
+            TestCameraDetailsPanel.Visibility = Visibility.Collapsed;
         }
         finally
         {
             TestCameraDetectButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// Lists every detection method the check ran and what it found, so the result can be
+    /// understood even when Windows does not publish live camera usage.
+    /// </summary>
+    private void ShowCameraCheckDetails(CameraCheckResult result)
+    {
+        TestCameraDetailsPanel.Children.Clear();
+
+        var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var accent = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+
+        foreach (var check in result.Checks)
+        {
+            var row = new Grid { ColumnSpacing = 10 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var label = new TextBlock
+            {
+                Text = check.Label,
+                FontSize = 12,
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+
+            var detail = new TextBlock
+            {
+                Text = check.Detail,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = check.Detected ? accent : secondary,
+            };
+
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(detail, 1);
+            row.Children.Add(label);
+            row.Children.Add(detail);
+            TestCameraDetailsPanel.Children.Add(row);
+        }
+
+        TestCameraDetailsPanel.Visibility = result.Checks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>

@@ -90,3 +90,4 @@ $RECYCLE.BIN/
 dist/
 
 publish/
+scratch/build_check

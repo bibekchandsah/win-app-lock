@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using AppLock.Models;
 using Microsoft.Win32;
 using Windows.Devices.Enumeration;
-using Windows.Media.Capture;
 
 namespace AppLock.Services.RingLight;
 
@@ -21,10 +20,22 @@ public sealed class CameraCheckResult
     public bool IsStreaming { get; init; }
     public IReadOnlyList<string> ActiveApps { get; init; } = Array.Empty<string>();
     public string? Reason { get; init; }
+
+    /// <summary>One entry per detection method that ran, so the UI can show what was checked.</summary>
+    public IReadOnlyList<CameraCheckSignal> Checks { get; init; } = Array.Empty<CameraCheckSignal>();
 }
 
+/// <summary>Result of a single detection method (hardware, Windows records, app processes, browsers).</summary>
+public sealed record CameraCheckSignal(string Label, bool Detected, string Detail);
+
 /// <summary>
-/// Monitors Windows privacy consent store and MediaCapture hardware streams for webcam usage.
+/// Detects webcam usage with layered checks:
+///   1. the Windows privacy consent store (CapabilityAccessManager), the record Windows itself
+///      keeps for camera access — precise, but recent builds often only update it after a session;
+///   2. Chromium video capture service processes that are actually consuming CPU (the process
+///      lingers after a call, so existence alone is not evidence of use);
+///   3. known camera apps that are running (Windows Camera, Teams, Zoom, OBS, ...), used as a
+///      fallback where Windows publishes no usage at all.
 /// Implements 1-second continuous use debounce for 'On' and 5-second silence debounce for 'Off'.
 /// </summary>
 public sealed class CameraUsageMonitor : ICameraUsageSource
@@ -61,6 +72,14 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     private int _consecutiveActiveSeconds;
     private int _consecutiveInactiveSeconds;
     private bool _disposed;
+
+    // Browser capture-service sampling: a Chromium "VideoCaptureService" utility process lingers
+    // after a call ends, so its CPU time is sampled to tell a streaming service from an idle one.
+    private const double BrowserCaptureCpuThresholdMs = 8.0;
+    private readonly Dictionary<uint, CaptureSample> _captureSamples = new();
+    private readonly object _captureSamplesLock = new();
+
+    private readonly record struct CaptureSample(TimeSpan Cpu, DateTime At, bool Active);
 
     public bool IsMonitoring
     {
@@ -197,59 +216,6 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Probes each video capture device by attempting MediaCapture initialization.
-    /// If an exclusive stream is actively held by another app, initialization fails with
-    /// UnauthorizedAccessException or HRESULT 0xC00D3704 / ERROR_BUSY.
-    /// If the camera is free/idle, initialization succeeds and the capture object is immediately disposed.
-    /// </summary>
-    public async Task<(bool IsStreaming, string? DeviceName, string? Reason)> ProbeCameraStreamingAsync()
-    {
-        try
-        {
-            var devices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-            if (devices.Count == 0)
-                return (false, null, "No camera devices found");
-
-            foreach (var dev in devices)
-            {
-                if (!dev.IsEnabled) continue;
-
-                try
-                {
-                    using var capture = new MediaCapture();
-                    var initSettings = new MediaCaptureInitializationSettings
-                    {
-                        VideoDeviceId = dev.Id,
-                        StreamingCaptureMode = StreamingCaptureMode.Video
-                    };
-                    await capture.InitializeAsync(initSettings);
-                    // Successfully opened -> this camera is idle and available
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Camera stream is exclusively locked by another application
-                    return (true, dev.Name, "Access denied: stream locked by another app");
-                }
-                catch (System.Runtime.InteropServices.COMException comEx)
-                {
-                    return (true, dev.Name, $"Device busy (HRESULT 0x{comEx.HResult:X8})");
-                }
-                catch (Exception ex)
-                {
-                    return (true, dev.Name, ex.Message);
-                }
-            }
-
-            return (false, devices[0].Name, null);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Probe error: {ex.Message}");
-            return (false, null, ex.Message);
-        }
-    }
-
-    /// <summary>
     /// Checks running processes for known video conferencing or camera apps.
     /// </summary>
     public static IReadOnlyList<string> GetRunningCameraAppNames()
@@ -297,6 +263,20 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     public static IReadOnlyList<string> GetActiveVideoCaptureProcesses()
     {
         var found = new List<string>();
+        foreach (var proc in QueryVideoCaptureServiceProcesses())
+        {
+            if (!found.Contains(proc.Display)) found.Add(proc.Display);
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// Chromium video capture utility processes with their PIDs. The process outlives the camera
+    /// session, so callers must check whether it is actually working (see GetActiveBrowserCaptureApps).
+    /// </summary>
+    private static List<(uint Pid, string Display)> QueryVideoCaptureServiceProcesses()
+    {
+        var found = new List<(uint Pid, string Display)>();
         try
         {
             // ManagementScope and ObjectQuery do not implement IDisposable — do not wrap in using.
@@ -315,20 +295,26 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             foreach (var obj in searcher.Get())
             {
                 var name = obj["Name"]?.ToString() ?? "";
-                string display = name.ToLowerInvariant() switch
+
+                // Only real browsers: other processes can match the command-line filter (for
+                // example a shell running a command that mentions the marker).
+                string? display = name.ToLowerInvariant() switch
                 {
                     "chrome.exe"  => "Google Chrome (Web video call)",
                     "msedge.exe"  => "Microsoft Edge (Web video call)",
                     "brave.exe"   => "Brave (Web video call)",
                     "opera.exe"   => "Opera (Web video call)",
                     "vivaldi.exe" => "Vivaldi (Web video call)",
-                    _ => string.IsNullOrEmpty(name)
-                            ? "Web video call"
-                            : $"{Path.GetFileNameWithoutExtension(name)} (Web video call)"
+                    _ => null
                 };
 
-                if (!found.Contains(display))
-                    found.Add(display);
+                if (display == null) continue;
+
+                uint pid = 0;
+                try { pid = Convert.ToUInt32(obj["ProcessId"]); } catch { }
+
+                if (pid != 0 && !found.Exists(f => f.Pid == pid))
+                    found.Add((pid, display));
             }
         }
         catch (Exception ex)
@@ -340,7 +326,81 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Fast check to verify whether any browser or camera process is running before querying WMI.
+    /// Browser web-call apps whose Chromium video capture service is actually working.
+    /// The service process stays alive after a call ends, so its CPU time is sampled and only a
+    /// service that keeps consuming CPU (converting frames) counts as an active camera user.
+    /// </summary>
+    private IReadOnlyList<string> GetActiveBrowserCaptureApps()
+    {
+        var active = new List<string>();
+
+        if (!HasRunningBrowserOrCameraProcess())
+        {
+            PruneCaptureSamples(new HashSet<uint>());
+            return active;
+        }
+
+        var processes = QueryVideoCaptureServiceProcesses();
+        var seen = new HashSet<uint>();
+        foreach (var proc in processes) seen.Add(proc.Pid);
+        PruneCaptureSamples(seen);
+
+        var now = DateTime.UtcNow;
+        foreach (var proc in processes)
+        {
+            TimeSpan cpu;
+            try
+            {
+                using var p = Process.GetProcessById((int)proc.Pid);
+                cpu = p.TotalProcessorTime;
+            }
+            catch
+            {
+                continue;
+            }
+
+            bool isWorking = false;
+            lock (_captureSamplesLock)
+            {
+                if (_captureSamples.TryGetValue(proc.Pid, out var previous))
+                {
+                    isWorking = previous.Active;
+                    if ((now - previous.At).TotalMilliseconds >= 400)
+                    {
+                        var usedMs = (cpu - previous.Cpu).TotalMilliseconds;
+                        isWorking = usedMs >= BrowserCaptureCpuThresholdMs;
+                        _captureSamples[proc.Pid] = new CaptureSample(cpu, now, isWorking);
+                    }
+                }
+                else
+                {
+                    // First sighting: remember a baseline, decide on the next sample.
+                    _captureSamples[proc.Pid] = new CaptureSample(cpu, now, false);
+                }
+            }
+
+            if (isWorking && !active.Contains(proc.Display)) active.Add(proc.Display);
+        }
+
+        return active;
+    }
+
+    private void PruneCaptureSamples(HashSet<uint> stillRunning)
+    {
+        lock (_captureSamplesLock)
+        {
+            if (_captureSamples.Count == 0) return;
+            var stale = new List<uint>();
+            foreach (var pid in _captureSamples.Keys)
+            {
+                if (!stillRunning.Contains(pid)) stale.Add(pid);
+            }
+            foreach (var pid in stale) _captureSamples.Remove(pid);
+        }
+    }
+
+    /// <summary>
+    /// Fast pre-check so the WMI query only runs while a browser or camera app is open.
     /// </summary>
     private static bool HasRunningBrowserOrCameraProcess()
     {
@@ -360,61 +420,69 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Performs an all-in-one check of camera hardware devices, MediaCapture streaming lock,
-    /// and active apps (both from ConsentStore, web VideoCaptureService, and process detection).
+    /// Reports camera hardware plus the apps Windows currently has an open camera session for.
     /// </summary>
     public async Task<CameraCheckResult> CheckCameraStatusAsync()
     {
         var installed = await GetInstalledCamerasAsync();
-        if (installed.Count == 0)
+
+        // Detection is layered because no single Windows source is reliable everywhere:
+        //  1. Windows usage records (consent store) — precise, but recent builds often do not
+        //     update them while a session is live.
+        //  2. Known camera apps that are running — a fallback for those same builds.
+        //  3. Chromium capture-service processes, but only while they are actually consuming CPU,
+        //     since the utility process stays alive as long as the browser is open.
+        var storeApps = GetActiveCameraApps();
+        var cameraApps = GetRunningCameraAppNames();
+        var browserApps = GetActiveBrowserCaptureApps();
+        if (browserApps.Count == 0)
         {
-            return new CameraCheckResult
-            {
-                InstalledCameras = Array.Empty<string>(),
-                IsStreaming = false,
-                ActiveApps = Array.Empty<string>(),
-                Reason = "No camera hardware detected"
-            };
+            // First sighting of a capture service only records a CPU baseline; sample again so the
+            // button reports the truth instead of "not capturing" for an in-progress call.
+            await Task.Delay(700);
+            var second = GetActiveBrowserCaptureApps();
+            if (second.Count > 0) browserApps = second;
         }
+
+        var checks = new List<CameraCheckSignal>
+        {
+            new("Camera hardware", installed.Count > 0,
+                installed.Count > 0 ? string.Join(", ", installed) : "no camera device found"),
+            new("Windows usage records", storeApps.Count > 0,
+                storeApps.Count > 0 ? string.Join(", ", storeApps) : "no app reported as using the camera"),
+            new("Camera apps running", cameraApps.Count > 0,
+                cameraApps.Count > 0 ? string.Join(", ", cameraApps) : "no known camera app is running"),
+            new("Browser video capture", browserApps.Count > 0,
+                browserApps.Count > 0
+                    ? string.Join(", ", browserApps) + " (capture service active)"
+                    : "no browser is capturing"),
+        };
 
         var activeApps = new List<string>();
-
-        // 1. Detect browser/Electron web video calls via WMI (Chrome, Edge, Brave, etc.)
-        // Accurate: the video_capture.mojom.VideoCaptureService subprocess exists only
-        // when the browser is actively holding the camera pipeline open.
-        var webCaptureApps = GetActiveVideoCaptureProcesses();
-        foreach (var app in webCaptureApps)
+        foreach (var group in new[] { storeApps, cameraApps, browserApps })
         {
-            if (!activeApps.Contains(app)) activeApps.Add(app);
+            foreach (var app in group)
+            {
+                if (!activeApps.Contains(app)) activeApps.Add(app);
+            }
         }
 
-        // Note: GetRunningCameraAppNames() (process-name scan for Teams, Discord, OBS, etc.)
-        // is intentionally NOT called here — it reports apps just for being open, not for
-        // actually using the camera, causing false positives.
+        bool isStreaming = activeApps.Count > 0;
+        string reason = installed.Count == 0
+            ? "No camera hardware detected"
+            : isStreaming ? string.Join(", ", activeApps) : "Camera is idle";
 
-        // 2. Collect from Windows privacy consent store (catches UWP/packaged apps)
-        foreach (var app in GetActiveCameraApps())
-        {
-            if (!activeApps.Contains(app)) activeApps.Add(app);
-        }
-
-        // 3. Probe hardware via MediaCapture initialization (catches exclusive driver locks)
-        var (isExclusiveLocked, devName, reason) = await ProbeCameraStreamingAsync();
-        if (isExclusiveLocked && activeApps.Count == 0)
-        {
-            activeApps.Add("Active camera stream");
-        }
-
-        bool isStreaming = activeApps.Count > 0 || isExclusiveLocked;
+        Debug.WriteLine(
+            $"[CameraUsageMonitor] Check: streaming={isStreaming} apps=[{string.Join(", ", activeApps)}] " +
+            $"records=[{storeApps.Count}] apps=[{cameraApps.Count}] browsers=[{browserApps.Count}]");
 
         return new CameraCheckResult
         {
             InstalledCameras = installed,
             IsStreaming = isStreaming,
             ActiveApps = activeApps,
-            Reason = isStreaming
-                ? (activeApps.Count > 0 ? string.Join(", ", activeApps) : reason ?? "Camera streaming active")
-                : "Camera is idle"
+            Reason = reason,
+            Checks = checks
         };
     }
 
@@ -498,7 +566,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private async void OnPollTick(object? state)
+    private void OnPollTick(object? state)
     {
         if (_disposed) return;
         if (Interlocked.CompareExchange(ref _isPolling, 1, 0) != 0) return;
@@ -507,35 +575,28 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         {
             if (!_isMonitoring) return;
 
+            // Layered detection, same as CheckCameraStatusAsync: Windows usage records first, then
+            // browser capture services that are actually using CPU, then known camera apps.
+            // The later (more expensive) checks only run while the earlier ones found nothing.
             var activeApps = new List<string>();
-
-            // 1. Check browser video capture utility processes (Chrome, Edge, Brave, etc.)
-            // Pre-check with GetProcessesByName before the slower WMI query.
-            if (HasRunningBrowserOrCameraProcess())
-            {
-                foreach (var app in GetActiveVideoCaptureProcesses())
-                {
-                    if (!activeApps.Contains(app)) activeApps.Add(app);
-                }
-            }
-
-            // Note: GetRunningCameraAppNames() is intentionally NOT called here —
-            // it reports apps just for being open (not for actually using the camera),
-            // causing false positives for Teams, Discord, OBS, etc. that are open but idle.
-
-            // 2. Check registry consent store (catches UWP/packaged apps, Windows Camera, etc.)
             foreach (var app in GetActiveCameraApps())
             {
                 if (!activeApps.Contains(app)) activeApps.Add(app);
             }
 
-            // 4. Probe hardware if in-use or potential lock
-            if (activeApps.Count == 0 && _isDebouncedInUse)
+            if (activeApps.Count == 0)
             {
-                var probe = await ProbeCameraStreamingAsync();
-                if (probe.IsStreaming)
+                foreach (var app in GetActiveBrowserCaptureApps())
                 {
-                    activeApps.Add("Camera");
+                    if (!activeApps.Contains(app)) activeApps.Add(app);
+                }
+            }
+
+            if (activeApps.Count == 0)
+            {
+                foreach (var app in GetRunningCameraAppNames())
+                {
+                    if (!activeApps.Contains(app)) activeApps.Add(app);
                 }
             }
 
