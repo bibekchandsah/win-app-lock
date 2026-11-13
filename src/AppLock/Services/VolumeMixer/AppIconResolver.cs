@@ -72,15 +72,39 @@ public sealed class AppIconResolver
             return displayName;
         }
 
+        // Special handling for packaged apps (e.g. WhatsApp, Store apps)
+        if (exePath.Contains("WindowsApps", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(exePath);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    var manifestPath = Path.Combine(dir, "AppxManifest.xml");
+                    if (File.Exists(manifestPath))
+                    {
+                        var doc = System.Xml.Linq.XDocument.Load(manifestPath);
+                        var desc = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "VisualElements");
+                        var uwpName = desc?.Attribute("DisplayName")?.Value;
+                        if (!string.IsNullOrWhiteSpace(uwpName) && !uwpName.StartsWith("ms-resource:"))
+                        {
+                            return uwpName;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
         // 2. Try FileVersionInfo
         try
         {
             var versionInfo = FileVersionInfo.GetVersionInfo(exePath);
             
-            if (!string.IsNullOrWhiteSpace(versionInfo.FileDescription))
+            if (!string.IsNullOrWhiteSpace(versionInfo.FileDescription) && !versionInfo.FileDescription.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase))
                 return versionInfo.FileDescription;
 
-            if (!string.IsNullOrWhiteSpace(versionInfo.ProductName))
+            if (!string.IsNullOrWhiteSpace(versionInfo.ProductName) && !versionInfo.ProductName.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase))
                 return versionInfo.ProductName;
         }
         catch
@@ -88,8 +112,12 @@ public sealed class AppIconResolver
             // Ignore
         }
 
-        // 3. Fallback to exe name without extension
-        return Path.GetFileNameWithoutExtension(exePath);
+        // 3. Fallback to friendly name if known
+        var fileBase = Path.GetFileNameWithoutExtension(exePath);
+        if (fileBase.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase))
+            return "WhatsApp";
+
+        return fileBase;
     }
 
     public void ClearCache()

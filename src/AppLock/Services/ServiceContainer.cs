@@ -44,6 +44,8 @@ public static class ServiceContainer
     private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
     private static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? _volumeMixerHotkeyManager;
     private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
+    private static KeyboardService? _keyboardService;
+    private static ViewModels.KeyboardViewModel? _keyboardViewModel;
 
     public static NotificationService NotificationService
     {
@@ -728,6 +730,32 @@ public static class ServiceContainer
             {
                 _eyeCareScheduler.Start();
             }
+        }
+    }
+
+    // ── Keyboard ──────────────────────────────────────────────────────────────
+
+    public static KeyboardService KeyboardService
+    {
+        get
+        {
+            if (_keyboardService == null)
+            {
+                _keyboardService = new KeyboardService();
+            }
+            return _keyboardService;
+        }
+    }
+
+    public static ViewModels.KeyboardViewModel KeyboardViewModel
+    {
+        get
+        {
+            if (_keyboardViewModel == null)
+            {
+                _keyboardViewModel = new ViewModels.KeyboardViewModel(KeyboardService, Settings);
+            }
+            return _keyboardViewModel;
         }
     }
 }

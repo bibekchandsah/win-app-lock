@@ -40,6 +40,7 @@ public sealed class AudioMixerService : IDisposable
     // Keep strong references to prevent GC while COM has pointers to these callbacks
     private AudioEndpointVolumeNotificationDelegate? _volumeCallbackDelegate;
     private DeviceNotificationClient? _deviceNotificationClient;
+    private AudioSessionManager.SessionCreatedDelegate? _sessionCreatedHandler;
 
     // ── Cached state (written on audio thread, read on any thread safely) ─────
 
@@ -53,6 +54,7 @@ public sealed class AudioMixerService : IDisposable
     public event EventHandler<float>? MasterVolumeChanged;
     public event EventHandler<bool>?  MasterMuteChanged;
     public event EventHandler?        DefaultDeviceChanged;
+    public event EventHandler?        AudioSessionCreated;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -175,6 +177,20 @@ public sealed class AudioMixerService : IDisposable
                 _volumeCallbackDelegate = OnVolumeNotification;
                 _defaultDevice.AudioEndpointVolume.OnVolumeNotification += _volumeCallbackDelegate;
 
+                // Subscribe to new audio session creation (e.g. Chrome, media players)
+                try
+                {
+                    var sessionManager = _defaultDevice.AudioSessionManager;
+                    // Touching Count initializes the collection and activates session notifications
+                    _ = sessionManager.Sessions.Count;
+                    _sessionCreatedHandler = OnAudioSessionCreated;
+                    sessionManager.OnSessionCreated += _sessionCreatedHandler;
+                }
+                catch (Exception sessionEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AudioMixer] Failed to register OnSessionCreated: {sessionEx.Message}");
+                }
+
                 // Capture initial state and push to UI
                 var vol  = _defaultDevice.AudioEndpointVolume.MasterVolumeLevelScalar;
                 var mute = _defaultDevice.AudioEndpointVolume.Mute;
@@ -215,6 +231,12 @@ public sealed class AudioMixerService : IDisposable
                     {
                         _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= _volumeCallbackDelegate;
                         _volumeCallbackDelegate = null;
+                    }
+
+                    if (_sessionCreatedHandler != null)
+                    {
+                        _defaultDevice.AudioSessionManager.OnSessionCreated -= _sessionCreatedHandler;
+                        _sessionCreatedHandler = null;
                     }
                 }
                 catch { /* best-effort */ }
@@ -260,6 +282,14 @@ public sealed class AudioMixerService : IDisposable
         {
             MasterVolumeChanged?.Invoke(this, data.MasterVolume);
             MasterMuteChanged?.Invoke(this, data.Muted);
+        });
+    }
+
+    private void OnAudioSessionCreated(object sender, IAudioSessionControl newSession)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            AudioSessionCreated?.Invoke(this, EventArgs.Empty);
         });
     }
 

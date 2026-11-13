@@ -313,6 +313,8 @@ public sealed partial class MainWindow : Window
                         pageType == typeof(ClipboardSettingsPage) ||
                         pageType == typeof(ClipboardHistoryPage) ||
                         pageType == typeof(VolumeMixerSettingsPage) ||
+                        pageType == typeof(NotificationsPage) ||
+                        pageType == typeof(KeyboardPage) ||
                         pageType == typeof(RingLightPage);
 
         bool isDark = IsDarkMode;

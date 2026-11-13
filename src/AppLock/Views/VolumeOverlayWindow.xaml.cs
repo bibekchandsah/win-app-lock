@@ -1725,6 +1725,18 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 try
                 {
+                    // Special handling for UWP / Windows Store packaged apps (e.g. WhatsApp)
+                    // Packaged executables often have generic/blank default Win32 icons, while the
+                    // actual high-res branded icons are stored in the package's Assets folder.
+                    if (exePath.Contains("WindowsApps", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var uwpBytes = TryExtractUwpAppIcon(exePath);
+                        if (uwpBytes != null && uwpBytes.Length > 0)
+                        {
+                            return uwpBytes;
+                        }
+                    }
+
                     // Try multiple sizes to get the best quality
                     System.Drawing.Icon? bestIcon = null;
                     
@@ -1816,6 +1828,106 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// For packaged UWP/Store apps (like WhatsApp Desktop), extracts the branded app logo
+    /// from the package manifest or Assets directory instead of the generic executable icon.
+    /// </summary>
+    private static byte[]? TryExtractUwpAppIcon(string exePath)
+    {
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(exePath);
+            if (string.IsNullOrEmpty(dir) || !System.IO.Directory.Exists(dir))
+                return null;
+
+            // 1. Try AppxManifest.xml to find the exact declared logo file
+            var manifestPath = System.IO.Path.Combine(dir, "AppxManifest.xml");
+            if (System.IO.File.Exists(manifestPath))
+            {
+                try
+                {
+                    var doc = System.Xml.Linq.XDocument.Load(manifestPath);
+                    var visualElements = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "VisualElements");
+                    var logoRel = visualElements?.Attribute("Square44x44Logo")?.Value
+                               ?? visualElements?.Attribute("Square150x150Logo")?.Value;
+
+                    if (!string.IsNullOrEmpty(logoRel))
+                    {
+                        var logoFull = System.IO.Path.Combine(dir, logoRel);
+                        var logoDir = System.IO.Path.GetDirectoryName(logoFull);
+                        var logoBase = System.IO.Path.GetFileNameWithoutExtension(logoFull);
+
+                        if (!string.IsNullOrEmpty(logoDir) && System.IO.Directory.Exists(logoDir))
+                        {
+                            // Look for targetsize or unplated variants (prefer unplated 48, 44, 32, 24, etc.)
+                            var candidates = System.IO.Directory.GetFiles(logoDir, $"{logoBase}*.png");
+                            if (candidates.Length > 0)
+                            {
+                                // Prefer targetsize-48 or 44 unplated/normal, or largest suitable size
+                                var bestMatch = candidates.FirstOrDefault(f => f.Contains("targetsize-48_altform-unplated", StringComparison.OrdinalIgnoreCase))
+                                             ?? candidates.FirstOrDefault(f => f.Contains("targetsize-48", StringComparison.OrdinalIgnoreCase))
+                                             ?? candidates.FirstOrDefault(f => f.Contains("targetsize-44", StringComparison.OrdinalIgnoreCase))
+                                             ?? candidates.FirstOrDefault(f => f.Contains("targetsize-32", StringComparison.OrdinalIgnoreCase))
+                                             ?? candidates.FirstOrDefault(f => f.Contains("targetsize-24", StringComparison.OrdinalIgnoreCase))
+                                             ?? candidates.OrderByDescending(f => new System.IO.FileInfo(f).Length).FirstOrDefault();
+
+                                if (bestMatch != null && System.IO.File.Exists(bestMatch))
+                                {
+                                    return System.IO.File.ReadAllBytes(bestMatch);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 2. Direct search in common Assets directory
+            var assetsDir = System.IO.Path.Combine(dir, "Assets");
+            if (System.IO.Directory.Exists(assetsDir))
+            {
+                // Check for dedicated logo.ico
+                var logoIco = System.IO.Path.Combine(assetsDir, "logo.ico");
+                if (System.IO.File.Exists(logoIco))
+                {
+                    try
+                    {
+                        using var ico = new System.Drawing.Icon(logoIco, 32, 32);
+                        using var bmp = ico.ToBitmap();
+                        using var ms = new System.IO.MemoryStream();
+                        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                        return ms.ToArray();
+                    }
+                    catch { }
+                }
+
+                // Search for any AppList, StoreLogo, or Application logo pngs
+                var pngFiles = System.IO.Directory.GetFiles(assetsDir, "*AppList*.png")
+                    .Concat(System.IO.Directory.GetFiles(assetsDir, "*Logo*.png"))
+                    .ToArray();
+
+                if (pngFiles.Length > 0)
+                {
+                    var bestPng = pngFiles.FirstOrDefault(f => f.Contains("targetsize-48", StringComparison.OrdinalIgnoreCase))
+                               ?? pngFiles.FirstOrDefault(f => f.Contains("targetsize-44", StringComparison.OrdinalIgnoreCase))
+                               ?? pngFiles.FirstOrDefault(f => f.Contains("targetsize-32", StringComparison.OrdinalIgnoreCase))
+                               ?? pngFiles.OrderByDescending(f => new System.IO.FileInfo(f).Length).FirstOrDefault();
+
+                    if (bestPng != null && System.IO.File.Exists(bestPng))
+                    {
+                        return System.IO.File.ReadAllBytes(bestPng);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] TryExtractUwpAppIcon error: {ex.Message}");
+        }
+
+        return null;
     }
 
     // Simple icon extractor helper class
@@ -2232,6 +2344,22 @@ public sealed partial class VolumeOverlayWindow : Window
         _audioService.MasterVolumeChanged += OnAudioMasterVolumeChanged;
         _audioService.MasterMuteChanged += OnAudioMasterMuteChanged;
         _audioService.DefaultDeviceChanged += OnAudioDefaultDeviceChanged;
+        _audioService.AudioSessionCreated += OnAudioSessionCreated;
+    }
+
+    /// <summary>
+    /// Called (on the UI thread via DispatcherQueue) whenever a new audio session is created —
+    /// for example, when Chrome starts playing audio. Triggers an immediate session refresh so
+    /// the new app appears in the mixer without requiring a toggle.
+    /// </summary>
+    private void OnAudioSessionCreated(object? sender, EventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("[VolumeMixer] New audio session detected — refreshing sessions");
+        // Only refresh if the mixer panel or expanded bar is visible (avoid unnecessary work when idle)
+        if (_state == OverlayState.MixerOpen || _state == OverlayState.Expanded)
+        {
+            RefreshSessions();
+        }
     }
 
     private void OnAudioMasterVolumeChanged(object? sender, float volume)
@@ -3080,6 +3208,7 @@ public sealed partial class VolumeOverlayWindow : Window
         _audioService.MasterVolumeChanged -= OnAudioMasterVolumeChanged;
         _audioService.MasterMuteChanged -= OnAudioMasterMuteChanged;
         _audioService.DefaultDeviceChanged -= OnAudioDefaultDeviceChanged;
+        _audioService.AudioSessionCreated -= OnAudioSessionCreated;
 
         // Dispose camera service
         try

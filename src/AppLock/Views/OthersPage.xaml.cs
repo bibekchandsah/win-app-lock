@@ -16,6 +16,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? RingLightTemplate { get; set; }
     public DataTemplate? VolumeMixerTemplate { get; set; }
     public DataTemplate? NotificationsTemplate { get; set; }
+    public DataTemplate? KeyboardTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -29,6 +30,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "ringlight" => RingLightTemplate,
                 "volumemixer" => VolumeMixerTemplate,
                 "notifications" => NotificationsTemplate,
+                "keyboard" => KeyboardTemplate,
                 _ => null
             };
         }
@@ -228,6 +230,24 @@ public sealed partial class OthersPage : Page
                 RingLightEnabled = false,
                 VolumeMixerEnabled = false,
                 NotificationsEnabled = ServiceContainer.Settings.NotificationCustom.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "keyboard",
+                Order = 80,
+                Icon = "\uE92E", // Keyboard icon
+                Title = "Keyboard",
+                Description = "Enable or disable the integrated laptop keyboard",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                BrightnessHotkeysEnabled = false,
+                BlurHotkeyEnabled = false,
+                EyeCareEnabled = false,
+                ClipboardEnabled = false,
+                RingLightEnabled = false,
+                VolumeMixerEnabled = false,
+                NotificationsEnabled = false,
+                KeyboardEnabled = ServiceContainer.Settings.Keyboard.Enabled
             }
         };
 
@@ -269,6 +289,10 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(NotificationsPage));
             }
+            else if (card.Id == "keyboard")
+            {
+                Frame.Navigate(typeof(KeyboardPage));
+            }
         }
     }
 
@@ -294,10 +318,10 @@ public sealed partial class OthersPage : Page
 
     private void CardExpander_Loaded(object sender, RoutedEventArgs e)
     {
-        // Show expander for brightness, eyecare, clipboard, ringlight, volumemixer, and notifications cards
+        // Show expander for brightness, eyecare, clipboard, ringlight, volumemixer, notifications, and keyboard cards
         if (sender is Expander expander && expander.DataContext is UtilityCard card)
         {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer" || card.Id == "notifications")
+            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer" || card.Id == "notifications" || card.Id == "keyboard")
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -392,6 +416,16 @@ public sealed partial class OthersPage : Page
             }
         }
     }
+
+    private void KeyboardToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
+        {
+            card.KeyboardEnabled = toggle.IsOn;
+            ServiceContainer.Settings.Keyboard.Enabled = toggle.IsOn;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
+    }
 }
 
 public class UtilityCard : INotifyPropertyChanged
@@ -415,6 +449,7 @@ public class UtilityCard : INotifyPropertyChanged
     public bool IsRingLightCard => Id == "ringlight";
     public bool IsVolumeMixerCard => Id == "volumemixer";
     public bool IsNotificationsCard => Id == "notifications";
+    public bool IsKeyboardCard => Id == "keyboard";
     
     public Visibility BrightnessContentVisibility => IsBrightnessCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility EyeCareContentVisibility => IsEyeCareCard ? Visibility.Visible : Visibility.Collapsed;
@@ -422,6 +457,7 @@ public class UtilityCard : INotifyPropertyChanged
     public Visibility RingLightContentVisibility => IsRingLightCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility VolumeMixerContentVisibility => IsVolumeMixerCard ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NotificationsContentVisibility => IsNotificationsCard ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility KeyboardContentVisibility => IsKeyboardCard ? Visibility.Visible : Visibility.Collapsed;
     
     public string Status
     {
@@ -527,6 +563,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_notificationsEnabled != value)
             {
                 _notificationsEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _keyboardEnabled;
+    public bool KeyboardEnabled
+    {
+        get => _keyboardEnabled;
+        set
+        {
+            if (_keyboardEnabled != value)
+            {
+                _keyboardEnabled = value;
                 OnPropertyChanged();
             }
         }

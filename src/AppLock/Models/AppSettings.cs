@@ -73,6 +73,9 @@ public class AppSettings
     // Notifications
     public NotificationCustomSettings NotificationCustom { get; set; } = new();
 
+    // Keyboard
+    public KeyboardSettings Keyboard { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

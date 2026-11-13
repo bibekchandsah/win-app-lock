@@ -1,0 +1,145 @@
+using AppLock.Services;
+using AppLock.ViewModels;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+
+namespace AppLock.Views
+{
+    public sealed partial class KeyboardPage : Page
+    {
+        private readonly KeyboardViewModel _viewModel;
+        private readonly KeyboardService _keyboardService;
+
+        public KeyboardPage()
+        {
+            this.InitializeComponent();
+            _keyboardService = ServiceContainer.KeyboardService;
+            _viewModel = ServiceContainer.KeyboardViewModel;
+            
+            LoadSettings();
+        }
+
+        private void LoadSettings()
+        {
+            // Update toggle without triggering event
+            KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+            KeyboardToggle.IsOn = _viewModel.Enabled;
+            KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+
+            UpdateStatus();
+        }
+
+        private void UpdateStatus()
+        {
+            if (!_viewModel.IsAdmin)
+            {
+                StatusText.Text = "Administrator privileges required";
+                StatusIcon.Glyph = "\uE7BA"; // Warning icon
+                StatusIcon.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Orange);
+                
+                WarningCard.Visibility = Visibility.Visible;
+                
+                KeyboardToggle.IsEnabled = false;
+            }
+            else
+            {
+                StatusText.Text = _viewModel.StatusText;
+                StatusIcon.Glyph = _viewModel.Enabled ? "\uE73E" : "\uE711"; // Checkmark or Cancel
+                StatusIcon.Foreground = _viewModel.Enabled 
+                    ? new SolidColorBrush(Microsoft.UI.Colors.Green)
+                    : new SolidColorBrush(Microsoft.UI.Colors.Red);
+                
+                WarningCard.Visibility = Visibility.Collapsed;
+                KeyboardToggle.IsEnabled = true;
+            }
+        }
+
+        private async void KeyboardToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_viewModel.IsAdmin)
+            {
+                // Revert toggle
+                KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+                KeyboardToggle.IsOn = _viewModel.Enabled;
+                KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+                return;
+            }
+
+            var newState = KeyboardToggle.IsOn;
+
+            // Confirm with user
+            var dialog = new ContentDialog
+            {
+                XamlRoot = this.XamlRoot,
+                Title = newState ? "Enable Input?" : "Disable Input?",
+                Content = $"Are you sure you want to {(newState ? "enable" : "disable")} keyboard and mouse input?\n\nThis will take effect immediately.",
+                PrimaryButtonText = "Yes",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var result = await dialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                try
+                {
+                    bool success = _keyboardService.SetKeyboardState(newState);
+                    
+                    if (success)
+                    {
+                        _viewModel.Enabled = newState;
+                        
+                        // Save to settings
+                        ServiceContainer.Settings.Keyboard.Enabled = newState;
+                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                        
+                        UpdateStatus();
+                    }
+                    else
+                    {
+                        throw new Exception("BlockInput API call failed");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    // Show error dialog
+                    var errorDialog = new ContentDialog
+                    {
+                        XamlRoot = this.XamlRoot,
+                        Title = "Error",
+                        Content = $"Failed to change input state: {ex.Message}",
+                        CloseButtonText = "OK"
+                    };
+                    await errorDialog.ShowAsync();
+
+                    // Revert toggle
+                    KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+                    KeyboardToggle.IsOn = _viewModel.Enabled;
+                    KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+                }
+            }
+            else
+            {
+                // User cancelled - revert toggle
+                KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+                KeyboardToggle.IsOn = _viewModel.Enabled;
+                KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+            }
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Navigate back to Others page
+            Frame.Navigate(typeof(OthersPage));
+        }
+
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Reload current status from registry
+            _viewModel.Enabled = _keyboardService.IsKeyboardEnabled();
+            LoadSettings();
+        }
+    }
+}
