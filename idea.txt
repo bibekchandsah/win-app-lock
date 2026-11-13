@@ -283,6 +283,10 @@ i have applied some animation setting for notification but it's not working as i
 i have implemented setting for hotkey and system tray menu for notification but it don't show on the UI and default i have set "alt + n" for toggling notification and it syncs in  realtime in window UI and tray menu and in tray menu the menu are "enable/disable notification, Anchor positon > Top Left, Top Center, ......Bottom Right, custom" when user will click custom then it will trigger "pick custom position on screen" and let user pick custom position. sync all those in realtime in UI and tray menu too
 
 
+fix the refreshing style in protection page, it should get refreshed like "internet access > active connections"
+in "protected applications" when there is no application locked then show message of no application is locked, lock the application from "running application" tab to see the list or show some meaningful message
+add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
+make the 
 
 
 
