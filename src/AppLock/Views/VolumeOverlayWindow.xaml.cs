@@ -2552,7 +2552,8 @@ public sealed partial class VolumeOverlayWindow : Window
 
             if (settings.CustomX.HasValue && settings.CustomY.HasValue)
             {
-                _customAnchorCenterX = (int)settings.CustomX.Value + totalWidth / 2;
+                // CustomX/CustomY hold the idle chip's top-left, i.e. the speaker icon anchor
+                _customAnchorCenterX = (int)settings.CustomX.Value + (settings.IconSize + 12) / 2;
                 _customAnchorY = (int)settings.CustomY.Value;
             }
 
@@ -2823,6 +2824,46 @@ public sealed partial class VolumeOverlayWindow : Window
         }
     }
 
+    /// <summary>
+    /// Horizontal offset from the window's left edge to the speaker icon's centre for the current
+    /// state. The idle chip is a circle around the icon; the bar keeps the icon at
+    /// CardBorder.padding (8) + icon size / 2.
+    /// </summary>
+    private int GetIconCenterOffsetX()
+    {
+        int iconSize = ServiceContainer.Settings.VolumeMixer.IconSize;
+        return _state == OverlayState.Idle
+            ? (iconSize + 12) / 2
+            : iconSize / 2 + 8;
+    }
+
+    /// <summary>
+    /// Persists the current position as the speaker icon's screen anchor (stored as the idle
+    /// chip's top-left in CustomX/CustomY). Every state is then positioned from that icon anchor,
+    /// so the overlay never drifts sideways and the chip can be parked flush against a screen edge.
+    /// </summary>
+    private void SaveWindowPositionAsIconAnchor()
+    {
+        var appWindow = AppWindow;
+        if (appWindow == null) return;
+
+        var pos = appWindow.Position;
+        var settings = ServiceContainer.Settings.VolumeMixer;
+
+        int iconCenterX = pos.X + GetIconCenterOffsetX();
+        int idleWidth = settings.IconSize + 12;
+
+        _customAnchorCenterX = iconCenterX;
+        _customAnchorY = pos.Y;
+
+        settings.CustomX = iconCenterX - idleWidth / 2;
+        settings.CustomY = pos.Y;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[VolumeMixer] Position saved, icon anchor: ({iconCenterX}, {pos.Y})");
+    }
+
     private void ComputeWindowPosition(int totalWidth, int totalHeight, out int newX, out int newY)
     {
         var settings = ServiceContainer.Settings.VolumeMixer;
@@ -2844,8 +2885,11 @@ public sealed partial class VolumeOverlayWindow : Window
 
         if (settings.CustomX.HasValue && settings.CustomY.HasValue)
         {
-            int anchorCenterX = _customAnchorCenterX ?? ((int)settings.CustomX.Value + totalWidth / 2);
-            newX = anchorCenterX - totalWidth / 2;
+            // Anchor on the speaker icon's screen position, not the window centre. Anchoring on the
+            // centre made the collapsed chip land in the middle of the expanded bar and kept it
+            // away from the screen edges.
+            int iconCenterX = _customAnchorCenterX ?? ((int)settings.CustomX.Value + (iconSize + 12) / 2);
+            newX = iconCenterX - GetIconCenterOffsetX();
             newY = _customAnchorY ?? (int)settings.CustomY.Value;
 
             if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
@@ -3267,21 +3311,9 @@ public sealed partial class VolumeOverlayWindow : Window
         // Use hover opacity if pointer is still over, otherwise idle
         ApplyWindowAlpha(pointerStillOver ? (settings.HoverOpacity / 100.0) : (settings.IdleOpacity / 100.0));
 
-        // Save custom position
-        var appWindow = AppWindow;
-        if (appWindow != null)
-        {
-            var pos = appWindow.Position;
-            var size = appWindow.Size;
-            ServiceContainer.Settings.VolumeMixer.CustomX = pos.X;
-            ServiceContainer.Settings.VolumeMixer.CustomY = pos.Y;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-
-            _customAnchorCenterX = pos.X + size.Width / 2;
-            _customAnchorY = pos.Y;
-
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Drag ended, position saved: ({pos.X}, {pos.Y})");
-        }
+        // Save custom position (anchored on the speaker icon, not the window centre)
+        SaveWindowPositionAsIconAnchor();
+        System.Diagnostics.Debug.WriteLine("[VolumeMixer] Drag ended");
     }
 
     private void RootGrid_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
@@ -3293,14 +3325,7 @@ public sealed partial class VolumeOverlayWindow : Window
         var settings = ServiceContainer.Settings.VolumeMixer;
         ApplyWindowAlpha(settings.IdleOpacity / 100.0);
 
-        var appWindow = AppWindow;
-        if (appWindow != null)
-        {
-            var pos = appWindow.Position;
-            ServiceContainer.Settings.VolumeMixer.CustomX = pos.X;
-            ServiceContainer.Settings.VolumeMixer.CustomY = pos.Y;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-        }
+        SaveWindowPositionAsIconAnchor();
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
