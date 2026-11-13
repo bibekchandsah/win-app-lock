@@ -32,5 +32,16 @@ namespace AppLock.ViewModels
             StatusText = $"Input is currently: {(Enabled ? "Enabled" : "Disabled")}";
             StatusText += $"\nAdministrator rights: {(IsAdmin ? "Yes ✓" : "No ✗")}";
         }
+
+        /// <summary>
+        /// Applies the state to the input API and re-reads it, so every surface that shows the
+        /// keyboard state (page toggle, page status, Others card toggle) reports the same thing.
+        /// </summary>
+        public bool SetEnabled(bool enable)
+        {
+            bool applied = _keyboardService.SetKeyboardState(enable);
+            RefreshStatus();
+            return applied;
+        }
     }
 }

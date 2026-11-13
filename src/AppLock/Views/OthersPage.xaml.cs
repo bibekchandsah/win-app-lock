@@ -45,6 +45,9 @@ public sealed partial class OthersPage : Page
 {
     public List<UtilityCard> Cards { get; } = new();
 
+    // Guards the programmatic IsOn revert below from re-entering the Toggled handler.
+    private bool _syncingKeyboardToggle;
+
     public OthersPage()
     {
         LoadUtilityCards();
@@ -419,10 +422,28 @@ public sealed partial class OthersPage : Page
 
     private void KeyboardToggle_Toggled(object sender, RoutedEventArgs e)
     {
+        if (_syncingKeyboardToggle) return;
+
         if (sender is ToggleSwitch toggle && toggle.DataContext is UtilityCard card)
         {
-            card.KeyboardEnabled = toggle.IsOn;
-            ServiceContainer.Settings.Keyboard.Enabled = toggle.IsOn;
+            bool enable = toggle.IsOn;
+
+            // This switch used to only write a setting; the input state was never applied, so it
+            // disagreed with the Keyboard page. Go through the same view model the page uses.
+            bool applied = ServiceContainer.KeyboardViewModel.SetEnabled(enable);
+
+            if (!applied)
+            {
+                // No admin rights / the API refused: put the switch back where it was.
+                _syncingKeyboardToggle = true;
+                toggle.IsOn = !enable;
+                _syncingKeyboardToggle = false;
+                card.KeyboardEnabled = !enable;
+                return;
+            }
+
+            card.KeyboardEnabled = enable;
+            ServiceContainer.Settings.Keyboard.Enabled = enable;
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
     }

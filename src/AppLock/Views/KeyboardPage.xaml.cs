@@ -22,6 +22,10 @@ namespace AppLock.Views
 
         private void LoadSettings()
         {
+            // Re-read the live input state first: the view model is a singleton, so its cached value
+            // is stale after the state was changed from the Others card.
+            _viewModel.RefreshStatus();
+
             // Update toggle without triggering event
             KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
             KeyboardToggle.IsOn = _viewModel.Enabled;
@@ -44,6 +48,10 @@ namespace AppLock.Views
             }
             else
             {
+                // Re-read the state so the status line follows what was just applied instead of the
+                // value captured when the (singleton) view model was created.
+                _viewModel.RefreshStatus();
+
                 StatusText.Text = _viewModel.StatusText;
                 StatusIcon.Glyph = _viewModel.Enabled ? "\uE73E" : "\uE711"; // Checkmark or Cancel
                 StatusIcon.Foreground = _viewModel.Enabled 
@@ -72,6 +80,9 @@ namespace AppLock.Views
             var dialog = new ContentDialog
             {
                 XamlRoot = this.XamlRoot,
+                // ContentDialogs use the application theme by default, which is a dark plate in a
+                // light-themed window; follow the page's actual theme instead.
+                RequestedTheme = this.ActualTheme,
                 Title = newState ? "Enable Input?" : "Disable Input?",
                 Content = $"Are you sure you want to {(newState ? "enable" : "disable")} keyboard and mouse input?\n\nThis will take effect immediately.",
                 PrimaryButtonText = "Yes",
@@ -85,7 +96,7 @@ namespace AppLock.Views
             {
                 try
                 {
-                    bool success = _keyboardService.SetKeyboardState(newState);
+                    bool success = _viewModel.SetEnabled(newState);
                     
                     if (success)
                     {
@@ -108,6 +119,7 @@ namespace AppLock.Views
                     var errorDialog = new ContentDialog
                     {
                         XamlRoot = this.XamlRoot,
+                        RequestedTheme = this.ActualTheme,
                         Title = "Error",
                         Content = $"Failed to change input state: {ex.Message}",
                         CloseButtonText = "OK"
