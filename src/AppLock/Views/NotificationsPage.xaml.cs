@@ -10,8 +10,15 @@ public sealed partial class NotificationsPage : Page
 {
     public NotificationsViewModel ViewModel { get; }
 
+    // True while the page applies saved settings to its controls. The XAML defaults
+    // (IsSelected="True", Value="300", ...) fire SelectionChanged/ValueChanged while
+    // InitializeComponent runs, which would otherwise write those defaults over the settings
+    // the user saved earlier.
+    private bool _isLoading;
+
     public NotificationsPage()
     {
+        _isLoading = true;
         this.InitializeComponent();
         ViewModel = new NotificationsViewModel();
         LoadAnimationSettings();
@@ -30,6 +37,19 @@ public sealed partial class NotificationsPage : Page
     }
 
     private void LoadAnimationSettings()
+    {
+        _isLoading = true;
+        try
+        {
+            ApplySettingsToControls();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplySettingsToControls()
     {
         var settings = ServiceContainer.Settings.NotificationCustom;
 
@@ -80,6 +100,8 @@ public sealed partial class NotificationsPage : Page
 
     private void EnterFromComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (EnterFromComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
             ServiceContainer.Settings.NotificationCustom.EnterFrom = tag;
@@ -89,6 +111,8 @@ public sealed partial class NotificationsPage : Page
 
     private void DistanceModeRadio_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (DistanceModeRadio.SelectedItem is RadioButton rb && rb.Tag is string tag)
         {
             ServiceContainer.Settings.NotificationCustom.DistanceMode = tag;
@@ -109,6 +133,8 @@ public sealed partial class NotificationsPage : Page
 
     private void ShortDistanceSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         int value = (int)e.NewValue;
         ServiceContainer.Settings.NotificationCustom.ShortDistancePx = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -119,6 +145,8 @@ public sealed partial class NotificationsPage : Page
 
     private void EnterDurationSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         int value = (int)e.NewValue;
         ServiceContainer.Settings.NotificationCustom.EnterMs = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -129,6 +157,8 @@ public sealed partial class NotificationsPage : Page
 
     private void EasingComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (EasingComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
             ServiceContainer.Settings.NotificationCustom.Easing = tag;
@@ -138,6 +168,8 @@ public sealed partial class NotificationsPage : Page
 
     private void ExitToComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (ExitToComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
             ServiceContainer.Settings.NotificationCustom.ExitTo = tag;
@@ -147,6 +179,8 @@ public sealed partial class NotificationsPage : Page
 
     private void ExitDurationSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        if (_isLoading) return;
+
         int value = (int)e.NewValue;
         ServiceContainer.Settings.NotificationCustom.ExitMs = value;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -157,6 +191,8 @@ public sealed partial class NotificationsPage : Page
 
     private void ClickThroughCheckBox_Changed(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (ClickThroughCheckBox != null)
         {
             ServiceContainer.Settings.NotificationCustom.ClickThrough = ClickThroughCheckBox.IsChecked == true;
@@ -166,6 +202,8 @@ public sealed partial class NotificationsPage : Page
 
     private void AltToInteractCheckBox_Changed(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (AltToInteractCheckBox != null)
         {
             ServiceContainer.Settings.NotificationCustom.AltToInteract = AltToInteractCheckBox.IsChecked == true;
@@ -199,6 +237,8 @@ public sealed partial class NotificationsPage : Page
 
     private void AnchorRadio_Checked(object sender, RoutedEventArgs e)
     {
+        if (_isLoading) return;
+
         if (sender is RadioButton rb && rb.Tag is string anchor && !string.IsNullOrEmpty(anchor))
         {
             if (ViewModel.SelectedAnchor != anchor)
