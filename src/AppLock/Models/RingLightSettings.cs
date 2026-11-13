@@ -42,6 +42,9 @@ public class AutoRingSettings
     public bool TurnOffWhenCameraStops { get; set; } = true;
     public bool OnlySelectedApps { get; set; }
     public List<string> AppFilter { get; set; } = new(); // exe names or package family names
+    public bool ScheduleEnabled { get; set; }            // restrict automation to a daily window
+    public string ScheduleStart { get; set; } = "20:00"; // "HH:mm", may cross midnight
+    public string ScheduleEnd { get; set; } = "07:00";
     public int AutoOffMinutes { get; set; }              // 0 = never
     public bool AutoWarmth { get; set; }
     public int DayKelvin { get; set; } = 5500;

@@ -666,6 +666,12 @@ public sealed partial class RingLightPage : Page
         AutoCameraOnToggle.IsOn        = cameraSupported && s.Auto.OnWhenCameraInUse;
         AutoCameraOffToggle.IsOn       = s.Auto.TurnOffWhenCameraStops;
 
+        AutoScheduleToggle.IsOn        = s.Auto.ScheduleEnabled;
+        AutoSchedulePanel.Visibility   = s.Auto.ScheduleEnabled ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleStartBox.Text          = string.IsNullOrEmpty(s.Auto.ScheduleStart) ? "20:00" : s.Auto.ScheduleStart;
+        ScheduleEndBox.Text            = string.IsNullOrEmpty(s.Auto.ScheduleEnd) ? "07:00" : s.Auto.ScheduleEnd;
+        ScheduleHint.Text              = AutoRingSchedule.Describe(s.Auto.ScheduleStart, s.Auto.ScheduleEnd);
+
         FilterAnyAppRadio.IsChecked   = !s.Auto.OnlySelectedApps;
         FilterSelectedRadio.IsChecked = s.Auto.OnlySelectedApps;
         AppFilterPanel.Visibility     = s.Auto.OnlySelectedApps ? Visibility.Visible : Visibility.Collapsed;
@@ -737,6 +743,31 @@ public sealed partial class RingLightPage : Page
         int val = (int)NightKelvinSlider.Value;
         NightKelvinLabel.Text = $"{val} K";
         SaveAndApply(s => s.Auto.NightKelvin = val);
+    }
+
+    private void AutoScheduleToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AutoSchedulePanel.Visibility = AutoScheduleToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        SaveAndApply(s => s.Auto.ScheduleEnabled = AutoScheduleToggle.IsOn);
+    }
+
+    private void ScheduleTime_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        var start = ScheduleStartBox.Text.Trim();
+        var end   = ScheduleEndBox.Text.Trim();
+        ScheduleHint.Text = AutoRingSchedule.Describe(start, end);
+
+        // While a time is still being typed, keep the last valid value saved.
+        if (!AutoRingSchedule.TryParseTime(start, out _) || !AutoRingSchedule.TryParseTime(end, out _)) return;
+
+        SaveAndApply(s =>
+        {
+            s.Auto.ScheduleStart = start;
+            s.Auto.ScheduleEnd   = end;
+        });
     }
 
     private void NightSchedule_TextChanged(object sender, TextChangedEventArgs e)

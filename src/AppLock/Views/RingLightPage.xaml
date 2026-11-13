@@ -623,6 +623,52 @@
                                              VerticalAlignment="Center"/>
                             </Grid>
 
+                            <!-- Active hours -->
+                            <StackPanel Spacing="10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Only during set hours" FontSize="13"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Keep the automatic ring light inside a daily window, e.g. 20:00 to 07:00"
+                                                   FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="AutoScheduleToggle" Grid.Column="1"
+                                                 Toggled="AutoScheduleToggle_Toggled"
+                                                 MinWidth="0" OffContent="" OnContent=""
+                                                 VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <StackPanel x:Name="AutoSchedulePanel" Spacing="6" Visibility="Collapsed">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <TextBlock Text="Turn on from" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBox x:Name="ScheduleStartBox" Text="20:00"
+                                                     TextChanged="ScheduleTime_TextChanged"
+                                                     PlaceholderText="20:00"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock Text="Turn on until" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                            <TextBox x:Name="ScheduleEndBox" Text="07:00"
+                                                     TextChanged="ScheduleTime_TextChanged"
+                                                     PlaceholderText="07:00"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock x:Name="ScheduleHint" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Opacity="0.5"/>
 
                             <!-- App filter -->

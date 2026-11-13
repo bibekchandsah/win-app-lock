@@ -31,7 +31,7 @@ public sealed record CameraCheckSignal(string Label, bool Detected, string Detai
 /// <summary>
 /// Detects webcam usage with layered checks:
 ///   1. the Windows privacy consent store (CapabilityAccessManager), the record Windows itself
-///      keeps for camera access — precise, but recent builds often only update it after a session;
+///      keeps for camera access — precise, but recent builds only write it once a session ends;
 ///   2. Chromium video capture service processes that are actually consuming CPU (the process
 ///      lingers after a call, so existence alone is not evidence of use);
 ///   3. Store (MSIX/UWP) camera apps that are running *and* working, used as a fallback where Windows
@@ -52,6 +52,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         ("WindowsCamera", "Windows Camera"),
         ("Teams", "Microsoft Teams"),
         ("ms-teams", "Microsoft Teams"),
+        ("msteams", "Microsoft Teams"),
         ("Zoom", "Zoom"),
         ("Discord", "Discord"),
         ("obs64", "OBS Studio"),
@@ -63,6 +64,9 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         ("WhatsApp.Root", "WhatsApp"),
         ("Telegram", "Telegram"),
         ("slack", "Slack"),
+        ("Signal", "Signal"),
+        ("webex", "Webex"),
+        ("CiscoWebex", "Webex"),
         ("CamoStudio", "Camo Studio"),
         ("viber", "Viber"),
     };
@@ -87,6 +91,19 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         ("ReincubateLtd.CamoStudio", "Camo Studio"),
     };
 
+    private static readonly Dictionary<string, string> KnownCameraProcessLookup =
+        BuildLookup(KnownCameraProcesses);
+
+    private static readonly Dictionary<string, string> KnownStoreCameraLookup =
+        BuildLookup(KnownStoreCameraApps);
+
+    private static Dictionary<string, string> BuildLookup((string Key, string DisplayName)[] entries)
+    {
+        var map = new Dictionary<string, string>(entries.Length, StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, display) in entries) map[key] = display;
+        return map;
+    }
+
     public event EventHandler<(bool InUse, IReadOnlyList<string> ActiveApps)>? CameraUsageChanged;
 
     private readonly object _lock = new();
@@ -106,16 +123,36 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     private readonly record struct CaptureSample(TimeSpan Cpu, DateTime At, bool Active);
 
+    // The capture-service WMI query costs a few milliseconds, and the poll runs every second while a
+    // browser is open, so its result is reused briefly instead of being queried on every tick.
+    private const int CaptureQueryCacheMilliseconds = 1000;
+    private static readonly object CaptureQueryLock = new();
+    private static List<(uint Pid, string Display)> _captureQueryCache = new();
+    private static DateTime _captureQueryAt = DateTime.MinValue;
+
     // Running-app sampling: Windows writes the camera consent record only when a session ends, so a
     // Store app that is merely open (WhatsApp, Phone Link, Telegram) looked like an active camera user.
     // A stream keeps the app busy — measured on this machine: Windows Camera streaming used 26-31 ms of
     // CPU per second, while idle WhatsApp/Phone Link used 0-5 ms/s — so the app's own CPU time is sampled.
     private const double AppActivityThresholdMsPerSecond = 15.0;
     private const double AppActivitySmoothing = 0.3;
-    private readonly Dictionary<uint, AppActivitySample> _appActivity = new();
-    private readonly object _appActivityLock = new();
+    private readonly Dictionary<uint, PidCpuSample> _pidCpu = new();
+    private readonly Dictionary<string, AppActivitySample> _appActivity = new();
+    private readonly object _activityLock = new();
 
-    private readonly record struct AppActivitySample(TimeSpan Cpu, DateTime At, double RateMsPerSecond, bool Measured);
+    private readonly record struct PidCpuSample(TimeSpan Cpu, DateTime At);
+    private readonly record struct AppActivitySample(DateTime At, double RateMsPerSecond, bool Measured);
+
+    // Process scans are the expensive part of detection (one image-path query per process), so one scan
+    // is shared by the poll and the test button, and each process' package identity is resolved once and
+    // cached until that pid disappears (the name is re-checked in case Windows reused the pid).
+    private const int ScanCacheMilliseconds = 500;
+    private readonly object _scanLock = new();
+    private readonly Dictionary<uint, (string Name, string? Identity)> _packageIdentity = new();
+    private List<(uint Pid, string Display)> _storeCandidates = new();
+    private List<(uint Pid, string Display)> _desktopCandidates = new();
+    private DateTime _scanAt = DateTime.MinValue;
+    private bool _scanValid;
 
     public bool IsMonitoring
     {
@@ -252,90 +289,77 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Checks running processes for known video conferencing or camera apps.
+    /// One process scan, shared by every caller for a fraction of a second. Returns the running Store
+    /// (MSIX/UWP) camera apps and desktop camera apps, each with its process ids: a Store app may run
+    /// several helper processes that all belong to the same app.
     /// </summary>
-    public static IReadOnlyList<string> GetRunningCameraAppNames()
+    private (List<(uint Pid, string Display)> Store, List<(uint Pid, string Display)> Desktop)
+        ScanRunningCameraApps()
     {
-        var names = new List<string>();
-        foreach (var (_, display) in QueryRunningDesktopCameraApps())
+        lock (_scanLock)
         {
-            if (!names.Contains(display)) names.Add(display);
+            if (_scanValid && (DateTime.UtcNow - _scanAt).TotalMilliseconds < ScanCacheMilliseconds)
+                return (_storeCandidates, _desktopCandidates);
         }
-        return names;
-    }
 
-    /// <summary>
-    /// Returns the Store (MSIX/UWP) camera apps that are currently running, resolved by package
-    /// identity from the process image path (for example WhatsApp under
-    /// <c>...\WindowsApps\5319275A.WhatsAppDesktop_2.2641.101.0_x64__cv1g1gvanyjgm\WhatsApp.Root.exe</c>).
-    /// Required because Store apps launch helper executables whose names never match the desktop list.
-    /// </summary>
-    public static IReadOnlyList<string> GetRunningStoreCameraApps()
-    {
-        var names = new List<string>();
-        foreach (var (_, display) in QueryRunningStoreCameraApps())
-        {
-            if (!names.Contains(display)) names.Add(display);
-        }
-        return names;
-    }
+        var store = new List<(uint Pid, string Display)>();
+        var desktop = new List<(uint Pid, string Display)>();
+        var alive = new HashSet<uint>();
 
-    /// <summary>Running Store camera apps with their process ids, so their activity can be sampled.</summary>
-    private static List<(uint Pid, string Display)> QueryRunningStoreCameraApps()
-    {
-        var found = new List<(uint Pid, string Display)>();
-        foreach (var p in Process.GetProcesses())
+        foreach (var process in Process.GetProcesses())
         {
             try
             {
-                var display = FindStoreCameraApp(GetStorePackageIdentity(p));
-                if (display == null) continue;
-                if (!found.Exists(c => c.Display == display)) found.Add(((uint)p.Id, display));
+                var pid = (uint)process.Id;
+                alive.Add(pid);
+                var name = process.ProcessName;
+
+                string? identity;
+                lock (_scanLock)
+                {
+                    if (_packageIdentity.TryGetValue(pid, out var cached) && cached.Name == name)
+                    {
+                        identity = cached.Identity;
+                    }
+                    else
+                    {
+                        identity = GetStorePackageIdentity(process);
+                        _packageIdentity[pid] = (name, identity);
+                    }
+                }
+
+                var storeDisplay = FindStoreCameraApp(identity);
+                if (storeDisplay != null)
+                {
+                    store.Add((pid, storeDisplay));
+                    continue;
+                }
+
+                if (KnownCameraProcessLookup.TryGetValue(name, out var desktopDisplay))
+                    desktop.Add((pid, desktopDisplay));
             }
             catch { }
             finally
             {
-                p.Dispose();
+                process.Dispose();
             }
         }
-        return found;
-    }
 
-    /// <summary>Running desktop camera apps with their process ids, so their activity can be sampled.</summary>
-    private static List<(uint Pid, string Display)> QueryRunningDesktopCameraApps()
-    {
-        var found = new List<(uint Pid, string Display)>();
-        try
+        lock (_scanLock)
         {
-            var processes = Process.GetProcesses();
-            foreach (var p in processes)
+            foreach (var pid in new List<uint>(_packageIdentity.Keys))
             {
-                try
-                {
-                    var pName = p.ProcessName;
-                    foreach (var (proc, display) in KnownCameraProcesses)
-                    {
-                        if (!pName.Equals(proc, StringComparison.OrdinalIgnoreCase)) continue;
-
-                        // Packaged camera apps are reported by QueryRunningStoreCameraApps instead, so
-                        // they are not listed twice (their helper executables live under WindowsApps).
-                        if (FindStoreCameraApp(GetStorePackageIdentity(p)) != null) break;
-
-                        if (!found.Exists(c => c.Display == display)) found.Add(((uint)p.Id, display));
-                    }
-                }
-                catch { }
-                finally
-                {
-                    p.Dispose();
-                }
+                if (!alive.Contains(pid)) _packageIdentity.Remove(pid);
             }
+
+            _storeCandidates = store;
+            _desktopCandidates = desktop;
+            _scanAt = DateTime.UtcNow;
+            _scanValid = true;
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Process scan error: {ex.Message}");
-        }
-        return found;
+
+        PruneActivitySamples(alive);
+        return (store, desktop);
     }
 
     /// <summary>
@@ -349,9 +373,17 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         var idle = new List<string>();
         var now = DateTime.UtcNow;
 
+        // Group an app's processes together, so a helper process doing the capture still counts.
+        var byApp = new Dictionary<string, List<uint>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (pid, display) in apps)
         {
-            var rate = SampleAppActivity(pid, now);
+            if (!byApp.TryGetValue(display, out var pids)) byApp[display] = pids = new List<uint>();
+            if (!pids.Contains(pid)) pids.Add(pid);
+        }
+
+        foreach (var (display, pids) in byApp)
+        {
+            var rate = SampleAppActivity(display, pids, now);
             bool isWorking = rate is double msPerSecond && msPerSecond >= AppActivityThresholdMsPerSecond;
 
             if (isWorking)
@@ -368,10 +400,36 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// CPU usage of a candidate app in milliseconds per second, smoothed so a single busy moment does
-    /// not flip the state. Returns null while the first sample is still just a baseline.
+    /// CPU usage of everything an app is running (all its processes) in milliseconds per second,
+    /// smoothed so a single busy moment does not flip the state. Null while no baseline is known yet.
     /// </summary>
-    private double? SampleAppActivity(uint pid, DateTime now)
+    private double? SampleAppActivity(string display, List<uint> pids, DateTime now)
+    {
+        double? total = null;
+
+        foreach (var pid in pids)
+        {
+            var rate = SampleProcessCpuRate(pid, now);
+            if (rate is double value) total = (total ?? 0) + value;
+        }
+
+        if (total is null) return null;
+
+        lock (_activityLock)
+        {
+            // The first real measurement is used as-is so a call that is already running is seen
+            // immediately; later samples are smoothed to keep a lone busy second from flipping it.
+            var smoothed = _appActivity.TryGetValue(display, out var previous) && previous.Measured
+                ? previous.RateMsPerSecond * (1 - AppActivitySmoothing) + total.Value * AppActivitySmoothing
+                : total.Value;
+
+            _appActivity[display] = new AppActivitySample(now, smoothed, true);
+            return smoothed;
+        }
+    }
+
+    /// <summary>CPU rate of one process in milliseconds per second, or null if not measured yet.</summary>
+    private double? SampleProcessCpuRate(uint pid, DateTime now)
     {
         TimeSpan cpu;
         try
@@ -384,34 +442,40 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             return null;
         }
 
-        lock (_appActivityLock)
+        lock (_activityLock)
         {
-            // Forget processes that stopped being sampled (closed, or no longer a camera app).
-            foreach (var stale in new List<uint>(_appActivity.Keys))
-            {
-                if ((now - _appActivity[stale].At).TotalSeconds > 30) _appActivity.Remove(stale);
-            }
-
-            if (_appActivity.TryGetValue(pid, out var previous))
+            if (_pidCpu.TryGetValue(pid, out var previous))
             {
                 var elapsedMs = (now - previous.At).TotalMilliseconds;
-                if (elapsedMs < 250) return previous.RateMsPerSecond;
-
-                var usedMs = Math.Max(0, (cpu - previous.Cpu).TotalMilliseconds);
-                var rate = usedMs / elapsedMs * 1000.0;
-
-                // The first real measurement is used as-is so a call that is already running is seen
-                // immediately; later samples are smoothed to keep a lone busy second from flipping it.
-                var smoothed = previous.Measured
-                    ? previous.RateMsPerSecond * (1 - AppActivitySmoothing) + rate * AppActivitySmoothing
-                    : rate;
-
-                _appActivity[pid] = new AppActivitySample(cpu, now, smoothed, true);
-                return smoothed;
+                if (elapsedMs >= 250)
+                {
+                    var usedMs = Math.Max(0, (cpu - previous.Cpu).TotalMilliseconds);
+                    _pidCpu[pid] = new PidCpuSample(cpu, now);
+                    return usedMs / elapsedMs * 1000.0;
+                }
+                return null;
             }
 
-            _appActivity[pid] = new AppActivitySample(cpu, now, 0, false);
+            _pidCpu[pid] = new PidCpuSample(cpu, now);
             return null;
+        }
+    }
+
+    /// <summary>Drops CPU samples of processes that closed or stopped being sampled.</summary>
+    private void PruneActivitySamples(HashSet<uint> alive)
+    {
+        var now = DateTime.UtcNow;
+        lock (_activityLock)
+        {
+            foreach (var pid in new List<uint>(_pidCpu.Keys))
+            {
+                if (!alive.Contains(pid) || (now - _pidCpu[pid].At).TotalSeconds > 30) _pidCpu.Remove(pid);
+            }
+
+            foreach (var app in new List<string>(_appActivity.Keys))
+            {
+                if ((now - _appActivity[app].At).TotalSeconds > 30) _appActivity.Remove(app);
+            }
         }
     }
 
@@ -419,12 +483,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     private static string? FindStoreCameraApp(string? packageIdentity)
     {
         if (string.IsNullOrEmpty(packageIdentity)) return null;
-
-        foreach (var (packageName, display) in KnownStoreCameraApps)
-        {
-            if (packageIdentity.Equals(packageName, StringComparison.OrdinalIgnoreCase)) return display;
-        }
-        return null;
+        return KnownStoreCameraLookup.TryGetValue(packageIdentity, out var display) ? display : null;
     }
 
     /// <summary>
@@ -466,7 +525,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     /// <summary>
     /// Detects active video capture utility processes spawned by Chromium browsers
-    /// (Google Chrome, Microsoft Edge, Brave, Opera, Vivaldi) and Electron apps when a web page
+    /// (Google Chrome, Microsoft Edge, Brave, Opera, Vivaldi) and WebView2/Electron apps when a web page
     /// or web call (such as Instagram, Google Meet, Teams Web, Zoom Web) starts streaming the webcam.
     ///
     /// Uses WMI to find processes whose CommandLine contains the Chromium video capture service
@@ -486,9 +545,16 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     /// <summary>
     /// Chromium video capture utility processes with their PIDs. The process outlives the camera
     /// session, so callers must check whether it is actually working (see GetActiveBrowserCaptureApps).
+    /// Results are cached for a second, because the poll runs every second while a browser is open.
     /// </summary>
     private static List<(uint Pid, string Display)> QueryVideoCaptureServiceProcesses()
     {
+        lock (CaptureQueryLock)
+        {
+            if ((DateTime.UtcNow - _captureQueryAt).TotalMilliseconds < CaptureQueryCacheMilliseconds)
+                return _captureQueryCache;
+        }
+
         var found = new List<(uint Pid, string Display)>();
         try
         {
@@ -518,6 +584,8 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                     "brave.exe"   => "Brave (Web video call)",
                     "opera.exe"   => "Opera (Web video call)",
                     "vivaldi.exe" => "Vivaldi (Web video call)",
+                    // WebView2 hosts (new Teams, WhatsApp/Store apps with embedded web calls).
+                    "msedgewebview2.exe" => "App web view (Web video call)",
                     _ => null
                 };
 
@@ -533,6 +601,12 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] VideoCaptureService WMI query error: {ex.Message}");
+        }
+
+        lock (CaptureQueryLock)
+        {
+            _captureQueryCache = found;
+            _captureQueryAt = DateTime.UtcNow;
         }
 
         return found;
@@ -624,6 +698,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                    Process.GetProcessesByName("brave").Length > 0 ||
                    Process.GetProcessesByName("opera").Length > 0 ||
                    Process.GetProcessesByName("vivaldi").Length > 0 ||
+                   Process.GetProcessesByName("msedgewebview2").Length > 0 ||
                    Process.GetProcessesByName("WindowsCamera").Length > 0;
         }
         catch
@@ -640,14 +715,13 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         var installed = await GetInstalledCamerasAsync();
 
         // Detection is layered because no single Windows source is reliable everywhere:
-        //  1. Windows usage records (consent store) — precise, but recent builds often do not
-        //     update them while a session is live.
-        //  2. Known camera apps that are running — a fallback for those same builds.
-        //  3. Chromium capture-service processes, but only while they are actually consuming CPU,
+        //  1. Windows usage records (consent store) — precise, but recent builds only write them once
+        //     a session ends.
+        //  2. Chromium capture-service processes, but only while they are actually consuming CPU,
         //     since the utility process stays alive as long as the browser is open.
-        var storeApps = GetActiveCameraApps();
-        var storeCandidates = QueryRunningStoreCameraApps();
-        var desktopCandidates = QueryRunningDesktopCameraApps();
+        //  3. Running Store (UWP) and desktop camera apps, but only while they are actually working.
+        var recordApps = GetActiveCameraApps();
+        var (storeCandidates, desktopCandidates) = ScanRunningCameraApps();
         var (storeActive, storeIdle) = ClassifyRunningApps(storeCandidates);
         var (desktopActive, desktopIdle) = ClassifyRunningApps(desktopCandidates);
         var browserApps = GetActiveBrowserCaptureApps();
@@ -677,8 +751,8 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         {
             new("Camera hardware", installed.Count > 0,
                 installed.Count > 0 ? string.Join(", ", installed) : "no camera device found"),
-            new("Windows usage records", storeApps.Count > 0,
-                storeApps.Count > 0 ? string.Join(", ", storeApps) : "no app reported as using the camera"),
+            new("Windows usage records", recordApps.Count > 0,
+                recordApps.Count > 0 ? string.Join(", ", recordApps) : "no app reported as using the camera"),
             new("Store (UWP) camera apps", storeActive.Count > 0,
                 DescribeRunningApps(storeActive, storeIdle, "no Store camera app is running")),
             new("Desktop camera apps", desktopActive.Count > 0,
@@ -690,7 +764,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         };
 
         var activeApps = new List<string>();
-        foreach (var group in new[] { storeApps, storeActive, desktopActive, browserApps })
+        foreach (var group in new[] { recordApps, storeActive, desktopActive, browserApps })
         {
             foreach (var app in group)
             {
@@ -705,7 +779,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
         Debug.WriteLine(
             $"[CameraUsageMonitor] Check: streaming={isStreaming} apps=[{string.Join(", ", activeApps)}] " +
-            $"records=[{storeApps.Count}] storeApps=[{storeActive.Count}/{storeCandidates.Count}] " +
+            $"records=[{recordApps.Count}] storeApps=[{storeActive.Count}/{storeCandidates.Count}] " +
             $"apps=[{desktopActive.Count}/{desktopCandidates.Count}] browsers=[{browserApps.Count}]");
 
         return new CameraCheckResult
@@ -840,19 +914,19 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
             if (activeApps.Count == 0)
             {
-                var (storeActive, _) = ClassifyRunningApps(QueryRunningStoreCameraApps());
-                foreach (var app in storeActive)
+                var (storeCandidates, desktopCandidates) = ScanRunningCameraApps();
+
+                foreach (var app in ClassifyRunningApps(storeCandidates).Active)
                 {
                     if (!activeApps.Contains(app)) activeApps.Add(app);
                 }
-            }
 
-            if (activeApps.Count == 0)
-            {
-                var (desktopActive, _) = ClassifyRunningApps(QueryRunningDesktopCameraApps());
-                foreach (var app in desktopActive)
+                if (activeApps.Count == 0)
                 {
-                    if (!activeApps.Contains(app)) activeApps.Add(app);
+                    foreach (var app in ClassifyRunningApps(desktopCandidates).Active)
+                    {
+                        if (!activeApps.Contains(app)) activeApps.Add(app);
+                    }
                 }
             }
 

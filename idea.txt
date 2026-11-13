@@ -286,7 +286,9 @@ i have implemented setting for hotkey and system tray menu for notification but 
 fix the refreshing style in protection page, it should get refreshed like "internet access > active connections"
 in "protected applications" when there is no application locked then show message of no application is locked, lock the application from "running application" tab to see the list or show some meaningful message
 add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
-make the 
+make the sidebar rounded in the top right side as like whatsapp has rounded edge in sidebar
+auto lock whatever page is in currently on Idle
+
 
 
 

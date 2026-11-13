@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
 
@@ -26,6 +27,9 @@ public sealed class RingLightService : IDisposable
     private readonly BrightnessController _brightnessController;
     private State _state = State.Off;
     private bool _disposed;
+    // Why the ring light is currently on, so the active-hours watcher only turns off automatic ons.
+    private string _onReason = "user";
+    private Timer? _scheduleTimer;
 
     // ── Public properties ─────────────────────────────────────────────────────
     public State CurrentState => _state;
@@ -45,6 +49,8 @@ public sealed class RingLightService : IDisposable
                 _cameraMonitor.Start();
         }
         catch { }
+
+        UpdateAutoScheduleWatcher();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -53,9 +59,14 @@ public sealed class RingLightService : IDisposable
     public void SetEnabled(bool enable, string reason = "user")
     {
         if (enable && (_state == State.Off || _state == State.FadingOut))
+        {
+            _onReason = reason;
             _ = TurnOnAsync();
+        }
         else if (!enable && (_state == State.On || _state == State.FadingIn))
+        {
             _ = TurnOffAsync();
+        }
     }
 
     /// <summary>Toggle the current state.</summary>
@@ -108,6 +119,8 @@ public sealed class RingLightService : IDisposable
         else
             _cameraMonitor.Stop();
 
+        UpdateAutoScheduleWatcher();
+
         if (IsOn)
         {
             _timers.UpdateAutoOff(settings.Auto.AutoOffMinutes, () =>
@@ -140,11 +153,55 @@ public sealed class RingLightService : IDisposable
         _cameraMonitor.CameraUsageChanged -= OnCameraUsageChanged;
         _cameraMonitor.Dispose();
         _timers.Dispose();
+        _scheduleTimer?.Dispose();
+        _scheduleTimer = null;
         _manager?.Dispose();
         _manager = null;
     }
 
     // ── Private state machine ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Runs a 30-second watcher while camera automation has active hours. A camera that keeps
+    /// streaming produces no new usage event, so without this the ring light would stay on past the
+    /// end of the window.
+    /// </summary>
+    private void UpdateAutoScheduleWatcher()
+    {
+        var settings = ServiceContainer.Settings.RingLight;
+        bool needed = settings.Auto.OnWhenCameraInUse && settings.Auto.ScheduleEnabled;
+
+        if (needed)
+        {
+            _scheduleTimer ??= new Timer(_ => EvaluateScheduleWindow(), null, 30000, 30000);
+        }
+        else
+        {
+            _scheduleTimer?.Dispose();
+            _scheduleTimer = null;
+        }
+    }
+
+    private void EvaluateScheduleWindow()
+    {
+        MainWindow.Instance?.DispatcherQueue?.TryEnqueue(() =>
+        {
+            try
+            {
+                var settings = ServiceContainer.Settings.RingLight;
+                if (!settings.Auto.OnWhenCameraInUse || !settings.Auto.ScheduleEnabled) return;
+                if (AutoRingSchedule.IsActive(settings.Auto, DateTime.Now)) return;
+
+                // Only leave the window for automatic switching; a manually enabled light stays on.
+                if (IsOn && _onReason == "camera")
+                    SetEnabled(false, "schedule");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RingLightService] Schedule watcher error: {ex.Message}");
+            }
+        });
+    }
 
     private void OnCameraUsageChanged(object? sender, (bool InUse, System.Collections.Generic.IReadOnlyList<string> ActiveApps) e)
     {
@@ -157,7 +214,8 @@ public sealed class RingLightService : IDisposable
 
                 if (e.InUse)
                 {
-                    if (CameraUsageMonitor.MatchesFilter(e.ActiveApps, settings.Auto))
+                    if (AutoRingSchedule.IsActive(settings.Auto, DateTime.Now) &&
+                        CameraUsageMonitor.MatchesFilter(e.ActiveApps, settings.Auto))
                     {
                         SetEnabled(true, "camera");
                     }
