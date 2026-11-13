@@ -91,3 +91,4 @@ dist/
 
 publish/
 scratch/build_check
+verify-bin/
