@@ -148,19 +148,44 @@
                               SelectedItem="{x:Bind ViewModel.SelectedDrive, Mode=TwoWay}"
                               SelectionMode="Single"
                               AutomationProperties.Name="BitLocker drives list">
+                        <!-- The row itself is the card, so hover/selected paint on the visible surface
+                             (they used to be drawn behind an opaque card and were invisible in light mode). -->
+                        <ListView.Resources>
+                            <ResourceDictionary>
+                                <ResourceDictionary.ThemeDictionaries>
+                                    <ResourceDictionary x:Key="Dark">
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FF2B2438"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#FF352C46"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#FF3A3050"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#FF3A3050"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#FF463A63"/>
+                                    </ResourceDictionary>
+                                    <ResourceDictionary x:Key="Light">
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FFF3EEFB"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#FFEDE5FA"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#FFE9E1F7"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#FFE9E1F7"/>
+                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#FFDED4F2"/>
+                                    </ResourceDictionary>
+                                </ResourceDictionary.ThemeDictionaries>
+                            </ResourceDictionary>
+                        </ListView.Resources>
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0,4"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,4"/>
+                                <Setter Property="CornerRadius" Value="8"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
                             </Style>
                         </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:DriveItemViewModel">
-                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16,12">
+                            <!-- No fill/border here: the ListViewItem underneath provides the card surface,
+                                 which is what changes colour on hover and selection. -->
+                            <Border Padding="16,12">
                                 <Grid RowSpacing="12">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>

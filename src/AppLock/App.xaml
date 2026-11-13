@@ -20,9 +20,7 @@
                     <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
                     <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
                     <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
-                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#3D3D3D"/>
@@ -37,9 +35,7 @@
                     <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
                     <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
                     <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
-                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#3D3D3D"/>
@@ -54,9 +50,7 @@
                     <Color x:Key="ShellCardBorderColor">#14000000</Color>
                     <Color x:Key="ShellNavHoverColor">#26B79BE8</Color>
                     <Color x:Key="ShellNavPressedColor">#3DB79BE8</Color>
-                    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
-                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#66000000"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#FFFFFF"/>
                     <SolidColorBrush x:Key="OverlayCardBorderBrush" Color="#E5E5E5"/>
@@ -66,8 +60,6 @@
             </ResourceDictionary.ThemeDictionaries>
 
             <!-- Shell styling: one place for radii, gaps and the floating-card colours -->
-            <CornerRadius x:Key="ShellCornerRadius">12</CornerRadius>
-            <CornerRadius x:Key="ShellNavItemCornerRadius">8</CornerRadius>
             <SolidColorBrush x:Key="ShellWindowTintBrush" Color="{ThemeResource ShellWindowTintColor}"/>
             <SolidColorBrush x:Key="ShellWindowFallbackBrush" Color="{ThemeResource ShellWindowFallbackColor}"/>
             <SolidColorBrush x:Key="ShellCardFillBrush" Color="{ThemeResource ShellCardFillColor}"/>
@@ -75,9 +67,7 @@
             <SolidColorBrush x:Key="ShellNavHoverBrush" Color="{ThemeResource ShellNavHoverColor}"/>
             <SolidColorBrush x:Key="ShellNavPressedBrush" Color="{ThemeResource ShellNavPressedColor}"/>
 
-            <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
-            <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
-            <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+
             
             <!-- App-wide accent color -->
             <Color x:Key="AccentColor">#D9A0E8</Color>

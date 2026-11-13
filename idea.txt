@@ -288,16 +288,18 @@ fixed - smooth animation when collapsing and non collapsing sidebar
 fixed - hover effect in sidebar in light mode isn't seen 
 fixed - in "protected applications" when there is no application locked then show message of no application is locked, lock the application from "running application" tab to see the list or show some meaningful message
 fixed - make the sidebar rounded in the top right side as like whatsapp has rounded edge in sidebar
-add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
+fixed - add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
 auto lock whatever page is in currently on Idle
-rounded edge in "import firewall rule, add from installed apps" dialog box
 background mica window 11 effect in all page 
-hover effect isn't seen in bitlocker page drive cards in light mode 
-hover effect isn't seen in others page of cards when it's in light mode
-in brightness page it don't shows the text of default selected dropdown 
-in ring light page "test camera detection" details aren't shown in light mode which are appeared after testing
-in ring light page sync the theme for "save preset" dialog box for light mode 
+rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
+fixed - hover effect isn't seen in bitlocker page drive cards in light mode 
+fixed - hover effect isn't seen in others page of cards when it's in light mode
+fixed - in brightness page it don't shows the text of default selected dropdown 
+fixed - in ring light page "test camera detection" details aren't shown in light mode which are appeared after testing
+fixed - in ring light page sync the theme for "save preset" dialog box for light mode 
 copying images or file is getting copied it's file name in clipboard page, fix it so that if user copy image file or any other file then it will get copied instead of it's file name 
+z-index like microsoft store effect in other page
+
 
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe
@@ -315,3 +317,15 @@ notepad "$env:APPDATA\AppLock\logs\firewall-2026-11.log"
 Get-ChildItem "$env:APPDATA\AppLock\logs\" | ForEach-Object { Write-Host "`n=== $($_.Name) ===" -ForegroundColor Cyan; Get-Content $_.FullName -Tail 20 }
 
 Get-Content "$env:APPDATA\AppLock\logs\notifications-2026-11.log" -Tail 100
+
+
+Import-Module "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+Enter-VsDevShell -VsInstallPath "C:\Program Files\Microsoft Visual Studio\18\Community" -SkipAutomaticLocation | Out-Null
+msbuild src\AppLock\AppLock.csproj /p:Configuration=Release /p:Platform=x64 /t:Build /v:minimal /nologo /clp:ErrorsOnly
+Write-Output "BUILD_EXIT=$LASTEXITCODE"
+$log = Join-Path $env:LOCALAPPDATA "AppLock\Logs\probe.log"
+if (Test-Path $log) { Remove-Item $log -Force }
+$p = Start-Process -FilePath "src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -PassThru
+Start-Sleep -Seconds 6
+Get-Content $log
+Stop-Process -Id $p.Id -ErrorAction SilentlyContinue

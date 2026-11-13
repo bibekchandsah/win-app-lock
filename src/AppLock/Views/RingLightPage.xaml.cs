@@ -508,6 +508,8 @@ public sealed partial class RingLightPage : Page
             CloseButtonText   = "Cancel",
             XamlRoot          = this.XamlRoot,
             DefaultButton     = ContentDialogButton.Primary,
+            // Dialogs otherwise follow the application theme, which can differ from the page's.
+            RequestedTheme    = ActualTheme,
         };
         nameBox.KeyDown += (s, ke) =>
         {
@@ -551,6 +553,7 @@ public sealed partial class RingLightPage : Page
             CloseButtonText   = "Cancel",
             XamlRoot          = this.XamlRoot,
             DefaultButton     = ContentDialogButton.Primary,
+            RequestedTheme    = ActualTheme,
         };
         nameBox.KeyDown += (s, ke) =>
         {
@@ -588,6 +591,7 @@ public sealed partial class RingLightPage : Page
             CloseButtonText   = "Cancel",
             XamlRoot          = this.XamlRoot,
             DefaultButton     = ContentDialogButton.Close,
+            RequestedTheme    = ActualTheme,
         };
 
         var result = await dialog.ShowAsync();
@@ -935,7 +939,10 @@ public sealed partial class RingLightPage : Page
     {
         TestCameraDetectButton.IsEnabled = false;
         TestCameraStatusText.Text = "Testing camera status...";
-        TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        // App-level (dark) theme brushes are wrong inside a light-themed page, so fall back to the
+        // inherited foreground and dim it instead.
+        TestCameraStatusText.ClearValue(TextBlock.ForegroundProperty);
+        TestCameraStatusText.Opacity = 0.8;
 
         try
         {
@@ -952,11 +959,13 @@ public sealed partial class RingLightPage : Page
             {
                 TestCameraStatusText.Text = $"{hardwareInfo} In use by: {string.Join(", ", result.ActiveApps)}.";
                 TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                TestCameraStatusText.Opacity = 1;
             }
             else
             {
                 TestCameraStatusText.Text = $"{hardwareInfo} Not in use by any app.";
-                TestCameraStatusText.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                TestCameraStatusText.ClearValue(TextBlock.ForegroundProperty);
+                TestCameraStatusText.Opacity = 0.8;
             }
 
             ShowCameraCheckDetails(result);
@@ -981,7 +990,8 @@ public sealed partial class RingLightPage : Page
     {
         TestCameraDetailsPanel.Children.Clear();
 
-        var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        // Only the accent brush is theme-independent. The secondary text stays inherited (and dimmed)
+        // so these rows are readable in both light and dark themes.
         var accent = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
 
         foreach (var check in result.Checks)
@@ -994,7 +1004,7 @@ public sealed partial class RingLightPage : Page
             {
                 Text = check.Label,
                 FontSize = 12,
-                Foreground = secondary,
+                Opacity = 0.8,
                 VerticalAlignment = VerticalAlignment.Top,
             };
 
@@ -1003,8 +1013,12 @@ public sealed partial class RingLightPage : Page
                 Text = check.Detail,
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = check.Detected ? accent : secondary,
+                Opacity = check.Detected ? 1 : 0.9,
             };
+
+            // Only assign a brush for detected rows: setting Foreground to null clears the text brush
+            // entirely and the row renders invisible, so undetected rows must keep the inherited one.
+            if (check.Detected) detail.Foreground = accent;
 
             Grid.SetColumn(label, 0);
             Grid.SetColumn(detail, 1);

@@ -91,6 +91,11 @@ public class BrightnessViewModel : INotifyPropertyChanged, IDisposable
             
             _dispatcher.TryEnqueue(() =>
             {
+                // Clearing the items makes the bound ComboBox drop its selection, which writes null
+                // back through SelectedValue. Remember what to select and restore it once the items
+                // are back in, otherwise the box renders with no text.
+                var preferredId = string.IsNullOrEmpty(_selectedDisplayId) ? "All" : _selectedDisplayId;
+
                 Displays.Clear();
                 
                 // Add "All displays" option
@@ -110,6 +115,9 @@ public class BrightnessViewModel : INotifyPropertyChanged, IDisposable
                         ControlMethod = display.ControlMethod
                     });
                 }
+
+                _selectedDisplayId = preferredId;
+                OnPropertyChanged(nameof(SelectedDisplayId));
             });
         }
         catch (Exception ex)

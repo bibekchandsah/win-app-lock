@@ -6,8 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="using:AppLock.Views"
     xmlns:controls="using:AppLock.Views.Controls"
-    mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    mc:Ignorable="d">
 
     <Page.Resources>
         <!-- Brightness Card Template -->
@@ -267,10 +266,27 @@
                                         Click="UtilityCard_Click"
                                         Background="Transparent"
                                         BorderThickness="0"
+                                        CornerRadius="8"
                                         Padding="20"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
                                         VerticalContentAlignment="Top">
+                                    <!-- The stock hover fill is almost white on a light card, so the card
+                                         showed no hover at all in light mode. Literal colours per theme. -->
+                                    <Button.Resources>
+                                        <ResourceDictionary>
+                                            <ResourceDictionary.ThemeDictionaries>
+                                                <ResourceDictionary x:Key="Dark">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26D9A0E8"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DD9A0E8"/>
+                                                </ResourceDictionary>
+                                                <ResourceDictionary x:Key="Light">
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26B79BE8"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DB79BE8"/>
+                                                </ResourceDictionary>
+                                            </ResourceDictionary.ThemeDictionaries>
+                                        </ResourceDictionary>
+                                    </Button.Resources>
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
