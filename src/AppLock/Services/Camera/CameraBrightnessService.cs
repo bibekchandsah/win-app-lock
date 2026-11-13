@@ -64,42 +64,62 @@ public class CameraBrightnessService : IDisposable
             if (!_isInitialized)
                 return null;
 
-            // First try to get from registry (matches Windows Settings)
-            var registryValue = GetRegistryBrightness();
-            if (registryValue.HasValue)
-            {
-                return registryValue.Value;
-            }
+            // The camera device is the source of truth: the Windows Settings camera slider writes
+            // the same VideoProcAmp brightness property, so reading it keeps us in sync.
+            var deviceValue = GetDeviceBrightness();
+            if (deviceValue.HasValue)
+                return deviceValue.Value;
 
-            // Fallback to MediaCapture API
-            if (_videoController == null)
-                return null;
-
-            try
-            {
-                // Try Exposure first (more commonly supported)
-                if (_videoController.Exposure?.Capabilities?.Supported == true)
-                {
-                    if (!_videoController.Exposure.TryGetValue(out double value))
-                        return null;
-                    return value;
-                }
-                // Fallback to Brightness if available
-                else if (_videoController.Brightness?.Capabilities?.Supported == true)
-                {
-                    if (!_videoController.Brightness.TryGetValue(out double value))
-                        return null;
-                    return value;
-                }
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CameraBrightness] Error getting brightness: {ex.Message}");
-                return null;
-            }
+            // Fallback to the last value written through this app
+            return GetRegistryBrightness();
         }
+    }
+
+    /// <summary>
+    /// Reads the camera's own brightness (Bridge/VideoProcAmp property) normalized to 0-100.
+    /// This is the value Windows Settings' camera brightness slider shows and writes.
+    /// </summary>
+    private double? GetDeviceBrightness()
+    {
+        if (_videoController == null)
+            return null;
+
+        try
+        {
+            var brightness = ReadNormalizedValue(_videoController.Brightness);
+            if (brightness.HasValue)
+                return brightness;
+
+            // Some drivers only expose exposure
+            return ReadNormalizedValue(_videoController.Exposure);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CameraBrightness] Error getting device brightness: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Reads a device control value and maps it from its device range into 0-100.</summary>
+    private static double? ReadNormalizedValue(MediaDeviceControl? control)
+    {
+        if (control == null)
+            return null;
+
+        var caps = control.Capabilities;
+        if (caps == null || !caps.Supported)
+            return null;
+
+        if (!control.TryGetValue(out double raw))
+            return null;
+
+        if (caps.Max > caps.Min)
+        {
+            double percent = (raw - caps.Min) / (caps.Max - caps.Min) * 100.0;
+            return Math.Clamp(percent, 0, 100);
+        }
+
+        return Math.Clamp(raw, 0, 100);
     }
 
     /// <summary>
@@ -409,42 +429,49 @@ public class CameraBrightnessService : IDisposable
     /// Applies brightness to the actual camera device.
     /// Maps 0-100 range to device-specific range.
     /// </summary>
-    private void ApplyBrightnessToDevice(int registryBrightness)
+    private void ApplyBrightnessToDevice(double brightnessPercent)
     {
         if (_videoController == null)
             return;
 
         try
         {
-            // Map 0-100 to device range
-            // Try Exposure first
-            if (_videoController.Exposure?.Capabilities?.Supported == true)
+            // Windows Settings' brightness slider writes the VideoProcAmp brightness property, so
+            // use that control first; exposure is a different property and would not line up with
+            // the brightness value shown in Windows Settings.
+            if (ApplyNormalizedValue(_videoController.Brightness, brightnessPercent))
             {
-                var caps = _videoController.Exposure.Capabilities;
-                double deviceValue = caps.Min + (registryBrightness / 100.0) * (caps.Max - caps.Min);
-                
-                _videoController.Exposure.TrySetAuto(false);
-                if (_videoController.Exposure.TrySetValue(deviceValue))
-                {
-                    Debug.WriteLine($"[CameraBrightness] Applied {registryBrightness}% as Exposure {deviceValue}");
-                }
+                Debug.WriteLine($"[CameraBrightness] Applied {brightnessPercent:0}% to camera brightness");
+                return;
             }
-            // Fallback to Brightness
-            else if (_videoController.Brightness?.Capabilities?.Supported == true)
+
+            if (ApplyNormalizedValue(_videoController.Exposure, brightnessPercent))
             {
-                var caps = _videoController.Brightness.Capabilities;
-                double deviceValue = caps.Min + (registryBrightness / 100.0) * (caps.Max - caps.Min);
-                
-                _videoController.Brightness.TrySetAuto(false);
-                if (_videoController.Brightness.TrySetValue(deviceValue))
-                {
-                    Debug.WriteLine($"[CameraBrightness] Applied {registryBrightness}% as Brightness {deviceValue}");
-                }
+                Debug.WriteLine($"[CameraBrightness] Applied {brightnessPercent:0}% to camera exposure");
             }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[CameraBrightness] Error applying brightness to device: {ex.Message}");
         }
+    }
+
+    /// <summary>Maps a 0-100 value onto a device control's own range and writes it.</summary>
+    private static bool ApplyNormalizedValue(MediaDeviceControl? control, double percent)
+    {
+        if (control == null)
+            return false;
+
+        var caps = control.Capabilities;
+        if (caps == null || !caps.Supported)
+            return false;
+
+        double deviceValue = caps.Max > caps.Min
+            ? caps.Min + (Math.Clamp(percent, 0, 100) / 100.0) * (caps.Max - caps.Min)
+            : Math.Clamp(percent, 0, 100);
+
+        try { control.TrySetAuto(false); } catch { /* auto is not supported for this control */ }
+
+        return control.TrySetValue(deviceValue);
     }
 }

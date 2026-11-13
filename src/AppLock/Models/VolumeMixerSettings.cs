@@ -24,8 +24,13 @@ public sealed class VolumeMixerSettings
     public bool ShowCameraBrightness { get; set; } = true; // Show camera brightness slider
     public string ThemeMode { get; set; } = "System";
     public List<string> Blacklist { get; set; } = new();
-    public double? CustomX { get; set; }   // used when dragged
+    public double? CustomX { get; set; }   // used when dragged (idle chip's left edge)
     public double? CustomY { get; set; }
+    /// <summary>
+    /// True when the overlay was parked against the right end of the work area. Placement then
+    /// keeps the window's right edge fixed, so the collapsed chip stays on the right edge.
+    /// </summary>
+    public bool CustomAnchorRight { get; set; }
 
     /// <summary>
     /// Validates and clamps all values to acceptable ranges.

@@ -601,6 +601,7 @@ public static class ServiceContainer
         Settings.VolumeMixer.IconPosition = positionId;
         Settings.VolumeMixer.CustomX = customX;
         Settings.VolumeMixer.CustomY = customY;
+        Settings.VolumeMixer.CustomAnchorRight = false; // presets are named positions, not edge anchors
         SettingsStore.Save(Settings);
 
         _volumeOverlayService?.RefreshSettings();

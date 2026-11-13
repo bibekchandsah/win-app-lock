@@ -33,6 +33,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private readonly Services.Camera.CameraBrightnessService _cameraService;
     private readonly Services.Audio.MicrophoneVolumeService _microphoneService;
     private bool _isUpdatingCameraBrightness; // Flag to prevent feedback loops
+    private DispatcherQueueTimer? _cameraSyncTimer; // Mirrors camera brightness set outside the overlay
     private bool _isUpdatingMicrophoneVolume; // Flag to prevent feedback loops
     private OverlayState _state = OverlayState.Idle;
     private DispatcherQueueTimer? _hoverDelayTimer;
@@ -207,6 +208,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private bool _isExpanding;
     private int? _customAnchorCenterX;
     private int? _customAnchorY;
+    private bool _customAnchorRight;
 
     // Media key via WM_APPCOMMAND
     private const int WM_APPCOMMAND = 0x0319;
@@ -600,31 +602,24 @@ public sealed partial class VolumeOverlayWindow : Window
                 Debug.WriteLine($"[VolumeMixer] Camera brightness control available");
                 Debug.WriteLine($"[VolumeMixer] Range: {_cameraService.MinBrightness} - {_cameraService.MaxBrightness}");
                 
-                // Update slider with current brightness
+                // Seed the slider from the camera's actual brightness (the value Windows Settings
+                // shows), so the overlay starts in sync instead of at the XAML default.
                 var currentBrightness = _cameraService.CurrentBrightness;
-                Debug.WriteLine($"[VolumeMixer] Current camera brightness: {currentBrightness}");
-                
-                if (currentBrightness.HasValue)
+                if (!currentBrightness.HasValue)
                 {
-                    _isUpdatingCameraBrightness = true;
-                    
-                    // Map camera brightness range to 0-100 slider range
-                    double normalizedValue = MapCameraBrightnessToSlider(currentBrightness.Value);
-                    CameraBrightnessSlider.Value = normalizedValue;
-                    CameraBrightnessPercentText.Text = $"{(int)normalizedValue}%";
-                    
-                    _isUpdatingCameraBrightness = false;
-                    Debug.WriteLine($"[VolumeMixer] Initial camera brightness: {currentBrightness.Value} -> {(int)normalizedValue}%");
-                }
-                else
-                {
-                    Debug.WriteLine("[VolumeMixer] WARNING: CurrentBrightness returned null - camera may be in auto mode");
-                    // Try setting to manual mode
+                    Debug.WriteLine("[VolumeMixer] CurrentBrightness returned null - retrying in manual mode");
                     _cameraService.SetAutoBrightness(false);
+                    currentBrightness = _cameraService.CurrentBrightness;
                 }
-                
+
+                ApplyCameraBrightnessToSlider(currentBrightness);
+                Debug.WriteLine($"[VolumeMixer] Initial camera brightness: {currentBrightness}");
+
                 // Subscribe to brightness changes
                 _cameraService.BrightnessChanged += OnCameraBrightnessChanged;
+
+                // Keep following changes made outside the overlay (Windows Settings > Cameras)
+                StartCameraBrightnessSync();
                 
                 // Show camera controls
                 CameraIconHost.Visibility = Visibility.Visible;
@@ -653,6 +648,68 @@ public sealed partial class VolumeOverlayWindow : Window
             Debug.WriteLine($"[VolumeMixer] Camera initialization error: {ex.Message}");
             Debug.WriteLine($"[VolumeMixer] Stack trace: {ex.StackTrace}");
         }
+    }
+
+    /// <summary>
+    /// Pushes a camera brightness value (0-100) into the overlay controls without writing it back
+    /// to the camera.
+    /// </summary>
+    private void ApplyCameraBrightnessToSlider(double? brightness)
+    {
+        if (!brightness.HasValue || CameraBrightnessSlider == null)
+            return;
+
+        double normalizedValue = MapCameraBrightnessToSlider(brightness.Value);
+
+        _isUpdatingCameraBrightness = true;
+        try
+        {
+            CameraBrightnessSlider.Value = normalizedValue;
+            if (CameraBrightnessPercentText != null)
+                CameraBrightnessPercentText.Text = $"{(int)normalizedValue}%";
+        }
+        finally
+        {
+            _isUpdatingCameraBrightness = false;
+        }
+    }
+
+    /// <summary>
+    /// Re-reads the camera's brightness and mirrors it in the slider, so changes made in Windows
+    /// Settings > Bluetooth &amp; devices > Cameras are reflected while the overlay is open.
+    /// </summary>
+    private void RefreshCameraBrightnessFromDevice()
+    {
+        if (_isUpdatingCameraBrightness || !_cameraService.IsAvailable)
+            return;
+
+        var current = _cameraService.CurrentBrightness;
+        if (!current.HasValue)
+            return;
+
+        double normalizedValue = MapCameraBrightnessToSlider(current.Value);
+        if (Math.Abs(normalizedValue - CameraBrightnessSlider.Value) < 0.5)
+            return;
+
+        ApplyCameraBrightnessToSlider(current.Value);
+        Debug.WriteLine($"[VolumeMixer] Camera brightness synced from device: {(int)normalizedValue}%");
+    }
+
+    private void StartCameraBrightnessSync()
+    {
+        _cameraSyncTimer?.Stop();
+        _cameraSyncTimer = DispatcherQueue.CreateTimer();
+        _cameraSyncTimer.Interval = TimeSpan.FromSeconds(1);
+        _cameraSyncTimer.IsRepeating = true;
+        _cameraSyncTimer.Tick += (s, e) =>
+        {
+            // Only while the overlay is showing its controls
+            if (_state == OverlayState.Idle)
+                return;
+
+            RefreshCameraBrightnessFromDevice();
+        };
+        _cameraSyncTimer.Start();
     }
 
     private void OnCameraBrightnessChanged(object? sender, double brightness)
@@ -1221,6 +1278,9 @@ public sealed partial class VolumeOverlayWindow : Window
         _pollingTimer.Start();
 
         System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Polling started: {settings.PollingMs}ms");
+
+        // Pick up any camera brightness change made while the overlay was collapsed
+        RefreshCameraBrightnessFromDevice();
 
         // Initial refresh
         RefreshSessions();
@@ -2555,6 +2615,7 @@ public sealed partial class VolumeOverlayWindow : Window
                 // CustomX/CustomY hold the idle chip's top-left, i.e. the speaker icon anchor
                 _customAnchorCenterX = (int)settings.CustomX.Value + (settings.IconSize + 12) / 2;
                 _customAnchorY = (int)settings.CustomY.Value;
+                _customAnchorRight = settings.CustomAnchorRight;
             }
 
             ComputeWindowPosition(totalWidth, totalHeight, out int newX, out int newY);
@@ -2848,20 +2909,30 @@ public sealed partial class VolumeOverlayWindow : Window
         if (appWindow == null) return;
 
         var pos = appWindow.Position;
+        var size = appWindow.Size;
         var settings = ServiceContainer.Settings.VolumeMixer;
+        var workArea = DisplayArea.Primary.WorkArea;
 
-        int iconCenterX = pos.X + GetIconCenterOffsetX();
         int idleWidth = settings.IconSize + 12;
+        int iconCenterX = pos.X + GetIconCenterOffsetX();
+
+        // Dropped against the right end of the work area → keep the RIGHT edge anchored, so the
+        // collapsed chip stays on the right edge and the bar grows inward from it.
+        bool anchorRight = pos.X + size.Width >= workArea.X + workArea.Width - 12;
 
         _customAnchorCenterX = iconCenterX;
         _customAnchorY = pos.Y;
+        _customAnchorRight = anchorRight;
 
-        settings.CustomX = iconCenterX - idleWidth / 2;
+        settings.CustomX = anchorRight
+            ? pos.X + size.Width - idleWidth
+            : iconCenterX - idleWidth / 2;
         settings.CustomY = pos.Y;
+        settings.CustomAnchorRight = anchorRight;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
         System.Diagnostics.Debug.WriteLine(
-            $"[VolumeMixer] Position saved, icon anchor: ({iconCenterX}, {pos.Y})");
+            $"[VolumeMixer] Position saved: icon anchor ({iconCenterX}, {pos.Y}), right-anchored: {anchorRight}");
     }
 
     private void ComputeWindowPosition(int totalWidth, int totalHeight, out int newX, out int newY)
@@ -2885,11 +2956,23 @@ public sealed partial class VolumeOverlayWindow : Window
 
         if (settings.CustomX.HasValue && settings.CustomY.HasValue)
         {
-            // Anchor on the speaker icon's screen position, not the window centre. Anchoring on the
-            // centre made the collapsed chip land in the middle of the expanded bar and kept it
-            // away from the screen edges.
-            int iconCenterX = _customAnchorCenterX ?? ((int)settings.CustomX.Value + (iconSize + 12) / 2);
-            newX = iconCenterX - GetIconCenterOffsetX();
+            int idleWidth = iconSize + 12;
+
+            if (_customAnchorRight)
+            {
+                // Right edge of the window stays on the anchor, so the collapsed chip stays against
+                // the right end of the screen while the bar grows inward from it.
+                newX = ((int)settings.CustomX.Value + idleWidth) - totalWidth;
+            }
+            else
+            {
+                // Anchor on the speaker icon's screen position, not the window centre. Anchoring on
+                // the centre made the collapsed chip land in the middle of the expanded bar and
+                // kept it away from the screen edges.
+                int iconCenterX = _customAnchorCenterX ?? ((int)settings.CustomX.Value + idleWidth / 2);
+                newX = iconCenterX - GetIconCenterOffsetX();
+            }
+
             newY = _customAnchorY ?? (int)settings.CustomY.Value;
 
             if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
@@ -3351,6 +3434,8 @@ public sealed partial class VolumeOverlayWindow : Window
         _hideDelayTimer?.Stop();
         _pollingTimer?.Stop();
         _topmostTimer?.Stop();
+        _cameraSyncTimer?.Stop();
+        _cameraSyncTimer = null;
         _sizeAnimationTimer?.Stop();
         _sizeAnimationTimer = null;
 
