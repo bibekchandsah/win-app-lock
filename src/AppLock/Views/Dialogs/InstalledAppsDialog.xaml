@@ -12,6 +12,8 @@
 
     <ContentDialog.Resources>
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <CornerRadius x:Key="OverlayCornerRadius">12</CornerRadius>
+        <CornerRadius x:Key="ContentDialogCornerRadius">12</CornerRadius>
     </ContentDialog.Resources>
 
     <Grid RowSpacing="12" MinWidth="600" MinHeight="500">

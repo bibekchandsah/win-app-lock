@@ -284,17 +284,20 @@ i have implemented setting for hotkey and system tray menu for notification but 
 
 
 fixed - fix the refreshing style in protection page, it should get refreshed like "internet access > active connections"
+fixed - smooth animation when collapsing and non collapsing sidebar
+fixed - hover effect in sidebar in light mode isn't seen 
 fixed - in "protected applications" when there is no application locked then show message of no application is locked, lock the application from "running application" tab to see the list or show some meaningful message
 add animation to burger menu when collapsing and non collapsing like squeezing and returning to normal
 make the sidebar rounded in the top right side as like whatsapp has rounded edge in sidebar
 auto lock whatever page is in currently on Idle
 rounded edge in "import firewall rule, add from installed apps" dialog box
-hover effect in sidebar in light mode isn't seen 
-background mica effect in page 
-smooth animation when collapsing and non collapsing sidebar
-
-
-
+background mica window 11 effect in all page 
+hover effect isn't seen in bitlocker page drive cards in light mode 
+hover effect isn't seen in others page of cards when it's in light mode
+in brightness page it don't shows the text of default selected dropdown 
+in ring light page "test camera detection" details aren't shown in light mode which are appeared after testing
+in ring light page sync the theme for "save preset" dialog box for light mode 
+copying images or file is getting copied it's file name in clipboard page, fix it so that if user copy image file or any other file then it will get copied instead of it's file name 
 
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe

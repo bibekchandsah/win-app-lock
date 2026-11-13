@@ -109,7 +109,7 @@ public sealed partial class MainWindow : Window
         UpdateToastTheme();
         
         // Initialize collapsible navigation pane from settings
-        SetNavPaneExpanded(ServiceContainer.Settings.IsNavPaneExpanded, saveSetting: false);
+        SetNavPaneExpanded(ServiceContainer.Settings.IsNavPaneExpanded, saveSetting: false, animate: false);
 
         // Show/hide BitLocker nav based on platform support
         UpdateBitLockerNavVisibility();
@@ -140,7 +140,7 @@ public sealed partial class MainWindow : Window
             }
 
             // Hide navigation rail while login prompt is pending
-            NavRail.Visibility = Visibility.Collapsed;
+            NavRailCard.Visibility = Visibility.Collapsed;
             Grid.SetColumn(ContentFrame, 0);
             ContentFrame.SetValue(Grid.ColumnSpanProperty, 2);
 
@@ -375,6 +375,17 @@ public sealed partial class MainWindow : Window
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
         // Update toggle button and disabled nav items
+        // Slide the accent pill to whichever row is selected.
+        Button? selectedButton =
+            isProtection ? ProtectionNavButton :
+            isFeedback ? FeedbackNavButton :
+            isSettings ? SettingsNavButton :
+            isInternetAccess ? InternetAccessNavButton :
+            isBitLocker ? BitLockerNavButton :
+            isOthers ? OthersNavButton : null;
+
+        MoveNavSelectionPill(selectedButton, animate: true);
+
         if (NavTogglePaneIcon != null) NavTogglePaneIcon.Foreground = inactiveIconBrush;
         if (RulesNavIcon != null) RulesNavIcon.Foreground = disabledBrush;
         if (RulesNavLabel != null) RulesNavLabel.Foreground = disabledBrush;
@@ -401,8 +412,9 @@ public sealed partial class MainWindow : Window
         }
         if (indicator != null)
         {
+            // Selection is drawn by the single sliding pill (NavSelectionPill) instead.
             indicator.Background = activeAccent;
-            indicator.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
+            indicator.Visibility = Visibility.Collapsed;
         }
         if (icon != null)
         {
@@ -464,6 +476,11 @@ public sealed partial class MainWindow : Window
             
             SystemBackdrop = new MicaBackdrop() { Kind = MicaKind.Base };
         }
+        else if (RootGrid != null)
+        {
+            // No Mica (older Windows): fall back to the solid purple shell colour.
+            RootGrid.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ShellWindowFallbackBrush"];
+        }
     }
 
     private void ShowFirstRun()
@@ -476,7 +493,7 @@ public sealed partial class MainWindow : Window
         ContentFrame.Content = firstRunPage;
         
         // Hide navigation rail during first run
-        NavRail.Visibility = Visibility.Collapsed;
+        NavRailCard.Visibility = Visibility.Collapsed;
         Grid.SetColumn(ContentFrame, 0);
         ContentFrame.SetValue(Grid.ColumnSpanProperty, 2);
     }
@@ -488,7 +505,7 @@ public sealed partial class MainWindow : Window
         // Restore navigation rail
         Grid.SetColumn(ContentFrame, 1);
         ContentFrame.ClearValue(Grid.ColumnSpanProperty);
-        NavRail.Visibility = Visibility.Visible;
+        NavRailCard.Visibility = Visibility.Visible;
         
         // Navigate to protection page
         ContentFrame.Navigate(typeof(ProtectionPage));
@@ -516,7 +533,7 @@ public sealed partial class MainWindow : Window
                 };
 
                 await dialog.ShowAsync();
-                
+
                 System.Diagnostics.Debug.WriteLine($"IsAuthenticated: {dialog.IsAuthenticated}");
 
                 // Check IsAuthenticated - this is set to true only when password is correct
@@ -528,7 +545,7 @@ public sealed partial class MainWindow : Window
                     // Restore navigation rail
                     Grid.SetColumn(ContentFrame, 1);
                     ContentFrame.ClearValue(Grid.ColumnSpanProperty);
-                    NavRail.Visibility = Visibility.Visible;
+                    NavRailCard.Visibility = Visibility.Visible;
                     
                     try
                     {
@@ -628,13 +645,57 @@ public sealed partial class MainWindow : Window
 
     private void NavTogglePaneButton_Click(object sender, RoutedEventArgs e)
     {
-        // Same feel as the Windows Settings burger: a quick 180° turn that settles into place.
-        NavToggleSpinStoryboard.Begin();
+        AnimateNavToggleIcon();
         SetNavPaneExpanded(!_isNavPaneExpanded, saveSetting: true);
     }
 
+    /// <summary>Current rotation of the burger icon, so each click spins on from where it stopped.</summary>
+    private float _navToggleIconRotation;
+
+    /// <summary>
+    /// Spins the burger a half turn with a short settle — the same feel as the Windows Settings pane
+    /// toggle. Driven through the composition layer (not a XAML storyboard property path) so the icon
+    /// really rotates about its own centre on every click.
+    /// </summary>
+    private void AnimateNavToggleIcon()
+    {
+        try
+        {
+            var icon = NavTogglePaneIcon;
+            if (icon == null) return;
+
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(icon);
+            var compositor = visual.Compositor;
+
+            float centerX = (float)icon.ActualWidth / 2f;
+            float centerY = (float)icon.ActualHeight / 2f;
+            if (centerX <= 0 || centerY <= 0) { centerX = 8f; centerY = 8f; }
+            visual.CenterPoint = new System.Numerics.Vector3(centerX, centerY, 0f);
+
+            float from = _navToggleIconRotation;
+            float to = from + 180f;
+            _navToggleIconRotation = to;
+
+            var settle = compositor.CreateCubicBezierEasingFunction(
+                new System.Numerics.Vector2(0.16f, 0.9f),
+                new System.Numerics.Vector2(0.28f, 1f));
+
+            var spin = compositor.CreateScalarKeyFrameAnimation();
+            spin.Duration = TimeSpan.FromMilliseconds(360);
+            spin.InsertKeyFrame(0f, from);
+            spin.InsertKeyFrame(0.65f, from + 194f, settle); // small overshoot, then settle back
+            spin.InsertKeyFrame(1f, to, settle);
+
+            visual.StartAnimation("RotationAngleInDegrees", spin);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav toggle icon animation error: {ex.Message}");
+        }
+    }
+
     /// <summary>Radius of the content panel's rounded corner, matching the pane/chat-list seam.</summary>
-    private const float ContentCornerRadius = 16f;
+    private const float ContentCornerRadius = 12f;
 
     private void ContentHost_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -642,9 +703,8 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Clips the content panel to a rounded rectangle. Page backgrounds are opaque, so a XAML corner
-    /// radius alone would be painted over; the clip keeps every page inside the rounded corner.
-    /// The rectangle is oversized so only the top-left corner is rounded (right and bottom stay flush).
+    /// Clips the content card to its rounded rectangle, so page content is cut at the corners like
+    /// the card background and border are.
     /// </summary>
     private void ApplyContentCornerClip(Windows.Foundation.Size size)
     {
@@ -657,9 +717,7 @@ public sealed partial class MainWindow : Window
 
             var geometry = compositor.CreateRoundedRectangleGeometry();
             geometry.CornerRadius = new System.Numerics.Vector2(ContentCornerRadius, ContentCornerRadius);
-            geometry.Size = new System.Numerics.Vector2(
-                (float)size.Width + ContentCornerRadius,
-                (float)size.Height + ContentCornerRadius);
+            geometry.Size = new System.Numerics.Vector2((float)size.Width, (float)size.Height);
 
             visual.Clip = compositor.CreateGeometricClip(geometry);
         }
@@ -669,15 +727,49 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    public void SetNavPaneExpanded(bool expanded, bool saveSetting = true)
+    // 50 keeps the 40 px nav tiles plus their 4 px insets inside the card's 1 px border.
+    private const double NavPaneCollapsedWidth = 50;
+    private const double NavPaneExpandedWidth = 300;
+
+    private Microsoft.UI.Xaml.Media.Animation.Storyboard? _navRailStoryboard;
+
+    public void SetNavPaneExpanded(bool expanded, bool saveSetting = true, bool animate = true)
     {
         _isNavPaneExpanded = expanded;
-        if (NavPaneColumn != null)
+
+        if (expanded)
         {
-            NavPaneColumn.Width = expanded ? new GridLength(210) : new GridLength(48);
+            // Labels are revealed by the rail's clip as it widens, and fade in alongside it.
+            SetNavLabelsVisible(true);
         }
 
-        var labelVis = expanded ? Visibility.Visible : Visibility.Collapsed;
+        if (animate)
+        {
+            AnimateNavRailWidth(expanded ? NavPaneExpandedWidth : NavPaneCollapsedWidth);
+            AnimateNavLabelsOpacity(expanded ? 1f : 0f);
+        }
+        else
+        {
+            _navRailStoryboard?.Stop();
+            _navRailStoryboard = null;
+            if (NavRailCard != null)
+            {
+                NavRailCard.Width = expanded ? NavPaneExpandedWidth : NavPaneCollapsedWidth;
+            }
+            SetNavLabelsVisible(expanded);
+            SetNavLabelsOpacity(expanded ? 1 : 0);
+        }
+
+        if (saveSetting && ServiceContainer.Settings != null)
+        {
+            ServiceContainer.Settings.IsNavPaneExpanded = expanded;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
+    }
+
+    private void SetNavLabelsVisible(bool visible)
+    {
+        var labelVis = visible ? Visibility.Visible : Visibility.Collapsed;
         if (ProtectionNavLabel != null) ProtectionNavLabel.Visibility = labelVis;
         if (RulesNavLabel != null) RulesNavLabel.Visibility = labelVis;
         if (WebsitesNavLabel != null) WebsitesNavLabel.Visibility = labelVis;
@@ -686,12 +778,292 @@ public sealed partial class MainWindow : Window
         if (BitLockerNavLabel != null) BitLockerNavLabel.Visibility = labelVis;
         if (InternetAccessNavLabel != null) InternetAccessNavLabel.Visibility = labelVis;
         if (OthersNavLabel != null) OthersNavLabel.Visibility = labelVis;
+    }
 
-        if (saveSetting && ServiceContainer.Settings != null)
+    /// <summary>
+    /// Slides the rail between its collapsed and expanded width. Width is a layout property, so it
+    /// needs a dependent animation; the Auto column (and therefore the content) follows each frame.
+    /// </summary>
+    private void AnimateNavRailWidth(double to)
+    {
+        if (NavRailCard == null) return;
+
+        _navRailStoryboard?.Stop();
+
+        try
         {
-            ServiceContainer.Settings.IsNavPaneExpanded = expanded;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            var animation = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                To = to,
+                Duration = new Duration(TimeSpan.FromMilliseconds(240)),
+                EnableDependentAnimation = true,
+                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+                {
+                    EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseInOut
+                }
+            };
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, NavRailCard);
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "Width");
+
+            var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+            storyboard.Children.Add(animation);
+            storyboard.Completed += (_, __) =>
+            {
+                if (NavRailCard != null) NavRailCard.Width = to;
+                SetNavLabelsVisible(to > NavPaneCollapsedWidth + 1);
+                _navRailStoryboard = null;
+            };
+
+            _navRailStoryboard = storyboard;
+            storyboard.Begin();
         }
+        catch (Exception ex)
+        {
+            // If the width animation cannot run, still land on the requested width.
+            NavRailCard.Width = to;
+            SetNavLabelsVisible(to > NavPaneCollapsedWidth + 1);
+            _navRailStoryboard = null;
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav rail animation error: {ex.Message}");
+        }
+    }
+
+    private IEnumerable<TextBlock> GetNavLabels()
+    {
+        if (ProtectionNavLabel != null) yield return ProtectionNavLabel;
+        if (RulesNavLabel != null) yield return RulesNavLabel;
+        if (WebsitesNavLabel != null) yield return WebsitesNavLabel;
+        if (FeedbackNavLabel != null) yield return FeedbackNavLabel;
+        if (SettingsNavLabel != null) yield return SettingsNavLabel;
+        if (BitLockerNavLabel != null) yield return BitLockerNavLabel;
+        if (InternetAccessNavLabel != null) yield return InternetAccessNavLabel;
+        if (OthersNavLabel != null) yield return OthersNavLabel;
+    }
+
+    /// <summary>Fades the nav labels in/out so they don't pop when the pane animates.</summary>
+    private void AnimateNavLabelsOpacity(float to)
+    {
+        if (NavRail == null) return;
+
+        try
+        {
+            var compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview
+                .GetElementVisual(NavRail).Compositor;
+            var ease = compositor.CreateCubicBezierEasingFunction(
+                new System.Numerics.Vector2(0f, 0f),
+                new System.Numerics.Vector2(0.58f, 1f));
+
+            foreach (var label in GetNavLabels())
+            {
+                var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(label);
+                var animation = compositor.CreateScalarKeyFrameAnimation();
+                animation.Duration = TimeSpan.FromMilliseconds(to > 0.5f ? 160 : 120);
+                animation.InsertKeyFrame(1f, to, ease);
+                visual.StartAnimation("Opacity", animation);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav label fade error: {ex.Message}");
+        }
+    }
+
+    private void SetNavLabelsOpacity(double value)
+    {
+        foreach (var label in GetNavLabels())
+        {
+            try
+            {
+                Microsoft.UI.Xaml.Hosting.ElementCompositionPreview
+                    .GetElementVisual(label).StopAnimation("Opacity");
+            }
+            catch { }
+
+            label.Opacity = value;
+        }
+    }
+
+    private bool _navPillPositioned;
+    private Button? _pendingPillItem;
+    private bool _pillPlacementQueued;
+
+    /// <summary>Slides the single accent pill to the selected row.</summary>
+    private void MoveNavSelectionPill(Button? item, bool animate)
+    {
+        if (item == null || NavSelectionPill == null || NavRail == null) return;
+
+        // Rows have no height until layout has run (e.g. right after the rail becomes visible). Remember
+        // the selection and let the rail's next layout place the pill — never re-enqueue from here, or a
+        // hidden/unlaid-out rail spins the dispatcher forever.
+        if (item.ActualHeight <= 0)
+        {
+            _pendingPillItem = item;
+            return;
+        }
+
+        _pendingPillItem = null;
+
+        try
+        {
+            var origin = item.TransformToVisual(NavRail).TransformPoint(new Windows.Foundation.Point(0, 0));
+            var targetY = (float)(origin.Y + (item.ActualHeight - NavSelectionPill.Height) / 2.0);
+            if (float.IsNaN(targetY) || float.IsInfinity(targetY)) return;
+
+            NavSelectionPill.Visibility = Visibility.Visible;
+
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(NavSelectionPill);
+            Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(NavSelectionPill, true);
+
+            if (!animate || !_navPillPositioned)
+            {
+                visual.Properties.InsertVector3("Translation", new System.Numerics.Vector3(0f, targetY, 0f));
+                _navPillPositioned = true;
+                return;
+            }
+
+            var compositor = visual.Compositor;
+            var animation = compositor.CreateVector3KeyFrameAnimation();
+            animation.Duration = TimeSpan.FromMilliseconds(180);
+            animation.InsertKeyFrame(1f, new System.Numerics.Vector3(0f, targetY, 0f),
+                compositor.CreateCubicBezierEasingFunction(
+                    new System.Numerics.Vector2(0.2f, 0f),
+                    new System.Numerics.Vector2(0f, 1f)));
+
+            visual.StartAnimation("Translation", animation);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav pill error: {ex.Message}");
+        }
+    }
+
+    private void NavTogglePaneButton_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        => AnimateNavToggleHover(0.9f);
+
+    private void NavTogglePaneButton_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        SetNavToggleFill("ShellNavHoverBrush");
+        AnimateNavToggleHover(0f);
+    }
+
+    private void NavTogglePaneButton_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        SetNavToggleFill("ShellNavPressedBrush");
+        AnimateNavToggleIconScale(0.92f);
+    }
+
+    private void NavTogglePaneButton_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        SetNavToggleFill("ShellNavHoverBrush");
+        AnimateNavToggleIconScale(1f);
+    }
+
+    /// <summary>Swaps the hover tile to the pressed token while the button is held down.</summary>
+    private void SetNavToggleFill(string resourceKey)
+    {
+        if (NavToggleHoverFill == null) return;
+
+        try
+        {
+            if (Application.Current.Resources[resourceKey] is Microsoft.UI.Xaml.Media.Brush brush)
+            {
+                NavToggleHoverFill.Background = brush;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav toggle fill error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Fades the rounded hover tile in/out over 150 ms instead of snapping.</summary>
+    private void AnimateNavToggleHover(float target)
+    {
+        if (NavToggleHoverFill == null) return;
+
+        try
+        {
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(NavToggleHoverFill);
+            var compositor = visual.Compositor;
+
+            var animation = compositor.CreateScalarKeyFrameAnimation();
+            animation.Duration = TimeSpan.FromMilliseconds(150);
+            animation.InsertKeyFrame(1f, target, compositor.CreateCubicBezierEasingFunction(
+                new System.Numerics.Vector2(0f, 0f),
+                new System.Numerics.Vector2(0.58f, 1f)));
+
+            visual.StartAnimation("Opacity", animation);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav toggle hover error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Scales the burger icon while pressed (about 0.92).</summary>
+    private void AnimateNavToggleIconScale(float target)
+    {
+        if (NavTogglePaneIcon == null) return;
+
+        try
+        {
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(NavTogglePaneIcon);
+            visual.CenterPoint = new System.Numerics.Vector3(
+                (float)NavTogglePaneIcon.ActualWidth / 2f,
+                (float)NavTogglePaneIcon.ActualHeight / 2f,
+                0f);
+
+            var animation = visual.Compositor.CreateVector3KeyFrameAnimation();
+            animation.Duration = TimeSpan.FromMilliseconds(110);
+            animation.InsertKeyFrame(1f, new System.Numerics.Vector3(target, target, 1f));
+
+            visual.StartAnimation("Scale", animation);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav toggle scale error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Clips the rail to its own bounds so labels are cut off while the pane is collapsing.</summary>
+    private void NavRail_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        try
+        {
+            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(NavRail);
+            var compositor = visual.Compositor;
+
+            var geometry = compositor.CreateRoundedRectangleGeometry();
+            geometry.CornerRadius = new System.Numerics.Vector2(0f, 0f);
+            geometry.Size = new System.Numerics.Vector2((float)e.NewSize.Width, (float)e.NewSize.Height);
+
+            visual.Clip = compositor.CreateGeometricClip(geometry);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Nav rail clip error: {ex.Message}");
+        }
+
+        // The rail just laid out, so a selection that arrived before layout can now be placed.
+        TryPlacePendingPill();
+    }
+
+    /// <summary>Places a pill that was requested before the rows had any height.</summary>
+    private void TryPlacePendingPill()
+    {
+        if (_pendingPillItem == null || _pillPlacementQueued) return;
+
+        _pillPlacementQueued = true;
+        var item = _pendingPillItem;
+        _pendingPillItem = null;
+
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            _pillPlacementQueued = false;
+            if (item != null)
+            {
+                MoveNavSelectionPill(item, animate: false);
+            }
+        });
     }
 
     public void ApplyLocalization()

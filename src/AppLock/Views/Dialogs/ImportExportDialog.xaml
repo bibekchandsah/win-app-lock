@@ -9,6 +9,11 @@
     DefaultButton="Primary"
     IsPrimaryButtonEnabled="{x:Bind HasSelection, Mode=OneWay}">
 
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="OverlayCornerRadius">12</CornerRadius>
+        <CornerRadius x:Key="ContentDialogCornerRadius">12</CornerRadius>
+    </ContentDialog.Resources>
+
     <Grid RowSpacing="12" MinWidth="600" MinHeight="400">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

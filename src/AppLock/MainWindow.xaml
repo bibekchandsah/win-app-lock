@@ -7,22 +7,9 @@
     mc:Ignorable="d"
     Title="AppLock">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <Grid.Resources>
-        <!-- Burger spin: the settings-style 180° turn with a short settle when the pane toggles. -->
-        <Storyboard x:Name="NavToggleSpinStoryboard">
-            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NavTogglePaneIcon"
-                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)">
-                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
-                <EasingDoubleKeyFrame KeyTime="0:0:0.26" Value="180">
-                    <EasingDoubleKeyFrame.EasingFunction>
-                        <BackEase EasingMode="EaseOut" Amplitude="0.25"/>
-                    </EasingDoubleKeyFrame.EasingFunction>
-                </EasingDoubleKeyFrame>
-            </DoubleAnimationUsingKeyFrames>
-        </Storyboard>
-        </Grid.Resources>
-
+    <!-- The window itself is Mica; this translucent purple veil tints it (and becomes the whole
+         window colour when Mica is unavailable, see SetupMica). -->
+    <Grid x:Name="RootGrid" Background="{ThemeResource ShellWindowTintBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -45,43 +32,63 @@
         </Grid>
 
         <!-- Main Body (Navigation Rail + Content) -->
-        <Grid x:Name="MainBodyGrid" Grid.Row="1">
+        <Grid x:Name="MainBodyGrid" Grid.Row="1" Margin="8,8,8,8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="NavPaneColumn" Width="48"/>
+                <ColumnDefinition x:Name="NavPaneColumn" Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Pane-coloured backdrop behind both panes. The rounded content panel reveals it in its
-                 corner, which is the seam WhatsApp draws between its rail and the chat list. -->
-            <Border Grid.ColumnSpan="2" Background="{ThemeResource LayerFillColorDefaultBrush}"/>
-
-            <!-- Left Navigation Rail -->
-            <Grid x:Name="NavRail" Grid.Column="0">
+            <!-- Floating sidebar card: detached from the window edges, rounded, hairline border.
+                 Its width is animated (column is Auto) so collapsing slides the content along. -->
+            <Border x:Name="NavRailCard" Grid.Column="0" Width="50"
+                    Background="{ThemeResource ShellCardFillBrush}"
+                    BorderBrush="{ThemeResource ShellCardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{ThemeResource ShellCornerRadius}">
+            <Grid x:Name="NavRail" SizeChanged="NavRail_SizeChanged">
+                <Grid.Resources>
+                    <!-- Theme-aware nav hover/press fills (the stock ones are invisible on a light pane). -->
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource ShellNavHoverColor}"/>
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource ShellNavPressedColor}"/>
+                </Grid.Resources>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Top: Hamburger Toggle Pane Button -->
+                <!-- Top: Hamburger Toggle Pane Button. Its hover/pressed visuals are animated in code
+                     (see NavTogglePaneButton_Pointer*), so the stock button states are transparent. -->
                 <Button x:Name="NavTogglePaneButton"
                         Grid.Row="0"
                         Width="40" Height="40"
-                        Margin="4,6,4,2"
+                        Margin="8,10,4,2"
                         Padding="0"
-                        CornerRadius="6"
+                        CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                         Click="NavTogglePaneButton_Click"
                         Background="Transparent"
                         BorderThickness="0"
                         HorizontalAlignment="Left"
+                        PointerEntered="NavTogglePaneButton_PointerEntered"
+                        PointerExited="NavTogglePaneButton_PointerExited"
+                        PointerPressed="NavTogglePaneButton_PointerPressed"
+                        PointerReleased="NavTogglePaneButton_PointerReleased"
+                        PointerCaptureLost="NavTogglePaneButton_PointerExited"
                         ToolTipService.ToolTip="Toggle navigation pane">
-                    <FontIcon x:Name="NavTogglePaneIcon" Glyph="&#xE700;" FontSize="16"
-                              RenderTransformOrigin="0.5,0.5"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                        <FontIcon.RenderTransform>
-                            <RotateTransform/>
-                        </FontIcon.RenderTransform>
-                    </FontIcon>
+                    <Button.Resources>
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent"/>
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent"/>
+                    </Button.Resources>
+                    <Grid Width="40" Height="40">
+                        <Border x:Name="NavToggleHoverFill"
+                                CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
+                                Background="{ThemeResource ShellNavHoverBrush}"
+                                Opacity="0"
+                                IsHitTestVisible="False"/>
+                        <FontIcon x:Name="NavTogglePaneIcon" Glyph="&#xE700;" FontSize="16"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Grid>
                 </Button>
 
                 <!-- Top Navigation Items -->
@@ -90,7 +97,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="ProtectionNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -99,7 +106,7 @@
                             ToolTipService.ToolTip="Protection">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="ProtectionNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="ProtectionNavIndicator"
@@ -139,7 +146,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             IsEnabled="False"
                             Background="Transparent"
                             BorderThickness="0"
@@ -175,7 +182,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             IsEnabled="False"
                             Background="Transparent"
                             BorderThickness="0"
@@ -211,7 +218,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="InternetAccessNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -220,7 +227,7 @@
                             ToolTipService.ToolTip="Internet Access">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="InternetAccessNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="InternetAccessNavIndicator"
@@ -260,7 +267,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="BitLockerNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -270,7 +277,7 @@
                             Visibility="Collapsed">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="BitLockerNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="BitLockerNavIndicator"
@@ -313,7 +320,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="OthersNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -322,7 +329,7 @@
                             ToolTipService.ToolTip="Others">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="OthersNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="OthersNavIndicator"
@@ -362,7 +369,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="FeedbackNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -371,7 +378,7 @@
                             ToolTipService.ToolTip="Feedback &amp; Community">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="FeedbackNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="FeedbackNavIndicator"
@@ -411,7 +418,7 @@
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
-                            CornerRadius="6"
+                            CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                             Click="SettingsNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -420,7 +427,7 @@
                             ToolTipService.ToolTip="Settings">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="SettingsNavBackground"
-                                    CornerRadius="6"
+                                    CornerRadius="{ThemeResource ShellNavItemCornerRadius}"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                     Visibility="Collapsed"/>
                             <Border x:Name="SettingsNavIndicator"
@@ -456,12 +463,29 @@
                         </Grid>
                     </Button>
                 </StackPanel>
-            </Grid>
 
-            <!-- Main Content Area: a rounded panel, rounded in the top-left like WhatsApp's chat list. -->
+                <!-- One accent pill for the selected item: it slides between items rather than
+                     popping in and out of each row. -->
+                <Border x:Name="NavSelectionPill"
+                        Grid.RowSpan="3"
+                        Width="3" Height="18"
+                        Margin="4,0,0,0"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        CornerRadius="1.5"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed"/>
+            </Grid>
+            </Border>
+
+            <!-- Main content card, same rounded/bordered treatment, 8 px away from the sidebar. -->
             <Border x:Name="ContentHost"
                     Grid.Column="1"
-                    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                    Margin="8,0,0,0"
+                    Background="{ThemeResource ShellCardFillBrush}"
+                    BorderBrush="{ThemeResource ShellCardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{ThemeResource ShellCornerRadius}"
                     SizeChanged="ContentHost_SizeChanged">
                 <Frame x:Name="ContentFrame"/>
             </Border>

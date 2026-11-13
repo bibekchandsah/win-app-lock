@@ -15,6 +15,19 @@ public partial class App : Application
         {
             System.Diagnostics.Debug.WriteLine($"[CRITICAL] Unhandled Exception: {e.Message}");
             System.Diagnostics.Debug.WriteLine(e.Exception);
+
+            // Handled exceptions would otherwise leave the window half-built with no trace of why.
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "Logs");
+                System.IO.Directory.CreateDirectory(dir);
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(dir, "crash.log"),
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {e.Message}\r\n{e.Exception}\r\n\r\n");
+            }
+            catch { }
+
             e.Handled = true;
         };
         InitializeComponent();

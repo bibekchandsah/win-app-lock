@@ -13,6 +13,13 @@
             <!-- Theme-aware overrides for modern design -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
+                    <!-- Shell tokens -->
+                    <Color x:Key="ShellWindowTintColor">#4D1B1426</Color>
+                    <Color x:Key="ShellWindowFallbackColor">#FF1B1426</Color>
+                    <Color x:Key="ShellCardFillColor">#12FFFFFF</Color>
+                    <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
+                    <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
+                    <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
@@ -23,6 +30,13 @@
                     <SolidColorBrush x:Key="ToastBorderBrush" Color="#444444"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
+                    <!-- Shell tokens: purple-tinted Mica, translucent cards, lavender hover -->
+                    <Color x:Key="ShellWindowTintColor">#4D1B1426</Color>
+                    <Color x:Key="ShellWindowFallbackColor">#FF1B1426</Color>
+                    <Color x:Key="ShellCardFillColor">#12FFFFFF</Color>
+                    <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
+                    <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
+                    <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
@@ -33,6 +47,13 @@
                     <SolidColorBrush x:Key="ToastBorderBrush" Color="#444444"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
+                    <!-- Shell tokens: light-lavender tint, white cards, soft grey hover -->
+                    <Color x:Key="ShellWindowTintColor">#4DF7F2FB</Color>
+                    <Color x:Key="ShellWindowFallbackColor">#FFF6F1FB</Color>
+                    <Color x:Key="ShellCardFillColor">#B3FFFFFF</Color>
+                    <Color x:Key="ShellCardBorderColor">#14000000</Color>
+                    <Color x:Key="ShellNavHoverColor">#26B79BE8</Color>
+                    <Color x:Key="ShellNavPressedColor">#3DB79BE8</Color>
                     <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>
                     <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
@@ -43,6 +64,16 @@
                     <SolidColorBrush x:Key="ToastBorderBrush" Color="#D1D1D1"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Shell styling: one place for radii, gaps and the floating-card colours -->
+            <CornerRadius x:Key="ShellCornerRadius">12</CornerRadius>
+            <CornerRadius x:Key="ShellNavItemCornerRadius">8</CornerRadius>
+            <SolidColorBrush x:Key="ShellWindowTintBrush" Color="{ThemeResource ShellWindowTintColor}"/>
+            <SolidColorBrush x:Key="ShellWindowFallbackBrush" Color="{ThemeResource ShellWindowFallbackColor}"/>
+            <SolidColorBrush x:Key="ShellCardFillBrush" Color="{ThemeResource ShellCardFillColor}"/>
+            <SolidColorBrush x:Key="ShellCardBorderBrush" Color="{ThemeResource ShellCardBorderColor}"/>
+            <SolidColorBrush x:Key="ShellNavHoverBrush" Color="{ThemeResource ShellNavHoverColor}"/>
+            <SolidColorBrush x:Key="ShellNavPressedBrush" Color="{ThemeResource ShellNavPressedColor}"/>
 
             <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
             <CornerRadius x:Key="ContentDialogCornerRadius">8</CornerRadius>

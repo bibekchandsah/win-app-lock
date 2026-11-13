@@ -532,6 +532,23 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     /// argument. This subprocess is spawned by the browser ONLY while the camera is actively streaming
     /// and disappears the moment the camera is released — making it a precise, real-time indicator.
     /// </summary>
+    /// <summary>
+    /// Best-effort names of the processes currently using a camera. Kept as a public static probe so
+    /// diagnostics (and tests) can query it without constructing a monitor. Never throws.
+    /// </summary>
+    public static IReadOnlyList<string> GetRunningCameraAppNames()
+    {
+        try
+        {
+            return GetActiveVideoCaptureProcesses();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Running camera app probe error: {ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
+
     public static IReadOnlyList<string> GetActiveVideoCaptureProcesses()
     {
         var found = new List<string>();
