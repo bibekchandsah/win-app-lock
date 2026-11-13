@@ -209,6 +209,11 @@ public sealed partial class VolumeOverlayWindow : Window
     private int? _customAnchorCenterX;
     private int? _customAnchorY;
     private bool _customAnchorRight;
+    private const int EdgeSnapThreshold = 24; // px: drop distance that still snaps flush to an edge
+
+    // "Show only active apps": session id → last time it was producing audio
+    private readonly Dictionary<string, DateTime> _lastAudible = new();
+    private const double ActiveAppGraceSeconds = 2.5;
 
     // Media key via WM_APPCOMMAND
     private const int WM_APPCOMMAND = 0x0319;
@@ -1342,27 +1347,40 @@ public sealed partial class VolumeOverlayWindow : Window
             }).ToList();
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After blacklist: {beforeBlacklist} → {sessions.Count} sessions");
 
-            // Apply active-only filter
-            // NOTE: State-based filtering is disabled because Windows audio sessions report State=0 (inactive)
-            // even when playing audio. The State field is unreliable for determining active playback.
-            // Instead, we rely on the fact that GetAudioSessionsAsync only returns sessions with non-zero volume.
-            if (false && settings.OnlyActiveApps) // DISABLED - State is unreliable
+            // Apply the "Show only active apps" filter. A session counts as playing when Windows
+            // reports it as Active or its peak meter is non-zero. Hits are remembered briefly so a
+            // quiet passage or gaps between beats don't make an app flicker out of the list.
+            if (settings.OnlyActiveApps)
             {
                 var beforeActive = sessions.Count;
+                var now = DateTime.UtcNow;
+                var liveIds = sessions.Select(s => s.SessionIdentifier).ToHashSet();
+
+                foreach (var s in sessions)
+                {
+                    if (IsSessionAudible(s))
+                        _lastAudible[s.SessionIdentifier] = now;
+                }
+
                 sessions = sessions.Where(s =>
                 {
-                    var isActive = s.State == 1;
-                    if (!isActive)
+                    bool audible = IsSessionAudible(s)
+                        || (_lastAudible.TryGetValue(s.SessionIdentifier, out var last)
+                            && (now - last).TotalSeconds < ActiveAppGraceSeconds);
+
+                    if (!audible)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[VolumeMixer] FILTERED (inactive): {GetProcessName(s.ProcessId)} (PID {s.ProcessId}, State={s.State})");
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[VolumeMixer] FILTERED (not playing): {GetProcessName(s.ProcessId)} (PID {s.ProcessId}, State={s.State}, Peak={s.PeakValue:0.0000})");
                     }
-                    return isActive;
+
+                    return audible;
                 }).ToList();
+
+                // Forget tracking entries for sessions that no longer exist
+                foreach (var key in _lastAudible.Keys.Where(k => !liveIds.Contains(k)).ToList())
+                    _lastAudible.Remove(key);
                 System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After active-only filter: {beforeActive} → {sessions.Count} sessions");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Active-only filter disabled (State field unreliable)");
             }
 
             // Group by process name
@@ -1391,6 +1409,13 @@ public sealed partial class VolumeOverlayWindow : Window
             System.Diagnostics.Debug.WriteLine($"[VolumeMixer] RefreshSessions error: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// A session is considered to be playing audio when Windows marks it Active or its peak meter
+    /// is above the noise floor.
+    /// </summary>
+    private static bool IsSessionAudible(SessionInfo session)
+        => session.State == 1 || session.PeakValue > 0.0005f;
 
     private static string GetProcessName(int processId)
     {
@@ -2705,7 +2730,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void ToggleMixerPanel()
     {
-        bool panelIsBelow = !ServiceContainer.Settings.VolumeMixer.IconPosition.StartsWith("bottom");
+        // Panels open toward the interior: below the bar when anchored near the top, above it when
+        // anchored near the bottom (dragged chips use their actual position, presets their name).
+        bool panelIsBelow = !IsAnchoredBottom();
         var settings = ServiceContainer.Settings.VolumeMixer;
 
         if (_state == OverlayState.MixerOpen)
@@ -2899,6 +2926,51 @@ public sealed partial class VolumeOverlayWindow : Window
     }
 
     /// <summary>
+    /// Snaps the window flush against the nearest work-area edge (left/right for X, top/bottom for
+    /// Y) when it was dropped within <see cref="EdgeSnapThreshold"/> pixels of one, so the overlay
+    /// parks exactly on the edge instead of a few pixels away.
+    /// </summary>
+    private void SnapWindowToNearestEdge()
+    {
+        var appWindow = AppWindow;
+        if (appWindow == null) return;
+
+        try
+        {
+            var pos = appWindow.Position;
+            var size = appWindow.Size;
+            var workArea = DisplayArea.Primary.WorkArea;
+
+            int minX = workArea.X;
+            int maxX = workArea.X + workArea.Width - size.Width;
+            int minY = workArea.Y;
+            int maxY = workArea.Y + workArea.Height - size.Height;
+
+            int newX = pos.X;
+            if (Math.Abs(pos.X - minX) <= EdgeSnapThreshold) newX = minX;
+            else if (Math.Abs(pos.X - maxX) <= EdgeSnapThreshold) newX = maxX;
+
+            int newY = pos.Y;
+            if (Math.Abs(pos.Y - minY) <= EdgeSnapThreshold) newY = minY;
+            else if (Math.Abs(pos.Y - maxY) <= EdgeSnapThreshold) newY = maxY;
+
+            newX = Math.Clamp(newX, minX, maxX);
+            newY = Math.Clamp(newY, minY, maxY);
+
+            if (newX != pos.X || newY != pos.Y)
+            {
+                appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+                System.Diagnostics.Debug.WriteLine(
+                    $"[VolumeMixer] Snapped to edge: ({pos.X},{pos.Y}) → ({newX},{newY})");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] SnapWindowToNearestEdge error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Persists the current position as the speaker icon's screen anchor (stored as the idle
     /// chip's top-left in CustomX/CustomY). Every state is then positioned from that icon anchor,
     /// so the overlay never drifts sideways and the chip can be parked flush against a screen edge.
@@ -2908,31 +2980,62 @@ public sealed partial class VolumeOverlayWindow : Window
         var appWindow = AppWindow;
         if (appWindow == null) return;
 
+        // Park flush against an edge when the overlay was dropped near one
+        SnapWindowToNearestEdge();
+
         var pos = appWindow.Position;
         var size = appWindow.Size;
         var settings = ServiceContainer.Settings.VolumeMixer;
         var workArea = DisplayArea.Primary.WorkArea;
 
         int idleWidth = settings.IconSize + 12;
+        int idleHeight = settings.IconSize + 12;
         int iconCenterX = pos.X + GetIconCenterOffsetX();
 
         // Dropped against the right end of the work area → keep the RIGHT edge anchored, so the
         // collapsed chip stays on the right edge and the bar grows inward from it.
         bool anchorRight = pos.X + size.Width >= workArea.X + workArea.Width - 12;
 
+        // Anchor Y is the idle chip's top edge. For a bottom-anchored overlay keep the chip's
+        // BOTTOM edge fixed, so expanding grows upward and collapsing returns to the same spot.
+        bool bottomAnchored = pos.Y + size.Height / 2 > workArea.Y + workArea.Height / 2;
+        int chipTop = bottomAnchored ? pos.Y + size.Height - idleHeight : pos.Y;
+
         _customAnchorCenterX = iconCenterX;
-        _customAnchorY = pos.Y;
+        _customAnchorY = chipTop;
         _customAnchorRight = anchorRight;
 
         settings.CustomX = anchorRight
             ? pos.X + size.Width - idleWidth
             : iconCenterX - idleWidth / 2;
-        settings.CustomY = pos.Y;
+        settings.CustomY = chipTop;
         settings.CustomAnchorRight = anchorRight;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
         System.Diagnostics.Debug.WriteLine(
             $"[VolumeMixer] Position saved: icon anchor ({iconCenterX}, {pos.Y}), right-anchored: {anchorRight}");
+    }
+
+    /// <summary>
+    /// True when the overlay is anchored towards the bottom of the work area, so the bar/panel has
+    /// to grow upward and the chip's bottom edge stays where it was dropped (bottom-left /
+    /// bottom-right corners). Falls back to the named icon position when nothing was dragged.
+    /// </summary>
+    private bool IsAnchoredBottom()
+    {
+        var settings = ServiceContainer.Settings.VolumeMixer;
+
+        int? chipTop = _customAnchorY
+            ?? (settings.CustomY.HasValue ? (int)settings.CustomY.Value : null);
+
+        if (!chipTop.HasValue)
+            return settings.IconPosition.StartsWith("bottom");
+
+        var workArea = DisplayArea.Primary.WorkArea;
+        int idleHeight = settings.IconSize + 12;
+        int chipCenterY = chipTop.Value + idleHeight / 2;
+
+        return chipCenterY > workArea.Y + workArea.Height / 2;
     }
 
     private void ComputeWindowPosition(int totalWidth, int totalHeight, out int newX, out int newY)
@@ -2943,16 +3046,7 @@ public sealed partial class VolumeOverlayWindow : Window
         const int margin = 12;
 
         int iconSize = settings.IconSize;
-        int baseBarHeight = iconSize + 12;
-        
-        // Calculate barHeight same way as GetDimensionsForState
-        int rowCount = 1;
-        rowCount += _microphoneRowCount;
-        if (_hasActiveAppRow) rowCount++;
-        if (_hasCameraRow) rowCount++;
-        int barHeight = rowCount == 1 
-            ? baseBarHeight 
-            : (iconSize * rowCount) + (rowCount * 4) + 8;
+        int idleHeight = iconSize + 12;
 
         if (settings.CustomX.HasValue && settings.CustomY.HasValue)
         {
@@ -2973,17 +3067,17 @@ public sealed partial class VolumeOverlayWindow : Window
                 newX = iconCenterX - GetIconCenterOffsetX();
             }
 
-            newY = _customAnchorY ?? (int)settings.CustomY.Value;
+            int chipTop = _customAnchorY ?? (int)settings.CustomY.Value;
 
-            if (_state == OverlayState.MixerOpen && settings.IconPosition.StartsWith("bottom"))
+            if (IsAnchoredBottom())
             {
-                int panelH = totalHeight - barHeight - 4;
-                newY = newY - panelH - 4;
+                // Bottom anchoring (bottom-left / bottom-right corners): keep the chip's bottom edge
+                // fixed and grow the bar/panel upward from it.
+                newY = chipTop + idleHeight - totalHeight;
             }
-            else if (_hasActiveAppRow && settings.IconPosition.StartsWith("bottom"))
+            else
             {
-                int diff = barHeight - baseBarHeight;
-                newY = newY - diff;
+                newY = chipTop;
             }
 
             newX = Math.Max(workArea.X, Math.Min(workArea.X + workArea.Width - totalWidth, newX));

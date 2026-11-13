@@ -394,6 +394,16 @@ public sealed class AudioMixerService : IDisposable
                     if ((int)s.State == 2)
                         continue;
 
+                    // Peak meter tells us whether the session is actually producing audio right
+                    // now; used by the "Show only active apps" mixer filter.
+                    float peak = 0f;
+                    try
+                    {
+                        if (s.AudioMeterInformation != null)
+                            peak = s.AudioMeterInformation.MasterPeakValue;
+                    }
+                    catch { /* not every session exposes a peak meter */ }
+
                     sessions.Add(new SessionInfo
                     {
                         ProcessId         = pid,
@@ -402,6 +412,7 @@ public sealed class AudioMixerService : IDisposable
                         State             = (int)s.State,
                         Volume            = s.SimpleAudioVolume.Volume,
                         IsMuted           = s.SimpleAudioVolume.Mute,
+                        PeakValue         = peak,
                         SessionIdentifier = s.GetSessionIdentifier
                     });
                 }
@@ -519,5 +530,7 @@ public sealed class SessionInfo
     public int    State             { get; set; } // 0=Inactive 1=Active 2=Expired
     public float  Volume            { get; set; }
     public bool   IsMuted           { get; set; }
+    /// <summary>Peak meter value (0-1) sampled on the audio thread; 0 when silent/metre unavailable.</summary>
+    public float  PeakValue         { get; set; }
     public string SessionIdentifier { get; set; } = string.Empty;
 }
