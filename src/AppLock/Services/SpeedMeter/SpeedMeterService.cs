@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Views;
@@ -15,6 +16,8 @@ public sealed class SpeedMeterService : IDisposable
     private readonly DispatcherQueue _dispatcher;
     private readonly NetworkStatsProvider _provider = new();
     private readonly SystemStatsProvider _systemStats = new();
+    private readonly ConnectivityMonitor _connectivity;
+    private readonly ConnectionToastService _toasts;
 
     private DispatcherQueueTimer? _timer;
     private SpeedWidgetWindow? _widget;
@@ -23,7 +26,15 @@ public sealed class SpeedMeterService : IDisposable
     public SpeedMeterService(DispatcherQueue dispatcherQueue)
     {
         _dispatcher = dispatcherQueue;
+        _connectivity = new ConnectivityMonitor(dispatcherQueue);
+        _toasts = new ConnectionToastService(dispatcherQueue);
     }
+
+    /// <summary>Connection alerts, also used by the page's preview buttons.</summary>
+    public ConnectionToastService ToastService => _toasts;
+
+    /// <summary>Outage history for the details flyout.</summary>
+    public ConnectivityMonitor Connectivity => _connectivity;
 
     public bool IsRunning { get; private set; }
 
@@ -52,6 +63,11 @@ public sealed class SpeedMeterService : IDisposable
         _timer.Start();
 
         RegisterHotkey();
+        _connectivity.ApplySettings();
+        _connectivity.ConnectionChanged -= OnConnectionChanged;
+        _connectivity.ConnectionChanged += OnConnectionChanged;
+        _connectivity.Start();
+
         SampleOnce();
     }
 
@@ -62,6 +78,10 @@ public sealed class SpeedMeterService : IDisposable
 
         _timer?.Stop();
         _timer = null;
+
+        _connectivity.ConnectionChanged -= OnConnectionChanged;
+        _connectivity.Stop();
+        _toasts.CloseAll();
 
         try
         {
@@ -89,6 +109,8 @@ public sealed class SpeedMeterService : IDisposable
         _systemStats.TrackDisk = settings.ShowDisk;
         _systemStats.TrackGpu = settings.ShowGpu;
         _systemStats.TrackBattery = settings.ShowBattery;
+
+        _connectivity.ApplySettings();
 
         if (_timer is not null)
         {
@@ -163,6 +185,40 @@ public sealed class SpeedMeterService : IDisposable
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Widget create error: {ex}");
             _widget = null;
         }
+    }
+
+    /// <summary>Connection alerts: debounced by the monitor, formatted here.</summary>
+    private void OnConnectionChanged(object? sender, bool online)
+    {
+        var alerts = ServiceContainer.Settings.SpeedMeter.Alerts;
+        var adapter = _connectivity.CurrentProfileName;
+
+        if (online)
+        {
+            var outage = _connectivity.Outages.FirstOrDefault();
+            var duration = outage?.Duration ?? TimeSpan.Zero;
+
+            if (duration.TotalSeconds < alerts.MinOutageToAnnounceSeconds) return;
+
+            var parts = new System.Collections.Generic.List<string>();
+            if (alerts.ShowOutageDuration) parts.Add($"Offline for {FormatDuration(duration)}");
+            if (alerts.ShowAdapterName && !string.IsNullOrEmpty(adapter)) parts.Add(adapter);
+
+            _toasts.Show(false, parts.Count > 0 ? string.Join(" · ", parts) : "The internet connection is back");
+        }
+        else
+        {
+            _toasts.Show(true, alerts.ShowAdapterName && !string.IsNullOrEmpty(adapter)
+                ? adapter
+                : "The internet connection dropped");
+        }
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1) return $"{(int)duration.TotalHours} h {duration.Minutes} min";
+        if (duration.TotalMinutes >= 1) return $"{(int)duration.TotalMinutes} min {duration.Seconds} s";
+        return $"{(int)duration.TotalSeconds} s";
     }
 
     private void SampleOnce()

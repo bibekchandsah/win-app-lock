@@ -283,3 +283,24 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   same rows as the widget.
 - Row-order values live in `SpeedMeterSettings.RowOrder`; anything enabled but missing from the list
   is appended, so new metrics never get lost.
+
+## Speed Meter — Milestone 6 (connection alerts)
+
+- `Services/SpeedMeter/ConnectivityMonitor.cs` polls Windows' own connectivity state
+  (`NetworkInformation.GetInternetConnectionProfile().GetNetworkConnectivityLevel()`) once a second,
+  so it makes **no network requests**. A change only counts after `DebounceSeconds` (default 3 s);
+  `CheckRealInternet` requires `InternetAccess`, otherwise any link is enough. Outages are stored as
+  `OutageRecord` (start, end, adapter/profile name), newest first, max 50.
+- `ConnectionToastService` stacks up to three non-activating AppLock toasts
+  (`Views/ConnectionToastWindow`), positions them at the configured 9-way anchor + margin with a
+  slide/fade/none entrance, and closes them after the duration (timer pauses while hovered). With
+  style *Windows notification* it posts through the existing `AppNotificationManager` instead. Sounds
+  use `MessageBeep` (system default) — there is **no .wav picker** in this milestone.
+- `SpeedMeterService` wires the monitor into the toast service, formats "Offline for 2 min 14 s" on
+  restore and honours `MinOutageToAnnounceSeconds`. `ShowPreview(lost)` backs the two preview buttons.
+- Page gained a *Connection alerts* card: lost/restored toggles, sound, full-screen quiet, real
+  internet check, opt-in active probe, style/position/theme/animation combos, duration/margin/
+  debounce/min-outage number boxes and both previews. All values save immediately.
+- Not done in this milestone: the active-probe request itself (setting is stored only), toast size/
+  opacity/content options, "Open details" button, and the queued summary after full-screen
+  suppression (alerts are simply dropped while a full-screen app is in front).

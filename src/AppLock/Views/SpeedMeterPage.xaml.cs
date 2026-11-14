@@ -56,6 +56,15 @@ public sealed partial class SpeedMeterPage : Page
         WarnRamBox.Minimum = 0;
         WarnRamBox.Maximum = 100;
 
+        DurationBox.Minimum = 2;
+        DurationBox.Maximum = 15;
+        MarginBox.Minimum = 0;
+        MarginBox.Maximum = 200;
+        DebounceBox.Minimum = 1;
+        DebounceBox.Maximum = 30;
+        MinOutageBox.Minimum = 1;
+        MinOutageBox.Maximum = 300;
+
         BuildComboItems();
         LoadFromSettings();
 
@@ -140,6 +149,22 @@ public sealed partial class SpeedMeterPage : Page
         WarnRamBox.Value = Math.Clamp(Settings.WarnRamPercent, 0, 100);
         BuildRowOrderPanel();
 
+        var alerts = Settings.Alerts;
+        NotifyLostToggle.IsOn = alerts.NotifyLost;
+        NotifyRestoredToggle.IsOn = alerts.NotifyRestored;
+        AlertSoundToggle.IsOn = alerts.SoundEnabled;
+        SuppressFullscreenToggle.IsOn = alerts.SuppressInFullscreen;
+        RealInternetToggle.IsOn = alerts.CheckRealInternet;
+        ActiveProbeToggle.IsOn = alerts.ActiveProbe;
+        SelectComboByTag(AlertStyleCombo, alerts.Style);
+        SelectComboByTag(AnchorCombo, alerts.Anchor);
+        SelectComboByTag(ToastThemeCombo, alerts.ToastTheme);
+        SelectComboByTag(AnimationCombo, alerts.Animation);
+        DurationBox.Value = Math.Clamp(alerts.DurationSeconds, 2, 15);
+        MarginBox.Value = Math.Clamp(alerts.MarginPx, 0, 200);
+        DebounceBox.Value = Math.Clamp(alerts.DebounceSeconds, 1, 30);
+        MinOutageBox.Value = Math.Clamp(alerts.MinOutageToAnnounceSeconds, 1, 300);
+
         LockPositionToggle.IsOn = Settings.LockPosition;
         SnapToggle.IsOn = Settings.SnapToEdges;
         ClickThroughToggle.IsOn = Settings.ClickThrough;
@@ -184,6 +209,28 @@ public sealed partial class SpeedMeterPage : Page
             RamFormatCombo.Items.Add(new ComboBoxItem { Content = ramFormat, Tag = ramFormat });
         }
 
+        AddComboItem(AlertStyleCombo, "AppLockToast", "AppLock toast");
+        AddComboItem(AlertStyleCombo, "Windows", "Windows notification");
+
+        AddComboItem(AnchorCombo, "TopLeft", "Top left");
+        AddComboItem(AnchorCombo, "TopCenter", "Top center");
+        AddComboItem(AnchorCombo, "TopRight", "Top right");
+        AddComboItem(AnchorCombo, "MiddleLeft", "Middle left");
+        AddComboItem(AnchorCombo, "MiddleCenter", "Middle center");
+        AddComboItem(AnchorCombo, "MiddleRight", "Middle right");
+        AddComboItem(AnchorCombo, "BottomLeft", "Bottom left");
+        AddComboItem(AnchorCombo, "BottomCenter", "Bottom center");
+        AddComboItem(AnchorCombo, "BottomRight", "Bottom right");
+
+        AddComboItem(ToastThemeCombo, "FollowSystem", "Follow system");
+        AddComboItem(ToastThemeCombo, "Dark", "Dark");
+        AddComboItem(ToastThemeCombo, "Light", "Light");
+        AddComboItem(ToastThemeCombo, "Custom", "Custom");
+
+        AddComboItem(AnimationCombo, "SlideTop", "Slide from top");
+        AddComboItem(AnimationCombo, "Fade", "Fade");
+        AddComboItem(AnimationCombo, "None", "None");
+
         foreach (var interval in new[] { "0.5", "1", "2" })
         {
             IntervalCombo.Items.Add(new ComboBoxItem
@@ -216,6 +263,9 @@ public sealed partial class SpeedMeterPage : Page
 
         return new[] { "Segoe UI Variable", "Segoe UI", "Consolas", "Cascadia Mono", "Bahnschrift", "Arial", "Verdana" };
     }
+
+    private static void AddComboItem(ComboBox combo, string tag, string label)
+        => combo.Items.Add(new ComboBoxItem { Content = label, Tag = tag });
 
     private static void SelectComboByTag(ComboBox combo, string? tag)
     {
@@ -598,6 +648,55 @@ public sealed partial class SpeedMeterPage : Page
 
         SaveExtraStats();
     }
+
+    private void SaveAlerts()
+    {
+        var alerts = Settings.Alerts;
+
+        alerts.NotifyLost = NotifyLostToggle.IsOn;
+        alerts.NotifyRestored = NotifyRestoredToggle.IsOn;
+        alerts.SoundEnabled = AlertSoundToggle.IsOn;
+        alerts.SuppressInFullscreen = SuppressFullscreenToggle.IsOn;
+        alerts.CheckRealInternet = RealInternetToggle.IsOn;
+        alerts.ActiveProbe = ActiveProbeToggle.IsOn;
+
+        if (GetComboTag(AlertStyleCombo) is { } style) alerts.Style = style;
+        if (GetComboTag(AnchorCombo) is { } anchor) alerts.Anchor = anchor;
+        if (GetComboTag(ToastThemeCombo) is { } theme) alerts.ToastTheme = theme;
+        if (GetComboTag(AnimationCombo) is { } animation) alerts.Animation = animation;
+
+        if (!double.IsNaN(DurationBox.Value)) alerts.DurationSeconds = (int)Math.Clamp(DurationBox.Value, 2, 15);
+        if (!double.IsNaN(MarginBox.Value)) alerts.MarginPx = (int)Math.Clamp(MarginBox.Value, 0, 200);
+        if (!double.IsNaN(DebounceBox.Value)) alerts.DebounceSeconds = (int)Math.Clamp(DebounceBox.Value, 1, 30);
+        if (!double.IsNaN(MinOutageBox.Value)) alerts.MinOutageToAnnounceSeconds = (int)Math.Clamp(MinOutageBox.Value, 1, 300);
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.ApplySettings();
+    }
+
+    private void AlertToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SaveAlerts();
+    }
+
+    private void AlertCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        SaveAlerts();
+    }
+
+    private void AlertNumber_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loading) return;
+        SaveAlerts();
+    }
+
+    private void PreviewLost_Click(object sender, RoutedEventArgs e)
+        => ServiceContainer.SpeedMeterService?.ToastService.ShowPreview(lost: true);
+
+    private void PreviewRestored_Click(object sender, RoutedEventArgs e)
+        => ServiceContainer.SpeedMeterService?.ToastService.ShowPreview(lost: false);
 
     private void UpdateHotkeyText()
     {

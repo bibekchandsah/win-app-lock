@@ -690,6 +690,101 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Connection alerts -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Connection alerts"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="AppLock's own toast when the internet drops or comes back"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="24" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ToggleSwitch x:Name="NotifyLostToggle" Grid.Row="0" Grid.Column="0"
+                                          Header="Notify when the connection is lost" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                            <ToggleSwitch x:Name="NotifyRestoredToggle" Grid.Row="0" Grid.Column="1"
+                                          Header="Notify when it comes back" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                            <ToggleSwitch x:Name="AlertSoundToggle" Grid.Row="1" Grid.Column="0"
+                                          Header="Sound" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                            <ToggleSwitch x:Name="SuppressFullscreenToggle" Grid.Row="1" Grid.Column="1"
+                                          Header="Stay quiet in full-screen apps" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                            <ToggleSwitch x:Name="RealInternetToggle" Grid.Row="2" Grid.Column="0"
+                                          Header="Check for real internet access" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ActiveProbeToggle" Grid.Row="2" Grid.Column="1"
+                                          Header="Active probe (opt-in, sends requests)" OffContent="" OnContent=""
+                                          Toggled="AlertToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ComboBox x:Name="AlertStyleCombo" Grid.Row="0" Grid.Column="0"
+                                      Header="Style" HorizontalAlignment="Stretch"
+                                      SelectionChanged="AlertCombo_SelectionChanged"/>
+                            <ComboBox x:Name="AnchorCombo" Grid.Row="0" Grid.Column="1"
+                                      Header="Position" HorizontalAlignment="Stretch"
+                                      SelectionChanged="AlertCombo_SelectionChanged"/>
+                            <ComboBox x:Name="ToastThemeCombo" Grid.Row="0" Grid.Column="2"
+                                      Header="Toast theme" HorizontalAlignment="Stretch"
+                                      SelectionChanged="AlertCombo_SelectionChanged"/>
+                            <ComboBox x:Name="AnimationCombo" Grid.Row="0" Grid.Column="3"
+                                      Header="Animation" HorizontalAlignment="Stretch"
+                                      SelectionChanged="AlertCombo_SelectionChanged"/>
+
+                            <NumberBox x:Name="DurationBox" Grid.Row="1" Grid.Column="0"
+                                       Header="Duration (s)" SpinButtonPlacementMode="Inline"
+                                       ValueChanged="AlertNumber_ValueChanged"/>
+                            <NumberBox x:Name="MarginBox" Grid.Row="1" Grid.Column="1"
+                                       Header="Margin (px)" SpinButtonPlacementMode="Inline"
+                                       ValueChanged="AlertNumber_ValueChanged"/>
+                            <NumberBox x:Name="DebounceBox" Grid.Row="1" Grid.Column="2"
+                                       Header="Debounce (s)" SpinButtonPlacementMode="Inline"
+                                       ValueChanged="AlertNumber_ValueChanged"/>
+                            <NumberBox x:Name="MinOutageBox" Grid.Row="1" Grid.Column="3"
+                                       Header="Min outage to announce (s)" SpinButtonPlacementMode="Inline"
+                                       ValueChanged="AlertNumber_ValueChanged"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Preview &quot;Disconnected&quot;" Click="PreviewLost_Click"/>
+                            <Button Content="Preview &quot;Back online&quot;" Click="PreviewRestored_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Privacy note -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
