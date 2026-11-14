@@ -20,8 +20,8 @@ public sealed partial class WifiPasswordsPage : Page
         InitializeComponent();
 
         // Offer the elevation route whenever AppLock is running without administrator rights,
-        // matching the Keyboard page.
-        ElevationCard.Visibility = KeyboardService.IsAdministrator() ? Visibility.Collapsed : Visibility.Visible;
+        // exactly like the BitLocker page's InfoBar.
+        ElevationInfoBar.IsOpen = !KeyboardService.IsAdministrator();
 
         Loaded += async (s, e) => await LoadAsync();
     }
@@ -101,11 +101,16 @@ public sealed partial class WifiPasswordsPage : Page
             CountText.Text = Networks.Count == 1 ? "1 network" : $"{Networks.Count} networks";
             EmptyPanel.Visibility = Networks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            // Profiles exported without a key usually mean the export was not allowed to reveal it.
-            if (Networks.Any(n => n.IsPasswordUnavailable))
+            // A profile can genuinely have no key (open or enterprise network) even when elevated,
+            // so only point at the admin restart when the process is actually unelevated.
+            int unavailable = Networks.Count(n => n.IsPasswordUnavailable);
+            if (unavailable > 0)
             {
+                bool elevated = KeyboardService.IsAdministrator();
                 StatusBar.Severity = InfoBarSeverity.Warning;
-                StatusBar.Message = "Some passwords could not be read. Restart AppLock as administrator and refresh.";
+                StatusBar.Message = elevated
+                    ? $"{unavailable} saved network(s) have no stored password (open or enterprise networks)."
+                    : $"{unavailable} saved network(s) have no visible password. Restart AppLock as administrator to read the ones Windows hides from standard users.";
                 StatusBar.IsOpen = true;
             }
         }

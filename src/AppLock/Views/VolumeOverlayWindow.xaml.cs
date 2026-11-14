@@ -41,6 +41,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private DispatcherQueueTimer? _hideDelayTimer;
     private DispatcherQueueTimer? _pollingTimer;
     private DispatcherQueueTimer? _topmostTimer;  // Periodically re-enforce topmost z-order
+    private bool _isClosed;                       // Native window is gone; don't touch it via WinRT
     private bool _isPointerOverBar;
     private bool _isPointerOverPanel;
     private bool _isUpdatingSlider; // Flag to prevent feedback loops
@@ -382,6 +383,15 @@ public sealed partial class VolumeOverlayWindow : Window
             _topmostTimer.IsRepeating = true;
             _topmostTimer.Tick += (s, e) => EnsureTopmost();
             _topmostTimer.Start();
+
+            // The timer can tick after the native window is gone; asking WinRT for its handle then
+            // faults inside COM and takes the whole process down. Stop it on close.
+            Closed += (s, e) =>
+            {
+                _isClosed = true;
+                _topmostTimer?.Stop();
+                _topmostTimer = null;
+            };
 
             // Initialize SMTC session manager for accurate per-app play/pause
             _ = InitSmtcAsync();
@@ -1981,6 +1991,8 @@ public sealed partial class VolumeOverlayWindow : Window
     /// </summary>
     private void EnsureTopmost()
     {
+        if (_isClosed) return;
+
         try
         {
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
