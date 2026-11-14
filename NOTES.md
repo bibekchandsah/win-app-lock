@@ -411,3 +411,27 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   still open when the process called `Environment.Exit`. `MainWindow_ActualClose` now stops the
   speed meter (timers, hooks, toasts, widget/flyout, usage flush) before the tray and icons are
   disposed, and `ServiceContainer.Reset` disposes the service too.
+
+### Bug found in use: taskbar context menus vanish while notification customization is on
+
+Windows 11 renders toast banners **and** taskbar right-click jumplists in the *same*
+`Windows.UI.Core.CoreWindow` owned by `ShellExperienceHost.exe`. Measured on this machine:
+
+| window | size | title |
+|---|---|---|
+| real toast banner | 396×171 | `New notification` |
+| taskbar jumplist | 318×157 … 318×674 | `Jump List for <app>` |
+
+Two problems followed from that:
+
+1. `ToastWindowFinder` only checked class + host process + a 300–700 × 60–300 px size band, so a
+   318×157 jumplist was accepted as a toast and animated to the notification position (that is the
+   menu appearing in the notification area in the report). It now also requires the banner title
+   (`New notification`, localized) or Windows' native bottom-right toast position, and logs the shell
+   popups it ignores instead of touching them.
+2. At the end of every toast the service moved that window to `-10000,-10000` and hid it. Because the
+   window is shared, the next jumplist had nowhere to appear until Explorer restarted. The service now
+   remembers the window's native rect and restores it before hiding, so the shell gets a usable window
+   back. Verified end-to-end: show a test toast, let it finish, right-click a taskbar icon → the
+   context menu appears normally, and the log shows `ignored shell popup ... 'Jump List for Settings'`
+   for the menu while the toast is still detected as `New notification`.

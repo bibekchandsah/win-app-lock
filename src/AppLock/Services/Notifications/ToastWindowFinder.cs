@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Gdi;
 using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace AppLock.Services.Notifications;
@@ -35,6 +36,12 @@ public class ToastWindowFinder
     private const int MaxToastHeight = 300;
 
     private const int DWMWA_CLOAKED = 14;
+
+    /// <summary>
+    /// Title Windows gives a toast banner window. Localized builds use a translated string, which
+    /// is why <see cref="IsAtNativeToastPosition"/> is checked as well.
+    /// </summary>
+    private const string ToastWindowTitle = "New notification";
 
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
@@ -81,11 +88,32 @@ public class ToastWindowFinder
             int width  = rect.right  - rect.left;
             int height = rect.bottom - rect.top;
 
-            if (width  < MinToastWidth  || width  > MaxToastWidth)  return false;
-            if (height < MinToastHeight || height > MaxToastHeight)  return false;
+            if (width  < MinToastWidth  || width  > MaxToastWidth ||
+                height < MinToastHeight || height > MaxToastHeight)
+            {
+                // Shell popups that reuse the toast host window (taskbar jumplists, flyouts) are
+                // expected here — record them so "why was my menu not moved" is answerable.
+                if (width >= 100 && height >= 40)
+                    LogIgnoredShellPopup(hwnd, width, height, className, processName);
+                return false;
+            }
+
+            // The banner window is reused by the shell for other popups (taskbar jumplists,
+            // flyouts), so class + process + size are not enough: a 318×157 jumplist matches all
+            // three. Only a real banner is titled "New notification" (localized) and/or sits in the
+            // native bottom-right toast spot.
+            bool titleMatches = GetTitle(hwnd).Equals(ToastWindowTitle, StringComparison.OrdinalIgnoreCase);
+            if (!titleMatches && !IsAtNativeToastPosition(hwnd, rect))
+            {
+                if (width >= 100 && height >= 40)
+                    LogIgnoredShellPopup(hwnd, width, height, className, processName);
+                return false;
+            }
 
             LogService.LogAction("notifications",
-                $"  ✓ Toast candidate: 0x{hwnd.Value:X} {width}×{height} class='{className}' proc='{processName}'");
+                $"  ✓ Toast candidate: 0x{hwnd.Value:X} {width}×{height} class='{className}' proc='{processName}'" +
+                $" rect={rect.left},{rect.top} title='{GetTitle(hwnd)}' owner='{GetOwnerClass(hwnd)}'" +
+                $" dpi={PInvoke.GetDpiForWindow(hwnd)} style=0x{GetStyle(hwnd):X}");
             return true;
         }
         catch (Exception ex)
@@ -134,6 +162,84 @@ public class ToastWindowFinder
         }, IntPtr.Zero);
         return toasts;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int GetWindowTextW(nint hWnd, [System.Runtime.InteropServices.Out] char[] text, int maxCount);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint GetWindow(nint hWnd, uint cmd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint GetWindowLongPtr(nint hWnd, int index);
+
+    private static readonly System.Collections.Generic.Dictionary<nint, (string Text, long At)> _rejects = new();
+
+    private static void LogIgnoredShellPopup(HWND hwnd, int width, int height, string className, string processName)
+    {
+        var text = $"{width}×{height} '{GetTitle(hwnd)}'";
+        var now = Environment.TickCount64;
+        lock (_rejects)
+        {
+            if (_rejects.TryGetValue(hwnd.Value, out var prev) && prev.Text == text && now - prev.At < 3000)
+                return;
+            if (_rejects.Count > 256)
+                _rejects.Clear();
+            _rejects[hwnd.Value] = (text, now);
+        }
+
+        LogService.LogAction("notifications",
+            $"  · ignored shell popup 0x{hwnd.Value:X} {width}×{height} class='{className}' proc='{processName}'" +
+            $" rect={GetRect(hwnd)} title='{GetTitle(hwnd)}' owner='{GetOwnerClass(hwnd)}'");
+    }
+
+    /// <summary>
+    /// Windows creates a toast banner flush with the bottom-right corner of the monitor work area
+    /// (12 px in) and slides it in from below. Any other position means this is another shell
+    /// popup that happens to share the toast host window.
+    /// </summary>
+    private static bool IsAtNativeToastPosition(HWND hwnd, RECT rect)
+    {
+        var monitor = PInvoke.MonitorFromWindow(hwnd, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFO
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>()
+        };
+        if (!PInvoke.GetMonitorInfo(monitor, ref info))
+            return false;
+
+        int rightGap = Math.Abs(rect.right - info.rcWork.right);
+        int bottomOffset = rect.bottom - info.rcWork.bottom;
+
+        return rightGap <= 48 && bottomOffset >= -64 && bottomOffset <= 500;
+    }
+
+    private static string GetRect(HWND hwnd)
+    {
+        RECT rect = default;
+        unsafe { PInvoke.GetWindowRect(hwnd, &rect); }
+        return $"{rect.left},{rect.top},{rect.right},{rect.bottom}";
+    }
+
+    private static string GetTitle(HWND hwnd)
+    {
+        var buffer = new char[256];
+        int length = GetWindowTextW(hwnd.Value, buffer, buffer.Length);
+        return new string(buffer, 0, length);
+    }
+
+    private static string GetOwnerClass(HWND hwnd)
+    {
+        var owner = GetWindow(hwnd.Value, 4 /* GW_OWNER */);
+        if (owner == 0) return "-";
+        var name = new char[256];
+        int length = GetClassNameW(owner, name, name.Length);
+        return new string(name, 0, length);
+    }
+
+    private static long GetStyle(HWND hwnd) => GetWindowLongPtr(hwnd.Value, -16 /* GWL_STYLE */).ToInt64();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int GetClassNameW(nint hWnd, [System.Runtime.InteropServices.Out] char[] name, int maxCount);
 
     private static unsafe string GetClassName(HWND hwnd)
     {

@@ -27,7 +27,6 @@ public sealed partial class MainWindow : Window
     private const uint WM_HOTKEY = 0x0312;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DISPLAYCHANGE = 0x007E;
-    private const uint WM_CONTEXTMENU = 0x007B;
     private SUBCLASSPROC? _subclassProc; // keep delegate alive to prevent GC
 
     private SystemBackdropConfiguration? _backdropConfiguration;
@@ -1238,46 +1237,6 @@ public sealed partial class MainWindow : Window
             {
                 ServiceContainer.RingLightService.OnDisplayChanged();
             });
-        }
-        if (uMsg == WM_CONTEXTMENU)
-        {
-            short screenX = (short)(lParam.ToInt64() & 0xFFFF);
-            short screenY = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
-
-            bool isTaskbarOrCaption = false;
-            if (screenX == -1 && screenY == -1)
-            {
-                // Keyboard-triggered context menu (Shift+F10 or Menu key) — treat as tray
-                isTaskbarOrCaption = true;
-            }
-            else
-            {
-                // Compare screen-coordinate click point against the window's screen rect.
-                // If the click falls outside the window rect it came from the taskbar button or caption.
-                RECT winRect = default;
-                if (PInvoke.GetWindowRect(_hwnd, out winRect))
-                {
-                    if (screenX < winRect.left || screenX > winRect.right ||
-                        screenY < winRect.top  || screenY > winRect.bottom)
-                    {
-                        isTaskbarOrCaption = true;
-                    }
-                }
-                else
-                {
-                    // Fallback: could not get window rect — assume tray
-                    isTaskbarOrCaption = true;
-                }
-            }
-
-            if (isTaskbarOrCaption)
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    ServiceContainer.TrayService.ShowContextMenu();
-                });
-                return 0;
-            }
         }
         return DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }

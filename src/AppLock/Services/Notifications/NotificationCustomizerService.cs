@@ -33,6 +33,9 @@ public class NotificationCustomizerService : IDisposable
     private readonly Dictionary<nint, CancellationTokenSource> _exitAnimations = new();
     // Remembers the confirmed rest rect per HWND so exit uses the right start position
     private readonly Dictionary<nint, System.Drawing.Rectangle> _restRects = new();
+    // Remembers where Windows had the banner window before we moved it, so it can be handed
+    // back in a usable state (the shell reuses this window for other popups).
+    private readonly Dictionary<nint, System.Drawing.Rectangle> _originalRects = new();
     // Remembers the captured snapshot bitmap per HWND for ghost exit animation
     private readonly Dictionary<nint, nint> _snapshots = new();
 
@@ -146,6 +149,16 @@ public class NotificationCustomizerService : IDisposable
                 monitorInfo.rcMonitor.right  - monitorInfo.rcMonitor.left,
                 monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top);
 
+            if (Windows.Win32.PInvoke.GetWindowRect(hwnd, out var nativeRect))
+            {
+                lock (_lock)
+                {
+                    _originalRects[hwnd.Value] = new System.Drawing.Rectangle(
+                        nativeRect.left, nativeRect.top,
+                        nativeRect.right - nativeRect.left, nativeRect.bottom - nativeRect.top);
+                }
+            }
+
             var targetRect = ToastPositioner.GetTargetRect(hwnd, currentSettings);
             var restRect   = new System.Drawing.Rectangle(
                 targetRect.left, targetRect.top,
@@ -234,20 +247,11 @@ public class NotificationCustomizerService : IDisposable
             holdCts?.Cancel();
             holdCts?.Dispose();
 
-            // Hide and move the real window offscreen immediately so the shell's native slide-out is completely invisible
-            try
-            {
-                if (Windows.Win32.PInvoke.IsWindow(hwnd))
-                {
-                    Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
-                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, -10000, -10000, 0, 0,
-                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
-                        SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW);
-                }
-            }
-            catch { }
+            // Hand the window back to the shell where Windows had it, so the native slide-out is
+            // invisible and the shared banner window stays usable for other shell popups.
+            RestoreAndHideToastWindow(hwnd);
+
+            lock (_lock) { _originalRects.Remove(hwnd.Value); }
 
             if (snapshot != nint.Zero)
             {
@@ -325,16 +329,9 @@ public class NotificationCustomizerService : IDisposable
                 lock (_lock) { _animatingToasts.Add(hwnd.Value); }
                 await animator.AnimateExitRealWindowAsync(hwnd, restRect, monitorBounds, settings, ct);
 
-                // 4. Hide real window and move far offscreen so Windows dismisses it silently offscreen
-                if (Windows.Win32.PInvoke.IsWindow(hwnd))
-                {
-                    Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
-                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, -10000, -10000, 0, 0,
-                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE |
-                        SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW);
-                }
+                // 4. Give the window back to the shell at its native spot and hide it so Windows
+                //    dismisses it without a second slide-out.
+                RestoreAndHideToastWindow(hwnd);
 
                 LogService.LogAction("notifications", $"Real-window exit animation finished for 0x{hwnd.Value:X}");
 
@@ -345,6 +342,7 @@ public class NotificationCustomizerService : IDisposable
                     if (_snapshots.Remove(hwnd.Value, out var s) && s != nint.Zero)
                         ToastAnimator.DeleteObjectPublic(s);
                     _restRects.Remove(hwnd.Value);
+                    _originalRects.Remove(hwnd.Value);
                 }
             }
             catch (OperationCanceledException) { /* expected when dismissed early by user */ }
@@ -476,6 +474,40 @@ public class NotificationCustomizerService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns an animated banner window to the position Windows gave it and hides it.
+    ///
+    /// The banner belongs to ShellExperienceHost, which reuses the same window for other shell
+    /// popups such as taskbar jumplists. Parking it off-screen (the previous behaviour) left those
+    /// popups with nowhere to appear until Explorer was restarted, so the native position is
+    /// restored instead.
+    /// </summary>
+    private void RestoreAndHideToastWindow(HWND hwnd)
+    {
+        try
+        {
+            if (!Windows.Win32.PInvoke.IsWindow(hwnd))
+                return;
+
+            System.Drawing.Rectangle original;
+            lock (_lock) { _originalRects.TryGetValue(hwnd.Value, out original); }
+
+            if (original != default)
+            {
+                Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, original.X, original.Y, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                    SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            }
+
+            Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+        }
+        catch (Exception ex)
+        {
+            LogService.LogAction("notifications", $"Restore toast window error: {ex.Message}");
+        }
+    }
+
     private void CancelAll()
     {
         lock (_lock)
@@ -493,6 +525,7 @@ public class NotificationCustomizerService : IDisposable
             }
             _exitAnimations.Clear();
             _restRects.Clear();
+            _originalRects.Clear();
 
             foreach (var snap in _snapshots.Values)
             {
