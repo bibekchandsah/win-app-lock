@@ -251,6 +251,12 @@
         <!-- Responsive Cards Grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{x:Bind VisibleCards}">
+                <!-- Cards filtered in by the search box fade/slide in instead of popping. -->
+                <ItemsControl.ItemContainerTransitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromVerticalOffset="16" IsStaggeringEnabled="True"/>
+                    </TransitionCollection>
+                </ItemsControl.ItemContainerTransitions>
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <controls:WrapPanel HorizontalSpacing="16" VerticalSpacing="16"/>

@@ -10,7 +10,7 @@
     SecondaryButtonText="Clear"
     CloseButtonText="Cancel"
     DefaultButton="Primary"
-    CornerRadius="{StaticResource ContentDialogCornerRadius}"
+    CornerRadius="8"
     PrimaryButtonClick="SaveButton_Click"
     SecondaryButtonClick="ClearButton_Click"
     PreviewKeyDown="ContentDialog_PreviewKeyDown">

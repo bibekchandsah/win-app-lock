@@ -35,6 +35,10 @@ public sealed partial class HotkeyCaptureDialog : ContentDialog
             KeycapDisplay.ItemsSource = new List<string> { "Press a key..." };
         }
 
+        // Save stays disabled until a key is captured, so opening the dialog and pressing Save
+        // can't silently clear the existing shortcut.
+        IsPrimaryButtonEnabled = _virtualKey != 0;
+
         ApplyTheme();
         Loaded += HotkeyCaptureDialog_Loaded;
     }
