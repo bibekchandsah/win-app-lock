@@ -22,6 +22,7 @@ public sealed class VolumeMixerSettings
     public bool StartWithWindows { get; set; } = false;
     public bool ShowMicrophoneVolume { get; set; } = true; // Show microphone volume slider
     public bool ShowCameraBrightness { get; set; } = true; // Show camera brightness slider
+    public bool ShowScreenBrightness { get; set; } = true; // Show display brightness slider
     public string ThemeMode { get; set; } = "System";
     public List<string> Blacklist { get; set; } = new();
     public double? CustomX { get; set; }   // used when dragged (idle chip's left edge)

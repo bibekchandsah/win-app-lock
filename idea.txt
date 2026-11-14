@@ -304,27 +304,28 @@ after unlock it redirects to protection page instead of current page
 auto trigger window hellow when available
 clicking in "running applications" app list will open the selected app list 
 sometime have to click two time close icon to close window 
+when start app with window auto start then minimize it
 
 
 rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
 z-index like microsoft store effect in other page
 
-when start app with window auto start then minimize it
 in keyboard page add button to "restart app with administrator" show this card in top
+show the way to do manually too if this don't work 
 in clipboard insted of 1day ago show the exact date & time
 add the meaningful message in the "running applications" tab when no application is running
+search in others page
 
 right click in taskbar app don't show content menu and show first time in notification area 
 everytime notification isn't seen make it more robust so that user don't miss any notification 
 
 eye care don't show the loaded templet and just shows blank screen
 
-let user select microphone and sync the microphone in realtime 
-let user choose the speaker and sync in realtime
-add brightness slider too with toggle option 
+fixed - let user select microphone and sync the microphone in realtime 
+fixed - let user choose the speaker and sync in realtime
+fixed - add brightness slider too with toggle option 
 
 wifi saved password extraction
-search in others page
 
 
 overflow stack fix (powershell)

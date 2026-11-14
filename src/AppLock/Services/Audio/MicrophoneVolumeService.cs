@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace AppLock.Services.Audio
 {
@@ -122,40 +121,11 @@ namespace AppLock.Services.Audio
         /// </summary>
         public bool SetDefaultMicrophone(string deviceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return false;
+            bool ok = PolicyConfig.SetDefaultEndpoint(deviceId,
+                PolicyConfig.RoleConsole, PolicyConfig.RoleMultimedia, PolicyConfig.RoleCommunications);
 
-            try
-            {
-                var client = (IPolicyConfig)new CPolicyConfigClient();
-                try
-                {
-                    bool ok = false;
-                    foreach (int role in new[] { ERole.Console, ERole.Multimedia, ERole.Communications })
-                    {
-                        try
-                        {
-                            int hr = client.SetDefaultEndpoint(deviceId, role);
-                            if (hr == 0 && role == ERole.Communications) ok = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[Microphone] SetDefaultEndpoint(role {role}) failed: {ex.Message}");
-                        }
-                    }
-
-                    if (ok) RefreshDevices();
-                    return ok;
-                }
-                finally
-                {
-                    Marshal.ReleaseComObject(client);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Microphone] Set default microphone error: {ex.Message}");
-                return false;
-            }
+            if (ok) RefreshDevices();
+            return ok;
         }
 
         /// <summary>
@@ -264,38 +234,5 @@ namespace AppLock.Services.Audio
             _deviceEnumerator?.Dispose();
         }
 
-        // ── Default device switching (undocumented but stable PolicyConfig COM API) ─
-
-        /// <summary>EDataFlow role values used by IPolicyConfig.SetDefaultEndpoint.</summary>
-        private static class ERole
-        {
-            public const int Console = 0;
-            public const int Multimedia = 1;
-            public const int Communications = 2;
-        }
-
-        [ComImport]
-        [Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")]
-        private class CPolicyConfigClient
-        {
-        }
-
-        [Guid("f8679f50-850a-41cf-9c72-430f290290c8")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IPolicyConfig
-        {
-            int GetMixFormat([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr ppFormat);
-            int GetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, bool bDefault, IntPtr ppFormat);
-            int ResetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName);
-            int SetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr pEndpointFormat, IntPtr mixFormat);
-            int GetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, bool bDefault, IntPtr pmftDefaultPeriod, IntPtr pmftMinimumPeriod);
-            int SetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr pmftPeriod);
-            int GetShareMode([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr pMode);
-            int SetShareMode([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr mode);
-            int GetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr key, IntPtr pv);
-            int SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, IntPtr key, IntPtr pv);
-            int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, int role);
-            int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string pszDeviceName, bool bVisible);
-        }
     }
 }

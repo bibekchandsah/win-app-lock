@@ -92,6 +92,9 @@ public class BrightnessService : IDisposable
         }
     }
 
+    /// <summary>True when at least one hardware provider (built-in panel or DDC/CI monitor) works.</summary>
+    public bool IsAvailable => _providers.Count > 0;
+
     public void SetMinSoftwareBrightness(int percent)
     {
         if (percent < 0) percent = 0;
