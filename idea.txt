@@ -316,11 +316,12 @@ fixed - ring light page: hotkey -> change button isn't working
 fixed - in keyboard page add button to "restart app with administrator" show this card in top
 fixed - show the way to do manually too if this don't work 
 fixed - in clipboard insted of 1day ago show the exact date & time
+fixed - z-index like microsoft store effect in other page
+implemented - wifi saved password extraction
 
 
 
 rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
-z-index like microsoft store effect in other page
 
 
 right click in taskbar app don't show content menu and show first time in notification area 
@@ -329,7 +330,6 @@ everytime notification isn't seen make it more robust so that user don't miss an
 eye care don't show the loaded templet and just shows blank screen
 
 
-wifi saved password extraction
 
 
 overflow stack fix (powershell)

@@ -18,6 +18,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? VolumeMixerTemplate { get; set; }
     public DataTemplate? NotificationsTemplate { get; set; }
     public DataTemplate? KeyboardTemplate { get; set; }
+    public DataTemplate? WifiTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -32,6 +33,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "volumemixer" => VolumeMixerTemplate,
                 "notifications" => NotificationsTemplate,
                 "keyboard" => KeyboardTemplate,
+                "wifi" => WifiTemplate,
                 _ => null
             };
         }
@@ -306,6 +308,16 @@ public sealed partial class OthersPage : Page
                 VolumeMixerEnabled = false,
                 NotificationsEnabled = false,
                 KeyboardEnabled = ServiceContainer.Settings.Keyboard.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "wifi",
+                Order = 85,
+                Icon = "\uE701", // Wi-Fi icon
+                Title = "Wi-Fi Passwords",
+                Description = "View and copy the passwords of the wireless networks saved on this PC",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed
             }
         };
 
@@ -351,7 +363,16 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(KeyboardPage));
             }
+            else if (card.Id == "wifi")
+            {
+                Frame.Navigate(typeof(WifiPasswordsPage));
+            }
         }
+    }
+
+    private void OpenWifiPasswords_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(WifiPasswordsPage));
     }
 
     private void BrightnessHotkeysToggle_Toggled(object sender, RoutedEventArgs e)

@@ -205,6 +205,19 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Wi-Fi Passwords Card Template -->
+        <DataTemplate x:Key="WifiTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="10" Margin="0,8,0,0">
+                <TextBlock Text="Lists the wireless networks saved on this PC with their passwords. Everything is read locally and nothing is uploaded."
+                           FontSize="11"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+                <Button Content="Open Wi-Fi passwords"
+                        Click="OpenWifiPasswords_Click"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
@@ -213,7 +226,8 @@
                                            RingLightTemplate="{StaticResource RingLightTemplate}"
                                            VolumeMixerTemplate="{StaticResource VolumeMixerTemplate}"
                                            NotificationsTemplate="{StaticResource NotificationsTemplate}"
-                                           KeyboardTemplate="{StaticResource KeyboardTemplate}"/>
+                                           KeyboardTemplate="{StaticResource KeyboardTemplate}"
+                                           WifiTemplate="{StaticResource WifiTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">
