@@ -11,48 +11,59 @@
                 CornerRadius="14"
                 BorderThickness="0"
                 Padding="16,10">
-            <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16">
-                <!-- Download -->
-                <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock x:Name="DownLabel"
-                               Text="DL"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Visibility="Collapsed"
-                               VerticalAlignment="Center"/>
-                    <FontIcon x:Name="DownIcon"
-                              Glyph="&#xE896;"
-                              FontSize="12"
-                              VerticalAlignment="Center"/>
-                    <TextBlock x:Name="DownText"
-                               Text="0 B/s"
-                               Width="84"
-                               TextAlignment="Right"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
+            <StackPanel Spacing="8">
+                <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16">
+                    <!-- Download -->
+                    <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock x:Name="DownLabel"
+                                   Text="DL"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Visibility="Collapsed"
+                                   VerticalAlignment="Center"/>
+                        <FontIcon x:Name="DownIcon"
+                                  Glyph="&#xE896;"
+                                  FontSize="12"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock x:Name="DownText"
+                                   Text="0 B/s"
+                                   Width="84"
+                                   TextAlignment="Right"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Upload -->
+                    <StackPanel x:Name="UpBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock x:Name="UpLabel"
+                                   Text="UL"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Visibility="Collapsed"
+                                   VerticalAlignment="Center"/>
+                        <FontIcon x:Name="UpIcon"
+                                  Glyph="&#xE898;"
+                                  FontSize="12"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UpText"
+                                   Text="0 B/s"
+                                   Width="84"
+                                   TextAlignment="Right"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Upload -->
-                <StackPanel x:Name="UpBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock x:Name="UpLabel"
-                               Text="UL"
-                               FontSize="11"
-                               FontWeight="SemiBold"
-                               Visibility="Collapsed"
-                               VerticalAlignment="Center"/>
-                    <FontIcon x:Name="UpIcon"
-                              Glyph="&#xE898;"
-                              FontSize="12"
-                              VerticalAlignment="Center"/>
-                    <TextBlock x:Name="UpText"
-                               Text="0 B/s"
-                               Width="84"
-                               TextAlignment="Right"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                <!-- Mini sparkline (off by default) -->
+                <Canvas x:Name="SparkCanvas" Height="22" Visibility="Collapsed">
+                    <Polyline x:Name="DownSpark" StrokeThickness="1.5"/>
+                    <Polyline x:Name="UpSpark" StrokeThickness="1.5"/>
+                </Canvas>
+
+                <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
+                <StackPanel x:Name="ExtraPanel" Spacing="2"/>
             </StackPanel>
         </Border>
     </Grid>

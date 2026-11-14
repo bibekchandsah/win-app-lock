@@ -51,6 +51,11 @@ public sealed partial class SpeedMeterPage : Page
         DecimalsBox.Minimum = 0;
         DecimalsBox.Maximum = 2;
 
+        WarnCpuBox.Minimum = 0;
+        WarnCpuBox.Maximum = 100;
+        WarnRamBox.Minimum = 0;
+        WarnRamBox.Maximum = 100;
+
         BuildComboItems();
         LoadFromSettings();
 
@@ -64,6 +69,8 @@ public sealed partial class SpeedMeterPage : Page
         {
             service.SampleUpdated -= OnSampleUpdated;
             service.SampleUpdated += OnSampleUpdated;
+            service.StatsUpdated -= OnStatsUpdated;
+            service.StatsUpdated += OnStatsUpdated;
         }
 
         UpdateStatus();
@@ -74,6 +81,7 @@ public sealed partial class SpeedMeterPage : Page
         if (ServiceContainer.SpeedMeterService is { } service)
         {
             service.SampleUpdated -= OnSampleUpdated;
+            service.StatsUpdated -= OnStatsUpdated;
         }
     }
 
@@ -82,6 +90,11 @@ public sealed partial class SpeedMeterPage : Page
         _lastSample = sample;
         UpdateStatus(sample);
         UpdatePreview();
+    }
+
+    private void OnStatsUpdated(object? sender, SystemStats stats)
+    {
+        PreviewWidget.SetStats(stats);
     }
 
     private void UpdatePreview()
@@ -115,6 +128,17 @@ public sealed partial class SpeedMeterPage : Page
         ShowIconsToggle.IsOn = Settings.UseIcons;
         BorderToggle.IsOn = Settings.ShowBorder;
         CompactToggle.IsOn = Settings.Compact;
+
+        ShowCpuToggle.IsOn = Settings.ShowCpu;
+        ShowRamToggle.IsOn = Settings.ShowRam;
+        ShowDiskToggle.IsOn = Settings.ShowDisk;
+        ShowGpuToggle.IsOn = Settings.ShowGpu;
+        ShowBatteryToggle.IsOn = Settings.ShowBattery;
+        ShowSparklineToggle.IsOn = Settings.ShowSparkline;
+        SelectComboByTag(RamFormatCombo, Settings.RamFormat);
+        WarnCpuBox.Value = Math.Clamp(Settings.WarnCpuPercent, 0, 100);
+        WarnRamBox.Value = Math.Clamp(Settings.WarnRamPercent, 0, 100);
+        BuildRowOrderPanel();
 
         LockPositionToggle.IsOn = Settings.LockPosition;
         SnapToggle.IsOn = Settings.SnapToEdges;
@@ -153,6 +177,11 @@ public sealed partial class SpeedMeterPage : Page
         foreach (var units in new[] { "Auto", "Bytes", "Bits" })
         {
             UnitsCombo.Items.Add(new ComboBoxItem { Content = units, Tag = units });
+        }
+
+        foreach (var ramFormat in new[] { "Percent", "UsedTotal" })
+        {
+            RamFormatCombo.Items.Add(new ComboBoxItem { Content = ramFormat, Tag = ramFormat });
         }
 
         foreach (var interval in new[] { "0.5", "1", "2" })
@@ -455,6 +484,119 @@ public sealed partial class SpeedMeterPage : Page
 
         LoadFromSettings();
         ApplyAppearance();
+    }
+
+    /// <summary>Row ids in their effective order (stored order first, then defaults).</summary>
+    private static List<string> EffectiveRowOrder()
+    {
+        var order = new List<string>(Settings.RowOrder);
+        foreach (var id in new[] { "cpu", "ram", "disk", "gpu", "battery" })
+        {
+            if (!order.Contains(id)) order.Add(id);
+        }
+
+        return order;
+    }
+
+    private void BuildRowOrderPanel()
+    {
+        RowOrderPanel.Children.Clear();
+
+        var order = EffectiveRowOrder();
+        var labels = new Dictionary<string, string>
+        {
+            ["cpu"] = "CPU usage",
+            ["ram"] = "RAM usage",
+            ["disk"] = "Disk activity",
+            ["gpu"] = "GPU usage",
+            ["battery"] = "Battery"
+        };
+
+        for (var i = 0; i < order.Count; i++)
+        {
+            var id = order[i];
+            var index = i;
+
+            var grid = new Grid { ColumnSpacing = 8 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var label = new TextBlock
+            {
+                Text = labels.TryGetValue(id, out var text) ? text : id,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(label, 0);
+
+            var up = new Button { Content = "\uE74A", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"), Padding = new Thickness(8, 2, 8, 2), IsEnabled = index > 0 };
+            up.Click += (_, _) => MoveRow(index, -1);
+            Grid.SetColumn(up, 1);
+
+            var down = new Button { Content = "\uE74B", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"), Padding = new Thickness(8, 2, 8, 2), IsEnabled = index < order.Count - 1 };
+            down.Click += (_, _) => MoveRow(index, 1);
+            Grid.SetColumn(down, 2);
+
+            grid.Children.Add(label);
+            grid.Children.Add(up);
+            grid.Children.Add(down);
+
+            RowOrderPanel.Children.Add(grid);
+        }
+    }
+
+    private void MoveRow(int index, int delta)
+    {
+        var order = EffectiveRowOrder();
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= order.Count) return;
+
+        (order[index], order[target]) = (order[target], order[index]);
+        Settings.RowOrder = order;
+
+        BuildRowOrderPanel();
+        SaveExtraStats();
+    }
+
+    private void SaveExtraStats()
+    {
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.ApplySettings();
+        PreviewWidget.ApplyAppearance(Settings);
+    }
+
+    private void ExtraStatToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.ShowCpu = ShowCpuToggle.IsOn;
+        Settings.ShowRam = ShowRamToggle.IsOn;
+        Settings.ShowDisk = ShowDiskToggle.IsOn;
+        Settings.ShowGpu = ShowGpuToggle.IsOn;
+        Settings.ShowBattery = ShowBatteryToggle.IsOn;
+        Settings.ShowSparkline = ShowSparklineToggle.IsOn;
+
+        if (Settings.RowOrder.Count == 0) Settings.RowOrder = EffectiveRowOrder();
+
+        SaveExtraStats();
+    }
+
+    private void RamFormatCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        if (GetComboTag(RamFormatCombo) is { } format) Settings.RamFormat = format;
+        SaveExtraStats();
+    }
+
+    private void WarnBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loading) return;
+
+        if (!double.IsNaN(WarnCpuBox.Value)) Settings.WarnCpuPercent = (int)Math.Clamp(WarnCpuBox.Value, 0, 100);
+        if (!double.IsNaN(WarnRamBox.Value)) Settings.WarnRamPercent = (int)Math.Clamp(WarnRamBox.Value, 0, 100);
+
+        SaveExtraStats();
     }
 
     private void UpdateHotkeyText()

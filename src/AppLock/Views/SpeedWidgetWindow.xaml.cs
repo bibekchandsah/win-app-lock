@@ -288,7 +288,12 @@ public sealed partial class SpeedWidgetWindow : Window
         Widget.SetValues(
             SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals),
             SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals));
+
+        Widget.AddSparkSample(sample.BytesDownPerSec, sample.BytesUpPerSec);
     }
+
+    /// <summary>Updates the optional CPU / RAM / disk / GPU / battery rows.</summary>
+    public void SetStats(SystemStats stats) => Widget.SetStats(stats);
 
     /// <summary>Hides for full-screen apps / unhides afterwards without closing the window.</summary>
     public void SetFullscreenHidden(bool hidden)

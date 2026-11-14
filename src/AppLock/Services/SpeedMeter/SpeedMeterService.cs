@@ -14,6 +14,7 @@ public sealed class SpeedMeterService : IDisposable
 {
     private readonly DispatcherQueue _dispatcher;
     private readonly NetworkStatsProvider _provider = new();
+    private readonly SystemStatsProvider _systemStats = new();
 
     private DispatcherQueueTimer? _timer;
     private SpeedWidgetWindow? _widget;
@@ -30,6 +31,9 @@ public sealed class SpeedMeterService : IDisposable
 
     /// <summary>Raised on the UI thread once per sample.</summary>
     public event EventHandler<NetworkSpeedSample>? SampleUpdated;
+
+    /// <summary>Raised on the UI thread once per sample with the optional CPU/RAM rows.</summary>
+    public event EventHandler<SystemStats>? StatsUpdated;
 
     public void Start()
     {
@@ -78,6 +82,13 @@ public sealed class SpeedMeterService : IDisposable
         _provider.AdapterMode = settings.AdapterMode;
         _provider.AdapterId = settings.AdapterId;
         _provider.IncludeVirtualAdapters = settings.IncludeVirtualAdapters;
+
+        // Only the enabled metrics are read, so disabled rows cost nothing.
+        _systemStats.TrackCpu = settings.ShowCpu;
+        _systemStats.TrackRam = settings.ShowRam;
+        _systemStats.TrackDisk = settings.ShowDisk;
+        _systemStats.TrackGpu = settings.ShowGpu;
+        _systemStats.TrackBattery = settings.ShowBattery;
 
         if (_timer is not null)
         {
@@ -164,10 +175,16 @@ public sealed class SpeedMeterService : IDisposable
             try
             {
                 var sample = _provider.Sample();
+                var stats = _systemStats.TrackCpu || _systemStats.TrackRam || _systemStats.TrackDisk
+                            || _systemStats.TrackGpu || _systemStats.TrackBattery
+                    ? _systemStats.Sample()
+                    : SystemStats.Empty;
 
                 _dispatcher.TryEnqueue(() =>
                 {
                     _widget?.Update(sample);
+                    _widget?.SetStats(stats);
+                    StatsUpdated?.Invoke(this, stats);
 
                     // Step aside for full-screen apps and videos, then come back afterwards.
                     var hide = ServiceContainer.Settings.SpeedMeter.HideInFullscreen

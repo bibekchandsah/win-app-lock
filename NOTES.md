@@ -260,3 +260,26 @@ setting `Minimum`/`Maximum`/`StepFrequency` on the three sliders and `Minimum`/`
 numbers box from code in the page constructor fixes it. Verified by instantiating the page at startup
 with a temporary probe (removed again) — `OK` in `%LOCALAPPDATA%\AppLock\Logs\speedpage_probe.log`.
 NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same problem.
+
+## Speed Meter — Milestone 5 (CPU, RAM, disk, GPU, battery, rows, sparkline)
+
+- `Services/SpeedMeter/SystemStatsProvider.cs`: CPU from `GetSystemTimes` deltas (kernel includes
+  idle, so busy = kernel+user-idle), RAM from `GlobalMemoryStatusEx`, battery from
+  `GetSystemPowerStatus` (hidden when Windows reports no battery). Disk and GPU use the WMI
+  formatted performance classes (`Win32_PerfFormattedData_PerfDisk_PhysicalDisk`,
+  `..._GPUPerformanceCounters_GPUEngine` filtered to the 3D/Compute engines) and are cached for
+  three ticks because those queries are the expensive part. Each metric is only read while its
+  toggle is on; GPU/disk simply stay hidden if the class is unavailable.
+- Widget rows: the control builds one row per enabled metric in `RowOrder` (defaults CPU, RAM, Disk,
+  GPU, Battery), formats RAM as percent or used/total, and paints CPU/RAM in a warning color at or
+  above `WarnCpuPercent` / `WarnRamPercent`.
+- Sparkline: `ShowSparkline` draws two polylines (download/upload) over the last 60 samples inside
+  the widget, scaled to the current peak. Off by default.
+- Page gained an *Extra stats* card: five metric toggles, mini-graph toggle, RAM format, both warning
+  thresholds and a row-order list with up/down buttons. Row order is **reordered with buttons, not
+  drag-and-drop** — the list is plain XAML rows so it needs no drag infrastructure and stays
+  keyboard accessible.
+- `StatsUpdated` is raised on the UI thread alongside `SampleUpdated`, so the page preview shows the
+  same rows as the widget.
+- Row-order values live in `SpeedMeterSettings.RowOrder`; anything enabled but missing from the list
+  is appended, so new metrics never get lost.

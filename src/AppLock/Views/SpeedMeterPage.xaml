@@ -606,6 +606,90 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Extra stats -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Extra stats"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Additional rows inside the widget. Each one is read only while it is on."
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="24" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ToggleSwitch x:Name="ShowCpuToggle" Grid.Row="0" Grid.Column="0"
+                                          Header="CPU usage" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowRamToggle" Grid.Row="0" Grid.Column="1"
+                                          Header="RAM usage" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowDiskToggle" Grid.Row="1" Grid.Column="0"
+                                          Header="Disk activity" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowGpuToggle" Grid.Row="1" Grid.Column="1"
+                                          Header="GPU usage" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Row="2" Grid.Column="0"
+                                          Header="Battery" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowSparklineToggle" Grid.Row="2" Grid.Column="1"
+                                          Header="Mini graph" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox x:Name="RamFormatCombo"
+                                      Grid.Column="0"
+                                      Header="RAM format"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="RamFormatCombo_SelectionChanged"/>
+
+                            <NumberBox x:Name="WarnCpuBox"
+                                       Grid.Column="1"
+                                       Header="Warn CPU above %"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="WarnBox_ValueChanged"/>
+
+                            <NumberBox x:Name="WarnRamBox"
+                                       Grid.Column="2"
+                                       Header="Warn RAM above %"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="WarnBox_ValueChanged"/>
+                        </Grid>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Row order"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <StackPanel x:Name="RowOrderPanel" Spacing="4"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Privacy note -->
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
