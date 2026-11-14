@@ -42,15 +42,21 @@ public sealed partial class MainWindow : Window
     private HWND _hwnd;
     private System.Drawing.Icon? _windowIcon;
     private bool _isNavPaneExpanded = false;
+    private bool _startInTray;
     private DispatcherTimer? _toastTimer;
     private Windows.UI.ViewManagement.UISettings? _uiSettings;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
 
-    public MainWindow()
+    /// <param name="startInTray">
+    /// True when Windows launched the app (autostart): the window is created and hidden so only
+    /// the tray icon shows, and the unlock prompt waits until the user opens the window.
+    /// </param>
+    public MainWindow(bool startInTray = false)
     {
         Instance = this;
+        _startInTray = startInTray;
         InitializeComponent();
         
         // Get window handle
@@ -147,7 +153,9 @@ public sealed partial class MainWindow : Window
             // Show login immediately after loading completes
             ContentFrame.Loaded += async (s, e) =>
             {
-                if (!_loginShown)
+                // Startup launches stay in the tray without a prompt; Show() asks for the
+                // password once the user actually opens the window.
+                if (!_loginShown && !_startInTray)
                 {
                     _loginShown = true;
                     await ShowLogin();
@@ -525,6 +533,13 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            // The window may have only just been restored from the tray, so give the XAML tree a
+            // moment to produce a XamlRoot before hosting a dialog on it.
+            for (int attempt = 0; attempt < 25 && ContentFrame.XamlRoot == null && Content?.XamlRoot == null; attempt++)
+            {
+                await Task.Delay(100);
+            }
+
             while (!_isMainAuthenticated)
             {
                 var dialog = new AuthDialog(ServiceContainer.AuthService)
@@ -1397,7 +1412,13 @@ public sealed partial class MainWindow : Window
             {
                 _isExplicitExit = true;
                 MainWindow_ActualClose();
-                Application.Current.Exit();
+
+                // Do NOT call Application.Current.Exit() here. The window's close was cancelled
+                // above and a dialog was awaited, so tearing the same window down now makes WinUI
+                // dereference the half-destroyed native window (0xc0000005) and Windows reports
+                // "Exception Processing Message 0xc0000005 - Unexpected parameters". Everything is
+                // already cleaned up, so end the process directly.
+                Environment.Exit(0);
             }
             else
             {
@@ -1919,6 +1940,8 @@ public sealed partial class MainWindow : Window
 
     public void Show()
     {
+        _startInTray = false;
+
         DispatcherQueue.TryEnqueue(async () =>
         {
             if (_appWindow != null)
@@ -1953,5 +1976,19 @@ public sealed partial class MainWindow : Window
             PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_HIDE);
             System.Diagnostics.Debug.WriteLine("MainWindow hidden to system tray");
         });
+    }
+
+    /// <summary>
+    /// Hides the window synchronously, before the message loop can paint it. Used by an autostart
+    /// launch: the window is activated so its XAML tree is realized, then hidden in the same pass.
+    /// </summary>
+    internal void HideImmediately()
+    {
+        if (_appWindow != null)
+        {
+            _appWindow.Hide();
+        }
+        PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+        System.Diagnostics.Debug.WriteLine("MainWindow hidden to system tray (startup mode)");
     }
 }

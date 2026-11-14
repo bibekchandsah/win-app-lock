@@ -307,10 +307,10 @@ fixed - after unlock it redirects to protection page instead of current page
 fixed - sometime have to click two time close icon to close window 
 fixed - clicking in "running applications" app list will open the selected app list 
 fixed - when some dialogbox is open then it don't show idle unlock dialogbox
-when start app with window auto start then minimize it
-brightness page: edit & blur hotkey -> change 
-ring light page: hotkey -> change
-self-discipline accent color
+fixewhen app start with window auto start then open in minimize in tray
+brightness page: edit button & blur hotkey -> change button isn't working 
+ring light page: hotkey -> change button isn't working
+in protection page "self-discipline" dialog don't follow accent color
 
 
 
@@ -360,3 +360,5 @@ $p = Start-Process -FilePath "src\AppLock\bin\x64\Release\net8.0-windows10.0.190
 Start-Sleep -Seconds 6
 Get-Content $log
 Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
+
+startup check: "D:\programming exercise\winUI\win app lock\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" --startupz

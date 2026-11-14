@@ -7,7 +7,7 @@ public partial class App : Application
     /// <summary>Static reference to the main window — used by RestartAsAdminButton_Click to hide before Environment.Exit.</summary>
     public static Window? MainWindowInstance { get; private set; }
 
-    private Window? _mainWindow;
+    private MainWindow? _mainWindow;
 
     public App()
     {
@@ -35,21 +35,24 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Refresh a Run entry written by an older build so the next sign-in opens in the tray.
+        AppLock.Services.ServiceContainer.StartupService.UpdateStartupCommandLine();
+
         // Check for command-line arguments (--minimized for startup)
         var cmdArgs = Environment.GetCommandLineArgs();
         var startMinimized = cmdArgs.Any(arg => arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase) || 
                                                   arg.Equals("--startup", StringComparison.OrdinalIgnoreCase));
 
-        _mainWindow = new MainWindow();
+        _mainWindow = new MainWindow(startMinimized);
         MainWindowInstance = _mainWindow;
-        
-        // Only activate (show) window if not starting minimized
-        if (!startMinimized)
+
+        // Activate so the XAML tree is realized, then hide before the message loop runs — an
+        // autostart launch ends up showing only the tray icon.
+        _mainWindow.Activate();
+
+        if (startMinimized)
         {
-            _mainWindow.Activate();
-        }
-        else
-        {
+            _mainWindow.HideImmediately();
             System.Diagnostics.Debug.WriteLine("[App] Started minimized (startup mode)");
         }
 
