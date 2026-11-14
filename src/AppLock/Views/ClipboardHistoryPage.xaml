@@ -201,7 +201,9 @@
                                         <FontIcon Glyph="&#xE71D;" FontSize="12" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
                                         <TextBlock Text="{x:Bind SourceProcess}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                         <TextBlock Text="•" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                        <TextBlock Text="{x:Bind DisplayTime}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="{x:Bind DisplayTime}"
+                                                   ToolTipService.ToolTip="{x:Bind TimeToolTip}"
+                                                   FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <TextBlock Text="•" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         <TextBlock Text="{x:Bind FormattedSize}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         <TextBlock Text="{x:Bind DimensionsText}" 

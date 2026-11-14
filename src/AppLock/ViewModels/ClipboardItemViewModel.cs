@@ -166,8 +166,23 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
         }
     }
 
-    /// <summary>Exact local date and time the item was last used (e.g. 11/14/2026 2:32 PM).</summary>
-    public string DisplayTime => FormatTimestamp(_item.LastUsedAt);
+    /// <summary>Compact age of the item, so long timestamps don't widen every row.</summary>
+    public string DisplayTime => GetRelativeTime(_item.LastUsedAt);
+
+    /// <summary>
+    /// Exact local date and time, offered on hover only once the item is more than a day old
+    /// ("3d ago" alone is vague, while "12m ago" is precise enough without a tooltip).
+    /// </summary>
+    public string? TimeToolTip
+    {
+        get
+        {
+            if (_item.LastUsedAt <= 0) return null;
+
+            var dt = DateTimeOffset.FromUnixTimeMilliseconds(_item.LastUsedAt).ToLocalTime();
+            return (DateTimeOffset.Now - dt).TotalHours >= 24 ? FormatTimestamp(_item.LastUsedAt) : null;
+        }
+    }
 
     public bool IsLink => !string.IsNullOrEmpty(PreviewText) && 
                           (PreviewText.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
@@ -360,6 +375,19 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
             }
         }
         catch { }
+    }
+
+    public static string GetRelativeTime(long unixMs)
+    {
+        if (unixMs <= 0) return "";
+        var dt = DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime();
+        var span = DateTimeOffset.Now - dt;
+
+        if (span.TotalSeconds < 45) return "Just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
+        return dt.ToString("M");
     }
 
     /// <summary>Formats a Unix timestamp as the exact local date and time, following the user's locale.</summary>
