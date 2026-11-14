@@ -435,3 +435,60 @@ Two problems followed from that:
    back. Verified end-to-end: show a test toast, let it finish, right-click a taskbar icon → the
    context menu appears normally, and the log shows `ignored shell popup ... 'Jump List for Settings'`
    for the menu while the toast is still detected as `New notification`.
+
+### Speed meter pass: ideas 334-353 plus the startup/exit reports
+
+**Widget page (334-345, 350, 352, 353)**
+
+- Dropped the on/off + live status text and the whole "Start with AppLock" card. `SpeedMeter.Enabled`
+  (the "Show speed meter" switch) is now the only switch: on start the widget is created when it is
+  on, so `StartWithAppLock` was removed from the model.
+- The preview keeps a 180 px floor instead of a fixed height and is fed a small synthetic wave, so the
+  mini graph is visible before the service produces the first sample.
+- Colour rows are now a swatch button (opens a `ColorPicker` flyout) + hex box + label, for background,
+  text, download and upload.
+- A `Reset` button next to `Change` restores the default toggle hotkey.
+- Every "extra stats", "alerts", "top apps" and "usage" toggle sits on the same row as its label.
+- New warning boxes: disk % (default 85), download Mbps and upload Mbps. The toaster names the busiest
+  process (CPU/RAM/disk) when a threshold is crossed, and battery alerts at 80%/20% with the AC state.
+- Snap radius went from 16 to 48 px and also snaps when the widget is dragged past the edge.
+
+**Top apps (353)**
+
+Per-process CPU/RAM/disk (via `GetProcessIoCounters`) and GPU (WMI `GPUEngine` PIDs) are sampled every
+second and cycled in the widget. **Per-app network usage is not implemented**: it needs an ETW kernel
+session (or RawCap-style driver) to attribute packets to a PID, which is out of scope here, so the
+ticker only shows CPU, RAM, disk and GPU.
+
+**Dialogs (346-349)**
+
+The WinRT `FileSavePicker`/`FileOpenPicker` calls failed silently (no package identity), so export
+settings, import settings and CSV export use a Win32 `GetSaveFileNameW`/`GetOpenFileNameW` helper
+(`Services/NativeFileDialog.cs`). `UsageHistoryDialog` and the "reset data usage" dialog now follow the
+app's light/dark choice.
+
+**Presets (345)**
+
+`SpeedMeter.LastPresetId` is stored when a preset is applied or saved, and the dropdown selects that
+entry instead of always showing the first ("Minimal") preset.
+
+**Large black window on start**
+
+Two separate causes:
+
+1. The widget window existed before its content was measured, so it appeared at the OS default size,
+   black. Its constructor now builds the first frame (values, backdrop, per-pixel transparency, size
+   and position) before it is shown.
+2. The main window was activated before the services were created, so it sat as a large black
+   rectangle until the first XAML frame. It is now hidden right after `Activate()` and revealed once
+   `OnLaunched` finished, and the root keeps an opaque shell colour until the first page has navigated.
+
+While tracking #2 down: `DisplayArea.FindAll()` throws `InvalidCastException` when enumerated through
+LINQ in this projection, which silently aborted positioning, so monitor lookup and the on-display check
+now index the list.
+
+**Stack-overrun dialog on exit**
+
+`HandleCloseRequestAsync` cleaned up and called `Environment.Exit(0)` from inside the awaited auth
+dialog's continuation. The cleanup is now queued on a fresh dispatcher turn, and `SpeedMeterService.Stop`
+waits (max 2 s) for an in-flight WMI sample before the widget and timers are torn down.

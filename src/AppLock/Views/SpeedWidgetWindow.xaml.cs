@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Services;
@@ -6,6 +6,7 @@ using AppLock.Services.SpeedMeter;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
 namespace AppLock.Views;
@@ -94,6 +95,15 @@ public sealed partial class SpeedWidgetWindow : Window
 
         SetupWindow();
 
+        // Build the first frame before the window is ever shown. Windows would otherwise display a
+        // default-sized, unpainted (black) rectangle until Loaded ran, which is the large black
+        // box that appeared when the app started.
+        Update(new NetworkSpeedSample());
+        ApplyBackdrop();
+        ApplyWindowChrome();
+        ResizeToContent();
+        PositionOnScreen();
+
         Widget.Loaded += OnWidgetLoaded;
 
         Widget.PointerPressed += OnPointerPressed;
@@ -151,12 +161,37 @@ public sealed partial class SpeedWidgetWindow : Window
 
     private void OnWidgetLoaded(object sender, RoutedEventArgs e)
     {
+        ApplyBackdrop();
         ApplyWindowChrome();
         ResizeToContent();
         PositionOnScreen();
 
         Update(new NetworkSpeedSample());
         ApplyClickThrough();
+    }
+
+    /// <summary>
+    /// Glass uses the acrylic system backdrop and Follow Windows uses Mica; the widget draws its
+    /// own rounded card on top. Without a backdrop those presets only showed the window's black
+    /// default background, which is why opacity seemed to do nothing.
+    /// </summary>
+    private void ApplyBackdrop()
+    {
+        try
+        {
+            var preset = ServiceContainer.Settings.SpeedMeter.ThemePreset ?? "Glass";
+
+            SystemBackdrop = preset switch
+            {
+                "Glass" => new DesktopAcrylicBackdrop(),
+                "FollowWindows" => new MicaBackdrop(),
+                _ => null
+            };
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Backdrop error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -219,6 +254,13 @@ public sealed partial class SpeedWidgetWindow : Window
             // AppWindow sizes are physical pixels, DesiredSize is DIPs.
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
 
+            // Before the first layout pass the content can measure to nothing; a small fallback
+            // keeps the window from appearing at its huge default size.
+            if (size.Width < 20 || size.Height < 20)
+            {
+                size = new Windows.Foundation.Size(320, 80);
+            }
+
             var width = Math.Max(1, (int)Math.Ceiling(size.Width * scale));
             var height = Math.Max(1, (int)Math.Ceiling(size.Height * scale));
 
@@ -234,17 +276,27 @@ public sealed partial class SpeedWidgetWindow : Window
     private DisplayArea ResolveArea()
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
+
+        // Indexed access on purpose: enumerating DisplayArea.FindAll() throws InvalidCastException
+        // in this WinRT projection, which aborted positioning and left the widget at the default
+        // cascade position (and never saved it).
         var areas = DisplayArea.FindAll();
 
         if (!string.IsNullOrEmpty(settings.MonitorId))
         {
-            var match = areas.FirstOrDefault(a => DescribeArea(a.WorkArea) == settings.MonitorId);
-            if (match is not null) return match;
+            for (var i = 0; i < areas.Count; i++)
+            {
+                if (DescribeArea(areas[i].WorkArea) == settings.MonitorId) return areas[i];
+            }
         }
 
-        return AppWindow is { } appWindow
-            ? DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary)
-            : areas.First();
+        if (AppWindow is { } appWindow)
+        {
+            var fromWindow = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary);
+            if (fromWindow is not null) return fromWindow;
+        }
+
+        return areas.Count > 0 ? areas[0] : DisplayArea.Primary;
     }
 
     private static string DescribeArea(RectInt32 work) => $"{work.X},{work.Y},{work.Width},{work.Height}";
@@ -293,6 +345,7 @@ public sealed partial class SpeedWidgetWindow : Window
     public void ApplySettings()
     {
         Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
+        ApplyBackdrop();
         ResizeToContent();
         PositionOnScreen();
         ApplyCaptureAffinity();
@@ -306,12 +359,17 @@ public sealed partial class SpeedWidgetWindow : Window
         var units = settings.Units;
         var decimals = settings.Decimals;
 
-        Widget.SetValues(
+        Widget.SetRates(
             SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals),
-            SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals));
+            SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals),
+            sample.BytesDownPerSec,
+            sample.BytesUpPerSec);
 
         Widget.AddSparkSample(sample.BytesDownPerSec, sample.BytesUpPerSec);
     }
+
+    /// <summary>Feeds the top CPU / RAM / disk / GPU process line.</summary>
+    public void SetTopApps(TopAppsStats stats) => Widget.SetTopApps(stats);
 
     /// <summary>Updates the optional CPU / RAM / disk / GPU / battery rows.</summary>
     public void SetStats(SystemStats stats) => Widget.SetStats(stats);

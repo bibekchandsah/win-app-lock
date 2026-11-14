@@ -586,7 +586,8 @@ public static class ServiceContainer
         // The shortcut works even when the widget is off, so it can switch it back on.
         _speedMeterService.RegisterHotkey();
 
-        if (Settings.SpeedMeter.Enabled && Settings.SpeedMeter.StartWithAppLock)
+        // "Show speed meter" is the only switch: when it is on the widget comes back with AppLock.
+        if (Settings.SpeedMeter.Enabled)
         {
             _speedMeterService.Start();
         }

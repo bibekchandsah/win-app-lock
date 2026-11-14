@@ -19,10 +19,15 @@ public sealed class SpeedMeterService : IDisposable
     private readonly ConnectivityMonitor _connectivity;
     private readonly ConnectionToastService _toasts;
     private readonly UsageStore _usage = new();
+    private readonly TopAppsProvider _topApps = new();
+    private readonly HashSet<string> _warningsFired = new();
 
     private bool _metered;
     private bool _vpn;
     private int _meterTick;
+    private int _topTick;
+    private TopAppsStats _lastTopApps = TopAppsStats.Empty;
+    private int? _lastBatteryPercent;
 
     private DateTime? _idleSince;
     private bool _idleHidden;
@@ -100,9 +105,18 @@ public sealed class SpeedMeterService : IDisposable
 
         _connectivity.ConnectionChanged -= OnConnectionChanged;
         _connectivity.Stop();
-        _toasts.CloseAll();
         CloseFlyout();
         _usage.FlushIfDue(DateTime.Now, force: true);
+
+        // Let an in-flight sample finish: the system-stats path queries WMI, and terminating the
+        // process inside a WMI/COM call is what leaves Windows showing the "overrun of a stack-based
+        // buffer" dialog when AppLock closes.
+        for (var wait = 0; wait < 40 && Volatile.Read(ref _sampling) == 1; wait++)
+        {
+            Thread.Sleep(50);
+        }
+
+        _toasts.CloseAll();
 
         try
         {
@@ -124,12 +138,14 @@ public sealed class SpeedMeterService : IDisposable
         _provider.AdapterId = settings.AdapterId;
         _provider.IncludeVirtualAdapters = settings.IncludeVirtualAdapters;
 
-        // Only the enabled metrics are read, so disabled rows cost nothing.
-        _systemStats.TrackCpu = settings.ShowCpu;
-        _systemStats.TrackRam = settings.ShowRam;
-        _systemStats.TrackDisk = settings.ShowDisk;
-        _systemStats.TrackGpu = settings.ShowGpu;
-        _systemStats.TrackBattery = settings.ShowBattery;
+        // Only the metrics that are shown or warned about are read, so the rest cost nothing.
+        var warn = settings.WarnNotifications;
+
+        _systemStats.TrackCpu = settings.ShowCpu || (warn && settings.WarnCpuPercent > 0);
+        _systemStats.TrackRam = settings.ShowRam || (warn && settings.WarnRamPercent > 0);
+        _systemStats.TrackDisk = settings.ShowDisk || (warn && settings.WarnDiskPercent > 0);
+        _systemStats.TrackGpu = settings.ShowGpu || settings.ShowTopApps;
+        _systemStats.TrackBattery = settings.ShowBattery || settings.BatteryAlerts;
 
         _connectivity.ApplySettings();
 
@@ -508,6 +524,26 @@ public sealed class SpeedMeterService : IDisposable
                     ? _systemStats.Sample()
                     : SystemStats.Empty;
 
+                // Per-process deltas are cheap (no WMI), but there is no point in reading them
+                // when neither the ticker nor a warning message needs the process name. Every second
+                // tick is enough to name the busiest app.
+                var needTopApps = ServiceContainer.Settings.SpeedMeter.ShowTopApps ||
+                                  ServiceContainer.Settings.SpeedMeter.WarnNotifications;
+
+                TopAppsStats topApps = TopAppsStats.Empty;
+                if (needTopApps && ++_topTick % 2 == 0)
+                {
+                    topApps = _topApps.Sample();
+                    _lastTopApps = topApps;
+                }
+                else if (needTopApps)
+                {
+                    topApps = _lastTopApps;
+                }
+
+                CheckWarnings(stats, sample, topApps);
+                CheckBattery(stats);
+
                 _dispatcher.TryEnqueue(() =>
                 {
                     _sessionDown += (long)(sample.BytesDownPerSec * intervalSeconds);
@@ -515,6 +551,7 @@ public sealed class SpeedMeterService : IDisposable
 
                     _widget?.Update(sample);
                     _widget?.SetStats(stats);
+                    _widget?.SetTopApps(topApps);
 
                     var (todayDown, todayUp) = _usage.Today();
 
@@ -563,6 +600,87 @@ public sealed class SpeedMeterService : IDisposable
 
         return $"{value.ToString(index == 0 ? "F0" : "F1")} {units[index]}";
     }
+
+    // ── Warnings and battery alerts ─────────────────────────────────────────
+
+    /// <summary>
+    /// Fires one toast when a value crosses its warning threshold and re-arms once it drops back
+    /// below 90% of that threshold, so a value hovering at the limit does not spam.
+    /// </summary>
+    private void CheckWarnings(SystemStats stats, NetworkSpeedSample sample, TopAppsStats topApps)
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        if (!settings.WarnNotifications) return;
+
+        CheckPercent("cpu", stats.CpuPercent, settings.WarnCpuPercent, "CPU", topApps.Cpu?.Name);
+        CheckPercent("ram", stats.RamPercent, settings.WarnRamPercent, "RAM", topApps.Ram?.Name);
+        CheckPercent("disk", stats.DiskPercent, settings.WarnDiskPercent, "disk", topApps.Disk?.Name);
+
+        CheckMbps("down", sample.BytesDownPerSec, settings.WarnDownMbps, "download");
+        CheckMbps("up", sample.BytesUpPerSec, settings.WarnUpMbps, "upload");
+    }
+
+    private void CheckPercent(string id, double? value, int limit, string label, string? app)
+    {
+        if (value is not { } current || limit <= 0) return;
+
+        if (current < limit)
+        {
+            if (current < limit * 0.9) _warningsFired.Remove(id);
+            return;
+        }
+
+        if (!_warningsFired.Add(id)) return;
+
+        var title = string.IsNullOrWhiteSpace(app)
+            ? $"High {label} usage"
+            : $"{app} is using high {label}";
+
+        ShowWarning(title, $"{current:F0}% · warning at {limit}%");
+    }
+
+    private void CheckMbps(string id, double bytesPerSec, int limitMbps, string label)
+    {
+        if (limitMbps <= 0) return;
+
+        var mbps = bytesPerSec * 8 / 1_000_000d;
+
+        if (mbps < limitMbps)
+        {
+            if (mbps < limitMbps * 0.9) _warningsFired.Remove(id);
+            return;
+        }
+
+        if (!_warningsFired.Add(id)) return;
+
+        ShowWarning($"High {label} usage", $"{mbps:F1} Mbps · warning above {limitMbps} Mbps");
+    }
+
+    /// <summary>80% while charging and 20% while on battery, once per crossing.</summary>
+    private void CheckBattery(SystemStats stats)
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        if (!settings.BatteryAlerts || stats.BatteryPercent is not { } percent) return;
+
+        var previous = _lastBatteryPercent;
+        var onAc = stats.BatteryOnAc;
+
+        _lastBatteryPercent = percent;
+
+        if (previous is not { } before) return;
+
+        if (onAc && before < 80 && percent >= 80)
+        {
+            ShowWarning("Battery at 80%", "Charged enough — you can unplug the charger");
+        }
+        else if (!onAc && before > 20 && percent <= 20)
+        {
+            ShowWarning("Battery low", $"{percent}% remaining — plug in the charger");
+        }
+    }
+
+    private void ShowWarning(string title, string subtitle)
+        => _dispatcher.TryEnqueue(() => _toasts.ShowWarning(title, subtitle));
 
     /// <summary>Windows reports fixed/variable cost connections (mobile broadband, metered Wi-Fi).</summary>
     private static bool ReadMetered()

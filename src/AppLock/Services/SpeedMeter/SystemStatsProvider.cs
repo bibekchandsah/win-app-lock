@@ -15,6 +15,7 @@ public sealed class SystemStats
     public double? DiskPercent { get; init; }
     public double? GpuPercent { get; init; }
     public int? BatteryPercent { get; init; }
+    public bool BatteryOnAc { get; init; }
 
     public static SystemStats Empty { get; } = new();
 }
@@ -108,6 +109,7 @@ public sealed class SystemStatsProvider
         }
 
         var battery = TrackBattery ? ReadBatteryPercent() : null;
+        var onAc = TrackBattery && ReadOnAc();
 
         return new SystemStats
         {
@@ -117,7 +119,8 @@ public sealed class SystemStatsProvider
             RamTotalGb = totalGb,
             DiskPercent = disk,
             GpuPercent = gpu,
-            BatteryPercent = battery
+            BatteryPercent = battery,
+            BatteryOnAc = onAc
         };
     }
 
@@ -227,6 +230,12 @@ public sealed class SystemStatsProvider
         }
 
         return null;
+    }
+
+    private static bool ReadOnAc()
+    {
+        if (!GetSystemPowerStatus(out var status)) return false;
+        return status.ACLineStatus == 1;
     }
 
     private static int? ReadBatteryPercent()

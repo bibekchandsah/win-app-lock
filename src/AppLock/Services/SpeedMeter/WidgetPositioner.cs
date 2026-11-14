@@ -13,7 +13,10 @@ namespace AppLock.Services.SpeedMeter;
 public static class WidgetPositioner
 {
     public const int SnapMargin = 8;
-    public const int SnapDistance = 16;
+
+    // People drag to the edge quickly, so the catch window has to be generous; 16 px was too
+    // small and only snapped when the release happened almost exactly on the edge.
+    public const int SnapDistance = 48;
 
     /// <summary>Position for the stored percentages inside the given work area.</summary>
     public static PointInt32 FromPercent(SpeedMeterSettings settings, RectInt32 work, SizeInt32 size)
@@ -51,11 +54,12 @@ public static class WidgetPositioner
         var topEdge = work.Y;
         var bottomEdge = work.Y + work.Height - size.Height;
 
-        if (Math.Abs(x - leftEdge) <= SnapDistance) x = leftEdge + SnapMargin;
-        else if (Math.Abs(rightEdge - x) <= SnapDistance) x = rightEdge - SnapMargin;
+        // Past the edge and within the catch distance both count as "near the edge".
+        if (x <= leftEdge + SnapDistance) x = leftEdge + SnapMargin;
+        else if (x >= rightEdge - SnapDistance) x = rightEdge - SnapMargin;
 
-        if (Math.Abs(y - topEdge) <= SnapDistance) y = topEdge + SnapMargin;
-        else if (Math.Abs(bottomEdge - y) <= SnapDistance) y = bottomEdge - SnapMargin;
+        if (y <= topEdge + SnapDistance) y = topEdge + SnapMargin;
+        else if (y >= bottomEdge - SnapDistance) y = bottomEdge - SnapMargin;
 
         return new PointInt32(x, y);
     }
@@ -76,11 +80,23 @@ public static class WidgetPositioner
     {
         try
         {
-            return DisplayArea.FindAll().Any(area =>
-                area.WorkArea.X < position.X + size.Width &&
-                area.WorkArea.X + area.WorkArea.Width > position.X &&
-                area.WorkArea.Y < position.Y + size.Height &&
-                area.WorkArea.Y + area.WorkArea.Height > position.Y);
+            var areas = DisplayArea.FindAll();
+
+            // Indexed access: enumerating the WinRT list throws InvalidCastException here.
+            for (var i = 0; i < areas.Count; i++)
+            {
+                var work = areas[i].WorkArea;
+
+                if (work.X < position.X + size.Width &&
+                    work.X + work.Width > position.X &&
+                    work.Y < position.Y + size.Height &&
+                    work.Y + work.Height > position.Y)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
         catch (Exception)
         {

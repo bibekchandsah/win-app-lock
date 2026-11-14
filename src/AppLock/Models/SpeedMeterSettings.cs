@@ -7,7 +7,6 @@ namespace AppLock.Models;
 public class SpeedMeterSettings
 {
     public bool Enabled { get; set; }
-    public bool StartWithAppLock { get; set; } = true;
 
     /// <summary>Show/hide shortcut, default Ctrl+Alt+N.</summary>
     public HotkeyBinding? ToggleHotkey { get; set; } = new() { Modifiers = 0x0003, VirtualKey = 0x4E };
@@ -44,7 +43,23 @@ public class SpeedMeterSettings
     public bool ShowTodayTotal { get; set; }
     public int WarnCpuPercent { get; set; } = 85;
     public int WarnRamPercent { get; set; } = 85;
+    public int WarnDiskPercent { get; set; } = 85;
+    public int WarnDownMbps { get; set; } = 0;              // 0 = off
+    public int WarnUpMbps { get; set; } = 0;                // 0 = off
+    public bool WarnNotifications { get; set; } = true;
+    public bool BatteryAlerts { get; set; } = true;
+
+    // Scrolling "top app" ticker inside the widget.
+    public bool ShowTopApps { get; set; }
+    public bool TopAppsCpu { get; set; } = true;
+    public bool TopAppsRam { get; set; } = true;
+    public bool TopAppsDisk { get; set; } = true;
+    public bool TopAppsGpu { get; set; }
+
     public List<string> RowOrder { get; set; } = new();
+
+    /// <summary>Id of the preset applied last, so the picker shows it instead of the first entry.</summary>
+    public string? LastPresetId { get; set; }
 
     // Behavior
     public bool AlwaysOnTop { get; set; } = true;

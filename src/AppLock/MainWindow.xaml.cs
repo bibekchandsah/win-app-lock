@@ -97,6 +97,11 @@ public sealed partial class MainWindow : Window
         // Wire navigation selection tracking
         ContentFrame.Navigated += ContentFrame_Navigated;
 
+        // WinUI shows the window before Mica's first frame, so the translucent tint painted over
+        // black and the window appeared as a large black rectangle for the first seconds. Start
+        // with the opaque shell colour and go back to the tint once the first page has loaded.
+        PreventBlackFirstFrame();
+
         // Set up Mica backdrop
         SetupMica();
         
@@ -473,6 +478,57 @@ public sealed partial class MainWindow : Window
         if (ToastTitleText != null) ToastTitleText.Foreground = titleBrush;
         if (ToastMessageText != null) ToastMessageText.Foreground = msgBrush;
         if (ToastCloseIcon != null) ToastCloseIcon.Foreground = closeBrush;
+    }
+
+    private void PreventBlackFirstFrame()
+    {
+        if (RootGrid is null) return;
+
+        try
+        {
+            if (Application.Current.Resources.TryGetValue("ShellWindowFallbackBrush", out var fallback) &&
+                fallback is Microsoft.UI.Xaml.Media.Brush opaque)
+            {
+                RootGrid.Background = opaque;
+            }
+
+            var restored = false;
+            Microsoft.UI.Dispatching.DispatcherQueueTimer? timer = null;
+
+            void Restore()
+            {
+                if (restored) return;
+                restored = true;
+
+                timer?.Stop();
+                ContentFrame.Navigated -= RestoreOnNavigate;
+
+                // One dispatcher hop later the page's first frame and the backdrop are both up.
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (Application.Current.Resources.TryGetValue("ShellWindowTintBrush", out var tint) &&
+                        tint is Microsoft.UI.Xaml.Media.Brush translucent)
+                    {
+                        RootGrid.Background = translucent;
+                    }
+                });
+            }
+
+            void RestoreOnNavigate(object? sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e) => Restore();
+
+            // Covers the cases where the first navigation is delayed or never happens (locked app).
+            timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromSeconds(2);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) => Restore();
+            timer.Start();
+
+            ContentFrame.Navigated += RestoreOnNavigate;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Startup] First-frame tint error: {ex.Message}");
+        }
     }
 
     private void SetupMica()
@@ -1412,14 +1468,16 @@ public sealed partial class MainWindow : Window
             if (dialog.IsAuthenticated)
             {
                 _isExplicitExit = true;
-                MainWindow_ActualClose();
 
-                // Do NOT call Application.Current.Exit() here. The window's close was cancelled
-                // above and a dialog was awaited, so tearing the same window down now makes WinUI
-                // dereference the half-destroyed native window (0xc0000005) and Windows reports
-                // "Exception Processing Message 0xc0000005 - Unexpected parameters". Everything is
-                // already cleaned up, so end the process directly.
-                Environment.Exit(0);
+                // Clean up and exit on a fresh dispatcher turn instead of inside the awaited
+                // dialog's continuation. Doing it here tore the XAML tree down while the dialog was
+                // still unwinding; that is the state Windows reports as "overrun of a stack-based
+                // buffer" at exit.
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    MainWindow_ActualClose();
+                    Environment.Exit(0);
+                });
             }
             else
             {
@@ -2003,6 +2061,21 @@ public sealed partial class MainWindow : Window
     /// Hides the window synchronously, before the message loop can paint it. Used by an autostart
     /// launch: the window is activated so its XAML tree is realized, then hidden in the same pass.
     /// </summary>
+    /// <summary>Shows the window again once startup finished, instead of the black first frame.</summary>
+    internal void RevealAfterStartup()
+    {
+        try
+        {
+            _appWindow?.Show();
+            Activate();
+            PInvoke.SetForegroundWindow(_hwnd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Startup] Reveal error: {ex.Message}");
+        }
+    }
+
     internal void HideImmediately()
     {
         if (_appWindow != null)

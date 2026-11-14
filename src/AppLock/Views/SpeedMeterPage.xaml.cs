@@ -30,6 +30,8 @@ public sealed partial class SpeedMeterPage : Page
 
     private NetworkSpeedSample? _lastSample;
 
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _previewTimer;
+
     private static SpeedMeterSettings Settings => ServiceContainer.Settings.SpeedMeter;
 
     private static readonly string[] Presets = { "Transparent", "Glass", "Solid", "FollowWindows", "Custom" };
@@ -83,12 +85,20 @@ public sealed partial class SpeedMeterPage : Page
 
         BuildComboItems();
 
+        // Keeps the preview's synthetic wave moving while the widget itself is off.
+        _previewTimer = DispatcherQueue.CreateTimer();
+        _previewTimer.Interval = TimeSpan.FromSeconds(1);
+        _previewTimer.IsRepeating = true;
+        _previewTimer.Tick += (_, _) => UpdatePreview();
+
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        UpdatePreview();
+        _previewTimer?.Start();
         // Loading in Loaded (not the constructor) means the control templates exist, so applying the
         // saved values cannot be undone by template initialization.
         if (!_settingsLoaded)
@@ -105,11 +115,11 @@ public sealed partial class SpeedMeterPage : Page
             service.StatsUpdated += OnStatsUpdated;
         }
 
-        UpdateStatus();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _previewTimer?.Stop();
         if (ServiceContainer.SpeedMeterService is { } service)
         {
             service.SampleUpdated -= OnSampleUpdated;
@@ -120,7 +130,6 @@ public sealed partial class SpeedMeterPage : Page
     private void OnSampleUpdated(object? sender, NetworkSpeedSample sample)
     {
         _lastSample = sample;
-        UpdateStatus(sample);
         UpdatePreview();
     }
 
@@ -135,9 +144,25 @@ public sealed partial class SpeedMeterPage : Page
         var decimals = Settings.Decimals;
         var sample = _lastSample;
 
-        PreviewWidget.SetValues(
-            SpeedFormatter.Format(sample?.BytesDownPerSec ?? 0, units, decimals),
-            SpeedFormatter.Format(sample?.BytesUpPerSec ?? 0, units, decimals));
+        // Without the service running there are no readings yet, so the preview gets a small
+        // synthetic wave: otherwise the mini graph stayed empty and the preview looked broken.
+        var down = sample?.BytesDownPerSec ?? 0;
+        var up = sample?.BytesUpPerSec ?? 0;
+
+        if (sample is null)
+        {
+            var phase = Environment.TickCount64 / 1000.0;
+            down = 240_000 + 180_000 * (1 + Math.Sin(phase));
+            up = 60_000 + 45_000 * (1 + Math.Cos(phase * 0.7));
+        }
+
+        PreviewWidget.SetRates(
+            SpeedFormatter.Format(down, units, decimals),
+            SpeedFormatter.Format(up, units, decimals),
+            down,
+            up);
+
+        PreviewWidget.AddSparkSample(down, up);
     }
 
     private void LoadFromSettings()
@@ -145,7 +170,6 @@ public sealed partial class SpeedMeterPage : Page
         _loading = true;
 
         MasterToggle.IsOn = Settings.Enabled;
-        StartWithAppLockToggle.IsOn = Settings.StartWithAppLock;
 
         OpacitySlider.Value = Math.Clamp(Settings.BackgroundOpacityPercent, 0, 100);
         ScaleSlider.Value = Math.Clamp(Settings.ScalePercent, 50, 250);
@@ -155,7 +179,12 @@ public sealed partial class SpeedMeterPage : Page
         TextColorPicker.Color = ParseColor(Settings.TextColor, Colors.White);
         DownColorPicker.Color = ParseColor(Settings.DownloadColor, Color.FromArgb(255, 0x4A, 0xDE, 0x80));
         UpColorPicker.Color = ParseColor(Settings.UploadColor, Color.FromArgb(255, 0x60, 0xA5, 0xFA));
+
         BackgroundHexBox.Text = ToHex(BackgroundColorPicker.Color);
+        TextHexBox.Text = ToHex(TextColorPicker.Color);
+        DownHexBox.Text = ToHex(DownColorPicker.Color);
+        UpHexBox.Text = ToHex(UpColorPicker.Color);
+        UpdateSwatches();
 
         ShowIconsToggle.IsOn = Settings.UseIcons;
         BorderToggle.IsOn = Settings.ShowBorder;
@@ -171,6 +200,16 @@ public sealed partial class SpeedMeterPage : Page
         SelectComboByTag(RamFormatCombo, Settings.RamFormat);
         WarnCpuBox.Value = Math.Clamp(Settings.WarnCpuPercent, 0, 100);
         WarnRamBox.Value = Math.Clamp(Settings.WarnRamPercent, 0, 100);
+        WarnDiskBox.Value = Math.Clamp(Settings.WarnDiskPercent, 0, 100);
+        WarnDownBox.Value = Math.Clamp(Settings.WarnDownMbps, 0, 100_000);
+        WarnUpBox.Value = Math.Clamp(Settings.WarnUpMbps, 0, 100_000);
+        WarnToastsToggle.IsOn = Settings.WarnNotifications;
+        BatteryAlertsToggle.IsOn = Settings.BatteryAlerts;
+        ShowTopAppsToggle.IsOn = Settings.ShowTopApps;
+        TopCpuToggle.IsOn = Settings.TopAppsCpu;
+        TopRamToggle.IsOn = Settings.TopAppsRam;
+        TopDiskToggle.IsOn = Settings.TopAppsDisk;
+        TopGpuToggle.IsOn = Settings.TopAppsGpu;
         BuildRowOrderPanel();
 
         var alerts = Settings.Alerts;
@@ -220,7 +259,6 @@ public sealed partial class SpeedMeterPage : Page
         _loading = false;
 
         ApplyAppearance();
-        UpdateStatus();
     }
 
     private void BuildComboItems()
@@ -342,33 +380,6 @@ public sealed partial class SpeedMeterPage : Page
         ServiceContainer.SpeedMeterService?.ApplySettings();
     }
 
-    private void UpdateStatus(NetworkSpeedSample? sample = null)
-    {
-        if (!Settings.Enabled)
-        {
-            StatusText.Text = "Off · turn this on to show the widget on your desktop.";
-            return;
-        }
-
-        if (sample is null)
-        {
-            StatusText.Text = "On · waiting for the first reading…";
-            return;
-        }
-
-        var units = Settings.Units;
-        var decimals = Settings.Decimals;
-        var down = SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals);
-        var up = SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals);
-
-        var adapter = sample.HasAdapter ? sample.AdapterName : "No active adapter";
-        var link = sample.LinkSpeedBitsPerSec > 0
-            ? $" · link {SpeedFormatter.Format(sample.LinkSpeedBitsPerSec / 8.0, "Bits", 0)}"
-            : string.Empty;
-
-        StatusText.Text = $"On · {adapter}{link} · ↓ {down} ↑ {up}";
-    }
-
     // ── Handlers ─────────────────────────────────────────────────────────────
 
     private void MasterToggle_Toggled(object sender, RoutedEventArgs e)
@@ -376,15 +387,7 @@ public sealed partial class SpeedMeterPage : Page
         if (_loading) return;
 
         ServiceContainer.SetSpeedMeterEnabled(MasterToggle.IsOn);
-        UpdateStatus();
-    }
-
-    private void StartWithAppLockToggle_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-
-        Settings.StartWithAppLock = StartWithAppLockToggle.IsOn;
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        UpdatePreview();
     }
 
     private void PresetButton_Click(object sender, RoutedEventArgs e)
@@ -411,6 +414,7 @@ public sealed partial class SpeedMeterPage : Page
 
         _loading = true;
         BackgroundHexBox.Text = Settings.BackgroundColor;
+        UpdateSwatches();
         _loading = false;
 
         ApplyAppearance();
@@ -436,6 +440,12 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         Settings.TextColor = ToHex(args.NewColor);
+
+        _loading = true;
+        TextHexBox.Text = Settings.TextColor;
+        UpdateSwatches();
+        _loading = false;
+
         ApplyAppearance();
     }
 
@@ -443,6 +453,12 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         Settings.DownloadColor = ToHex(args.NewColor);
+
+        _loading = true;
+        DownHexBox.Text = Settings.DownloadColor;
+        UpdateSwatches();
+        _loading = false;
+
         ApplyAppearance();
     }
 
@@ -450,7 +466,49 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         Settings.UploadColor = ToHex(args.NewColor);
+
+        _loading = true;
+        UpHexBox.Text = Settings.UploadColor;
+        UpdateSwatches();
+        _loading = false;
+
         ApplyAppearance();
+    }
+
+    private void TextHexBox_TextChanged(object sender, TextChangedEventArgs e)
+        => ApplyHex(TextHexBox, TextColorPicker, value => Settings.TextColor = value);
+
+    private void DownHexBox_TextChanged(object sender, TextChangedEventArgs e)
+        => ApplyHex(DownHexBox, DownColorPicker, value => Settings.DownloadColor = value);
+
+    private void UpHexBox_TextChanged(object sender, TextChangedEventArgs e)
+        => ApplyHex(UpHexBox, UpColorPicker, value => Settings.UploadColor = value);
+
+    /// <summary>Applies a typed hex value to the picker behind the swatch button.</summary>
+    private void ApplyHex(TextBox box, ColorPicker picker, Action<string> assign)
+    {
+        if (_loading) return;
+
+        var text = box.Text?.Trim() ?? string.Empty;
+        if (!IsValidHex(text)) return;
+
+        assign(text.ToUpperInvariant());
+
+        _loading = true;
+        picker.Color = ParseColor(text, picker.Color);
+        UpdateSwatches();
+        _loading = false;
+
+        ApplyAppearance();
+    }
+
+    /// <summary>Paints the four swatch buttons with the colours the widget will use.</summary>
+    private void UpdateSwatches()
+    {
+        BackgroundSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(BackgroundColorPicker.Color);
+        TextSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(TextColorPicker.Color);
+        DownSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(DownColorPicker.Color);
+        UpSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(UpColorPicker.Color);
     }
 
     private void OpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -683,6 +741,39 @@ public sealed partial class SpeedMeterPage : Page
 
         if (!double.IsNaN(WarnCpuBox.Value)) Settings.WarnCpuPercent = (int)Math.Clamp(WarnCpuBox.Value, 0, 100);
         if (!double.IsNaN(WarnRamBox.Value)) Settings.WarnRamPercent = (int)Math.Clamp(WarnRamBox.Value, 0, 100);
+        if (!double.IsNaN(WarnDiskBox.Value)) Settings.WarnDiskPercent = (int)Math.Clamp(WarnDiskBox.Value, 0, 100);
+        if (!double.IsNaN(WarnDownBox.Value)) Settings.WarnDownMbps = (int)Math.Clamp(WarnDownBox.Value, 0, 100_000);
+        if (!double.IsNaN(WarnUpBox.Value)) Settings.WarnUpMbps = (int)Math.Clamp(WarnUpBox.Value, 0, 100_000);
+
+        SaveExtraStats();
+    }
+
+    private void WarnOption_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.WarnNotifications = WarnToastsToggle.IsOn;
+        Settings.BatteryAlerts = BatteryAlertsToggle.IsOn;
+
+        SaveExtraStats();
+    }
+
+    private void TopAppsToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.ShowTopApps = ShowTopAppsToggle.IsOn;
+        SaveExtraStats();
+    }
+
+    private void TopAppsMetric_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.TopAppsCpu = TopCpuToggle.IsOn;
+        Settings.TopAppsRam = TopRamToggle.IsOn;
+        Settings.TopAppsDisk = TopDiskToggle.IsOn;
+        Settings.TopAppsGpu = TopGpuToggle.IsOn;
 
         SaveExtraStats();
     }
@@ -773,7 +864,8 @@ public sealed partial class SpeedMeterPage : Page
             PrimaryButtonText = "Reset",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
@@ -924,7 +1016,22 @@ public sealed partial class SpeedMeterPage : Page
             PresetCombo.Items.Add(new ComboBoxItem { Content = preset.Name, Tag = $"custom:{preset.Name}" });
         }
 
-        if (PresetCombo.Items.Count > 0) PresetCombo.SelectedIndex = 0;
+        // Show the preset that is actually applied instead of always selecting the first one.
+        var index = 0;
+        if (!string.IsNullOrEmpty(Settings.LastPresetId))
+        {
+            for (var i = 0; i < PresetCombo.Items.Count; i++)
+            {
+                if (string.Equals((PresetCombo.Items[i] as ComboBoxItem)?.Tag as string,
+                        Settings.LastPresetId, StringComparison.Ordinal))
+                {
+                    index = i;
+                    break;
+                }
+            }
+        }
+
+        if (PresetCombo.Items.Count > 0) PresetCombo.SelectedIndex = index;
     }
 
     private void ApplyPreset_Click(object sender, RoutedEventArgs e)
@@ -935,6 +1042,7 @@ public sealed partial class SpeedMeterPage : Page
         if (tag.StartsWith("builtin:", StringComparison.Ordinal))
         {
             SpeedMeterPresets.Apply(Settings, tag["builtin:".Length..]);
+            Settings.LastPresetId = tag;
         }
         else if (tag.StartsWith("custom:", StringComparison.Ordinal))
         {
@@ -943,6 +1051,7 @@ public sealed partial class SpeedMeterPage : Page
             if (preset is null) return;
 
             SpeedMeterPresets.ApplyAppearanceJson(Settings, preset.SettingsJson);
+            Settings.LastPresetId = tag;
         }
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -969,6 +1078,7 @@ public sealed partial class SpeedMeterPage : Page
         }
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        Settings.LastPresetId = $"custom:{name}";
         NewPresetNameBox.Text = string.Empty;
         BuildPresetCombo();
     }
@@ -985,28 +1095,19 @@ public sealed partial class SpeedMeterPage : Page
         BuildPresetCombo();
     }
 
-    private async void ExportSettings_Click(object sender, RoutedEventArgs e)
+    private void ExportSettings_Click(object sender, RoutedEventArgs e)
     {
+        var path = NativeFileDialog.Save(
+            "Export speed meter settings",
+            "JSON settings (*.json)\0*.json\0All files (*.*)\0*.*\0",
+            "json",
+            "applock-speed-meter.json");
+
+        if (path is null) return;
+
         try
         {
-            var picker = new Windows.Storage.Pickers.FileSavePicker
-            {
-                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
-                SuggestedFileName = "applock-speed-meter"
-            };
-            picker.FileTypeChoices.Add("JSON", new List<string> { ".json" });
-
-            if (App.MainWindowInstance is { } window)
-            {
-                WinRT.Interop.InitializeWithWindow.Initialize(
-                    picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
-            }
-
-            var file = await picker.PickSaveFileAsync();
-            if (file is null) return;
-
-            await Windows.Storage.FileIO.WriteTextAsync(
-                file, SpeedMeterPresets.CaptureAppearance(Settings));
+            System.IO.File.WriteAllText(path, SpeedMeterPresets.CaptureAppearance(Settings));
         }
         catch (Exception ex)
         {
@@ -1014,26 +1115,18 @@ public sealed partial class SpeedMeterPage : Page
         }
     }
 
-    private async void ImportSettings_Click(object sender, RoutedEventArgs e)
+    private void ImportSettings_Click(object sender, RoutedEventArgs e)
     {
+        var path = NativeFileDialog.Open(
+            "Import speed meter settings",
+            "JSON settings (*.json)\0*.json\0All files (*.*)\0*.*\0",
+            "json");
+
+        if (path is null) return;
+
         try
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker
-            {
-                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
-            };
-            picker.FileTypeFilter.Add(".json");
-
-            if (App.MainWindowInstance is { } window)
-            {
-                WinRT.Interop.InitializeWithWindow.Initialize(
-                    picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
-            }
-
-            var file = await picker.PickSingleFileAsync();
-            if (file is null) return;
-
-            var json = await Windows.Storage.FileIO.ReadTextAsync(file);
+            var json = System.IO.File.ReadAllText(path);
             SpeedMeterPresets.ApplyAppearanceJson(Settings, json);
 
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -1093,6 +1186,15 @@ public sealed partial class SpeedMeterPage : Page
             ServiceContainer.SpeedMeterService?.RegisterHotkey();
             UpdateHotkeyText();
         }
+    }
+
+    private void ResetHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.ToggleHotkey = new SpeedMeterSettings().ToggleHotkey;
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.RegisterHotkey();
+        UpdateHotkeyText();
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)

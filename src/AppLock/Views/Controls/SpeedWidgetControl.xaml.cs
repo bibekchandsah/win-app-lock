@@ -42,10 +42,29 @@ public sealed partial class SpeedWidgetControl : UserControl
     private readonly Dictionary<string, TextBlock> _rowValues = new();
 
     private SystemStats? _lastStats;
+    private TopAppsStats? _topApps;
+    private double _downBytesPerSec;
+    private double _upBytesPerSec;
+
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _ticker;
+    private List<string> _tickerLines = new();
+    private int _tickerIndex;
+
+    private Brush _downBrush = new SolidColorBrush(DefaultDown);
+    private Brush _upBrush = new SolidColorBrush(DefaultUp);
 
     public SpeedWidgetControl()
     {
         InitializeComponent();
+
+        // The top-app line cycles instead of scrolling pixel by pixel: one clean line at a time.
+        _ticker = DispatcherQueue.CreateTimer();
+        _ticker.Interval = TimeSpan.FromSeconds(3.5);
+        _ticker.IsRepeating = true;
+        _ticker.Tick += (_, _) => AdvanceTicker();
+
+        SparkCanvas.SizeChanged += (_, _) => DrawSpark();
+
         ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
     }
 
@@ -88,6 +107,10 @@ public sealed partial class SpeedWidgetControl : UserControl
         var downBrush = new SolidColorBrush(ParseColor(settings.DownloadColor, DefaultDown));
         var upBrush = new SolidColorBrush(ParseColor(settings.UploadColor, DefaultUp));
 
+        _downBrush = downBrush;
+        _upBrush = upBrush;
+        TopAppsText.Foreground = textBrush;
+
         // Border follows the appearance toggle, tinted from the text color so it stays visible.
         var showBorder = settings.ShowBorder && !transparent;
         Card.BorderThickness = showBorder ? new Thickness(1) : new Thickness(0);
@@ -123,7 +146,6 @@ public sealed partial class SpeedWidgetControl : UserControl
             block.FontWeight = weight;
             block.FontSize = fontSize;
             block.Width = numberWidth;
-            block.Foreground = textBrush;
         }
 
         foreach (var label in new[] { DownLabel, UpLabel })
@@ -135,8 +157,7 @@ public sealed partial class SpeedWidgetControl : UserControl
             label.Foreground = textBrush;
         }
 
-        DownText.Foreground = textBrush;
-        UpText.Foreground = textBrush;
+        ApplyRateColors();
 
         DownIcon.FontSize = iconSize;
         UpIcon.FontSize = iconSize;
@@ -145,9 +166,11 @@ public sealed partial class SpeedWidgetControl : UserControl
         DownIcon.Visibility = settings.UseIcons ? Visibility.Visible : Visibility.Collapsed;
         UpIcon.Visibility = settings.UseIcons ? Visibility.Visible : Visibility.Collapsed;
 
-        // Sparkline and extra rows scale with the widget too.
+        // Sparkline and extra rows scale with the widget too. The canvas stretches to the card
+        // width (it used to be pinned to a fixed width, which cut the graph short in horizontal
+        // layout); DrawSpark reads its actual width.
         SparkCanvas.Visibility = settings.ShowSparkline ? Visibility.Visible : Visibility.Collapsed;
-        SparkCanvas.Width = SparkWidth * scale;
+        SparkCanvas.HorizontalAlignment = HorizontalAlignment.Stretch;
         SparkCanvas.Height = SparkHeight * scale;
         DownSpark.Stroke = new SolidColorBrush(ParseColor(settings.DownloadColor, DefaultDown));
         UpSpark.Stroke = new SolidColorBrush(ParseColor(settings.UploadColor, DefaultUp));
@@ -157,6 +180,10 @@ public sealed partial class SpeedWidgetControl : UserControl
         MeteredBadge.Foreground = textBrush;
 
         VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
+
+        TopAppsText.FontFamily = font;
+        TopAppsText.FontSize = 10 * scale;
+        UpdateTicker();
 
         BuildRows(settings, textBrush, 11 * scale, font, textBrush);
         ApplyStatsValues();
@@ -272,7 +299,7 @@ public sealed partial class SpeedWidgetControl : UserControl
             SetRow("ram", null, settings.WarnRamPercent, string.Empty);
         }
 
-        SetRow("disk", stats?.DiskPercent, 101, $"{stats?.DiskPercent ?? 0:F0}%");
+        SetRow("disk", stats?.DiskPercent, settings.WarnDiskPercent, $"{stats?.DiskPercent ?? 0:F0}%");
         SetRow("gpu", stats?.GpuPercent, 101, $"{stats?.GpuPercent ?? 0:F0}%");
         SetRow("battery", stats?.BatteryPercent, 101, $"{stats?.BatteryPercent ?? 0}%");
 
@@ -309,9 +336,88 @@ public sealed partial class SpeedWidgetControl : UserControl
 
     /// <summary>Sets the two rate labels; formatting is done by the caller.</summary>
     public void SetValues(string down, string up)
+        => SetRates(down, up, _downBytesPerSec, _upBytesPerSec);
+
+    /// <summary>Sets the labels plus the raw rates, so the warning thresholds can tint them.</summary>
+    public void SetRates(string down, string up, double downBytesPerSec, double upBytesPerSec)
     {
         DownText.Text = down;
         UpText.Text = up;
+
+        _downBytesPerSec = downBytesPerSec;
+        _upBytesPerSec = upBytesPerSec;
+
+        ApplyRateColors();
+    }
+
+    /// <summary>Red when the configured download/upload warning value is crossed.</summary>
+    private void ApplyRateColors()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        DownText.Foreground = Crosses(settings.WarnDownMbps, _downBytesPerSec)
+            ? new SolidColorBrush(WarnColor)
+            : _downBrush;
+
+        UpText.Foreground = Crosses(settings.WarnUpMbps, _upBytesPerSec)
+            ? new SolidColorBrush(WarnColor)
+            : _upBrush;
+    }
+
+    private static bool Crosses(int warnMbps, double bytesPerSec)
+        => warnMbps > 0 && bytesPerSec >= warnMbps * 1_000_000d / 8d;
+
+    // ── Top app ticker ───────────────────────────────────────────────────────
+
+    /// <summary>Feeds the busiest processes; the line cycles through the enabled metrics.</summary>
+    public void SetTopApps(TopAppsStats stats)
+    {
+        _topApps = stats;
+        UpdateTicker();
+    }
+
+    private void UpdateTicker()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        if (!settings.ShowTopApps || _topApps is null)
+        {
+            _ticker?.Stop();
+            TopAppsText.Visibility = Visibility.Collapsed;
+            _tickerLines = new List<string>();
+            return;
+        }
+
+        var lines = new List<string>();
+        if (settings.TopAppsCpu && _topApps.Cpu is { } cpu) lines.Add($"CPU · {cpu.Text}");
+        if (settings.TopAppsRam && _topApps.Ram is { } ram) lines.Add($"RAM · {ram.Text}");
+        if (settings.TopAppsDisk && _topApps.Disk is { } disk) lines.Add($"Disk · {disk.Text}");
+        if (settings.TopAppsGpu && _topApps.Gpu is { } gpu) lines.Add($"GPU · {gpu.Text}");
+
+        _tickerLines = lines;
+
+        if (lines.Count == 0)
+        {
+            _ticker?.Stop();
+            TopAppsText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (_tickerIndex >= lines.Count) _tickerIndex = 0;
+
+        TopAppsText.Text = lines[_tickerIndex];
+        TopAppsText.Visibility = Visibility.Visible;
+
+        if (lines.Count > 1) _ticker?.Start();
+        else _ticker?.Stop();
+    }
+
+    private void AdvanceTicker()
+    {
+        if (_tickerLines.Count == 0) return;
+
+        _tickerIndex = (_tickerIndex + 1) % _tickerLines.Count;
+        TopAppsText.Text = _tickerLines[_tickerIndex];
     }
 
     /// <summary>Adds one sample to the mini graph and redraws it.</summary>
@@ -330,8 +436,12 @@ public sealed partial class SpeedWidgetControl : UserControl
     private void DrawSpark()
     {
         var max = Math.Max(1, Math.Max(_downHistory.DefaultIfEmpty().Max(), _upHistory.DefaultIfEmpty().Max()));
-        var width = SparkCanvas.Width > 0 ? SparkCanvas.Width : SparkWidth;
-        var height = SparkCanvas.Height > 0 ? SparkCanvas.Height : SparkHeight;
+        var width = SparkCanvas.ActualWidth > 0
+            ? SparkCanvas.ActualWidth
+            : (SparkCanvas.Width > 0 ? SparkCanvas.Width : SparkWidth);
+        var height = SparkCanvas.ActualHeight > 0
+            ? SparkCanvas.ActualHeight
+            : (SparkCanvas.Height > 0 ? SparkCanvas.Height : SparkHeight);
 
         DownSpark.Points = BuildPoints(_downHistory, max, width, height);
         UpSpark.Points = BuildPoints(_upHistory, max, width, height);

@@ -51,9 +51,12 @@ public partial class App : Application
         // autostart launch ends up showing only the tray icon.
         _mainWindow.Activate();
 
+        // Activating before the services below start left a large black window on screen until
+        // the first XAML frame was composed. Keep it hidden and reveal it once startup is done.
+        _mainWindow.HideImmediately();
+
         if (startMinimized)
         {
-            _mainWindow.HideImmediately();
             System.Diagnostics.Debug.WriteLine("[App] Started minimized (startup mode)");
         }
 
@@ -160,6 +163,14 @@ public partial class App : Application
                     await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
                 }
             });
+        }
+
+        // Everything is created; let the message loop paint the first frame before showing again.
+        if (!startMinimized)
+        {
+            _mainWindow.DispatcherQueue.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => _mainWindow.RevealAfterStartup());
         }
     }
 

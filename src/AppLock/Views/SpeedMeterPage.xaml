@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="AppLock.Views.SpeedMeterPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -80,7 +80,7 @@
                                        FontWeight="SemiBold"
                                        FontSize="14"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <TextBlock x:Name="StatusText"
+                            <TextBlock Text="The floating widget appears on your desktop and comes back with AppLock"
                                        FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap"/>
@@ -92,39 +92,6 @@
                                       OnContent=""
                                       OffContent=""
                                       Toggled="MasterToggle_Toggled"
-                                      VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
-
-                <!-- Start with AppLock -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="4">
-                            <TextBlock Text="Start with AppLock"
-                                       FontWeight="SemiBold"
-                                       FontSize="14"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <TextBlock Text="Bring the widget back automatically when AppLock starts"
-                                       FontSize="12"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-
-                        <ToggleSwitch x:Name="StartWithAppLockToggle"
-                                      Grid.Column="1"
-                                      MinWidth="0"
-                                      OnContent=""
-                                      OffContent=""
-                                      Toggled="StartWithAppLockToggle_Toggled"
                                       VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
@@ -151,7 +118,8 @@
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Height="180">
+                                MinHeight="180"
+                                Padding="0,12">
                             <Grid>
                                 <!-- Faint window shapes so the preview reads as a desktop -->
                                 <StackPanel HorizontalAlignment="Left"
@@ -208,38 +176,140 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Background -->
+                        <!-- Colors: the swatch opens the picker and the hex value stays on one line -->
                         <Grid ColumnSpacing="12" RowSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="110"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Text="Background color"
-                                       FontSize="13"
-                                       VerticalAlignment="Center"
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Background color"
+                                       FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-
-                            <ColorPicker x:Name="BackgroundColorPicker"
-                                         Grid.Column="1"
-                                         Width="220"
-                                         IsAlphaEnabled="False"
-                                         IsAlphaSliderVisible="False"
-                                         IsAlphaTextInputVisible="False"
-                                         IsColorChannelTextInputVisible="False"
-                                         IsHexInputVisible="False"
-                                         IsMoreButtonVisible="False"
-                                         ColorSpectrumShape="Box"
-                                         ColorChanged="BackgroundColorPicker_ColorChanged"/>
-
-                            <TextBox x:Name="BackgroundHexBox"
-                                     Grid.Column="2"
-                                     Width="110"
-                                     VerticalAlignment="Center"
-                                     FontFamily="Consolas"
+                            <Button x:Name="BackgroundColorButton" Grid.Row="0" Grid.Column="1"
+                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    AutomationProperties.Name="Pick background color"
+                                    ToolTipService.ToolTip="Pick the background color">
+                                <Border x:Name="BackgroundSwatch" CornerRadius="3" Margin="2"
+                                        BorderThickness="1"
+                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                        Background="#202020"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ColorPicker x:Name="BackgroundColorPicker"
+                                                     Width="300"
+                                                     IsAlphaEnabled="False"
+                                                     IsAlphaSliderVisible="False"
+                                                     IsAlphaTextInputVisible="False"
+                                                     IsColorChannelTextInputVisible="False"
+                                                     IsHexInputVisible="True"
+                                                     IsMoreButtonVisible="False"
+                                                     ColorSpectrumShape="Box"
+                                                     ColorChanged="BackgroundColorPicker_ColorChanged"/>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <TextBox x:Name="BackgroundHexBox" Grid.Row="0" Grid.Column="2"
+                                     VerticalAlignment="Center" FontFamily="Consolas"
                                      TextChanged="BackgroundHexBox_TextChanged"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Text color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <Button x:Name="TextColorButton" Grid.Row="1" Grid.Column="1"
+                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    AutomationProperties.Name="Pick text color"
+                                    ToolTipService.ToolTip="Pick the text color">
+                                <Border x:Name="TextSwatch" CornerRadius="3" Margin="2"
+                                        BorderThickness="1"
+                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                        Background="#FFFFFF"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ColorPicker x:Name="TextColorPicker"
+                                                     Width="300"
+                                                     IsAlphaEnabled="False"
+                                                     IsAlphaSliderVisible="False"
+                                                     IsAlphaTextInputVisible="False"
+                                                     IsColorChannelTextInputVisible="False"
+                                                     IsHexInputVisible="True"
+                                                     IsMoreButtonVisible="False"
+                                                     ColorSpectrumShape="Box"
+                                                     ColorChanged="TextColorPicker_ColorChanged"/>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <TextBox x:Name="TextHexBox" Grid.Row="1" Grid.Column="2"
+                                     VerticalAlignment="Center" FontFamily="Consolas"
+                                     TextChanged="TextHexBox_TextChanged"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Download color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <Button x:Name="DownColorButton" Grid.Row="2" Grid.Column="1"
+                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    AutomationProperties.Name="Pick download color"
+                                    ToolTipService.ToolTip="Pick the download color">
+                                <Border x:Name="DownSwatch" CornerRadius="3" Margin="2"
+                                        BorderThickness="1"
+                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                        Background="#4ADE80"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ColorPicker x:Name="DownColorPicker"
+                                                     Width="300"
+                                                     IsAlphaEnabled="False"
+                                                     IsAlphaSliderVisible="False"
+                                                     IsAlphaTextInputVisible="False"
+                                                     IsColorChannelTextInputVisible="False"
+                                                     IsHexInputVisible="True"
+                                                     IsMoreButtonVisible="False"
+                                                     ColorSpectrumShape="Box"
+                                                     ColorChanged="DownColorPicker_ColorChanged"/>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <TextBox x:Name="DownHexBox" Grid.Row="2" Grid.Column="2"
+                                     VerticalAlignment="Center" FontFamily="Consolas"
+                                     TextChanged="DownHexBox_TextChanged"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Upload color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <Button x:Name="UpColorButton" Grid.Row="3" Grid.Column="1"
+                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    AutomationProperties.Name="Pick upload color"
+                                    ToolTipService.ToolTip="Pick the upload color">
+                                <Border x:Name="UpSwatch" CornerRadius="3" Margin="2"
+                                        BorderThickness="1"
+                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                        Background="#60A5FA"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ColorPicker x:Name="UpColorPicker"
+                                                     Width="300"
+                                                     IsAlphaEnabled="False"
+                                                     IsAlphaSliderVisible="False"
+                                                     IsAlphaTextInputVisible="False"
+                                                     IsColorChannelTextInputVisible="False"
+                                                     IsHexInputVisible="True"
+                                                     IsMoreButtonVisible="False"
+                                                     ColorSpectrumShape="Box"
+                                                     ColorChanged="UpColorPicker_ColorChanged"/>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <TextBox x:Name="UpHexBox" Grid.Row="3" Grid.Column="2"
+                                     VerticalAlignment="Center" FontFamily="Consolas"
+                                     TextChanged="UpHexBox_TextChanged"/>
                         </Grid>
 
                         <!-- Opacity -->
@@ -270,64 +340,6 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </Grid>
 
-                        <!-- Colors -->
-                        <Grid ColumnSpacing="12" RowSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Text color"
-                                       FontSize="13" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <ColorPicker x:Name="TextColorPicker"
-                                         Grid.Row="0" Grid.Column="1"
-                                         Width="220"
-                                         IsAlphaEnabled="False"
-                                         IsAlphaSliderVisible="False"
-                                         IsAlphaTextInputVisible="False"
-                                         IsColorChannelTextInputVisible="False"
-                                         IsHexInputVisible="False"
-                                         IsMoreButtonVisible="False"
-                                         ColorSpectrumShape="Box"
-                                         ColorChanged="TextColorPicker_ColorChanged"/>
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Download color"
-                                       FontSize="13" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <ColorPicker x:Name="DownColorPicker"
-                                         Grid.Row="1" Grid.Column="1"
-                                         Width="220"
-                                         IsAlphaEnabled="False"
-                                         IsAlphaSliderVisible="False"
-                                         IsAlphaTextInputVisible="False"
-                                         IsColorChannelTextInputVisible="False"
-                                         IsHexInputVisible="False"
-                                         IsMoreButtonVisible="False"
-                                         ColorSpectrumShape="Box"
-                                         ColorChanged="DownColorPicker_ColorChanged"/>
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Upload color"
-                                       FontSize="13" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <ColorPicker x:Name="UpColorPicker"
-                                         Grid.Row="2" Grid.Column="1"
-                                         Width="220"
-                                         IsAlphaEnabled="False"
-                                         IsAlphaSliderVisible="False"
-                                         IsAlphaTextInputVisible="False"
-                                         IsColorChannelTextInputVisible="False"
-                                         IsHexInputVisible="False"
-                                         IsMoreButtonVisible="False"
-                                         ColorSpectrumShape="Box"
-                                         ColorChanged="UpColorPicker_ColorChanged"/>
-                        </Grid>
 
                         <!-- Scale -->
                         <Grid ColumnSpacing="12">
@@ -638,7 +650,10 @@
                                            Text="Ctrl+Alt+N"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
-                            <Button Grid.Column="1" Content="Change" Click="ChangeHotkey_Click"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Button Content="Change" Click="ChangeHotkey_Click"/>
+                                <Button Content="Reset" Click="ResetHotkey_Click"/>
+                            </StackPanel>
                         </Grid>
 
                         <Button Content="Reset position"
@@ -665,40 +680,222 @@
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
-                        <Grid ColumnSpacing="24" RowSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CPU usage" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowCpuToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="RAM usage" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowRamToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Disk activity" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowDiskToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="GPU usage" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowGpuToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Battery" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Mini graph" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Last 60 samples, full width of the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowSparklineToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Total data used today" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowTodayTotalToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                        </StackPanel>
 
-                            <ToggleSwitch x:Name="ShowCpuToggle" Grid.Row="0" Grid.Column="0"
-                                          Header="CPU usage" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowRamToggle" Grid.Row="0" Grid.Column="1"
-                                          Header="RAM usage" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowDiskToggle" Grid.Row="1" Grid.Column="0"
-                                          Header="Disk activity" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowGpuToggle" Grid.Row="1" Grid.Column="1"
-                                          Header="GPU usage" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Row="2" Grid.Column="0"
-                                          Header="Battery" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowSparklineToggle" Grid.Row="2" Grid.Column="1"
-                                          Header="Mini graph" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ShowTodayTotalToggle" Grid.Row="3" Grid.Column="0"
-                                          Header="Total data used today" OffContent="" OnContent=""
-                                          Toggled="ExtraStatToggle_Toggled"/>
-                        </Grid>
+                        <!-- Warning thresholds -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Warnings"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <Grid ColumnSpacing="12" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <NumberBox x:Name="WarnDiskBox" Grid.Row="0" Grid.Column="0"
+                                           Header="Warn disk above %" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="WarnBox_ValueChanged"/>
+                                <NumberBox x:Name="WarnDownBox" Grid.Row="0" Grid.Column="1"
+                                           Header="Warn download above Mbps" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="WarnBox_ValueChanged"/>
+                                <NumberBox x:Name="WarnUpBox" Grid.Row="0" Grid.Column="2"
+                                           Header="Warn upload above Mbps" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="WarnBox_ValueChanged"/>
+                            </Grid>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Notify when a warning is crossed" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="A toast names the app that is using the most CPU, RAM or disk"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="WarnToastsToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
+                            </Grid>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Battery alerts at 80% and 20%" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Uses the same toast style as the speed meter alerts"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="BatteryAlertsToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Top apps -->
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Top apps line" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="A line inside the widget that cycles through the busiest apps"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowTopAppsToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="TopAppsToggle_Toggled"/>
+                            </Grid>
+
+                            <Grid ColumnSpacing="24" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Grid.Column="0" ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Top CPU app" FontSize="13" VerticalAlignment="Center"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <ToggleSwitch x:Name="TopCpuToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                  MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="TopAppsMetric_Toggled"/>
+                                </Grid>
+                                <Grid Grid.Row="0" Grid.Column="1" ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Top RAM app" FontSize="13" VerticalAlignment="Center"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <ToggleSwitch x:Name="TopRamToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                  MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="TopAppsMetric_Toggled"/>
+                                </Grid>
+                                <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Top disk app" FontSize="13" VerticalAlignment="Center"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <ToggleSwitch x:Name="TopDiskToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                  MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="TopAppsMetric_Toggled"/>
+                                </Grid>
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Top GPU app" FontSize="13" VerticalAlignment="Center"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <ToggleSwitch x:Name="TopGpuToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                  MinWidth="0" OffContent="" OnContent=""
+                                                  Toggled="TopAppsMetric_Toggled"/>
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
 
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
@@ -764,25 +961,70 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <ToggleSwitch x:Name="NotifyLostToggle" Grid.Row="0" Grid.Column="0"
-                                          Header="Notify when the connection is lost" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
-                            <ToggleSwitch x:Name="NotifyRestoredToggle" Grid.Row="0" Grid.Column="1"
-                                          Header="Notify when it comes back" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
-                            <ToggleSwitch x:Name="AlertSoundToggle" Grid.Row="1" Grid.Column="0"
-                                          Header="Sound" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
-                            <ToggleSwitch x:Name="SuppressFullscreenToggle" Grid.Row="1" Grid.Column="1"
-                                          Header="Stay quiet in full-screen apps" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
-                            <ToggleSwitch x:Name="RealInternetToggle" Grid.Row="2" Grid.Column="0"
-                                          Header="Check for real internet access" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
-                            <ToggleSwitch x:Name="ActiveProbeToggle" Grid.Row="2" Grid.Column="1"
-                                          Header="Active probe (opt-in, sends requests)" OffContent="" OnContent=""
-                                          Toggled="AlertToggle_Toggled"/>
                         </Grid>
+
+                        <StackPanel Spacing="8">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Notify when the connection is lost" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="NotifyLostToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Notify when it comes back" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="NotifyRestoredToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Sound" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="AlertSoundToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Stay quiet in full-screen apps" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="SuppressFullscreenToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Check for real internet access" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="RealInternetToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Active probe (opt-in, sends requests)" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap"/>
+                                <ToggleSwitch x:Name="ActiveProbeToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
+                            </Grid>
+                        </StackPanel>
 
                         <Grid ColumnSpacing="12" RowSpacing="8">
                             <Grid.ColumnDefinitions>
@@ -901,10 +1143,16 @@
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
-                        <ToggleSwitch x:Name="TrackUsageToggle"
-                                      Header="Track data usage"
-                                      OffContent="" OnContent=""
-                                      Toggled="UsageSetting_Changed"/>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Track data usage" FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ToggleSwitch x:Name="TrackUsageToggle" Grid.Column="1" MinWidth="0"
+                                          OffContent="" OnContent="" Toggled="UsageSetting_Changed"/>
+                        </Grid>
 
                         <TextBlock x:Name="UsageSummaryText"
                                    Text="Today —"
@@ -940,10 +1188,16 @@
                                        ValueChanged="UsageNumber_ValueChanged"/>
                         </Grid>
 
-                        <ToggleSwitch x:Name="CapActiveToggle"
-                                      Header="Count only the active adapter"
-                                      OffContent="" OnContent=""
-                                      Toggled="UsageSetting_Changed"/>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Count only the active adapter" FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ToggleSwitch x:Name="CapActiveToggle" Grid.Column="1" MinWidth="0"
+                                          OffContent="" OnContent="" Toggled="UsageSetting_Changed"/>
+                        </Grid>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="View history" Click="ViewUsageHistory_Click"/>

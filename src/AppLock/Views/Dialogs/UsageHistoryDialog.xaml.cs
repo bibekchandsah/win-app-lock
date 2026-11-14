@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using AppLock.Services;
 using AppLock.Services.SpeedMeter;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -28,6 +29,9 @@ public sealed partial class UsageHistoryDialog : ContentDialog
     public UsageHistoryDialog(UsageStore store)
     {
         InitializeComponent();
+
+        // Follow the app's light/dark choice instead of the system default.
+        RequestedTheme = ServiceContainer.CurrentTheme;
 
         _store = store;
 
@@ -164,34 +168,24 @@ public sealed partial class UsageHistoryDialog : ContentDialog
         }
     }
 
-    private async void Export_Click(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    private void Export_Click(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         // Keep the dialog open so the user can pick another range afterwards.
         args.Cancel = true;
 
         try
         {
-            var picker = new FileSavePicker
-            {
-                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-                SuggestedFileName = $"applock-data-usage-{DateTime.Today:yyyy-MM-dd}"
-            };
-            picker.FileTypeChoices.Add("CSV", new List<string> { ".csv" });
+            // Native dialog: the WinRT picker needs package identity and silently failed here.
+            var path = NativeFileDialog.Save(
+                "Export data usage",
+                "CSV file (*.csv)\0*.csv\0All files (*.*)\0*.*\0",
+                "csv",
+                $"applock-data-usage-{DateTime.Today:yyyy-MM-dd}.csv");
 
-            var hwnd = App.MainWindowInstance is { } window
-                ? WinRT.Interop.WindowNative.GetWindowHandle(window)
-                : IntPtr.Zero;
+            if (path is null) return;
 
-            if (hwnd != IntPtr.Zero)
-            {
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-            }
-
-            var file = await picker.PickSaveFileAsync();
-            if (file is null) return;
-
-            await FileIO.WriteTextAsync(file, _store.BuildCsv());
-            TotalsText.Text = $"Exported to {file.Path}";
+            System.IO.File.WriteAllText(path, _store.BuildCsv());
+            TotalsText.Text = $"Exported to {path}";
         }
         catch (Exception ex)
         {
