@@ -37,6 +37,44 @@
                     Style="{StaticResource BodyTextBlockStyle}"/>
             </StackPanel>
 
+            <!-- Administrator Privileges Card (top of page, with a restart action) -->
+            <Border 
+                x:Name="WarningCard"
+                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20"
+                Visibility="Collapsed">
+                <Grid ColumnDefinitions="Auto,*">
+                    <FontIcon 
+                        Grid.Column="0"
+                        Glyph="&#xE7BA;"
+                        FontSize="20"
+                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Top"/>
+                    <StackPanel Grid.Column="1" Spacing="8">
+                        <TextBlock 
+                            x:Name="WarningTitle"
+                            Text="Administrator Privileges Required"
+                            Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock 
+                            x:Name="WarningMessage"
+                            Text="This feature requires administrator privileges. Please restart AppLock as administrator to enable or disable the keyboard."
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"/>
+                        <Button 
+                            Content="Restart as administrator" 
+                            Click="RestartAsAdminButton_Click"
+                            Margin="0,4,0,0"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="Restart AppLock as administrator"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- Master Toggle Card -->
             <Border 
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -135,38 +173,6 @@
                         VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE72C;" FontSize="16"/>
                     </Button>
-                </Grid>
-            </Border>
-
-            <!-- Warning Card -->
-            <Border 
-                x:Name="WarningCard"
-                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
-                BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="20"
-                Visibility="Collapsed">
-                <Grid ColumnDefinitions="Auto,*">
-                    <FontIcon 
-                        Grid.Column="0"
-                        Glyph="&#xE7BA;"
-                        FontSize="20"
-                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                        Margin="0,0,16,0"
-                        VerticalAlignment="Top"/>
-                    <StackPanel Grid.Column="1" Spacing="8">
-                        <TextBlock 
-                            x:Name="WarningTitle"
-                            Text="Administrator Privileges Required"
-                            Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                        <TextBlock 
-                            x:Name="WarningMessage"
-                            Text="This feature requires administrator privileges. Please restart AppLock as administrator to enable or disable the keyboard."
-                            TextWrapping="Wrap"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Style="{StaticResource CaptionTextBlockStyle}"/>
-                    </StackPanel>
                 </Grid>
             </Border>
         </StackPanel>

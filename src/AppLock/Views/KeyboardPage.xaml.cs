@@ -153,5 +153,46 @@ namespace AppLock.Views
             _viewModel.Enabled = _keyboardService.IsKeyboardEnabled();
             LoadSettings();
         }
+
+        /// <summary>
+        /// Relaunches AppLock elevated so the keyboard service (BlockInput) can be used, mirroring
+        /// the BitLocker page's restart action.
+        /// </summary>
+        private async void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_viewModel.IsAdmin) return;
+
+                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrEmpty(exe)) return;
+
+                var psi = new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    UseShellExecute = true,
+                    Verb = "runas"
+                };
+
+                // Mark this exit as authorized so the watchdog does not revive the non-elevated instance.
+                ProcessProtectionService.SignalAuthorizedExit();
+                ProcessProtectionService.UnprotectCurrentProcess();
+
+                var process = System.Diagnostics.Process.Start(psi);
+                if (process != null)
+                {
+                    // Give the elevated instance a moment to come up, then close this one.
+                    await Task.Delay(400);
+                    Environment.Exit(0);
+                }
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // The user dismissed the UAC prompt - keep running unelevated.
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[KeyboardPage] Restart as administrator failed: {ex.Message}");
+            }
+        }
     }
 }
