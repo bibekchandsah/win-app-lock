@@ -1285,8 +1285,21 @@ public sealed class TrayService : IDisposable
             _isVolumeWatcherSubscribed = false;
         }
 
-        // Don't dispose the tray icon as it's managed by App.xaml resources
-        _trayIcon = null;
+        // Dispose the tray icon here, while the UI thread and the message loop are still alive.
+        // Leaving it to App.xaml resource teardown runs H.NotifyIcon's window procedure during
+        // shutdown, which shows "Exception Processing Message 0xc0000005 - Unexpected parameters".
+        try
+        {
+            _trayIcon?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TrayService] Error disposing tray icon: {ex.Message}");
+        }
+        finally
+        {
+            _trayIcon = null;
+        }
     }
 
     // ── Notification Position Tray Menu (M6) ──────────────────────────────────

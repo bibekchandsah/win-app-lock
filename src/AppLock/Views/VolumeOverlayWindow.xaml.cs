@@ -81,16 +81,51 @@ public sealed partial class VolumeOverlayWindow : Window
     private readonly Dictionary<string, MicrophoneRowUi> _speakerRows = new();
     private int _speakerRowCount;
 
+    // While a "set default device" call is in flight the highlight is already optimistic, so the
+    // poll must not overwrite it with the old Windows value and make it flicker.
+    private string? _pendingDefaultDeviceId;
+    private DateTime _pendingDefaultUntil = DateTime.MinValue;
+
+    // ── Smoothness helpers ───────────────────────────────────────────────────
+    // The overlay polls a few times a second; everything below keeps that poll cheap and keeps it
+    // from fighting whatever the user is currently dragging.
+    private static readonly bool VerboseLog = false;
+    private const int SessionSnapshotIntervalMs = 400;   // full per-app audio snapshot cadence
+    private const int DeviceVolumeWriteIntervalMs = 60;  // coalesced device volume write cadence
+    private readonly Dictionary<int, string> _processNameCache = new();
+    private readonly Dictionary<string, DateTime> _userVolumeChangeAt = new();
+    private readonly Dictionary<string, float> _pendingDeviceVolume = new();
+    private readonly Dictionary<string, float> _pendingSessionVolume = new();
+    private float? _pendingMasterVolume;
+    private DispatcherQueueTimer? _volumeWriteTimer;
+    private DateTime _lastMasterSliderChange = DateTime.MinValue;
+    private DateTime _lastActiveAppSliderChange = DateTime.MinValue;
+    private DateTime _lastSessionSnapshot = DateTime.MinValue;
+    private DateTime _lastBrightnessUserChange = DateTime.MinValue;
+    private int _lastBrightnessSet = -1;
+    private DateTime _lastSmtcSync = DateTime.MinValue;
+    private int _lastActiveAppPercent = -1;
+    private bool _lastActiveAppMuted;
+    private string _lastActiveAppName = string.Empty;
+    private bool _activeAppRowShown;
+    private int _lastAppRowCount = -1;
+    private string? _activeAppNameKey;
+    private string _activeAppName = string.Empty;
+
     // Screen brightness row (monitor brightness, independent of the camera brightness row)
     private MicrophoneRowUi? _brightnessRow;
     private int _brightnessRowCount;
     private DateTime _lastBrightnessSync = DateTime.MinValue;
+    private DateTime _lastDefaultFlagsCheck = DateTime.MinValue;
+    private DateTime _lastDeviceValueSync = DateTime.MinValue;
     private bool _isSyncingBrightness;
 
     // Last time the capture device list was re-enumerated (default device / hot-plug sync)
     private DateTime _lastMicrophoneScan = DateTime.MinValue;
     private DateTime _lastSpeakerScan = DateTime.MinValue;
-    private const int MicrophoneScanIntervalMs = 2000;
+    // Device enumeration creates MMDevice wrappers on the UI thread, so it is deliberately slow;
+    // hot-plug does not need to be detected within two seconds.
+    private const int MicrophoneScanIntervalMs = 4000;
 
     /// <summary>
     /// Controls of one device row (speaker or microphone): the left button selects the device as
@@ -926,12 +961,8 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 if (_isUpdatingMicrophoneVolume) return;
                 var deviceId = (string)((Slider)s).Tag;
-                var device = _microphoneService.GetMicrophone(deviceId);
-                if (device != null)
-                {
-                    device.SetVolume((float)e.NewValue);
-                    UpdateMicrophonePercent(deviceId, (int)e.NewValue);
-                }
+                UpdateMicrophonePercent(deviceId, (int)Math.Round(e.NewValue));
+                QueueDeviceVolumeChange(deviceId, (float)e.NewValue);
             };
 
             slider.PointerWheelChanged += (s, e) =>
@@ -996,9 +1027,9 @@ public sealed partial class VolumeOverlayWindow : Window
                 var device = _microphoneService.GetMicrophone(deviceId);
                 if (device != null)
                 {
-                    bool currentMute = device.IsMuted();
-                    device.SetMute(!currentMute);
-                    UpdateMicrophoneIcon(deviceId);
+                    bool muted = !device.IsMuted();
+                    SetMicrophoneGlyph(deviceId, muted); // instant feedback
+                    device.SetMute(muted);
                 }
             };
 
@@ -1068,8 +1099,9 @@ public sealed partial class VolumeOverlayWindow : Window
                 }
                 else
                 {
-                    device.SetMute(!device.IsMuted());
-                    UpdateSpeakerIcon(deviceId);
+                    bool muted = !device.IsMuted();
+                    SetSpeakerGlyphs(deviceId, muted); // instant feedback
+                    device.SetMute(muted);
                 }
             };
 
@@ -1100,12 +1132,8 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 if (_isUpdatingMicrophoneVolume) return;
                 var deviceId = (string)((Slider)s).Tag;
-                var device = _speakerService.GetSpeaker(deviceId);
-                if (device != null)
-                {
-                    device.SetVolume((float)e.NewValue);
-                    UpdateMicrophonePercent(deviceId, (int)e.NewValue);
-                }
+                UpdateMicrophonePercent(deviceId, (int)Math.Round(e.NewValue));
+                QueueDeviceVolumeChange(deviceId, (float)e.NewValue);
             };
 
             slider.PointerWheelChanged += (s, e) =>
@@ -1166,8 +1194,9 @@ public sealed partial class VolumeOverlayWindow : Window
                 var device = _speakerService.GetSpeaker(deviceId);
                 if (device != null)
                 {
-                    device.SetMute(!device.IsMuted());
-                    UpdateSpeakerIcon(deviceId);
+                    bool muted = !device.IsMuted();
+                    SetSpeakerGlyphs(deviceId, muted); // instant feedback
+                    device.SetMute(muted);
                 }
             };
 
@@ -1263,7 +1292,12 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 if (_isUpdatingSlider) return;
                 int percent = (int)Math.Round(e.NewValue);
-                percentText.Text = $"{percent}%";
+                SetTextIfChanged(percentText, $"{percent}%");
+                _lastBrightnessUserChange = DateTime.UtcNow;
+
+                // Skip repeated identical writes while the thumb is being dragged.
+                if (percent == _lastBrightnessSet) return;
+                _lastBrightnessSet = percent;
                 _ = ServiceContainer.BrightnessService.SetBrightnessAsync(percent);
             };
 
@@ -1308,7 +1342,10 @@ public sealed partial class VolumeOverlayWindow : Window
     private async Task SyncScreenBrightnessAsync(bool force = false)
     {
         if (_brightnessRow == null || _isSyncingBrightness) return;
-        if (!force && (DateTime.UtcNow - _lastBrightnessSync).TotalMilliseconds < 2000) return;
+        if (!force && (DateTime.UtcNow - _lastBrightnessSync).TotalMilliseconds < 4000) return;
+
+        // Don't snap the thumb back to a stale reading while the user is dragging.
+        if (!force && (DateTime.UtcNow - _lastBrightnessUserChange).TotalMilliseconds < 1500) return;
 
         _isSyncingBrightness = true;
         _lastBrightnessSync = DateTime.UtcNow;
@@ -1336,7 +1373,7 @@ public sealed partial class VolumeOverlayWindow : Window
         try { _brightnessRow.Slider.Value = value; }
         finally { _isUpdatingSlider = false; }
 
-        _brightnessRow.PercentText.Text = $"{value}%";
+        SetTextIfChanged(_brightnessRow.PercentText, $"{value}%");
     }
 
     private void ClearMicrophoneRows()
@@ -1474,20 +1511,51 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
-            if (_speakerService.SetDefaultSpeaker(deviceId))
+            // Optimistic: move the highlight right away so the click feels instant, then tell
+            // Windows on a worker thread (the COM call can take a few hundred milliseconds).
+            foreach (var speaker in _speakerService.GetSpeakers())
             {
-                Debug.WriteLine($"[VolumeMixer] Default speaker set: {deviceId}");
-                _lastSpeakerScan = DateTime.UtcNow;
-                UpdateDeviceSelection();
+                speaker.IsDefault = speaker.DeviceId == deviceId;
             }
-            else
+            _pendingDefaultDeviceId = deviceId;
+            _pendingDefaultUntil = DateTime.UtcNow.AddSeconds(3);
+            UpdateDeviceSelection();
+
+            _ = Task.Run(() =>
             {
-                Debug.WriteLine($"[VolumeMixer] Could not set default speaker: {deviceId}");
-            }
+                bool ok = _speakerService.SetDefaultSpeaker(deviceId);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    _pendingDefaultDeviceId = null;
+                    _speakerService.RefreshDefaultFlags();
+                    UpdateDeviceSelection();
+                    Debug.WriteLine($"[VolumeMixer] Default speaker set: {deviceId} (ok={ok})");
+                });
+            });
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[VolumeMixer] SetDefaultSpeaker error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Repaints a speaker row's icons immediately, before the device call completes.</summary>
+    private void SetSpeakerGlyphs(string deviceId, bool muted)
+    {
+        if (!_speakerRows.TryGetValue(deviceId, out var row)) return;
+
+        string glyph = muted ? "\uE74F" : "\uE767";
+        if (row.MuteButton.Content is FontIcon muteIcon) muteIcon.Glyph = glyph;
+        if (row.IconButton.Content is FontIcon leftIcon) leftIcon.Glyph = glyph;
+    }
+
+    /// <summary>Repaints a microphone row's mute icon immediately.</summary>
+    private void SetMicrophoneGlyph(string deviceId, bool muted)
+    {
+        if (!_microphoneRows.TryGetValue(deviceId, out var row)) return;
+        if (row.MuteButton.Content is FontIcon muteIcon)
+        {
+            muteIcon.Glyph = muted ? "\uEC54" : "\uE720";
         }
     }
 
@@ -1514,16 +1582,26 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
-            if (_microphoneService.SetDefaultMicrophone(deviceId))
+            // Optimistic: highlight the new default immediately, then apply it off the UI thread.
+            foreach (var mic in _microphoneService.GetMicrophones())
             {
-                Debug.WriteLine($"[VolumeMixer] Default microphone set: {deviceId}");
-                _lastMicrophoneScan = DateTime.UtcNow;
-                UpdateDeviceSelection();
+                mic.IsDefault = mic.DeviceId == deviceId;
             }
-            else
+            _pendingDefaultDeviceId = deviceId;
+            _pendingDefaultUntil = DateTime.UtcNow.AddSeconds(3);
+            UpdateDeviceSelection();
+
+            _ = Task.Run(() =>
             {
-                Debug.WriteLine($"[VolumeMixer] Could not set default microphone: {deviceId}");
-            }
+                bool ok = _microphoneService.SetDefaultMicrophone(deviceId);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    _pendingDefaultDeviceId = null;
+                    _microphoneService.RefreshDefaultFlags();
+                    UpdateDeviceSelection();
+                    Debug.WriteLine($"[VolumeMixer] Default microphone set: {deviceId} (ok={ok})");
+                });
+            });
         }
         catch (Exception ex)
         {
@@ -1560,12 +1638,135 @@ public sealed partial class VolumeOverlayWindow : Window
                 }
             }
 
-            SyncSpeakerValues();
-            SyncMicrophoneValues();
+            // Selection changed in Windows (or by another app) — update highlights without a rebuild.
+            // Skipped while our own set-default call is in flight, so the optimistic highlight holds.
+            bool pendingSelection = _pendingDefaultDeviceId != null && DateTime.UtcNow < _pendingDefaultUntil;
+            if (!pendingSelection &&
+                (DateTime.UtcNow - _lastDefaultFlagsCheck).TotalMilliseconds >= 1000)
+            {
+                _lastDefaultFlagsCheck = DateTime.UtcNow;
+                _pendingDefaultDeviceId = null;
+                bool selectionChanged = _speakerService.RefreshDefaultFlags();
+                if (ServiceContainer.Settings.VolumeMixer.ShowMicrophoneVolume)
+                {
+                    selectionChanged |= _microphoneService.RefreshDefaultFlags();
+                }
+                if (selectionChanged)
+                {
+                    UpdateDeviceSelection();
+                }
+            }
+
+            // Device volume/mute reads are COM calls; 4 per second is live enough for an overlay.
+            if ((DateTime.UtcNow - _lastDeviceValueSync).TotalMilliseconds >= 250)
+            {
+                _lastDeviceValueSync = DateTime.UtcNow;
+                SyncSpeakerValues();
+                SyncMicrophoneValues();
+            }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[VolumeMixer] SyncMicrophones error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Assigns a tooltip only when it differs — re-setting it on every poll disturbed the
+    /// open tooltip (and its fade animation).</summary>
+    private static void SetToolTipIfChanged(DependencyObject element, string text)
+    {
+        if (element == null) return;
+        if (ToolTipService.GetToolTip(element) is string current && current == text) return;
+        ToolTipService.SetToolTip(element, text);
+    }
+
+    /// <summary>
+    /// Records the new volume and lets a short timer write it to the device. Dragging a slider
+    /// raises dozens of changes per second; writing each one to the audio service made the thumb
+    /// stutter. Only the latest value per device is written.
+    /// </summary>
+    private void QueueDeviceVolumeChange(string deviceId, float volume)
+    {
+        _userVolumeChangeAt[deviceId] = DateTime.UtcNow;
+        _pendingDeviceVolume[deviceId] = Math.Clamp(volume, 0f, 100f);
+        EnsureVolumeWriteTimer();
+    }
+
+    /// <summary>Coalesces master-slider writes the same way device and app sliders are coalesced.</summary>
+    private void QueueMasterVolume(float scale)
+    {
+        _lastMasterSliderChange = DateTime.UtcNow;
+        _pendingMasterVolume = Math.Clamp(scale, 0f, 1f);
+        EnsureVolumeWriteTimer();
+    }
+
+    private void QueueSessionVolume(IEnumerable<string> sessionIds, float scale)
+    {
+        _lastActiveAppSliderChange = DateTime.UtcNow;
+        scale = Math.Clamp(scale, 0f, 1f);
+        foreach (var id in sessionIds) _pendingSessionVolume[id] = scale;
+        EnsureVolumeWriteTimer();
+    }
+
+    private void EnsureVolumeWriteTimer()
+    {
+        if (_volumeWriteTimer == null)
+        {
+            _volumeWriteTimer = DispatcherQueue.CreateTimer();
+            _volumeWriteTimer.Interval = TimeSpan.FromMilliseconds(DeviceVolumeWriteIntervalMs);
+            _volumeWriteTimer.IsRepeating = true;
+            _volumeWriteTimer.Tick += (s, e) => FlushDeviceVolumeChanges();
+        }
+
+        if (!_volumeWriteTimer.IsRunning) _volumeWriteTimer.Start();
+    }
+
+    private void FlushDeviceVolumeChanges()
+    {
+        if (_pendingDeviceVolume.Count == 0 && _pendingSessionVolume.Count == 0 && _pendingMasterVolume == null)
+        {
+            _volumeWriteTimer?.Stop();
+            return;
+        }
+
+        var devicePending = _pendingDeviceVolume.ToArray();
+        var sessionPending = _pendingSessionVolume.ToArray();
+        var masterPending = _pendingMasterVolume;
+        _pendingDeviceVolume.Clear();
+        _pendingSessionVolume.Clear();
+        _pendingMasterVolume = null;
+
+        foreach (var (deviceId, volume) in devicePending)
+        {
+            try
+            {
+                var speaker = _speakerService.GetSpeaker(deviceId);
+                if (speaker != null)
+                {
+                    speaker.SetVolume(volume);
+                    continue;
+                }
+
+                _microphoneService.GetMicrophone(deviceId)?.SetVolume(volume);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VolumeMixer] Flush volume error: {ex.Message}");
+            }
+        }
+
+        try
+        {
+            foreach (var (sessionId, volume) in sessionPending)
+            {
+                _audioService?.SetSessionVolume(sessionId, volume);
+            }
+
+            if (masterPending.HasValue) _audioService?.SetMasterVolume(masterPending.Value);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] Flush session volume error: {ex.Message}");
         }
     }
 
@@ -1575,6 +1776,12 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             try
             {
+                // Collapsed rows don't need live values, and a row the user just dragged must not
+                // be pushed back to a stale device reading (that made the thumb stutter).
+                if (row.ControlsGrid?.Visibility == Visibility.Collapsed) continue;
+                if (_userVolumeChangeAt.TryGetValue(row.DeviceId, out var changedAt) &&
+                    (DateTime.UtcNow - changedAt).TotalMilliseconds < 1200) continue;
+
                 var speaker = _speakerService.GetSpeaker(row.DeviceId);
                 if (speaker == null) continue;
 
@@ -1586,14 +1793,20 @@ public sealed partial class VolumeOverlayWindow : Window
                     finally { _isUpdatingMicrophoneVolume = false; }
                 }
 
-                row.PercentText.Text = $"{(int)Math.Round(volume)}%";
+                SetTextIfChanged(row.PercentText, $"{(int)Math.Round(volume)}%");
 
                 string glyph = speaker.IsMuted() ? "\uE74F" : "\uE767";
-                if (row.MuteButton.Content is FontIcon muteIcon) muteIcon.Glyph = glyph;
-                if (row.IconButton.Content is FontIcon leftIcon) leftIcon.Glyph = glyph;
+                if (row.MuteButton.Content is FontIcon muteIcon && muteIcon.Glyph != glyph) muteIcon.Glyph = glyph;
+                if (row.IconButton.Content is FontIcon leftIcon && leftIcon.Glyph != glyph) leftIcon.Glyph = glyph;
             }
             catch { }
         }
+    }
+
+    /// <summary>Assigns only when the text actually changed — repeated sets invalidate layout.</summary>
+    private static void SetTextIfChanged(TextBlock block, string text)
+    {
+        if (block != null && block.Text != text) block.Text = text;
     }
 
     private void SyncMicrophoneValues()
@@ -1602,6 +1815,10 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             try
             {
+                if (row.ControlsGrid?.Visibility == Visibility.Collapsed) continue;
+                if (_userVolumeChangeAt.TryGetValue(row.DeviceId, out var changedAt) &&
+                    (DateTime.UtcNow - changedAt).TotalMilliseconds < 1200) continue;
+
                 var device = _microphoneService.GetMicrophone(row.DeviceId);
                 if (device == null) continue;
 
@@ -1613,11 +1830,12 @@ public sealed partial class VolumeOverlayWindow : Window
                     finally { _isUpdatingMicrophoneVolume = false; }
                 }
 
-                row.PercentText.Text = $"{(int)Math.Round(volume)}%";
+                SetTextIfChanged(row.PercentText, $"{(int)Math.Round(volume)}%");
 
                 if (row.MuteButton.Content is FontIcon muteIcon)
                 {
-                    muteIcon.Glyph = device.IsMuted() ? "\uEC54" : "\uE720";
+                    string glyph = device.IsMuted() ? "\uEC54" : "\uE720";
+                    if (muteIcon.Glyph != glyph) muteIcon.Glyph = glyph;
                 }
             }
             catch { }
@@ -1722,6 +1940,11 @@ public sealed partial class VolumeOverlayWindow : Window
             }
             catch { }
         }
+
+        // Values are not polled while the controls are hidden — refresh them now that they show.
+        SyncSpeakerValues();
+        SyncMicrophoneValues();
+        _ = SyncScreenBrightnessAsync(force: true);
     }
 
     private void HideMicrophoneControls()
@@ -1910,6 +2133,11 @@ public sealed partial class VolumeOverlayWindow : Window
         // Monitor brightness changed from the brightness page or the keyboard keys
         _ = SyncScreenBrightnessAsync();
 
+        // The per-app snapshot touches every audio session and repaints rows, so it runs slower
+        // than the device sync — 150 ms of app-row churn was making the whole bar feel sluggish.
+        if ((DateTime.UtcNow - _lastSessionSnapshot).TotalMilliseconds < SessionSnapshotIntervalMs) return;
+        _lastSessionSnapshot = DateTime.UtcNow;
+
         // Post the session snapshot work to the audio thread; result comes back on UI thread.
         _audioService.GetAudioSessionsAsync(sessions =>
         {
@@ -1928,10 +2156,13 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: received {sessions.Count} sessions");
-            foreach (var s in sessions)
+            if (VerboseLog) System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: received {sessions.Count} sessions");
+            if (VerboseLog)
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Session: PID={s.ProcessId}, Name={GetProcessName(s.ProcessId)}, State={s.State}");
+                foreach (var s in sessions)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Session: PID={s.ProcessId}, Name={GetProcessName(s.ProcessId)}, State={s.State}");
+                }
             }
             
             var settings = ServiceContainer.Settings.VolumeMixer;
@@ -1942,20 +2173,20 @@ public sealed partial class VolumeOverlayWindow : Window
                 // Normalize: strip .exe for comparison since GetProcessName returns name without extension
                 .Select(b => b.EndsWith(".exe") ? b[..^4] : b)
                 .ToHashSet();
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Blacklist: {string.Join(", ", blacklist)}");
+            if (VerboseLog) System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Blacklist: {string.Join(", ", blacklist)}");
             
             var beforeBlacklist = sessions.Count;
             sessions = sessions.Where(s =>
             {
                 var processName = GetProcessName(s.ProcessId); // already lowercase, no .exe
                 var isBlacklisted = blacklist.Contains(processName);
-                if (isBlacklisted)
+                if (isBlacklisted && VerboseLog)
                 {
                     System.Diagnostics.Debug.WriteLine($"[VolumeMixer] FILTERED (blacklist): {processName} (PID {s.ProcessId})");
                 }
                 return !isBlacklisted;
             }).ToList();
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After blacklist: {beforeBlacklist} → {sessions.Count} sessions");
+            if (VerboseLog) System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After blacklist: {beforeBlacklist} → {sessions.Count} sessions");
 
             // Apply the "Show only active apps" filter. A session counts as playing when Windows
             // reports it as Active or its peak meter is non-zero. Hits are remembered briefly so a
@@ -1978,7 +2209,7 @@ public sealed partial class VolumeOverlayWindow : Window
                         || (_lastAudible.TryGetValue(s.SessionIdentifier, out var last)
                             && (now - last).TotalSeconds < ActiveAppGraceSeconds);
 
-                    if (!audible)
+                    if (!audible && VerboseLog)
                     {
                         System.Diagnostics.Debug.WriteLine(
                             $"[VolumeMixer] FILTERED (not playing): {GetProcessName(s.ProcessId)} (PID {s.ProcessId}, State={s.State}, Peak={s.PeakValue:0.0000})");
@@ -1990,7 +2221,7 @@ public sealed partial class VolumeOverlayWindow : Window
                 // Forget tracking entries for sessions that no longer exist
                 foreach (var key in _lastAudible.Keys.Where(k => !liveIds.Contains(k)).ToList())
                     _lastAudible.Remove(key);
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After active-only filter: {beforeActive} → {sessions.Count} sessions");
+                if (VerboseLog) System.Diagnostics.Debug.WriteLine($"[VolumeMixer] After active-only filter: {beforeActive} → {sessions.Count} sessions");
             }
 
             // Group by process name
@@ -1999,10 +2230,13 @@ public sealed partial class VolumeOverlayWindow : Window
                 .OrderBy(g => g.Key)
                 .ToList();
 
-            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: {sessions.Count} sessions → {groups.Count} groups");
-            foreach (var g in groups)
+            if (VerboseLog)
             {
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Group '{g.Key}': {g.Count()} sessions");
+                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] ProcessSessionSnapshot: {sessions.Count} sessions → {groups.Count} groups");
+                foreach (var g in groups)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VolumeMixer]   Group '{g.Key}': {g.Count()} sessions");
+                }
             }
 
             // Update mixer panel rows only when panel is open
@@ -2027,17 +2261,28 @@ public sealed partial class VolumeOverlayWindow : Window
     private static bool IsSessionAudible(SessionInfo session)
         => session.State == 1 || session.PeakValue > 0.0005f;
 
-    private static string GetProcessName(int processId)
+    /// <summary>
+    /// Cached on purpose: the poll asks for the same handful of PIDs several times per tick and
+    /// Process.GetProcessById is comparatively expensive.
+    /// </summary>
+    private string GetProcessName(int processId)
     {
+        if (_processNameCache.TryGetValue(processId, out var cached)) return cached;
+
+        string name;
         try
         {
             var process = Process.GetProcessById(processId);
-            return process.ProcessName.ToLowerInvariant();
+            name = process.ProcessName.ToLowerInvariant();
         }
         catch
         {
-            return $"process-{processId}";
+            name = $"process-{processId}";
         }
+
+        if (_processNameCache.Count > 256) _processNameCache.Clear();
+        _processNameCache[processId] = name;
+        return name;
     }
 
     private void UpdateSessionRows(List<IGrouping<string, SessionInfo>> groups)
@@ -2105,13 +2350,15 @@ public sealed partial class VolumeOverlayWindow : Window
         // Sync play/pause icons after every row update so state is always current
         SyncAllPlayPauseIcons();
         
-        // Resize window to fit the new row count after a short delay to ensure layout is complete
-        if (_state == OverlayState.MixerOpen)
+        // Resize only when the row count really changed — resizing the window (and its region) on
+        // every poll tick made the mixer stutter.
+        if (_state == OverlayState.MixerOpen && _appSessions.Count != _lastAppRowCount)
         {
+            _lastAppRowCount = _appSessions.Count;
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
                 ResizeWindowToContent();
-                System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized window for {_appSessions.Count} apps");
+                if (VerboseLog) System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Resized window for {_appSessions.Count} apps");
             });
         }
     }
@@ -2219,9 +2466,8 @@ public sealed partial class VolumeOverlayWindow : Window
         slider.ValueChanged += (s, e) =>
         {
             if (viewModel.IsUpdating) return;
-            percentText.Text = $"{(int)e.NewValue}%";
-            var vol = (float)(e.NewValue / 100.0);
-            foreach (var id in sessionIds) _audioService.SetSessionVolume(id, vol);
+            SetTextIfChanged(percentText, $"{(int)e.NewValue}%");
+            QueueSessionVolume(sessionIds, (float)(e.NewValue / 100.0));
         };
 
         muteButton.Click += (s, e) =>
@@ -2308,6 +2554,14 @@ public sealed partial class VolumeOverlayWindow : Window
     /// </summary>
     private void SyncAllPlayPauseIcons()
     {
+        // Each media session query is a WinRT call; once a second is plenty for a play/pause glyph.
+        if ((DateTime.UtcNow - _lastSmtcSync).TotalMilliseconds < 1000)
+        {
+            UpdateActiveAppTooltip();
+            return;
+        }
+        _lastSmtcSync = DateTime.UtcNow;
+
         // Sync per-app row icons
         foreach (var (procName, entry) in _appSessions)
         {
@@ -2322,7 +2576,8 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 var status = session.GetPlaybackInfo()?.PlaybackStatus;
                 bool playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-                entry.PlayIcon.Glyph = playing ? "\uE769" : "\uE768"; // ⏸ or ▶
+                string glyph = playing ? "\uE769" : "\uE768"; // ⏸ or ▶
+                if (entry.PlayIcon.Glyph != glyph) entry.PlayIcon.Glyph = glyph;
             }
             // If no SMTC session, leave icon as-is (stays at ▶ for apps without media transport)
         }
@@ -2332,8 +2587,10 @@ public sealed partial class VolumeOverlayWindow : Window
         bool universalPlaying = current?.GetPlaybackInfo()?.PlaybackStatus
                                 == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
         var universalGlyph = universalPlaying ? "\uE769" : "\uE768";
-        if (UniversalPlayPauseIconAbove != null) UniversalPlayPauseIconAbove.Glyph = universalGlyph;
-        if (UniversalPlayPauseIconBelow != null) UniversalPlayPauseIconBelow.Glyph = universalGlyph;
+        if (UniversalPlayPauseIconAbove != null && UniversalPlayPauseIconAbove.Glyph != universalGlyph)
+            UniversalPlayPauseIconAbove.Glyph = universalGlyph;
+        if (UniversalPlayPauseIconBelow != null && UniversalPlayPauseIconBelow.Glyph != universalGlyph)
+            UniversalPlayPauseIconBelow.Glyph = universalGlyph;
 
         UpdateActiveAppTooltip();
     }
@@ -2886,23 +3143,52 @@ public sealed partial class VolumeOverlayWindow : Window
                 _activeAppSessionIds.AddRange(targetGroup.Select(s => s.SessionIdentifier));
 
                 var first = targetGroup.First();
-                var (name, exePath) = _iconResolver.ResolveApp(first.ProcessId, first.DisplayName, first.IconPath);
+
+                // Resolve the app name once per app instead of on every poll tick.
+                if (_activeAppNameKey != targetGroup.Key)
+                {
+                    var (resolvedName, _) = _iconResolver.ResolveApp(first.ProcessId, first.DisplayName, first.IconPath);
+                    _activeAppName = resolvedName;
+                    _activeAppNameKey = targetGroup.Key;
+                }
+                var name = _activeAppName;
                 _activeAppDisplayName = name;
 
                 float maxVol = targetGroup.Max(s => s.Volume);
                 bool allMuted = targetGroup.All(s => s.IsMuted);
                 int volPercent = (int)Math.Round(maxVol * 100);
 
-                _isUpdatingActiveAppSlider = true;
-                ActiveAppVolumeSlider.Value = volPercent;
-                ActiveAppPercentText.Text = $"{volPercent}%";
-                _isUpdatingActiveAppSlider = false;
+                // Only touch the row when something actually changed. Writing the same slider value
+                // and tooltips 6-7 times a second was causing needless layout and tooltip churn.
+                bool changed = volPercent != _lastActiveAppPercent
+                    || allMuted != _lastActiveAppMuted
+                    || !string.Equals(name, _lastActiveAppName, StringComparison.Ordinal);
 
-                ActiveAppMuteIcon.Glyph = allMuted ? "\uE74F" : "\uE767";
+                if (changed)
+                {
+                    _lastActiveAppPercent = volPercent;
+                    _lastActiveAppMuted = allMuted;
+                    _lastActiveAppName = name;
 
-                UpdateActiveAppTooltip();
-                ToolTipService.SetToolTip(ActiveAppVolumeSlider, $"{name}: {volPercent}%");
-                ToolTipService.SetToolTip(ActiveAppMuteButton, allMuted ? $"Unmute {name}" : $"Mute {name}");
+                    // While the user drags the active-app slider, the device reading lags behind —
+                    // don't push it back into the thumb.
+                    bool userDriving = (DateTime.UtcNow - _lastActiveAppSliderChange).TotalMilliseconds < 1200;
+
+                    if (!userDriving && !_isUpdatingActiveAppSlider && Math.Abs(ActiveAppVolumeSlider.Value - volPercent) > 0.5)
+                    {
+                        _isUpdatingActiveAppSlider = true;
+                        ActiveAppVolumeSlider.Value = volPercent;
+                        _isUpdatingActiveAppSlider = false;
+                    }
+                    if (!userDriving) SetTextIfChanged(ActiveAppPercentText, $"{volPercent}%");
+
+                    string appGlyph = allMuted ? "\uE74F" : "\uE767";
+                    if (ActiveAppMuteIcon.Glyph != appGlyph) ActiveAppMuteIcon.Glyph = appGlyph;
+
+                    UpdateActiveAppTooltip();
+                    SetToolTipIfChanged(ActiveAppVolumeSlider, $"{name}: {volPercent}%");
+                    SetToolTipIfChanged(ActiveAppMuteButton, allMuted ? $"Unmute {name}" : $"Mute {name}");
+                }
 
                 if (_loadedActiveAppIconKey != targetGroup.Key)
                 {
@@ -2930,6 +3216,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void ShowActiveAppRow(bool show)
     {
+        if (_activeAppRowShown == show) return;
+        _activeAppRowShown = show;
+
         var vis = show ? Visibility.Visible : Visibility.Collapsed;
         ActiveAppHost.Visibility = vis;
         ActiveAppVolumeSlider.Visibility = vis;
@@ -2959,11 +3248,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         if (!_isUpdatingActiveAppSlider && _audioService != null && _activeAppSessionIds.Count > 0)
         {
-            var vol = (float)(e.NewValue / 100.0);
-            foreach (var id in _activeAppSessionIds)
-            {
-                _audioService.SetSessionVolume(id, vol);
-            }
+            QueueSessionVolume(_activeAppSessionIds, (float)(e.NewValue / 100.0));
         }
     }
 
@@ -3071,7 +3356,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         string tooltipText = string.IsNullOrEmpty(name) ? action : $"{action} ({name})";
 
-        ToolTipService.SetToolTip(ActiveAppIconButton, tooltipText);
+        SetToolTipIfChanged(ActiveAppIconButton, tooltipText);
     }
 
     private async void ActiveAppIconButton_Click(object sender, RoutedEventArgs e)
@@ -3148,6 +3433,10 @@ public sealed partial class VolumeOverlayWindow : Window
     private void OnAudioMasterVolumeChanged(object? sender, float volume)
     {
         if (_isUpdatingSlider)
+            return;
+
+        // Ignore the echo of our own coalesced write while the user is dragging the slider.
+        if ((DateTime.UtcNow - _lastMasterSliderChange).TotalMilliseconds < 800)
             return;
 
         _isUpdatingSlider = true;
@@ -3986,10 +4275,10 @@ public sealed partial class VolumeOverlayWindow : Window
             PercentText.Text = $"{(int)e.NewValue}%";
         }
         
-        // Set real system volume (avoid feedback loop)
+        // Set real system volume (avoid feedback loop); coalesced so dragging stays smooth
         if (!_isUpdatingSlider && _audioService != null)
         {
-            _audioService.SetMasterVolume((float)(e.NewValue / 100.0));
+            QueueMasterVolume((float)(e.NewValue / 100.0));
         }
         
         UpdateSpeakerIcon();

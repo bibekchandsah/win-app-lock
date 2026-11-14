@@ -121,11 +121,44 @@ namespace AppLock.Services.Audio
         /// </summary>
         public bool SetDefaultMicrophone(string deviceId)
         {
-            bool ok = PolicyConfig.SetDefaultEndpoint(deviceId,
+            // Single COM round-trip; callers refresh the IsDefault flags separately so the UI can
+            // show the selection immediately (see RefreshDefaultFlags).
+            return PolicyConfig.SetDefaultEndpoint(deviceId,
                 PolicyConfig.RoleConsole, PolicyConfig.RoleMultimedia, PolicyConfig.RoleCommunications);
+        }
 
-            if (ok) RefreshDevices();
-            return ok;
+        /// <summary>
+        /// Re-reads which capture device is the Windows default and updates the IsDefault flags.
+        /// Cheap, and it keeps the MMDevice wrappers, so selecting a device never forces the
+        /// overlay to rebuild its rows.
+        /// </summary>
+        public bool RefreshDefaultFlags()
+        {
+            try
+            {
+                string? defaultId = null;
+                try
+                {
+                    var defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, NAudio.CoreAudioApi.Role.Communications);
+                    defaultId = defaultDevice?.ID;
+                    defaultDevice?.Dispose();
+                }
+                catch { }
+
+                if (string.Equals(_defaultDeviceId, defaultId, StringComparison.Ordinal)) return false;
+
+                _defaultDeviceId = defaultId;
+                foreach (var mic in _microphones.Values)
+                {
+                    mic.IsDefault = mic.DeviceId == defaultId;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Microphone] RefreshDefaultFlags error: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
@@ -222,10 +255,12 @@ namespace AppLock.Services.Audio
 
         private static string Fingerprint(Dictionary<string, MicrophoneDevice> map, string? defaultId)
         {
+            // Only the device list itself matters here; the default device is tracked by
+            // RefreshDefaultFlags so a selection change never triggers a full row rebuild.
             var parts = map.Values
                 .OrderBy(m => m.DeviceId, StringComparer.OrdinalIgnoreCase)
-                .Select(m => $"{m.DeviceId}|{m.FriendlyName}|{(m.IsDefault ? 1 : 0)}");
-            return (defaultId ?? string.Empty) + "::" + string.Join(";", parts);
+                .Select(m => $"{m.DeviceId}|{m.FriendlyName}");
+            return string.Join(";", parts);
         }
 
         public void Dispose()

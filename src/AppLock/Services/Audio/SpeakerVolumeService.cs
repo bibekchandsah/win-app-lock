@@ -88,11 +88,43 @@ namespace AppLock.Services.Audio
         /// <summary>Makes the given playback device the Windows default for every role.</summary>
         public bool SetDefaultSpeaker(string deviceId)
         {
-            bool ok = PolicyConfig.SetDefaultEndpoint(deviceId,
+            // Single COM round-trip; callers refresh the IsDefault flags separately so the UI can
+            // show the selection immediately (see RefreshDefaultFlags).
+            return PolicyConfig.SetDefaultEndpoint(deviceId,
                 PolicyConfig.RoleConsole, PolicyConfig.RoleMultimedia, PolicyConfig.RoleCommunications);
+        }
 
-            if (ok) RefreshDevices();
-            return ok;
+        /// <summary>
+        /// Re-reads which playback device is the Windows default and updates the IsDefault flags
+        /// without recreating MMDevice wrappers.
+        /// </summary>
+        public bool RefreshDefaultFlags()
+        {
+            try
+            {
+                string? defaultId = null;
+                try
+                {
+                    var defaultDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    defaultId = defaultDevice?.ID;
+                    defaultDevice?.Dispose();
+                }
+                catch { }
+
+                if (string.Equals(_defaultDeviceId, defaultId, StringComparison.Ordinal)) return false;
+
+                _defaultDeviceId = defaultId;
+                foreach (var speaker in _speakers.Values)
+                {
+                    speaker.IsDefault = speaker.DeviceId == defaultId;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SpeakerVolume] RefreshDefaultFlags error: {ex.Message}");
+                return false;
+            }
         }
 
         public IReadOnlyList<SpeakerDevice> GetSpeakers()
@@ -175,10 +207,12 @@ namespace AppLock.Services.Audio
 
         private static string Fingerprint(Dictionary<string, SpeakerDevice> map, string? defaultId)
         {
+            // Only the device list itself matters here; the default device is tracked by
+            // RefreshDefaultFlags so a selection change never triggers a full row rebuild.
             var parts = map.Values
                 .OrderBy(s => s.DeviceId, StringComparer.OrdinalIgnoreCase)
-                .Select(s => $"{s.DeviceId}|{s.FriendlyName}|{(s.IsDefault ? 1 : 0)}");
-            return (defaultId ?? string.Empty) + "::" + string.Join(";", parts);
+                .Select(s => $"{s.DeviceId}|{s.FriendlyName}");
+            return string.Join(";", parts);
         }
 
         public void Dispose()
