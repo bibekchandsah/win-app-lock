@@ -304,3 +304,23 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
 - Not done in this milestone: the active-probe request itself (setting is stored only), toast size/
   opacity/content options, "Open details" button, and the queued summary after full-screen
   suppression (alerts are simply dropped while a full-screen app is in front).
+
+## Speed Meter — Milestone 7 (details flyout, quality monitor, tray menu)
+
+- `Views/NetworkFlyoutWindow`: borderless topmost card that opens beside the widget (flips to the
+  other side / clamps when it would leave the monitor). It shows live ↓/↑, a graph of the last
+  300 samples (5 minutes at the default interval, each series scaled to its own peak), adapter,
+  Wi-Fi SSID + signal bars, link speed, local IP, gateway, DNS, ping/jitter/loss with a grade, the
+  three most recent outages and the session totals. Actions: **Copy IP**, **Network settings**
+  (`ms-settings:network-status`), **Pause tracking** (stops sampling and pings until resumed).
+- `Services/SpeedMeter/NetworkDetailsProvider`: reads adapter/IP/Wi-Fi state from local APIs only
+  (`NetworkInterface` + `NetworkInformation`), so opening the flyout sends no traffic.
+- `Services/SpeedMeter/QualityMonitor`: pings the **default gateway** every 2 s on a background
+  thread (never the internet), keeps the last 60 results and reports average latency, jitter and
+  packet loss, graded Excellent/Good/Fair/Poor. It only runs while the flyout is open.
+- Widget click opens/toggles the flyout; double-click follows `DoubleClickAction` (opens the flyout
+  or toggles compact mode). A 250 ms delay keeps a double-click from also firing the single click.
+- Tray menu gained *Network details*, *Speed Meter* (checkable), *Lock speed widget position*,
+  *Speed widget click-through* and *Reset speed widget position*, all driving the shared service.
+- Not done in this milestone: Top apps (needs the ETW/admin path, milestone 9), the public IP
+  button, data-usage "today" totals (milestone 8), and adapter switching toasts.

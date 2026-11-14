@@ -61,6 +61,11 @@ public sealed class TrayService : IDisposable
     private ToggleMenuFlyoutItem? _presetStudioMenuItem;
     private ToggleMenuFlyoutItem? _presetMaxMenuItem;
     private readonly List<MenuFlyoutItemBase> _customPresetMenuItems = new();
+    private ToggleMenuFlyoutItem? _speedMeterToggleMenuItem;
+    private ToggleMenuFlyoutItem? _speedMeterLockMenuItem;
+    private ToggleMenuFlyoutItem? _speedMeterClickThroughMenuItem;
+    private MenuFlyoutItem? _speedMeterResetPositionMenuItem;
+    private MenuFlyoutItem? _networkDetailsMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
@@ -134,6 +139,16 @@ public sealed class TrayService : IDisposable
                             _volumeMixerToggleMenuItem = mfi;
                         else if (mfi.Name == "NotificationEnabledMenuItem" || (text.Contains("Notification", StringComparison.OrdinalIgnoreCase) && !text.Contains("Position", StringComparison.OrdinalIgnoreCase)))
                             _notificationEnabledMenuItem = mfi;
+                        else if (mfi is ToggleMenuFlyoutItem speedToggle && speedToggle.Name == "SpeedMeterToggleMenuItem")
+                            _speedMeterToggleMenuItem = speedToggle;
+                        else if (mfi is ToggleMenuFlyoutItem speedLock && speedLock.Name == "SpeedMeterLockMenuItem")
+                            _speedMeterLockMenuItem = speedLock;
+                        else if (mfi is ToggleMenuFlyoutItem speedClickThrough && speedClickThrough.Name == "SpeedMeterClickThroughMenuItem")
+                            _speedMeterClickThroughMenuItem = speedClickThrough;
+                        else if (mfi.Name == "SpeedMeterResetPositionMenuItem")
+                            _speedMeterResetPositionMenuItem = mfi;
+                        else if (mfi.Name == "NetworkDetailsMenuItem")
+                            _networkDetailsMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -257,6 +272,8 @@ public sealed class TrayService : IDisposable
                 if (_exitMenuItem == null && menuFlyout.Items.Count > 6)
                     _exitMenuItem = menuFlyout.Items[6] as MenuFlyoutItem;
                 
+                WireSpeedMeterMenuItems();
+
                 // Wire up commands exclusively (fires reliably without duplicate events)
                 if (_openMenuItem != null)
                 {
@@ -596,6 +613,71 @@ public sealed class TrayService : IDisposable
             System.Diagnostics.Debug.WriteLine($"TrayService initialization error: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
         }
+    }
+
+    /// <summary>Wires the tray's Speed Meter entries; they act on the shared service directly.</summary>
+    private void WireSpeedMeterMenuItems()
+    {
+        if (_speedMeterToggleMenuItem is not null)
+        {
+            _speedMeterToggleMenuItem.Command = new RelayCommand(() =>
+            {
+                ServiceContainer.SetSpeedMeterEnabled(!ServiceContainer.Settings.SpeedMeter.Enabled);
+                UpdateSpeedMeterMenuItems();
+            });
+        }
+
+        if (_speedMeterLockMenuItem is not null)
+        {
+            _speedMeterLockMenuItem.Command = new RelayCommand(() =>
+            {
+                var settings = ServiceContainer.Settings.SpeedMeter;
+                settings.LockPosition = !settings.LockPosition;
+                _settingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.SpeedMeterService?.ApplySettings();
+                UpdateSpeedMeterMenuItems();
+            });
+        }
+
+        if (_speedMeterClickThroughMenuItem is not null)
+        {
+            _speedMeterClickThroughMenuItem.Command = new RelayCommand(() =>
+            {
+                var settings = ServiceContainer.Settings.SpeedMeter;
+                settings.ClickThrough = !settings.ClickThrough;
+                _settingsStore.Save(ServiceContainer.Settings);
+                ServiceContainer.SpeedMeterService?.ApplySettings();
+                UpdateSpeedMeterMenuItems();
+            });
+        }
+
+        if (_speedMeterResetPositionMenuItem is not null)
+        {
+            _speedMeterResetPositionMenuItem.Command = new RelayCommand(() =>
+            {
+                ServiceContainer.SpeedMeterService?.ResetWidgetPosition();
+            });
+        }
+
+        if (_networkDetailsMenuItem is not null)
+        {
+            _networkDetailsMenuItem.Command = new RelayCommand(() =>
+            {
+                ServiceContainer.SpeedMeterService?.ToggleFlyout();
+            });
+        }
+
+        UpdateSpeedMeterMenuItems();
+    }
+
+    /// <summary>Keeps the tray check marks in sync with the saved speed meter settings.</summary>
+    public void UpdateSpeedMeterMenuItems()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        if (_speedMeterToggleMenuItem is not null) _speedMeterToggleMenuItem.IsChecked = settings.Enabled;
+        if (_speedMeterLockMenuItem is not null) _speedMeterLockMenuItem.IsChecked = settings.LockPosition;
+        if (_speedMeterClickThroughMenuItem is not null) _speedMeterClickThroughMenuItem.IsChecked = settings.ClickThrough;
     }
 
     private void OpenMenuItem_Click(object sender, RoutedEventArgs e)

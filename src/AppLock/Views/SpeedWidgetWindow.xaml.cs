@@ -75,6 +75,7 @@ public sealed partial class SpeedWidgetWindow : Window
     private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _altTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _tapTimer;
 
     private bool _dragging;
     private bool _clickThroughActive;
@@ -97,13 +98,26 @@ public sealed partial class SpeedWidgetWindow : Window
         Widget.PointerReleased += OnPointerReleased;
         Widget.PointerCaptureLost += OnPointerCaptureLost;
 
+        // A single click opens the details flyout; the short delay lets a double-click win instead.
+        _tapTimer = DispatcherQueue.CreateTimer();
+        _tapTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _tapTimer.IsRepeating = false;
+        _tapTimer.Tick += (_, _) => ServiceContainer.SpeedMeterService?.ToggleFlyout();
+
+        Widget.Tapped += OnWidgetTapped;
+        Widget.DoubleTapped += OnWidgetDoubleTapped;
+
         // While click-through is on, holding Alt temporarily makes the widget draggable again.
         _altTimer = DispatcherQueue.CreateTimer();
         _altTimer.Interval = TimeSpan.FromMilliseconds(150);
         _altTimer.IsRepeating = true;
         _altTimer.Tick += (_, _) => UpdateClickThroughForAlt();
 
-        Closed += (_, _) => _altTimer?.Stop();
+        Closed += (_, _) =>
+        {
+            _altTimer?.Stop();
+            _tapTimer?.Stop();
+        };
     }
 
     private void SetupWindow()
@@ -257,6 +271,10 @@ public sealed partial class SpeedWidgetWindow : Window
         }
     }
 
+    /// <summary>Where the widget currently sits, so the details flyout can open beside it.</summary>
+    public (PointInt32 Position, SizeInt32 Size)? GetBounds()
+        => AppWindow is { } appWindow ? (appWindow.Position, appWindow.Size) : null;
+
     /// <summary>Moves the widget back onto the primary monitor and stores that position.</summary>
     public void ResetPosition()
     {
@@ -358,7 +376,8 @@ public sealed partial class SpeedWidgetWindow : Window
 
         _dragStartWindow = AppWindow.Position;
         _dragging = Widget.CapturePointer(e.Pointer);
-        e.Handled = true;
+
+        // Not marked handled: a press-and-release without movement should still raise Tapped.
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
@@ -371,7 +390,6 @@ public sealed partial class SpeedWidgetWindow : Window
             _dragStartWindow.Y + (cursor.y - _dragStartCursor.y));
 
         AppWindow.Move(target);
-        e.Handled = true;
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -420,6 +438,37 @@ public sealed partial class SpeedWidgetWindow : Window
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Drop error: {ex.Message}");
         }
+    }
+
+    private void OnWidgetTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_dragging) return;
+        _tapTimer?.Start();
+    }
+
+    private void OnWidgetDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        // Cancel the pending single-click action so a double-click never opens the flyout twice.
+        _tapTimer?.Stop();
+
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        switch (settings.DoubleClickAction)
+        {
+            case "Compact":
+                settings.Compact = !settings.Compact;
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                ApplySettings();
+                break;
+
+            case "None":
+                break;
+
+            default:
+                ServiceContainer.SpeedMeterService?.ToggleFlyout();
+                break;
+        }
+
+        e.Handled = true;
     }
 
     // ── Click-through ────────────────────────────────────────────────────────

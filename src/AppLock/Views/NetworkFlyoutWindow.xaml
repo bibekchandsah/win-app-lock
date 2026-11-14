@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="AppLock.Views.NetworkFlyoutWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Network details">
+
+    <Grid x:Name="RootGrid" Background="Transparent">
+        <Grid.Resources>
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Dark">
+                        <SolidColorBrush x:Key="FlyoutSurfaceBrush" Color="#F21C1C1C"/>
+                        <SolidColorBrush x:Key="FlyoutStrokeBrush" Color="#33FFFFFF"/>
+                        <SolidColorBrush x:Key="FlyoutGraphBrush" Color="#22FFFFFF"/>
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="FlyoutSurfaceBrush" Color="#F2FAFAFA"/>
+                        <SolidColorBrush x:Key="FlyoutStrokeBrush" Color="#22000000"/>
+                        <SolidColorBrush x:Key="FlyoutGraphBrush" Color="#11000000"/>
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+            </ResourceDictionary>
+        </Grid.Resources>
+
+        <Border x:Name="Card"
+                Background="{ThemeResource FlyoutSurfaceBrush}"
+                BorderBrush="{ThemeResource FlyoutStrokeBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16">
+            <StackPanel Spacing="12" Width="340">
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Network details"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock x:Name="StatusText"
+                                   Text="Reading…"
+                                   FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+
+                    <Button x:Name="CloseButton"
+                            Grid.Column="1"
+                            Width="32" Height="32"
+                            Padding="0"
+                            VerticalAlignment="Top"
+                            FontFamily="Segoe Fluent Icons"
+                            FontSize="12"
+                            Content="&#xE711;"
+                            ToolTipService.ToolTip="Close"
+                            Click="Close_Click"/>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="0">
+                        <TextBlock x:Name="DownText"
+                                   Text="↓ 0 B/s"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock x:Name="SessionDownText"
+                                   Text="Session ↓ 0 B"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="0">
+                        <TextBlock x:Name="UpText"
+                                   Text="↑ 0 B/s"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock x:Name="SessionUpText"
+                                   Text="Session ↑ 0 B"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Background="{ThemeResource FlyoutGraphBrush}"
+                        CornerRadius="6"
+                        Padding="6">
+                    <Canvas x:Name="GraphCanvas" Height="72"/>
+                </Border>
+
+                <Grid ColumnSpacing="12" RowSpacing="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="86"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Adapter" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="AdapterText" Grid.Row="0" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
+
+                    <TextBlock Grid.Row="1" Text="Wi-Fi" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="WifiText" Grid.Row="1" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
+
+                    <TextBlock Grid.Row="2" Text="Link speed" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="LinkSpeedText" Grid.Row="2" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                    <TextBlock Grid.Row="3" Text="Local IP" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="LocalIpText" Grid.Row="3" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" IsTextSelectionEnabled="True"/>
+
+                    <TextBlock Grid.Row="4" Text="Gateway" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="GatewayText" Grid.Row="4" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" IsTextSelectionEnabled="True"/>
+
+                    <TextBlock Grid.Row="5" Text="DNS" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="DnsText" Grid.Row="5" Grid.Column="1" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap"/>
+                </Grid>
+
+                <TextBlock x:Name="QualityText"
+                           Text="Ping — · Jitter — · Loss —"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Recent outages"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <TextBlock x:Name="NoOutageText"
+                               Text="None recorded since AppLock started"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <StackPanel x:Name="OutagePanel" Spacing="2"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="CopyIpButton" Content="Copy IP" Click="CopyIp_Click"/>
+                    <Button Content="Network settings" Click="OpenNetworkSettings_Click"/>
+                    <Button x:Name="PauseButton" Content="Pause tracking" Click="Pause_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

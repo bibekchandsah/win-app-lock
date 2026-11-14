@@ -214,6 +214,39 @@
                         
                         <MenuFlyoutSeparator/>
 
+                        <!-- Speed Meter -->
+                        <MenuFlyoutItem x:Name="NetworkDetailsMenuItem" Text="Network details">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE774;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <ToggleMenuFlyoutItem x:Name="SpeedMeterToggleMenuItem" Text="Speed Meter">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xEC4A;"/>
+                            </MenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
+
+                        <ToggleMenuFlyoutItem x:Name="SpeedMeterLockMenuItem" Text="Lock speed widget position">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE72E;"/>
+                            </MenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
+
+                        <ToggleMenuFlyoutItem x:Name="SpeedMeterClickThroughMenuItem" Text="Speed widget click-through">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7C9;"/>
+                            </MenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
+
+                        <MenuFlyoutItem x:Name="SpeedMeterResetPositionMenuItem" Text="Reset speed widget position">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE740;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
+                        <MenuFlyoutSeparator/>
+
                         <!-- Notification Position Controls -->
                         <MenuFlyoutItem x:Name="NotificationEnabledMenuItem" Text="Enable Notification Positioning">
                             <MenuFlyoutItem.Icon>
