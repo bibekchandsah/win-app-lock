@@ -80,6 +80,8 @@ public sealed class SpeedMeterService : IDisposable
         {
             _timer.Interval = TimeSpan.FromSeconds(Math.Clamp(settings.IntervalSeconds, 0.5, 2.0));
         }
+
+        _widget?.ApplySettings();
     }
 
     /// <summary>Shows the widget again if it was closed while the service kept running.</summary>

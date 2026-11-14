@@ -5,69 +5,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:AppLock.Views.Controls"
     mc:Ignorable="d">
 
-    <!-- Transparent root: the card is the only opaque surface, so the window corners stay clear. -->
+    <!-- Transparent root: only the widget card paints, so the window corners stay clear. -->
     <Grid x:Name="RootGrid"
           Background="Transparent"
           HorizontalAlignment="Left"
           VerticalAlignment="Top">
-        <Grid.Resources>
-            <ResourceDictionary>
-                <ResourceDictionary.ThemeDictionaries>
-                    <ResourceDictionary x:Key="Dark">
-                        <SolidColorBrush x:Key="SpeedWidgetBackgroundBrush" Color="#B31C1C1C"/>
-                        <SolidColorBrush x:Key="SpeedWidgetBorderBrush" Color="#33FFFFFF"/>
-                    </ResourceDictionary>
-                    <ResourceDictionary x:Key="Light">
-                        <SolidColorBrush x:Key="SpeedWidgetBackgroundBrush" Color="#B3F7F7F7"/>
-                        <SolidColorBrush x:Key="SpeedWidgetBorderBrush" Color="#22000000"/>
-                    </ResourceDictionary>
-                </ResourceDictionary.ThemeDictionaries>
-            </ResourceDictionary>
-        </Grid.Resources>
-
-        <Border x:Name="WidgetCard"
-                CornerRadius="14"
-                BorderThickness="1"
-                BorderBrush="{ThemeResource SpeedWidgetBorderBrush}"
-                Background="{ThemeResource SpeedWidgetBackgroundBrush}"
-                Padding="16,10">
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <!-- Download -->
-                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE896;"
-                              FontSize="12"
-                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                              VerticalAlignment="Center"/>
-                    <TextBlock x:Name="DownText"
-                               Text="0 B/s"
-                               Width="84"
-                               TextAlignment="Right"
-                               FontFamily="Consolas"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <!-- Upload -->
-                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE898;"
-                              FontSize="12"
-                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                              VerticalAlignment="Center"/>
-                    <TextBlock x:Name="UpText"
-                               Text="0 B/s"
-                               Width="84"
-                               TextAlignment="Right"
-                               FontFamily="Consolas"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-            </StackPanel>
-        </Border>
+        <controls:SpeedWidgetControl x:Name="Widget"/>
     </Grid>
 </Window>

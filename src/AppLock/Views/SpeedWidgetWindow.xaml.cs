@@ -55,7 +55,7 @@ public sealed partial class SpeedWidgetWindow : Window
 
         SetupWindow();
 
-        WidgetCard.Loaded += OnWidgetLoaded;
+        Widget.Loaded += OnWidgetLoaded;
     }
 
     private void SetupWindow()
@@ -94,6 +94,14 @@ public sealed partial class SpeedWidgetWindow : Window
         Update(new NetworkSpeedSample());
     }
 
+    /// <summary>Re-applies appearance settings and resizes/repositions to the new content.</summary>
+    public void ApplySettings()
+    {
+        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
+        ResizeToContent();
+        PositionOnScreen();
+    }
+
     /// <summary>
     /// After the first frame exists, make the window per-pixel transparent (so the rounded card
     /// shows the desktop through its corners) and keep it out of Alt+Tab and focus.
@@ -127,8 +135,8 @@ public sealed partial class SpeedWidgetWindow : Window
     {
         try
         {
-            WidgetCard.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-            var size = WidgetCard.DesiredSize;
+            Widget.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            var size = Widget.DesiredSize;
 
             // AppWindow sizes are physical pixels, DesiredSize is DIPs.
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
@@ -179,7 +187,8 @@ public sealed partial class SpeedWidgetWindow : Window
         var units = settings.Units;
         var decimals = settings.Decimals;
 
-        DownText.Text = SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals);
-        UpText.Text = SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals);
+        Widget.SetValues(
+            SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals),
+            SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals));
     }
 }

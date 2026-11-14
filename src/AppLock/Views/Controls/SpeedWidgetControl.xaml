@@ -1,0 +1,59 @@
+<UserControl
+    x:Class="AppLock.Views.Controls.SpeedWidgetControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="Root" Background="Transparent">
+        <Border x:Name="Card"
+                CornerRadius="14"
+                BorderThickness="0"
+                Padding="16,10">
+            <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16">
+                <!-- Download -->
+                <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock x:Name="DownLabel"
+                               Text="DL"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Visibility="Collapsed"
+                               VerticalAlignment="Center"/>
+                    <FontIcon x:Name="DownIcon"
+                              Glyph="&#xE896;"
+                              FontSize="12"
+                              VerticalAlignment="Center"/>
+                    <TextBlock x:Name="DownText"
+                               Text="0 B/s"
+                               Width="84"
+                               TextAlignment="Right"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Upload -->
+                <StackPanel x:Name="UpBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock x:Name="UpLabel"
+                               Text="UL"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Visibility="Collapsed"
+                               VerticalAlignment="Center"/>
+                    <FontIcon x:Name="UpIcon"
+                              Glyph="&#xE898;"
+                              FontSize="12"
+                              VerticalAlignment="Center"/>
+                    <TextBlock x:Name="UpText"
+                               Text="0 B/s"
+                               Width="84"
+                               TextAlignment="Right"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -206,3 +206,26 @@ Use `New-BurntToastNotification` PowerShell module or trigger Focus Assist notif
 - Card subtitle now shows the live rates (`On · ↓ … ↑ …`), and the page's status line shows the
   adapter, link speed and current rates.
 - Still no network requests. Nothing is drawn while the widget is disabled (no timer, no window).
+
+## Speed Meter — Milestone 3 (appearance, presets, live preview)
+
+- `Views/Controls/SpeedWidgetControl.xaml(.cs)` is now the single widget surface. The floating
+  window and the settings preview both host it, so the preview is the real control and every change
+  is visible before the widget is enabled.
+- Presets: Transparent (no background, text only), Glass (background color at the opacity setting),
+  Solid (fully opaque background color), Follow Windows (background/text swap with the app's
+  light/dark theme) and Custom. Color, opacity, scale (50–250 %), corner radius (0–40), font
+  family, font weight, arrows vs `DL/UL`, layout (horizontal/vertical) and compact padding all
+  apply live; the window re-measures and re-anchors after each change.
+- Installed fonts come from `CanvasTextFormat.GetSystemFontFamilies()` (Win2D is already a
+  dependency), with a curated fallback list if enumeration fails.
+- Settings are saved on every change and pushed to the widget through
+  `SpeedMeterService.ApplySettings`. `Reset appearance` restores the model defaults.
+- Added `SpeedMeterSettings.FontWeight` to the model (the spec listed font weight but the data model
+  in section 7 had no field for it).
+- Deliberately simplified, still to do: drop shadow toggle, per-border color (the border is tinted
+  from the text color), accessibility contrast warning for the download/upload colors, and a
+  "Glass" acrylic blur (Glass currently uses the same translucent fill as the volume overlay
+  rather than a real backdrop, because a backdrop cannot be per-widget).
+- Range validation happens where values are applied (`Math.Clamp` on opacity, scale, radius,
+  decimals, interval) instead of on deserialization.

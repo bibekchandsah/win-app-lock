@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:AppLock.Views.Controls"
     mc:Ignorable="d"
     Background="Transparent">
 
@@ -140,20 +141,19 @@
                                        FontWeight="SemiBold"
                                        FontSize="14"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                            <TextBlock Text="How the widget looks on your desktop. Live numbers arrive with the engine."
+                            <TextBlock Text="The real widget, updated live with every setting below"
                                        FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
-                        <!-- Mock desktop strip -->
                         <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Height="180">
                             <Grid>
-                                <!-- Faint window shapes so the widget's placement reads as a desktop -->
+                                <!-- Faint window shapes so the preview reads as a desktop -->
                                 <StackPanel HorizontalAlignment="Left"
                                             VerticalAlignment="Top"
                                             Margin="20"
@@ -167,50 +167,330 @@
                                             Background="{ThemeResource TextFillColorTertiaryBrush}"/>
                                 </StackPanel>
 
-                                <!-- The widget itself -->
-                                <Grid HorizontalAlignment="Right"
-                                      VerticalAlignment="Bottom"
-                                      Margin="0,0,28,24">
-                                    <Border CornerRadius="14"
-                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                            Opacity="0.92"/>
-                                    <Border CornerRadius="14"
-                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                            Opacity="0.18"/>
-                                    <Border CornerRadius="14"
-                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                            BorderThickness="1"/>
-                                    <StackPanel Orientation="Horizontal"
-                                                Spacing="18"
-                                                Padding="18,12">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE896;"
-                                                      FontSize="14"
-                                                      Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                                      VerticalAlignment="Center"/>
-                                            <TextBlock Text="2.4 MB/s"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       FontFamily="Consolas"
-                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE898;"
-                                                      FontSize="14"
-                                                      Foreground="{ThemeResource AccentFillColorDefaultBrush}"
-                                                      VerticalAlignment="Center"/>
-                                            <TextBlock Text="120 KB/s"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       FontFamily="Consolas"
-                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
+                                <controls:SpeedWidgetControl x:Name="PreviewWidget"
+                                                             HorizontalAlignment="Right"
+                                                             VerticalAlignment="Bottom"
+                                                             Margin="0,0,28,24"/>
                             </Grid>
                         </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Appearance -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Appearance"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Independent of the app theme unless you choose Follow Windows"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Theme preset -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Theme preset"
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <StackPanel x:Name="PresetPanel" Orientation="Horizontal" Spacing="8">
+                                <ToggleButton Tag="Transparent" Content="Transparent" Click="PresetButton_Click"/>
+                                <ToggleButton Tag="Glass" Content="Glass" Click="PresetButton_Click"/>
+                                <ToggleButton Tag="Solid" Content="Solid" Click="PresetButton_Click"/>
+                                <ToggleButton Tag="FollowWindows" Content="Follow Windows" Click="PresetButton_Click"/>
+                                <ToggleButton Tag="Custom" Content="Custom" Click="PresetButton_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Background -->
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Background color"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <ColorPicker x:Name="BackgroundColorPicker"
+                                         Grid.Column="1"
+                                         Width="220"
+                                         IsAlphaEnabled="False"
+                                         IsAlphaSliderVisible="False"
+                                         IsAlphaTextInputVisible="False"
+                                         IsColorChannelTextInputVisible="False"
+                                         IsHexInputVisible="False"
+                                         IsMoreButtonVisible="False"
+                                         ColorSpectrumShape="Box"
+                                         ColorChanged="BackgroundColorPicker_ColorChanged"/>
+
+                            <TextBox x:Name="BackgroundHexBox"
+                                     Grid.Column="2"
+                                     Width="110"
+                                     VerticalAlignment="Center"
+                                     FontFamily="Consolas"
+                                     TextChanged="BackgroundHexBox_TextChanged"/>
+                        </Grid>
+
+                        <!-- Opacity -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Background opacity"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <Slider x:Name="OpacitySlider"
+                                    Grid.Column="1"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    StepFrequency="1"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="OpacitySlider_ValueChanged"/>
+
+                            <TextBlock x:Name="OpacityValueText"
+                                       Grid.Column="2"
+                                       Width="48"
+                                       FontSize="12"
+                                       TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+
+                        <!-- Colors -->
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Text color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ColorPicker x:Name="TextColorPicker"
+                                         Grid.Row="0" Grid.Column="1"
+                                         Width="220"
+                                         IsAlphaEnabled="False"
+                                         IsAlphaSliderVisible="False"
+                                         IsAlphaTextInputVisible="False"
+                                         IsColorChannelTextInputVisible="False"
+                                         IsHexInputVisible="False"
+                                         IsMoreButtonVisible="False"
+                                         ColorSpectrumShape="Box"
+                                         ColorChanged="TextColorPicker_ColorChanged"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Download color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ColorPicker x:Name="DownColorPicker"
+                                         Grid.Row="1" Grid.Column="1"
+                                         Width="220"
+                                         IsAlphaEnabled="False"
+                                         IsAlphaSliderVisible="False"
+                                         IsAlphaTextInputVisible="False"
+                                         IsColorChannelTextInputVisible="False"
+                                         IsHexInputVisible="False"
+                                         IsMoreButtonVisible="False"
+                                         ColorSpectrumShape="Box"
+                                         ColorChanged="DownColorPicker_ColorChanged"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Upload color"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ColorPicker x:Name="UpColorPicker"
+                                         Grid.Row="2" Grid.Column="1"
+                                         Width="220"
+                                         IsAlphaEnabled="False"
+                                         IsAlphaSliderVisible="False"
+                                         IsAlphaTextInputVisible="False"
+                                         IsColorChannelTextInputVisible="False"
+                                         IsHexInputVisible="False"
+                                         IsMoreButtonVisible="False"
+                                         ColorSpectrumShape="Box"
+                                         ColorChanged="UpColorPicker_ColorChanged"/>
+                        </Grid>
+
+                        <!-- Scale -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Size / scale"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <Slider x:Name="ScaleSlider"
+                                    Grid.Column="1"
+                                    Minimum="50"
+                                    Maximum="250"
+                                    StepFrequency="5"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="ScaleSlider_ValueChanged"/>
+
+                            <TextBlock x:Name="ScaleValueText"
+                                       Grid.Column="2" Width="48" FontSize="12" TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+
+                        <!-- Font -->
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Font"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ComboBox x:Name="FontCombo"
+                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="FontCombo_SelectionChanged"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Font weight"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <ComboBox x:Name="WeightCombo"
+                                      Grid.Row="1" Grid.Column="1"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="WeightCombo_SelectionChanged"/>
+                            <ToggleSwitch x:Name="ShowIconsToggle"
+                                          Grid.Row="1" Grid.Column="2"
+                                          Header="Show arrows"
+                                          OnContent="Arrows"
+                                          OffContent="DL / UL"
+                                          Toggled="ShowIconsToggle_Toggled"/>
+                        </Grid>
+
+                        <!-- Corners / border -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Corner radius"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <Slider x:Name="RadiusSlider"
+                                    Grid.Column="1"
+                                    Minimum="0"
+                                    Maximum="40"
+                                    StepFrequency="1"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="RadiusSlider_ValueChanged"/>
+
+                            <TextBlock x:Name="RadiusValueText"
+                                       Grid.Column="2" Width="48" FontSize="12" TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                            <ToggleSwitch x:Name="BorderToggle"
+                                          Grid.Column="3"
+                                          Header="Border"
+                                          Margin="16,0,0,0"
+                                          OffContent=""
+                                          OnContent=""
+                                          Toggled="BorderToggle_Toggled"/>
+                        </Grid>
+
+                        <!-- Layout -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Layout"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <ComboBox x:Name="LayoutCombo"
+                                      Grid.Column="1"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="LayoutCombo_SelectionChanged"/>
+
+                            <ToggleSwitch x:Name="CompactToggle"
+                                          Grid.Column="2"
+                                          Header="Compact"
+                                          Margin="16,0,0,0"
+                                          OffContent=""
+                                          OnContent=""
+                                          Toggled="CompactToggle_Toggled"/>
+                        </Grid>
+
+                        <!-- Units / decimals / interval -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Units"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <ComboBox x:Name="UnitsCombo"
+                                      Grid.Column="1"
+                                      Header="Speed units"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="UnitsCombo_SelectionChanged"/>
+
+                            <NumberBox x:Name="DecimalsBox"
+                                       Grid.Column="2"
+                                       Header="Decimals"
+                                       Minimum="0"
+                                       Maximum="2"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="DecimalsBox_ValueChanged"/>
+
+                            <ComboBox x:Name="IntervalCombo"
+                                      Grid.Column="3"
+                                      Header="Update interval"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="IntervalCombo_SelectionChanged"/>
+                        </Grid>
+
+                        <Button Content="Reset appearance"
+                                Click="ResetAppearance_Click"
+                                HorizontalAlignment="Left"/>
                     </StackPanel>
                 </Border>
 

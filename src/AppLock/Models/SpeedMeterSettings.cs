@@ -21,6 +21,7 @@ public class SpeedMeterSettings
     public string UploadColor { get; set; } = "#60A5FA";
     public int ScalePercent { get; set; } = 100;
     public string FontFamily { get; set; } = "Segoe UI Variable";
+    public string FontWeight { get; set; } = "SemiBold";    // Normal|SemiBold|Bold
     public int CornerRadiusPx { get; set; } = 14;
     public bool ShowBorder { get; set; }
     public bool ShowShadow { get; set; } = true;
