@@ -194,6 +194,29 @@
                                               MinWidth="0"
                                               VerticalAlignment="Center"/>
                             </Grid>
+
+                            <!-- Windows Hello: open the prompt automatically -->
+                            <Grid ColumnSpacing="16" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtAutoHello" Text="Open Windows Hello automatically"/>
+                                    <TextBlock x:Name="TxtAutoHelloDesc"
+                                               Text="Start the fingerprint or face prompt as soon as AppLock asks for your password, so you don't have to type it."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.AutoPromptWindowsHello, Mode=TwoWay}"
+                                              IsEnabled="{x:Bind ViewModel.WindowsHelloEnabled, Mode=OneWay}"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Expander.Content>
                 </Expander>

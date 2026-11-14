@@ -13,7 +13,8 @@
     <StackPanel Spacing="16" MinWidth="340">
         <!-- 1. Password Login View -->
         <StackPanel x:Name="PasswordPanel" Spacing="16" Visibility="Visible">
-            <TextBlock Text="Enter your admin password to continue"
+            <TextBlock x:Name="IntroTextBlock"
+                       Text="Enter your admin password to continue"
                        TextWrapping="Wrap"/>
 
             <PasswordBox x:Name="PasswordBox"

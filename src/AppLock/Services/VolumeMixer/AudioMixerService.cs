@@ -30,6 +30,7 @@ public sealed class AudioMixerService : IDisposable
     private volatile bool _isRunning;
     private volatile bool _reinitRequired;
     private readonly ConcurrentQueue<Action> _commandQueue = new();
+    private readonly AutoResetEvent _workAvailable = new(false);
     private readonly object _startStopLock = new();
 
     // ── COM objects – accessed ONLY from _audioThread ─────────────────────────
@@ -132,7 +133,9 @@ public sealed class AudioMixerService : IDisposable
                     }
                 }
 
-                Thread.Sleep(15); // ~60 Hz drain rate; keeps latency low
+                // Sleep until a command is queued instead of polling at 60 Hz — the idle audio
+                // thread used to wake up ~66 times a second for the whole life of the app.
+                _workAvailable.WaitOne(250);
             }
         }
         catch (Exception ex)
@@ -314,7 +317,7 @@ public sealed class AudioMixerService : IDisposable
         if (volume < 0f || volume > 1f)
             throw new ArgumentOutOfRangeException(nameof(volume));
 
-        _commandQueue.Enqueue(() =>
+        EnqueueCommand(() =>
         {
             if (_defaultDevice?.AudioEndpointVolume != null)
             {
@@ -326,7 +329,7 @@ public sealed class AudioMixerService : IDisposable
 
     public void SetMasterMute(bool mute)
     {
-        _commandQueue.Enqueue(() =>
+        EnqueueCommand(() =>
         {
             if (_defaultDevice?.AudioEndpointVolume != null)
             {
@@ -338,13 +341,20 @@ public sealed class AudioMixerService : IDisposable
 
     // ── Per-app session management (async, results posted to UI thread) ────────
 
+    /// <summary>Queues work for the audio thread and wakes it up.</summary>
+    private void EnqueueCommand(Action command)
+    {
+        _commandQueue.Enqueue(command);
+        _workAvailable.Set();
+    }
+
     /// <summary>
     /// Enqueues a session snapshot operation on the audio thread and delivers
     /// the result to <paramref name="onResult"/> on the UI DispatcherQueue.
     /// </summary>
     public void GetAudioSessionsAsync(Action<List<SessionInfo>> onResult)
     {
-        _commandQueue.Enqueue(() =>
+        EnqueueCommand(() =>
         {
             var sessions = ReadSessionsOnAudioThread();
             _dispatcherQueue.TryEnqueue(() => onResult(sessions));
@@ -436,7 +446,7 @@ public sealed class AudioMixerService : IDisposable
         if (volume < 0f || volume > 1f)
             throw new ArgumentOutOfRangeException(nameof(volume));
 
-        _commandQueue.Enqueue(() =>
+        EnqueueCommand(() =>
         {
             try
             {
@@ -464,7 +474,7 @@ public sealed class AudioMixerService : IDisposable
 
     public void SetSessionMute(string sessionIdentifier, bool mute)
     {
-        _commandQueue.Enqueue(() =>
+        EnqueueCommand(() =>
         {
             try
             {

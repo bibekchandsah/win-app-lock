@@ -47,6 +47,8 @@ public sealed partial class SettingsPage : Page
         if (TxtLockoutDurationDesc != null) TxtLockoutDurationDesc.Text = loc["LockoutDurationDesc"];
         if (TxtWindowsHello != null) TxtWindowsHello.Text = loc["WindowsHello"];
         if (TxtWindowsHelloDesc != null) TxtWindowsHelloDesc.Text = loc["WindowsHelloDesc"];
+        if (TxtAutoHello != null) TxtAutoHello.Text = loc["AutoHello"];
+        if (TxtAutoHelloDesc != null) TxtAutoHelloDesc.Text = loc["AutoHelloDesc"];
 
         if (ExpanderAutoLock != null) ExpanderAutoLock.Header = loc["SectionAdvanced"];
         if (TxtAutoLockIdle != null) TxtAutoLockIdle.Text = loc["AutoLockIdle"];

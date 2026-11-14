@@ -133,6 +133,8 @@ public class LocalizationService
             ["SectionSecurity"] = "Security & Authentication",
             ["WindowsHello"] = "Windows Hello unlock",
             ["WindowsHelloDesc"] = "Use fingerprint or face recognition instead of the admin password (device support required)",
+            ["AutoHello"] = "Open Windows Hello automatically",
+            ["AutoHelloDesc"] = "Start the fingerprint or face prompt as soon as AppLock asks for your password, so you don't have to type it",
             ["ChangePassword"] = "Change Password",
             ["ChangePasswordDesc"] = "Change your master unlock password",
             ["SecurityQuestions"] = "Security Questions",

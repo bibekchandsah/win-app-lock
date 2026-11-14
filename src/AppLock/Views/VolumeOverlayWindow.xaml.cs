@@ -90,7 +90,8 @@ public sealed partial class VolumeOverlayWindow : Window
     // The overlay polls a few times a second; everything below keeps that poll cheap and keeps it
     // from fighting whatever the user is currently dragging.
     private static readonly bool VerboseLog = false;
-    private const int SessionSnapshotIntervalMs = 400;   // full per-app audio snapshot cadence
+    private const int SessionSnapshotIntervalMs = 700;   // full per-app audio snapshot cadence
+    private const int SessionSnapshotIntervalMsMixer = 300; // ... while the app list is open
     private const int DeviceVolumeWriteIntervalMs = 60;  // coalesced device volume write cadence
     private readonly Dictionary<int, string> _processNameCache = new();
     private readonly Dictionary<string, DateTime> _userVolumeChangeAt = new();
@@ -1342,7 +1343,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private async Task SyncScreenBrightnessAsync(bool force = false)
     {
         if (_brightnessRow == null || _isSyncingBrightness) return;
-        if (!force && (DateTime.UtcNow - _lastBrightnessSync).TotalMilliseconds < 4000) return;
+        if (!force && (DateTime.UtcNow - _lastBrightnessSync).TotalMilliseconds < 15000) return;
 
         // Don't snap the thumb back to a stale reading while the user is dragging.
         if (!force && (DateTime.UtcNow - _lastBrightnessUserChange).TotalMilliseconds < 1500) return;
@@ -1362,6 +1363,15 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             _isSyncingBrightness = false;
         }
+    }
+
+    private void OnScreenBrightnessChanged(object? sender, Services.Brightness.BrightnessChangedEventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _lastBrightnessSync = DateTime.UtcNow;
+            ApplyScreenBrightnessToSlider(e.Brightness);
+        });
     }
 
     private void ApplyScreenBrightnessToSlider(int value)
@@ -1658,7 +1668,7 @@ public sealed partial class VolumeOverlayWindow : Window
             }
 
             // Device volume/mute reads are COM calls; 4 per second is live enough for an overlay.
-            if ((DateTime.UtcNow - _lastDeviceValueSync).TotalMilliseconds >= 250)
+            if ((DateTime.UtcNow - _lastDeviceValueSync).TotalMilliseconds >= 400)
             {
                 _lastDeviceValueSync = DateTime.UtcNow;
                 SyncSpeakerValues();
@@ -2135,7 +2145,10 @@ public sealed partial class VolumeOverlayWindow : Window
 
         // The per-app snapshot touches every audio session and repaints rows, so it runs slower
         // than the device sync — 150 ms of app-row churn was making the whole bar feel sluggish.
-        if ((DateTime.UtcNow - _lastSessionSnapshot).TotalMilliseconds < SessionSnapshotIntervalMs) return;
+        int snapshotInterval = _state == OverlayState.MixerOpen
+            ? SessionSnapshotIntervalMsMixer
+            : SessionSnapshotIntervalMs;
+        if ((DateTime.UtcNow - _lastSessionSnapshot).TotalMilliseconds < snapshotInterval) return;
         _lastSessionSnapshot = DateTime.UtcNow;
 
         // Post the session snapshot work to the audio thread; result comes back on UI thread.
@@ -2555,7 +2568,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private void SyncAllPlayPauseIcons()
     {
         // Each media session query is a WinRT call; once a second is plenty for a play/pause glyph.
-        if ((DateTime.UtcNow - _lastSmtcSync).TotalMilliseconds < 1000)
+        if ((DateTime.UtcNow - _lastSmtcSync).TotalMilliseconds < 2000)
         {
             UpdateActiveAppTooltip();
             return;
@@ -3409,6 +3422,10 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void SetupAudioEventHandlers()
     {
+        // Screen brightness is pushed by the brightness service; a WMI poll is only a fallback for
+        // changes made with the hardware keys.
+        ServiceContainer.BrightnessService.BrightnessChanged += OnScreenBrightnessChanged;
+
         _audioService.MasterVolumeChanged += OnAudioMasterVolumeChanged;
         _audioService.MasterMuteChanged += OnAudioMasterMuteChanged;
         _audioService.DefaultDeviceChanged += OnAudioDefaultDeviceChanged;
@@ -4453,6 +4470,7 @@ public sealed partial class VolumeOverlayWindow : Window
         _audioService.MasterMuteChanged -= OnAudioMasterMuteChanged;
         _audioService.DefaultDeviceChanged -= OnAudioDefaultDeviceChanged;
         _audioService.AudioSessionCreated -= OnAudioSessionCreated;
+        ServiceContainer.BrightnessService.BrightnessChanged -= OnScreenBrightnessChanged;
 
         // Dispose camera service
         try

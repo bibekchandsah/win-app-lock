@@ -1124,8 +1124,12 @@ public sealed partial class MainWindow : Window
         // Register Notification toggle hotkey (Alt+N)
         RegisterNotificationToggleHotkey();
 
+        // Our own input clock (Windows' idle counter is unreliable on some machines)
+        InputActivityMonitor.Start();
+
         // Start idle monitoring if configured
         StartIdleMonitoring();
+        StartIdleWatchdog();
 
         // Wire up idle service event
         ServiceContainer.IdleService.IdleTimeReached += IdleService_IdleTimeReached;
@@ -1626,6 +1630,65 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Self-heals the idle monitor: the service stops itself when it fires, and it can also be left
+    /// stopped by a failed or cancelled unlock. Without this, auto-lock stayed dead until restart.
+    /// </summary>
+    private void EnsureIdleMonitoring()
+    {
+        try
+        {
+            var minutes = ServiceContainer.Settings.AutoLockIdleMinutes;
+            if (minutes <= 0) return;
+
+            // While the idle lock screen is up the monitor is intentionally stopped.
+            if (_isIdleLockShowing) return;
+
+            var idle = ServiceContainer.IdleService;
+            if (!idle.IsMonitoring || idle.ThresholdMinutes != minutes)
+            {
+                idle.StartMonitoring(minutes);
+                IdleService.Log($"Watchdog: monitoring (re)started for {minutes} minutes");
+            }
+
+            // Hooks can be lost (another hook crashing, a shell restart); reinstall them on demand.
+            if (!InputActivityMonitor.IsRunning)
+            {
+                InputActivityMonitor.Start();
+                IdleService.Log($"Watchdog: input hooks started = {InputActivityMonitor.IsRunning}");
+            }
+
+            // Lock from the watchdog as well: this checks the idle clock directly, so a lost timer
+            // callback or a stopped monitor can no longer keep AppLock unlocked.
+            double idleMinutes = IdleService.CurrentIdleMinutes;
+            if (_idleLockDeclined && idleMinutes < minutes)
+            {
+                // Real input happened since the user dismissed the lock screen — arm it again.
+                _idleLockDeclined = false;
+            }
+
+            if (!_idleLockDeclined && idleMinutes >= minutes)
+            {
+                IdleService.Log($"Watchdog: idle {idleMinutes:F1} min (threshold {minutes}) - locking now");
+                IdleService_IdleTimeReached(this, EventArgs.Empty);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Idle monitoring watchdog error: {ex.Message}");
+        }
+    }
+
+    private void StartIdleWatchdog()
+    {
+        _idleWatchdogTimer?.Stop();
+        _idleWatchdogTimer = DispatcherQueue.CreateTimer();
+        _idleWatchdogTimer.Interval = TimeSpan.FromSeconds(20);
+        _idleWatchdogTimer.IsRepeating = true;
+        _idleWatchdogTimer.Tick += (s, e) => EnsureIdleMonitoring();
+        _idleWatchdogTimer.Start();
+    }
+
     private void OnEmergencyLockHotkey()
     {
         System.Diagnostics.Debug.WriteLine("Emergency lock hotkey pressed!");
@@ -1644,51 +1707,75 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private IdleLockWindow? _idleLockWindow;
+    private bool _isIdleLockShowing;
+    private bool _idleLockDeclined;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _idleWatchdogTimer;
+
     private void IdleService_IdleTimeReached(object? sender, EventArgs e)
     {
         System.Diagnostics.Debug.WriteLine("Idle time reached - locking app");
+
+        if (_isIdleLockShowing) return;
+        _isIdleLockShowing = true;
         _isMainAuthenticated = false;
-        
-        DispatcherQueue.TryEnqueue(async () =>
+
+        DispatcherQueue.TryEnqueue(() =>
         {
-            // Hide main window
-            Hide();
-            
-            // Show auth dialog
-            await ShowIdleLockDialog();
+            try
+            {
+                // Hide main window, then cover the desktop with the idle lock window
+                Hide();
+                ShowIdleLock();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Idle lock error: {ex.Message}");
+                _isIdleLockShowing = false;
+
+                // Never leave the app hidden without a lock screen on top of it.
+                try { Show(); } catch { }
+            }
         });
     }
 
-    private async Task ShowIdleLockDialog()
+    /// <summary>
+    /// Shows the idle lock in its own window. That keeps it visible while the main window is hidden
+    /// and while a dialog of the main window is open, and it avoids prompting a second time after
+    /// unlocking (which used to navigate away to the protection page).
+    /// </summary>
+    private void ShowIdleLock()
     {
-        while (true)
+        try
         {
-            var dialog = new AuthDialog(ServiceContainer.AuthService)
+            var window = new IdleLockWindow(ServiceContainer.AuthService);
+            _idleLockWindow = window;
+
+            window.Closed += (s, e) =>
             {
-                Title = "AppLock Idle Auto-Lock",
-                XamlRoot = Content?.XamlRoot
+                _idleLockWindow = null;
+                _isIdleLockShowing = false;
+
+                if (!window.Unlocked)
+                {
+                    // Dismissed without unlocking: wait for real input before locking again, so the
+                    // lock screen cannot bounce back the moment it is closed.
+                    _idleLockDeclined = true;
+                    return;
+                }
+
+                // Already verified in the lock window: no second prompt, and stay on the current page.
+                _isMainAuthenticated = true;
+                Show();
+                StartIdleMonitoring();
             };
 
-            if (Content?.XamlRoot == null)
-            {
-                // Window not ready, wait a bit
-                await Task.Delay(500);
-                continue;
-            }
-
-            await dialog.ShowAsync();
-
-            if (dialog.IsAuthenticated)
-            {
-                // Show window again
-                Show();
-                
-                // Restart idle monitoring
-                StartIdleMonitoring();
-                break;
-            }
-            
-            await Task.Delay(100);
+            window.Activate();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error showing idle lock window: {ex.Message}");
+            _isIdleLockShowing = false;
         }
     }
 
@@ -1741,6 +1828,8 @@ public sealed partial class MainWindow : Window
             RemoveWindowSubclass(_hwnd.Value, _subclassProc, 1);
             _subclassProc = null;
         }
+        _idleWatchdogTimer?.Stop();
+        _idleWatchdogTimer = null;
         ServiceContainer.IdleService.StopMonitoring();
         ServiceContainer.OverlayManager.Stop();
 

@@ -24,6 +24,21 @@ public sealed partial class AuthDialog : ContentDialog
 
     public bool IsAuthenticated { get; private set; }
 
+    /// <summary>Window that hosts the Windows Hello prompt. Defaults to the main window.</summary>
+    public Windows.Win32.Foundation.HWND HostWindowHandle { get; set; }
+
+    private bool _autoHelloStarted;
+
+    /// <summary>
+    /// Replaces the "Enter your admin password to continue" line, so callers such as the idle
+    /// auto-lock can ask for the AppLock password instead of an "admin" password.
+    /// </summary>
+    public string IntroText
+    {
+        get => IntroTextBlock.Text;
+        set => IntroTextBlock.Text = value;
+    }
+
     public AuthDialog(AuthService authService)
     {
         _authService = authService;
@@ -70,6 +85,16 @@ public sealed partial class AuthDialog : ContentDialog
             if (available)
             {
                 WindowsHelloButton.Visibility = Visibility.Visible;
+
+                // "Open Windows Hello automatically": start the fingerprint/face prompt right away
+                // so the user does not have to click the button first.
+                if (ServiceContainer.Settings.AutoPromptWindowsHello && !_autoHelloStarted)
+                {
+                    _autoHelloStarted = true;
+                    DispatcherQueue.TryEnqueue(
+                        Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                        () => WindowsHelloButton_Click(WindowsHelloButton, new RoutedEventArgs()));
+                }
             }
         }
     }
@@ -347,7 +372,9 @@ public sealed partial class AuthDialog : ContentDialog
         HelloPendingPanel.Visibility = Visibility.Visible;
         IsPrimaryButtonEnabled = false;
 
-        var hostHwnd = MainWindow.Instance?.Hwnd ?? default;
+        var hostHwnd = HostWindowHandle != default
+            ? HostWindowHandle
+            : (MainWindow.Instance?.Hwnd ?? default);
         if (hostHwnd != default && !Windows.Win32.PInvoke.IsWindowEnabled(hostHwnd))
         {
             Windows.Win32.PInvoke.EnableWindow(hostHwnd, true);

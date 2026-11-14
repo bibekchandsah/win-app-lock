@@ -296,6 +296,9 @@ fixed - in ring light page "test camera detection" details aren't shown in light
 fixed - in ring light page sync the theme for "save preset" dialog box for light mode 
 fixed - background mica window 11 effect in all page 
 already implemented - copying images or file is getting copied it's file name in clipboard page, fix it so that if user copy image file or any other file then it will get copied instead of it's file name 
+fixed - let user select microphone and sync the microphone in realtime 
+fixed - let user choose the speaker and sync in realtime
+fixed - add brightness slider too with toggle option 
 
 auto lock whatever page is in currently on Idle
 after idle lock it's also asking to verify admin password
@@ -321,9 +324,6 @@ everytime notification isn't seen make it more robust so that user don't miss an
 
 eye care don't show the loaded templet and just shows blank screen
 
-fixed - let user select microphone and sync the microphone in realtime 
-fixed - let user choose the speaker and sync in realtime
-fixed - add brightness slider too with toggle option 
 
 wifi saved password extraction
 

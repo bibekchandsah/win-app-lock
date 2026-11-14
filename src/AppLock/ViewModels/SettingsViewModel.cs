@@ -32,6 +32,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _windowsHelloEnabled;
 
     [ObservableProperty]
+    private bool _autoPromptWindowsHello;
+
+    [ObservableProperty]
     private string _windowsHelloStatus = "Checking...";
 
     [ObservableProperty]
@@ -94,6 +97,7 @@ public partial class SettingsViewModel : ObservableObject
         IsNavPaneExpanded = _settings.IsNavPaneExpanded;
         LockoutDuration = _settings.LockoutDurationMinutes;
         WindowsHelloEnabled = _settings.WindowsHelloEnabled;
+        AutoPromptWindowsHello = _settings.AutoPromptWindowsHello;
         AutoLockIdleMinutes = _settings.AutoLockIdleMinutes;
         EmergencyHotkeyEnabled = _settings.EmergencyHotkeyEnabled;
         EmergencyHotkey = _settings.EmergencyHotkey;
@@ -158,6 +162,12 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnWindowsHelloEnabledChanged(bool value)
     {
         _settings.WindowsHelloEnabled = value;
+        SaveSettings();
+    }
+
+    partial void OnAutoPromptWindowsHelloChanged(bool value)
+    {
+        _settings.AutoPromptWindowsHello = value;
         SaveSettings();
     }
 

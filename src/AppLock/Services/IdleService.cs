@@ -18,6 +18,12 @@ public class IdleService : IDisposable
 
     public event EventHandler? IdleTimeReached;
 
+    /// <summary>True while the idle timer is running.</summary>
+    public bool IsMonitoring => _isMonitoring;
+
+    /// <summary>The threshold the monitor is currently running with, in minutes.</summary>
+    public int ThresholdMinutes => _idleThresholdMinutes;
+
     public IdleService()
     {
         _lastActiveTime = DateTime.Now;
@@ -43,7 +49,7 @@ public class IdleService : IDisposable
         _idleCheckTimer?.Dispose();
         _idleCheckTimer = new Timer(CheckIdleTime, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
 
-        System.Diagnostics.Debug.WriteLine($"Started idle monitoring: {idleThresholdMinutes} minutes threshold");
+        Log($"Started idle monitoring: {idleThresholdMinutes} minutes threshold");
     }
 
     /// <summary>
@@ -55,7 +61,7 @@ public class IdleService : IDisposable
         _idleCheckTimer?.Dispose();
         _idleCheckTimer = null;
 
-        System.Diagnostics.Debug.WriteLine("Stopped idle monitoring");
+        Log("Stopped idle monitoring");
     }
 
     /// <summary>
@@ -73,24 +79,46 @@ public class IdleService : IDisposable
 
         try
         {
-            uint idleTimeMs = GetIdleTimeMs();
-            double idleMinutes = idleTimeMs / 1000.0 / 60.0;
+            double idleMinutes = GetIdleMinutes();
 
             if (idleMinutes >= _idleThresholdMinutes)
             {
-                System.Diagnostics.Debug.WriteLine($"Idle time reached: {idleMinutes:F1} minutes");
-                
-                // Stop monitoring to prevent multiple triggers
+                Log($"Idle time reached: {idleMinutes:F1} minutes (threshold {_idleThresholdMinutes})");
+
+                // Stop monitoring to prevent multiple triggers; MainWindow restarts it after unlock
+                // (and its watchdog restarts it if the lock screen could not be shown).
                 StopMonitoring();
-                
-                // Trigger event
-                IdleTimeReached?.Invoke(this, EventArgs.Empty);
+
+                try
+                {
+                    IdleTimeReached?.Invoke(this, EventArgs.Empty);
+                }
+                catch (Exception ex)
+                {
+                    // Never let a handler kill the timer callback.
+                    Log($"IdleTimeReached handler failed: {ex.Message}");
+                }
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error checking idle time: {ex.Message}");
+            Log($"Error checking idle time: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Idle minutes used for the auto-lock check. Prefers AppLock's own input clock, because
+    /// Windows' GetLastInputInfo can be reset continuously by a device on some machines and then
+    /// never reaches the configured threshold. Falls back to Windows when the hooks are missing.
+    /// </summary>
+    private static double GetIdleMinutes()
+    {
+        if (InputActivityMonitor.IsRunning)
+        {
+            return InputActivityMonitor.IdleMinutes;
+        }
+
+        return GetIdleTimeMs() / 1000.0 / 60.0;
     }
 
     /// <summary>
@@ -107,10 +135,11 @@ public class IdleService : IDisposable
         {
             uint currentTickCount = (uint)Environment.TickCount;
             uint lastInputTick = lastInputInfo.dwTime;
-            
+
             return currentTickCount - lastInputTick;
         }
 
+        Log("GetLastInputInfo failed; reporting zero idle time");
         return 0;
     }
 
@@ -120,6 +149,32 @@ public class IdleService : IDisposable
     public static double GetIdleTimeMinutes()
     {
         return GetIdleTimeMs() / 1000.0 / 60.0;
+    }
+
+    /// <summary>Idle minutes from the same clock the auto-lock check uses.</summary>
+    public static double CurrentIdleMinutes => GetIdleMinutes();
+
+    /// <summary>Small, size-capped diagnostic log so idle-lock problems can be traced.</summary>
+    internal static void Log(string message)
+    {
+        System.Diagnostics.Debug.WriteLine($"[Idle] {message}");
+
+        try
+        {
+            var dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "Logs");
+            System.IO.Directory.CreateDirectory(dir);
+
+            var path = System.IO.Path.Combine(dir, "idle.log");
+            var info = new System.IO.FileInfo(path);
+            if (info.Exists && info.Length > 200 * 1024)
+            {
+                System.IO.File.WriteAllText(path, string.Empty);
+            }
+
+            System.IO.File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\r\n");
+        }
+        catch { }
     }
 
     public void Dispose()

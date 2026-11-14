@@ -11,6 +11,9 @@ public class AppSettings
     public int MaxFailedAttempts { get; set; } = 5;
     public int LockoutDurationMinutes { get; set; } = 10;
     public bool WindowsHelloEnabled { get; set; }
+
+    /// <summary>Open the Windows Hello prompt automatically whenever AppLock asks for the password.</summary>
+    public bool AutoPromptWindowsHello { get; set; } = true;
     
     // Security Questions
     public string SecurityQuestion { get; set; } = string.Empty;
