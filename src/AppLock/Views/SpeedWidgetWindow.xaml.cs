@@ -1,16 +1,18 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Services;
 using AppLock.Services.SpeedMeter;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
 
 namespace AppLock.Views;
 
 /// <summary>
-/// The floating speed widget: borderless, rounded, topmost, never activates.
-/// Milestone 2 shows live download/upload; appearance options and dragging come later.
+/// The floating speed widget: borderless, rounded, topmost, never activates, draggable,
+/// snappable, optionally click-through and excluded from screen capture.
 /// </summary>
 public sealed partial class SpeedWidgetWindow : Window
 {
@@ -18,7 +20,13 @@ public sealed partial class SpeedWidgetWindow : Window
     private const uint DWMNCRP_DISABLED = 1;
 
     private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_NOACTIVATE = 0x08000000;
+
+    private const uint WDA_NONE = 0x00000000;
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+    private const int VK_MENU = 0x12;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MARGINS
@@ -36,6 +44,13 @@ public sealed partial class SpeedWidgetWindow : Window
         }
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, uint cbAttribute);
 
@@ -48,6 +63,26 @@ public sealed partial class SpeedWidgetWindow : Window
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
     private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
+
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _altTimer;
+
+    private bool _dragging;
+    private bool _clickThroughActive;
+    private bool _captureExcluded;
+    private bool _hiddenForFullscreen;
+    private POINT _dragStartCursor;
+    private PointInt32 _dragStartWindow;
+
     public SpeedWidgetWindow()
     {
         InitializeComponent();
@@ -56,6 +91,19 @@ public sealed partial class SpeedWidgetWindow : Window
         SetupWindow();
 
         Widget.Loaded += OnWidgetLoaded;
+
+        Widget.PointerPressed += OnPointerPressed;
+        Widget.PointerMoved += OnPointerMoved;
+        Widget.PointerReleased += OnPointerReleased;
+        Widget.PointerCaptureLost += OnPointerCaptureLost;
+
+        // While click-through is on, holding Alt temporarily makes the widget draggable again.
+        _altTimer = DispatcherQueue.CreateTimer();
+        _altTimer.Interval = TimeSpan.FromMilliseconds(150);
+        _altTimer.IsRepeating = true;
+        _altTimer.Tick += (_, _) => UpdateClickThroughForAlt();
+
+        Closed += (_, _) => _altTimer?.Stop();
     }
 
     private void SetupWindow()
@@ -90,16 +138,8 @@ public sealed partial class SpeedWidgetWindow : Window
         ResizeToContent();
         PositionOnScreen();
 
-        // Apply the numbers the service already has so the widget never flashes placeholders.
         Update(new NetworkSpeedSample());
-    }
-
-    /// <summary>Re-applies appearance settings and resizes/repositions to the new content.</summary>
-    public void ApplySettings()
-    {
-        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
-        ResizeToContent();
-        PositionOnScreen();
+        ApplyClickThrough();
     }
 
     /// <summary>
@@ -124,10 +164,31 @@ public sealed partial class SpeedWidgetWindow : Window
             var exStyle = (int)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
             exStyle |= WS_EX_NOACTIVATE;
             SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle);
+
+            ApplyCaptureAffinity();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Chrome error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Keeps the widget out of screenshots and screen sharing when the setting is on.</summary>
+    private void ApplyCaptureAffinity()
+    {
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            var exclude = ServiceContainer.Settings.SpeedMeter.HideFromCapture;
+            if (exclude == _captureExcluded) return;
+
+            _captureExcluded = SetWindowDisplayAffinity(hWnd, exclude ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Capture affinity error: {ex.Message}");
         }
     }
 
@@ -152,7 +213,26 @@ public sealed partial class SpeedWidgetWindow : Window
         }
     }
 
-    /// <summary>Places the widget at the stored percentage of the monitor work area.</summary>
+    /// <summary>Finds the monitor the widget belongs on: the saved one if it still exists.</summary>
+    private DisplayArea ResolveArea()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        var areas = DisplayArea.FindAll();
+
+        if (!string.IsNullOrEmpty(settings.MonitorId))
+        {
+            var match = areas.FirstOrDefault(a => DescribeArea(a.WorkArea) == settings.MonitorId);
+            if (match is not null) return match;
+        }
+
+        return AppWindow is { } appWindow
+            ? DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary)
+            : areas.First();
+    }
+
+    private static string DescribeArea(RectInt32 work) => $"{work.X},{work.Y},{work.Width},{work.Height}";
+
+    /// <summary>Places the widget at the stored percentage of its monitor work area.</summary>
     private void PositionOnScreen()
     {
         try
@@ -160,24 +240,42 @@ public sealed partial class SpeedWidgetWindow : Window
             if (AppWindow is not { } appWindow) return;
 
             var settings = ServiceContainer.Settings.SpeedMeter;
-            var area = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary);
-            var work = area.WorkArea;
+            var area = ResolveArea();
+            var size = appWindow.Size;
 
-            var width = appWindow.Size.Width;
-            var height = appWindow.Size.Height;
+            var position = WidgetPositioner.FromPercent(settings, area.WorkArea, size);
+            position = WidgetPositioner.Clamp(position, size, area.WorkArea);
 
-            var percentX = Math.Clamp(settings.PositionPercentX, 0f, 100f) / 100f;
-            var percentY = Math.Clamp(settings.PositionPercentY, 0f, 100f) / 100f;
+            appWindow.Move(position);
 
-            var x = work.X + (int)Math.Round((work.Width - width) * percentX);
-            var y = work.Y + (int)Math.Round((work.Height - height) * percentY);
-
-            appWindow.Move(new PointInt32(x, y));
+            WidgetPositioner.SavePercent(settings, position, size, area.WorkArea);
+            settings.MonitorId = DescribeArea(area.WorkArea);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Position error: {ex.Message}");
         }
+    }
+
+    /// <summary>Moves the widget back onto the primary monitor and stores that position.</summary>
+    public void ResetPosition()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        settings.PositionPercentX = 98;
+        settings.PositionPercentY = 90;
+        settings.MonitorId = null;
+
+        PositionOnScreen();
+    }
+
+    /// <summary>Re-applies appearance, chrome flags and geometry after a settings change.</summary>
+    public void ApplySettings()
+    {
+        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
+        ResizeToContent();
+        PositionOnScreen();
+        ApplyCaptureAffinity();
+        ApplyClickThrough();
     }
 
     /// <summary>Writes one reading into the widget with the configured units and decimals.</summary>
@@ -190,5 +288,177 @@ public sealed partial class SpeedWidgetWindow : Window
         Widget.SetValues(
             SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals),
             SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals));
+    }
+
+    /// <summary>Hides for full-screen apps / unhides afterwards without closing the window.</summary>
+    public void SetFullscreenHidden(bool hidden)
+    {
+        if (_hiddenForFullscreen == hidden) return;
+
+        try
+        {
+            if (hidden)
+            {
+                AppWindow?.Hide();
+            }
+            else
+            {
+                AppWindow?.Show();
+                KeepOnTop();
+            }
+
+            _hiddenForFullscreen = hidden;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Visibility error: {ex.Message}");
+        }
+    }
+
+    private void KeepOnTop()
+    {
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            const uint SWP_NOMOVE = 0x0002;
+            const uint SWP_NOSIZE = 0x0001;
+            const uint SWP_NOACTIVATE = 0x0010;
+
+            SetWindowPos(hWnd, (nint)(-1) /* HWND_TOPMOST */, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Topmost error: {ex.Message}");
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    // ── Dragging ─────────────────────────────────────────────────────────────
+
+    private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        if (!settings.Draggable || settings.LockPosition || _clickThroughActive) return;
+
+        var point = e.GetCurrentPoint(Widget);
+        if (!point.Properties.IsLeftButtonPressed) return;
+        if (!GetCursorPos(out _dragStartCursor)) return;
+        if (AppWindow is null) return;
+
+        _dragStartWindow = AppWindow.Position;
+        _dragging = Widget.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_dragging || AppWindow is null) return;
+        if (!GetCursorPos(out var cursor)) return;
+
+        var target = new PointInt32(
+            _dragStartWindow.X + (cursor.x - _dragStartCursor.x),
+            _dragStartWindow.Y + (cursor.y - _dragStartCursor.y));
+
+        AppWindow.Move(target);
+        e.Handled = true;
+    }
+
+    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_dragging) return;
+
+        _dragging = false;
+        Widget.ReleasePointerCapture(e.Pointer);
+        FinishDrag();
+        e.Handled = true;
+    }
+
+    private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_dragging) return;
+
+        _dragging = false;
+        FinishDrag();
+    }
+
+    /// <summary>Snaps to a nearby edge, then stores the position as percentages.</summary>
+    private void FinishDrag()
+    {
+        try
+        {
+            if (AppWindow is not { } appWindow) return;
+
+            var settings = ServiceContainer.Settings.SpeedMeter;
+            var area = ResolveArea();
+            var size = appWindow.Size;
+            var position = appWindow.Position;
+
+            if (settings.SnapToEdges)
+            {
+                position = WidgetPositioner.Snap(position, size, area.WorkArea);
+            }
+
+            position = WidgetPositioner.Clamp(position, size, area.WorkArea);
+            appWindow.Move(position);
+
+            WidgetPositioner.SavePercent(settings, position, size, area.WorkArea);
+            settings.MonitorId = DescribeArea(area.WorkArea);
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Drop error: {ex.Message}");
+        }
+    }
+
+    // ── Click-through ────────────────────────────────────────────────────────
+
+    /// <summary>Applies WS_EX_TRANSPARENT so clicks pass through, unless Alt is held.</summary>
+    private void ApplyClickThrough(bool forceOff = false)
+    {
+        var want = !forceOff && ServiceContainer.Settings.SpeedMeter.ClickThrough;
+
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            var exStyle = (int)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+            var updated = want
+                ? exStyle | WS_EX_TRANSPARENT
+                : exStyle & ~WS_EX_TRANSPARENT;
+
+            if (updated != exStyle)
+            {
+                SetWindowLongPtr(hWnd, GWL_EXSTYLE, updated);
+            }
+
+            _clickThroughActive = want;
+
+            if (want) _altTimer?.Start();
+            else _altTimer?.Stop();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Click-through error: {ex.Message}");
+        }
+    }
+
+    private void UpdateClickThroughForAlt()
+    {
+        if (!ServiceContainer.Settings.SpeedMeter.ClickThrough)
+        {
+            _altTimer?.Stop();
+            return;
+        }
+
+        var altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+        ApplyClickThrough(forceOff: altDown);
     }
 }

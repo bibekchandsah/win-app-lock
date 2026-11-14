@@ -229,3 +229,34 @@ Use `New-BurntToastNotification` PowerShell module or trigger Focus Assist notif
   rather than a real backdrop, because a backdrop cannot be per-widget).
 - Range validation happens where values are applied (`Math.Clamp` on opacity, scale, radius,
   decimals, interval) instead of on deserialization.
+
+## Speed Meter — Milestone 4 (drag, snap, click-through, full-screen, capture)
+
+- Dragging is pointer-based: press anywhere on the widget already moves with the cursor, release
+  snaps to a nearby edge (16 px detection, 8 px margin) and the position is stored as percentages of
+  the monitor work area. `Lock position` disables dragging.
+- Click-through sets `WS_EX_TRANSPARENT`; a 150 ms timer watches `GetAsyncKeyState(VK_MENU)` so
+  holding Alt temporarily makes the widget clickable again for dragging.
+- `Reset position` (page button) restores 98 %/90 % on the primary monitor.
+- `Hide in full-screen apps` uses `SHQueryUserNotificationState` (busy / D3D full-screen /
+  presentation) checked on every sampling tick; the window is hidden with `AppWindow.Hide()` and
+  shown again with a topmost re-assert.
+- `Hide from screen sharing` uses `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`.
+- The show/hide shortcut (default `Ctrl+Alt+N`, stored as a `HotkeyBinding`) is registered through
+  the shared `HotkeyService` and stays registered while the widget is off so it can turn it back on.
+  It is rebindable on the page with the shared hotkey capture dialog. Changing `ToggleHotkey` from a
+  string to `HotkeyBinding` matches the other hotkey sections.
+- Monitor handling: the monitor is stored by its work-area rect and re-used on restart; the window is
+  clamped into the work area after a resize, and `DisplayArea.FindAll()` is available for the
+  off-screen check. A *specific* monitor setting and live per-monitor DPI re-layout on hot-plug are
+  not implemented — moving to another monitor and a restart both work, and the next drag saves it.
+
+### Bug found while verifying milestone 3/4
+
+`SpeedMeterPage` failed to load at runtime with
+`XamlParseException: Failed to assign to property 'Microsoft.UI.Xaml.Controls.Primitives.RangeBase.Minimum'`
+even though the same attributes work on other pages. The compiled XBF assignment was the cause;
+setting `Minimum`/`Maximum`/`StepFrequency` on the three sliders and `Minimum`/`Maximum` on the
+numbers box from code in the page constructor fixes it. Verified by instantiating the page at startup
+with a temporary probe (removed again) — `OK` in `%LOCALAPPDATA%\AppLock\Logs\speedpage_probe.log`.
+NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same problem.

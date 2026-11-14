@@ -4,7 +4,9 @@ using System.Globalization;
 using System.Linq;
 using AppLock.Models;
 using AppLock.Services;
+using AppLock.Services.Brightness;
 using AppLock.Services.SpeedMeter;
+using AppLock.Views.Dialogs;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -31,6 +33,23 @@ public sealed partial class SpeedMeterPage : Page
     public SpeedMeterPage()
     {
         InitializeComponent();
+
+        // Slider/NumberBox ranges are set here rather than in XAML: assigning Minimum in the XBF
+        // failed at load time with "Failed to assign to property 'RangeBase.Minimum'".
+        OpacitySlider.Minimum = 0;
+        OpacitySlider.Maximum = 100;
+        OpacitySlider.StepFrequency = 1;
+
+        ScaleSlider.Minimum = 50;
+        ScaleSlider.Maximum = 250;
+        ScaleSlider.StepFrequency = 5;
+
+        RadiusSlider.Minimum = 0;
+        RadiusSlider.Maximum = 40;
+        RadiusSlider.StepFrequency = 1;
+
+        DecimalsBox.Minimum = 0;
+        DecimalsBox.Maximum = 2;
 
         BuildComboItems();
         LoadFromSettings();
@@ -96,6 +115,13 @@ public sealed partial class SpeedMeterPage : Page
         ShowIconsToggle.IsOn = Settings.UseIcons;
         BorderToggle.IsOn = Settings.ShowBorder;
         CompactToggle.IsOn = Settings.Compact;
+
+        LockPositionToggle.IsOn = Settings.LockPosition;
+        SnapToggle.IsOn = Settings.SnapToEdges;
+        ClickThroughToggle.IsOn = Settings.ClickThrough;
+        HideFullscreenToggle.IsOn = Settings.HideInFullscreen;
+        HideFromCaptureToggle.IsOn = Settings.HideFromCapture;
+        UpdateHotkeyText();
 
         SelectComboByTag(FontCombo, Settings.FontFamily);
         SelectComboByTag(WeightCombo, Settings.FontWeight);
@@ -429,6 +455,96 @@ public sealed partial class SpeedMeterPage : Page
 
         LoadFromSettings();
         ApplyAppearance();
+    }
+
+    private void UpdateHotkeyText()
+    {
+        ToggleHotkeyText.Text = Settings.ToggleHotkey is null
+            ? "Not set"
+            : HotkeyValidator.FormatHotkey(Settings.ToggleHotkey);
+    }
+
+    /// <summary>Saves a behavior flag and pushes it to the floating widget.</summary>
+    private void SaveBehavior()
+    {
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.ApplySettings();
+    }
+
+    private void LockPositionToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.LockPosition = LockPositionToggle.IsOn;
+        SaveBehavior();
+    }
+
+    private void SnapToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.SnapToEdges = SnapToggle.IsOn;
+        SaveBehavior();
+    }
+
+    private void ClickThroughToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.ClickThrough = ClickThroughToggle.IsOn;
+        SaveBehavior();
+    }
+
+    private void HideFullscreenToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.HideInFullscreen = HideFullscreenToggle.IsOn;
+        SaveBehavior();
+    }
+
+    private void HideFromCaptureToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.HideFromCapture = HideFromCaptureToggle.IsOn;
+        SaveBehavior();
+    }
+
+    private void ResetPosition_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.PositionPercentX = 98;
+        Settings.PositionPercentY = 90;
+        Settings.MonitorId = null;
+
+        ServiceContainer.SpeedMeterService?.ResetWidgetPosition();
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private async void ChangeHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        var validator = new Func<HotkeyBinding?, ValidationResult>(binding =>
+        {
+            if (binding is null) return ValidationResult.Success();
+            if (binding.Modifiers == 0)
+                return ValidationResult.Failure("Use at least one modifier (Ctrl, Alt, Shift or Win)");
+
+            if (string.Equals(HotkeyValidator.FormatHotkey(binding),
+                    ServiceContainer.Settings.EmergencyHotkey, StringComparison.OrdinalIgnoreCase))
+                return ValidationResult.Failure("Conflicts with the Emergency Lock shortcut");
+
+            return ValidationResult.Success();
+        });
+
+        var dialog = new HotkeyCaptureDialog(Settings.ToggleHotkey, validator)
+        {
+            XamlRoot = XamlRoot,
+            Title = "Change Speed Meter Shortcut"
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result is ContentDialogResult.Primary or ContentDialogResult.Secondary)
+        {
+            Settings.ToggleHotkey = dialog.CapturedHotkey;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            ServiceContainer.SpeedMeterService?.RegisterHotkey();
+            UpdateHotkeyText();
+        }
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)

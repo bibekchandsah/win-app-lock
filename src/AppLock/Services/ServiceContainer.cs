@@ -580,6 +580,9 @@ public static class ServiceContainer
 
         _speedMeterService = new AppLock.Services.SpeedMeter.SpeedMeterService(dispatcherQueue);
 
+        // The shortcut works even when the widget is off, so it can switch it back on.
+        _speedMeterService.RegisterHotkey();
+
         if (Settings.SpeedMeter.Enabled && Settings.SpeedMeter.StartWithAppLock)
         {
             _speedMeterService.Start();

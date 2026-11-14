@@ -258,9 +258,6 @@
 
                             <Slider x:Name="OpacitySlider"
                                     Grid.Column="1"
-                                    Minimum="0"
-                                    Maximum="100"
-                                    StepFrequency="1"
                                     VerticalAlignment="Center"
                                     ValueChanged="OpacitySlider_ValueChanged"/>
 
@@ -346,9 +343,6 @@
 
                             <Slider x:Name="ScaleSlider"
                                     Grid.Column="1"
-                                    Minimum="50"
-                                    Maximum="250"
-                                    StepFrequency="5"
                                     VerticalAlignment="Center"
                                     ValueChanged="ScaleSlider_ValueChanged"/>
 
@@ -408,9 +402,6 @@
 
                             <Slider x:Name="RadiusSlider"
                                     Grid.Column="1"
-                                    Minimum="0"
-                                    Maximum="40"
-                                    StepFrequency="1"
                                     VerticalAlignment="Center"
                                     ValueChanged="RadiusSlider_ValueChanged"/>
 
@@ -476,8 +467,6 @@
                             <NumberBox x:Name="DecimalsBox"
                                        Grid.Column="2"
                                        Header="Decimals"
-                                       Minimum="0"
-                                       Maximum="2"
                                        SpinButtonPlacementMode="Inline"
                                        ValueChanged="DecimalsBox_ValueChanged"/>
 
@@ -490,6 +479,129 @@
 
                         <Button Content="Reset appearance"
                                 Click="ResetAppearance_Click"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Behavior -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Behavior"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Lock position" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="The widget cannot be dragged while locked"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="LockPositionToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="LockPositionToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Snap to screen edges" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Release near an edge and it docks with an 8 px margin"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="SnapToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="SnapToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Click-through" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Mouse clicks pass through the widget. Hold Alt to grab it again"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ClickThroughToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="ClickThroughToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Hide in full-screen apps" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Steps out of the way for games, videos and presentations"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="HideFullscreenToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="HideFullscreenToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Hide from screen sharing" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Excluded from screenshots and screen recording"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="HideFromCaptureToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="HideFromCaptureToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Show / hide shortcut" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock x:Name="ToggleHotkeyText" FontSize="11"
+                                           Text="Ctrl+Alt+N"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Change" Click="ChangeHotkey_Click"/>
+                        </Grid>
+
+                        <Button Content="Reset position"
+                                Click="ResetPosition_Click"
                                 HorizontalAlignment="Left"/>
                     </StackPanel>
                 </Border>

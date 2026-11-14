@@ -26,6 +26,8 @@ public sealed class SpeedMeterService : IDisposable
 
     public bool IsRunning { get; private set; }
 
+    private int _hotkeyId = -1;
+
     /// <summary>Raised on the UI thread once per sample.</summary>
     public event EventHandler<NetworkSpeedSample>? SampleUpdated;
 
@@ -45,6 +47,7 @@ public sealed class SpeedMeterService : IDisposable
         _timer.Tick += (_, _) => SampleOnce();
         _timer.Start();
 
+        RegisterHotkey();
         SampleOnce();
     }
 
@@ -91,6 +94,49 @@ public sealed class SpeedMeterService : IDisposable
         EnsureWidget();
     }
 
+    /// <summary>Moves the widget back to its default corner and saves that position.</summary>
+    public void ResetWidgetPosition()
+    {
+        if (_widget is null)
+        {
+            var settings = ServiceContainer.Settings.SpeedMeter;
+            settings.PositionPercentX = 98;
+            settings.PositionPercentY = 90;
+            settings.MonitorId = null;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            return;
+        }
+
+        _widget.ResetPosition();
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    /// <summary>
+    /// Registers the show/hide hotkey. It stays registered while the widget is off so the same
+    /// shortcut can bring it back.
+    /// </summary>
+    public void RegisterHotkey()
+    {
+        UnregisterHotkey();
+
+        var binding = ServiceContainer.Settings.SpeedMeter.ToggleHotkey;
+        if (binding is null || binding.VirtualKey == 0) return;
+
+        _hotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(
+            (Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS)binding.Modifiers,
+            binding.VirtualKey,
+            () => _dispatcher.TryEnqueue(() =>
+                ServiceContainer.SetSpeedMeterEnabled(!ServiceContainer.Settings.SpeedMeter.Enabled)));
+    }
+
+    public void UnregisterHotkey()
+    {
+        if (_hotkeyId <= 0) return;
+
+        ServiceContainer.HotkeyService.UnregisterHotkey(_hotkeyId);
+        _hotkeyId = -1;
+    }
+
     private void EnsureWidget()
     {
         if (_widget is not null) return;
@@ -122,6 +168,12 @@ public sealed class SpeedMeterService : IDisposable
                 _dispatcher.TryEnqueue(() =>
                 {
                     _widget?.Update(sample);
+
+                    // Step aside for full-screen apps and videos, then come back afterwards.
+                    var hide = ServiceContainer.Settings.SpeedMeter.HideInFullscreen
+                               && FullscreenDetector.IsFullscreenAppActive();
+                    _widget?.SetFullscreenHidden(hide);
+
                     SampleUpdated?.Invoke(this, sample);
                 });
             }

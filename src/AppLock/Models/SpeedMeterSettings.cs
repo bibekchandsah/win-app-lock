@@ -9,8 +9,8 @@ public class SpeedMeterSettings
     public bool Enabled { get; set; }
     public bool StartWithAppLock { get; set; } = true;
 
-    /// <summary>Toggle hotkey, in the same "Ctrl+Alt+N" form the other hotkey settings use.</summary>
-    public string ToggleHotkey { get; set; } = "Ctrl+Alt+N";
+    /// <summary>Show/hide shortcut, default Ctrl+Alt+N.</summary>
+    public HotkeyBinding? ToggleHotkey { get; set; } = new() { Modifiers = 0x0003, VirtualKey = 0x4E };
 
     // Appearance
     public string ThemePreset { get; set; } = "Glass";        // Transparent|Glass|Solid|FollowWindows|Custom
