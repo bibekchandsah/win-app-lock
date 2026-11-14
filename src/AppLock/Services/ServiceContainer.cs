@@ -46,6 +46,7 @@ public static class ServiceContainer
     private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
     private static KeyboardService? _keyboardService;
     private static ViewModels.KeyboardViewModel? _keyboardViewModel;
+    private static LockKeyIndicatorService? _lockKeyIndicatorService;
     private static AppLock.Services.SpeedMeter.SpeedMeterService? _speedMeterService;
 
     public static NotificationService NotificationService
@@ -802,5 +803,42 @@ public static class ServiceContainer
             }
             return _keyboardViewModel;
         }
+    }
+
+    // ── Lock Key Indicator ────────────────────────────────────────────────────
+
+    public static LockKeyIndicatorService? LockKeyIndicatorService => _lockKeyIndicatorService;
+
+    public static void InitializeLockKeyIndicator(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_lockKeyIndicatorService == null)
+        {
+            _lockKeyIndicatorService = new LockKeyIndicatorService(dispatcherQueue);
+            
+            // Auto-start if enabled
+            if (Settings.LockKeyIndicator.Enabled)
+            {
+                _lockKeyIndicatorService.Start();
+            }
+        }
+    }
+
+    public static event EventHandler<bool>? LockKeyIndicatorEnabledChanged;
+
+    public static void SetLockKeyIndicatorEnabled(bool enabled)
+    {
+        Settings.LockKeyIndicator.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            _lockKeyIndicatorService?.Start();
+        }
+        else
+        {
+            _lockKeyIndicatorService?.Stop();
+        }
+
+        LockKeyIndicatorEnabledChanged?.Invoke(null, enabled);
     }
 }

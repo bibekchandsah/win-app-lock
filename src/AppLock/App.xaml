@@ -77,7 +77,9 @@
             <!-- Tray Icon -->
             <tb:TaskbarIcon
                 x:Key="AppTrayIcon"
-                ToolTipText="AppLock">
+                ToolTipText="AppLock"
+                MenuActivation="RightClick"
+                ContextMenuMode="SecondWindow">
                 
                 <tb:TaskbarIcon.ContextFlyout>
                     <MenuFlyout>

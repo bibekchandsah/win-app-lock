@@ -84,6 +84,57 @@ public sealed class TrayService : IDisposable
     public event EventHandler<bool>? BlurHotkeyToggleRequested;
     public event EventHandler<bool>? VolumeMixerToggleRequested;  // ADD THIS
 
+    public MenuFlyout? ContextFlyout => _trayIcon?.ContextFlyout as MenuFlyout;
+
+    public void ShowContextMenu()
+    {
+        try
+        {
+            var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+            dispatcher?.TryEnqueue(() =>
+            {
+                try
+                {
+                    // Get current cursor position for menu placement
+                    if (Windows.Win32.PInvoke.GetCursorPos(out var pt))
+                    {
+                        var cursorPos = new System.Drawing.Point(pt.X, pt.Y);
+                        _trayIcon?.ShowContextMenu(cursorPos);
+                    }
+                    else
+                    {
+                        _trayIcon?.ShowContextMenu(new System.Drawing.Point(0, 0));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TrayService] Error showing context menu: {ex.Message}");
+                }
+            });
+        }
+        catch { }
+    }
+
+    public void ShowBalloonNotification(string title, string message, NotificationSeverity severity = NotificationSeverity.Informational)
+    {
+        try
+        {
+            var dispatcher = _dispatcherQueue ?? _trayIcon?.DispatcherQueue;
+            dispatcher?.TryEnqueue(() =>
+            {
+                try
+                {
+                    _trayIcon?.ShowNotification(title, message);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TrayService] Error showing balloon notification: {ex.Message}");
+                }
+            });
+        }
+        catch { }
+    }
+
     public TrayService(SettingsStore settingsStore, AuthService authService, LockManager lockManager)
     {
         _settingsStore = settingsStore;
@@ -548,6 +599,14 @@ public sealed class TrayService : IDisposable
             {
                 System.Diagnostics.Debug.WriteLine("Tray icon double clicked!");
                 OpenMainWindowRequested?.Invoke(this, EventArgs.Empty);
+            });
+
+            // Explicit right-click command ensures menu opens reliably every time (fixes not showing on first click)
+            // TrayRightMouseUp is a WinUI RoutedEvent; use RightClickCommand which is the supported property.
+            _trayIcon.RightClickCommand = new RelayCommand(() =>
+            {
+                System.Diagnostics.Debug.WriteLine("[TrayService] Tray icon right-clicked via RightClickCommand!");
+                ShowContextMenu();
             });
             
             UpdateTooltip();

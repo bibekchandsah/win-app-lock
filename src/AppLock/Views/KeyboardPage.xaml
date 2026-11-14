@@ -104,6 +104,35 @@
                 </Grid>
             </Border>
 
+            <!-- Lock Key Indicator Toggle Card -->
+            <Border 
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock 
+                            Text="Lock Key Indicators" 
+                            Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock 
+                            Text="Show on-screen popup when you press Caps Lock, Num Lock, or Scroll Lock"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch 
+                        x:Name="LockKeyIndicatorToggle"
+                        Grid.Column="1"
+                        MinWidth="0"
+                        OnContent=""
+                        OffContent=""
+                        Toggled="LockKeyIndicatorToggle_Toggled"
+                        VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
             <!-- About Card -->
             <Border 
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

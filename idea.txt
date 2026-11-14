@@ -277,12 +277,10 @@ fixed - camera detection: browser web video calls (Chrome, Edge) not detected de
 fixed - when user is in ring light page then "others" side navigation don't looks active
 fixed - play/pause in volume mixture slider in right end side
 implemented - currently when hovered in speaker icon it expands and shows main speaker slider can we make it such that for example currently i am playing music in edge and it will show edge volume mixture slider below the speaker sider so that if user want to make changes in volume of edge then without clicking on mixture button they can change and when i focus my chrome then it shows chrome slider .
-optimize volume mixture dragging as we are dragging clipboard window 
-remove the outer body of pink border which is making looks like rectangular instead of pills shaped
-i have applied some animation setting for notification but it's not working as it need to be, currently for first time when notification enters it shows applied animation and while exit it exit as window default that is from left to right and applied animation isn't working. make it effective and working while it enters and exit and all changes effects in realtime
-i have implemented setting for hotkey and system tray menu for notification but it don't show on the UI and default i have set "alt + n" for toggling notification and it syncs in  realtime in window UI and tray menu and in tray menu the menu are "enable/disable notification, Anchor positon > Top Left, Top Center, ......Bottom Right, custom" when user will click custom then it will trigger "pick custom position on screen" and let user pick custom position. sync all those in realtime in UI and tray menu too
-
-
+fixed - optimize volume mixture dragging as we are dragging clipboard window 
+fixed - remove the outer body of pink border which is making looks like rectangular instead of pills shaped
+fixed - i have applied some animation setting for notification but it's not working as it need to be, currently for first time fixed - when notification enters it shows applied animation and while exit it exit as window default that is from left to right and applied animation isn't working. make it effective and working while it enters and exit and all changes effects in realtime
+fixed - i have implemented setting for hotkey and system tray menu for notification but it don't show on the UI and default i have set "alt + n" for toggling notification and it syncs in  realtime in window UI and tray menu and in tray menu the menu are "enable/disable notification, Anchor positon > Top Left, Top Center, ......Bottom Right, custom" when user will click custom then it will trigger "pick custom position on screen" and let user pick custom position. sync all those in realtime in UI and tray menu too
 fixed - fix the refreshing style in protection page, it should get refreshed like "internet access > active connections"
 fixed - smooth animation when collapsing and non collapsing sidebar
 fixed - hover effect in sidebar in light mode isn't seen 
@@ -328,6 +326,44 @@ right click in taskbar app don't show content menu and show first time in notifi
 everytime notification isn't seen make it more robust so that user don't miss any notification 
 
 eye care don't show the loaded templet and just shows blank screen
+keyboard page and wi-fi passwords page: improve keyboard navigation like brightness page 
+sync the quick setting enable/disable toggle and keyboard page enable/disable toggle
+on scroll fix the card above "enable keyboard" card 
+
+speed meter:
+remove the on/off and current speed status from the card
+remove the "start with AppLock" card as "show speed meter" is enabled then widget will show automatically
+when the "show speed meter" is toggled on but still when the app is loads it don't show widget
+in the preview graph isn't shown and full preview isn't shown, we need to increase the length of preview to show full preview
+when the appearance theme is set to transparent and glass then widget background still shows black and background opacity has no effect
+when the appearance theme is set to "follows window" then show mica background effect instead of black background
+for background color, text color, download color, upload color show the color picker button and then show the color picker to choose the color and show the value of selected color as like it's in background color. so that it will use less space
+when the layout is horizontal then "mini graph" isn't show in full width
+snap to screen edges isn't working
+add reset button to reset hotkey
+show the toggle next to the text 
+in "presets and settings file" it don't show selected dropdown and shows "minimal" as hardcoded
+export settings... and import settings aren't working
+sync view history/data usage history dialog with the theme
+export CSV button isn't working
+sync "reset data usage" dialog with theme
+add the warn for download & upload & disk too
+show the toast notification when warning values is crossed of ram, cpu, download, upload "app.exe is using high cpu or ram or disk or download or upload"
+Battery charge alert: notify at 80% or 20%, using the same custom toast as Speed Meter.
+speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling and user can toggle it
+
+
+
+
+keyboard page: Caps/Num/fn lock indicator: a small on-screen pop-up when you press them.
+Wi-Fi password and QR share: show saved Wi-Fi passwords as a QR code
+Screen time tracker: per-app foreground time with daily and weekly charts, and a limit that feeds into Self-Discipline.
+Secure folder vault: an encrypted folder that opens only after AppLock authentication.
+add search box to search in google, edge 
+website lock: Website category blocking: adult, gambling and social media blocking through a filtered DNS or a block list.
+Encrypted backup and restore: export all settings with a password, and import them on a new PC.
+Network device scanner: list devices on your Wi-Fi and alert when a new unknown one joins.
+Open ports monitor: show which apps are listening on which ports, with a link to block them.
 
 
 

@@ -26,10 +26,14 @@ namespace AppLock.Views
             // is stale after the state was changed from the Others card.
             _viewModel.RefreshStatus();
 
-            // Update toggle without triggering event
+            // Update toggles without triggering events
             KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
             KeyboardToggle.IsOn = _viewModel.Enabled;
             KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+
+            LockKeyIndicatorToggle.Toggled -= LockKeyIndicatorToggle_Toggled;
+            LockKeyIndicatorToggle.IsOn = ServiceContainer.Settings.LockKeyIndicator.Enabled;
+            LockKeyIndicatorToggle.Toggled += LockKeyIndicatorToggle_Toggled;
 
             UpdateStatus();
         }
@@ -193,6 +197,12 @@ namespace AppLock.Views
             {
                 System.Diagnostics.Debug.WriteLine($"[KeyboardPage] Restart as administrator failed: {ex.Message}");
             }
+        }
+
+        private void LockKeyIndicatorToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var isEnabled = LockKeyIndicatorToggle.IsOn;
+            ServiceContainer.SetLockKeyIndicatorEnabled(isEnabled);
         }
     }
 }

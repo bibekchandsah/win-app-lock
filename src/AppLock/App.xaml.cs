@@ -86,6 +86,7 @@ public partial class App : Application
         {
             AppLock.Services.ServiceContainer.InitializeVolumeMixer(_mainWindow.DispatcherQueue);
             AppLock.Services.ServiceContainer.InitializeNotificationCustomizer();
+            AppLock.Services.ServiceContainer.InitializeLockKeyIndicator(_mainWindow.DispatcherQueue);
             AppLock.Services.ServiceContainer.InitializeSpeedMeter(_mainWindow.DispatcherQueue);
         }
 

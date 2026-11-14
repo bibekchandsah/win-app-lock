@@ -79,6 +79,9 @@ public class AppSettings
     // Keyboard
     public KeyboardSettings Keyboard { get; set; } = new();
 
+    // Lock Key Indicator
+    public LockKeyIndicatorSettings LockKeyIndicator { get; set; } = new();
+
     // Speed Meter
     public SpeedMeterSettings SpeedMeter { get; set; } = new();
 
