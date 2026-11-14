@@ -484,8 +484,10 @@ public sealed partial class ClipboardPopupWindow : Window
         {
             UpdateStatusBadges();
 
+            // Show the whole history the user chose to keep instead of a fixed 100-row page.
+            int historyLimit = ServiceContainer.Settings.Clipboard.MaxItems;
             var rawItems = await ServiceContainer.ClipboardStore.GetItemsAsync(
-                limit: 100,
+                limit: historyLimit,
                 filter: _currentFilter,
                 search: _currentSearch);
 

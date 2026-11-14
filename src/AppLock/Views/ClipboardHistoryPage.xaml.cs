@@ -137,8 +137,9 @@ public sealed partial class ClipboardHistoryPage : Page
     {
         try
         {
+            // Load up to the configured history limit rather than a fixed 200-row page.
             var rawItems = await ServiceContainer.ClipboardStore.GetItemsAsync(
-                limit: 200,
+                limit: ServiceContainer.Settings.Clipboard.MaxItems,
                 filter: _currentFilter,
                 search: _currentSearch);
 

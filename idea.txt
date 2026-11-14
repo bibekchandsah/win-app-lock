@@ -311,17 +311,17 @@ fixed - when app start with window auto start then open in minimize in tray
 fixed - in protection page "self-discipline" dialog don't follow accent color
 fixed - add the meaningful message in the "running applications" tab when no application is running
 fixed - search bar in others page
-brightness page: edit button & blur hotkey -> change button isn't working 
-ring light page: hotkey -> change button isn't working
+fixed - brightness page: edit button & blur hotkey -> change button isn't working 
+fixed - ring light page: hotkey -> change button isn't working
+fixed - in keyboard page add button to "restart app with administrator" show this card in top
+fixed - show the way to do manually too if this don't work 
+fixed - in clipboard insted of 1day ago show the exact date & time
 
 
 
 rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
 z-index like microsoft store effect in other page
 
-in keyboard page add button to "restart app with administrator" show this card in top
-show the way to do manually too if this don't work 
-in clipboard insted of 1day ago show the exact date & time
 
 right click in taskbar app don't show content menu and show first time in notification area 
 everytime notification isn't seen make it more robust so that user don't miss any notification 

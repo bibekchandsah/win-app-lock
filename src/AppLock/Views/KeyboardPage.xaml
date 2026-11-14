@@ -175,6 +175,57 @@
                     </Button>
                 </Grid>
             </Border>
+
+            <!-- Manual fallback when the toggle cannot apply the change -->
+            <Border 
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20">
+                <StackPanel Spacing="8">
+                    <TextBlock 
+                        Text="Manual method" 
+                        Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                    <TextBlock 
+                        Text="If the toggle above does not work, disable or enable the internal keyboard through the keyboard driver's start mode, then restart the PC."
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"/>
+
+                    <StackPanel Spacing="6" Margin="0,6,0,0">
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}">
+                            <Run Text="1. Press "/><Run Text="Win + R" FontWeight="SemiBold"/><Run Text=", type "/><Run Text="regedit" FontWeight="SemiBold"/><Run Text=" and press Enter."/>
+                        </TextBlock>
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}">
+                            <Run Text="2. Navigate to"/>
+                        </TextBlock>
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                CornerRadius="4"
+                                Padding="10,6"
+                                HorizontalAlignment="Left">
+                            <TextBlock 
+                                Text="Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\i8042prt"
+                                FontFamily="Consolas"
+                                FontSize="12"
+                                IsTextSelectionEnabled="True"
+                                TextWrapping="Wrap"/>
+                        </Border>
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}">
+                            <Run Text="3. Set "/><Run Text="Start" FontWeight="SemiBold"/><Run Text=" to "/><Run Text="4" FontWeight="SemiBold"/><Run Text=" to disable the internal keyboard, or "/><Run Text="3" FontWeight="SemiBold"/><Run Text=" to enable it."/>
+                        </TextBlock>
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}">
+                            <Run Text="4. Restart the PC for the change to take effect."/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <TextBlock 
+                        Text="Note: disabling the driver turns off the built-in keyboard only. Keep a USB keyboard or the on-screen keyboard (Settings › Accessibility › Keyboard) available so you can turn it back on."
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

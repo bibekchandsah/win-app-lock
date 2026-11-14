@@ -166,7 +166,8 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
         }
     }
 
-    public string RelativeTime => GetRelativeTime(_item.LastUsedAt);
+    /// <summary>Exact local date and time the item was last used (e.g. 11/14/2026 2:32 PM).</summary>
+    public string DisplayTime => FormatTimestamp(_item.LastUsedAt);
 
     public bool IsLink => !string.IsNullOrEmpty(PreviewText) && 
                           (PreviewText.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
@@ -361,16 +362,11 @@ public sealed partial class ClipboardItemViewModel : ObservableObject
         catch { }
     }
 
-    public static string GetRelativeTime(long unixMs)
+    /// <summary>Formats a Unix timestamp as the exact local date and time, following the user's locale.</summary>
+    public static string FormatTimestamp(long unixMs)
     {
         if (unixMs <= 0) return "";
         var dt = DateTimeOffset.FromUnixTimeMilliseconds(unixMs).ToLocalTime();
-        var span = DateTimeOffset.Now - dt;
-
-        if (span.TotalSeconds < 45) return "Just now";
-        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
-        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
-        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
-        return dt.ToString("M");
+        return dt.ToString("g", System.Globalization.CultureInfo.CurrentCulture);
     }
 }
