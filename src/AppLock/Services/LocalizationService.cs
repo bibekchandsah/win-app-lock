@@ -142,7 +142,7 @@ public class LocalizationService
             ["LockoutDuration"] = "Lockout Duration (minutes)",
             ["LockoutDurationDesc"] = "Lockout duration after exceeding max attempts",
             ["AutoLockIdle"] = "Auto-lock when Idle",
-            ["AutoLockIdleDesc"] = "Hide the main window and require the admin password again after this period without keyboard/mouse activiity. Set to 0 to disable",
+            ["AutoLockIdleDesc"] = "Ask for the password again after this period without keyboard/mouse activity in the AppLock window (activity in other apps doesn't count). Set to 0 to disable",
             ["SectionAdvanced"] = "Advanced",
             ["EmergencyHotkey"] = "Emergency Lock Hotkey",
             ["EmergencyHotkeyDesc"] = "Press this combination to lock all protected apps instantly; rebind it if it clashes with another program",

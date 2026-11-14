@@ -529,10 +529,36 @@ public sealed partial class MainWindow : Window
             {
                 var dialog = new AuthDialog(ServiceContainer.AuthService)
                 {
-                    XamlRoot = ContentFrame.XamlRoot ?? Content?.XamlRoot
+                    XamlRoot = ContentFrame.XamlRoot ?? Content?.XamlRoot,
+                    Title = "AppLock is locked",
+                    IntroText = "Enter your AppLock password to unlock."
                 };
 
-                await dialog.ShowAsync();
+                try
+                {
+                    await dialog.ShowAsync();
+                }
+                catch (Exception ex)
+                {
+                    // Another ContentDialog was still open (e.g. one that was open when the idle
+                    // lock fired). Close it and try the prompt once more instead of leaving the
+                    // window usable without a password.
+                    IdleService.Log($"Unlock prompt failed ({ex.Message}) - closing leftover dialogs");
+                    CloseOpenDialogs();
+                    await Task.Delay(150);
+                    try
+                    {
+                        await dialog.ShowAsync();
+                    }
+                    catch (Exception ex2)
+                    {
+                        IdleService.Log($"Unlock prompt could not be shown: {ex2.Message}");
+                        _isMainAuthenticated = false;
+                        Hide();
+                        _loginShown = false;
+                        break;
+                    }
+                }
 
                 System.Diagnostics.Debug.WriteLine($"IsAuthenticated: {dialog.IsAuthenticated}");
 
@@ -540,18 +566,23 @@ public sealed partial class MainWindow : Window
                 if (dialog.IsAuthenticated)
                 {
                     _isMainAuthenticated = true;
-                    System.Diagnostics.Debug.WriteLine("Authentication successful, navigating to ProtectionPage");
+                    System.Diagnostics.Debug.WriteLine("Authentication successful");
+                    IdleService.Log("AppLock unlocked");
 
-                    // Restore navigation rail
+                    // Restore navigation rail. The page the user was on is kept; only an empty
+                    // frame (first unlock after launch) is filled with the protection page.
                     Grid.SetColumn(ContentFrame, 1);
                     ContentFrame.ClearValue(Grid.ColumnSpanProperty);
                     NavRailCard.Visibility = Visibility.Visible;
-                    
-                    try
+
+                    if (ContentFrame.Content == null)
                     {
                         ContentFrame.Navigate(typeof(ProtectionPage));
-                        
-                        // Start overlay manager if protection is enabled
+                    }
+
+                    // Start overlay manager if protection is enabled
+                    try
+                    {
                         if (ServiceContainer.Settings.IsProtectionEnabled)
                         {
                             ServiceContainer.OverlayManager.Start();
@@ -561,15 +592,18 @@ public sealed partial class MainWindow : Window
                     {
                         System.Diagnostics.Debug.WriteLine($"ERROR during initialization: {ex.Message}");
                     }
-                    
+
+                    NoteWindowActivity();
                     break;
                 }
                 else
                 {
-                    // User cancelled the login prompt on startup - minimize to tray instead of exiting,
-                    // so protected apps REMAIN strictly locked and guarded!
+                    // Cancelled: stay locked and minimized to the tray. Nothing in the window may be
+                    // used without the password.
+                    _isMainAuthenticated = false;
                     Hide();
                     _loginShown = false;
+                    IdleService.Log("Unlock cancelled - AppLock kept locked in the tray");
                     break;
                 }
             }
@@ -1129,7 +1163,7 @@ public sealed partial class MainWindow : Window
 
         // Start idle monitoring if configured
         StartIdleMonitoring();
-        StartIdleWatchdog();
+        InitializeIdleLockTracking();
 
         // Wire up idle service event
         ServiceContainer.IdleService.IdleTimeReached += IdleService_IdleTimeReached;
@@ -1631,62 +1665,81 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Self-heals the idle monitor: the service stops itself when it fires, and it can also be left
-    /// stopped by a failed or cancelled unlock. Without this, auto-lock stayed dead until restart.
+    /// Tracks interaction with the AppLock window and locks it when this window has been idle for
+    /// the configured time. Only activity in this window counts — working in other apps does not
+    /// keep AppLock unlocked, and system-wide idleness is not required.
     /// </summary>
-    private void EnsureIdleMonitoring()
+    private void InitializeIdleLockTracking()
+    {
+        try
+        {
+            if (Content is UIElement root)
+            {
+                var pointerHandler = new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) => NoteWindowActivity());
+                root.AddHandler(UIElement.PointerMovedEvent, pointerHandler, true);
+                root.AddHandler(UIElement.PointerPressedEvent, pointerHandler, true);
+                root.AddHandler(UIElement.PointerWheelChangedEvent, pointerHandler, true);
+                root.AddHandler(UIElement.KeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler((s, e) => NoteWindowActivity()), true);
+            }
+
+            Activated += (s, e) => NoteWindowActivity();
+
+            _idleWatchdogTimer?.Stop();
+            _idleWatchdogTimer = DispatcherQueue.CreateTimer();
+            _idleWatchdogTimer.Interval = TimeSpan.FromSeconds(5);
+            _idleWatchdogTimer.IsRepeating = true;
+            _idleWatchdogTimer.Tick += (s, e) => CheckIdleLock();
+            _idleWatchdogTimer.Start();
+
+            IdleService.Log("Idle lock tracking started (per AppLock window)");
+        }
+        catch (Exception ex)
+        {
+            IdleService.Log($"Idle lock tracking error: {ex.Message}");
+        }
+    }
+
+    private void NoteWindowActivity() => _lastWindowActivity = DateTime.UtcNow;
+
+    /// <summary>True when the AppLock window is actually on screen and can be locked.</summary>
+    private bool IsWindowActivelyVisible()
+    {
+        if (_appWindow == null || !_appWindow.IsVisible) return false;
+
+        if (_appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter &&
+            presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void CheckIdleLock()
     {
         try
         {
             var minutes = ServiceContainer.Settings.AutoLockIdleMinutes;
             if (minutes <= 0) return;
 
-            // While the idle lock screen is up the monitor is intentionally stopped.
-            if (_isIdleLockShowing) return;
-
-            var idle = ServiceContainer.IdleService;
-            if (!idle.IsMonitoring || idle.ThresholdMinutes != minutes)
+            // Already asking for the password, or nothing visible to lock.
+            if (!_isMainAuthenticated || _isAuthDialogOpen || !IsWindowActivelyVisible())
             {
-                idle.StartMonitoring(minutes);
-                IdleService.Log($"Watchdog: monitoring (re)started for {minutes} minutes");
+                NoteWindowActivity();
+                return;
             }
 
-            // Hooks can be lost (another hook crashing, a shell restart); reinstall them on demand.
-            if (!InputActivityMonitor.IsRunning)
+            double idleMinutes = (DateTime.UtcNow - _lastWindowActivity).TotalMinutes;
+            if (idleMinutes >= minutes)
             {
-                InputActivityMonitor.Start();
-                IdleService.Log($"Watchdog: input hooks started = {InputActivityMonitor.IsRunning}");
-            }
-
-            // Lock from the watchdog as well: this checks the idle clock directly, so a lost timer
-            // callback or a stopped monitor can no longer keep AppLock unlocked.
-            double idleMinutes = IdleService.CurrentIdleMinutes;
-            if (_idleLockDeclined && idleMinutes < minutes)
-            {
-                // Real input happened since the user dismissed the lock screen — arm it again.
-                _idleLockDeclined = false;
-            }
-
-            if (!_idleLockDeclined && idleMinutes >= minutes)
-            {
-                IdleService.Log($"Watchdog: idle {idleMinutes:F1} min (threshold {minutes}) - locking now");
-                IdleService_IdleTimeReached(this, EventArgs.Empty);
+                IdleService.Log($"AppLock window idle {idleMinutes:F1} min (threshold {minutes}) - minimizing to tray and locking");
+                LockToTray();
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Idle monitoring watchdog error: {ex.Message}");
+            IdleService.Log($"Idle lock check error: {ex.Message}");
         }
-    }
-
-    private void StartIdleWatchdog()
-    {
-        _idleWatchdogTimer?.Stop();
-        _idleWatchdogTimer = DispatcherQueue.CreateTimer();
-        _idleWatchdogTimer.Interval = TimeSpan.FromSeconds(20);
-        _idleWatchdogTimer.IsRepeating = true;
-        _idleWatchdogTimer.Tick += (s, e) => EnsureIdleMonitoring();
-        _idleWatchdogTimer.Start();
     }
 
     private void OnEmergencyLockHotkey()
@@ -1707,75 +1760,96 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private IdleLockWindow? _idleLockWindow;
-    private bool _isIdleLockShowing;
-    private bool _idleLockDeclined;
+    private DateTime _lastWindowActivity = DateTime.UtcNow;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _idleWatchdogTimer;
 
-    private void IdleService_IdleTimeReached(object? sender, EventArgs e)
-    {
-        System.Diagnostics.Debug.WriteLine("Idle time reached - locking app");
-
-        if (_isIdleLockShowing) return;
-        _isIdleLockShowing = true;
-        _isMainAuthenticated = false;
-
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            try
-            {
-                // Hide main window, then cover the desktop with the idle lock window
-                Hide();
-                ShowIdleLock();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Idle lock error: {ex.Message}");
-                _isIdleLockShowing = false;
-
-                // Never leave the app hidden without a lock screen on top of it.
-                try { Show(); } catch { }
-            }
-        });
-    }
-
     /// <summary>
-    /// Shows the idle lock in its own window. That keeps it visible while the main window is hidden
-    /// and while a dialog of the main window is open, and it avoids prompting a second time after
-    /// unlocking (which used to navigate away to the protection page).
+    /// Closes every ContentDialog currently open in this window so the window can be locked and the
+    /// idle unlock prompt can be shown later. Returns true when nothing is left open.
     /// </summary>
-    private void ShowIdleLock()
+    private bool CloseOpenDialogs()
     {
         try
         {
-            var window = new IdleLockWindow(ServiceContainer.AuthService);
-            _idleLockWindow = window;
+            var xamlRoot = ContentFrame.XamlRoot ?? Content?.XamlRoot;
+            if (xamlRoot == null) return true;
 
-            window.Closed += (s, e) =>
+            var openPopups = VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot);
+            var closed = 0;
+
+            foreach (var popup in openPopups)
             {
-                _idleLockWindow = null;
-                _isIdleLockShowing = false;
+                var dialog = FindContentDialog(popup.Child);
+                if (dialog == null) continue;
 
-                if (!window.Unlocked)
+                dialog.Hide();
+                closed++;
+            }
+
+            if (closed > 0)
+            {
+                IdleService.Log($"Closed {closed} open dialog(s) before locking");
+            }
+            else if (openPopups.Count > 0)
+            {
+                // No ContentDialog element in the popup layer (e.g. a flyout or drop-down): close
+                // the popups so nothing is left floating over the locked window.
+                foreach (var popup in openPopups)
                 {
-                    // Dismissed without unlocking: wait for real input before locking again, so the
-                    // lock screen cannot bounce back the moment it is closed.
-                    _idleLockDeclined = true;
-                    return;
+                    try { popup.IsOpen = false; } catch { }
                 }
+                IdleService.Log($"Closed {openPopups.Count} open popup(s) before locking");
+            }
 
-                // Already verified in the lock window: no second prompt, and stay on the current page.
-                _isMainAuthenticated = true;
-                Show();
-                StartIdleMonitoring();
-            };
-
-            window.Activate();
+            return closed == 0 ? openPopups.Count == 0 : true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error showing idle lock window: {ex.Message}");
-            _isIdleLockShowing = false;
+            IdleService.Log($"Closing open dialogs failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static ContentDialog? FindContentDialog(DependencyObject? root)
+    {
+        if (root == null) return null;
+        if (root is ContentDialog dialog) return dialog;
+
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var found = FindContentDialog(VisualTreeHelper.GetChild(root, i));
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
+    private void IdleService_IdleTimeReached(object? sender, EventArgs e) => LockToTray();
+
+    /// <summary>
+    /// Idle auto-lock: require the password again and minimize AppLock to the tray. The password
+    /// prompt is shown inside the AppLock window (never in a separate window) when it is reopened
+    /// from the tray, and cancelling that prompt keeps the app minimized and locked.
+    /// </summary>
+    private void LockToTray()
+    {
+        try
+        {
+            if (!_isMainAuthenticated) return;
+
+            _isMainAuthenticated = false;
+
+            // A ContentDialog that is open right now (e.g. a hotkey or settings dialog) would keep
+            // the window from being locked and later block the unlock prompt. Close it first.
+            CloseOpenDialogs();
+
+            IdleService.Log("Idle auto-lock: minimized to tray, password required");
+            Hide();
+        }
+        catch (Exception ex)
+        {
+            IdleService.Log($"Idle auto-lock error: {ex.Message}");
         }
     }
 
@@ -1855,6 +1929,9 @@ public sealed partial class MainWindow : Window
             this.Activate();
             PInvoke.BringWindowToTop(_hwnd);
             PInvoke.SetForegroundWindow(_hwnd);
+
+            // Reopening the window counts as activity for the idle clock.
+            NoteWindowActivity();
 
             System.Diagnostics.Debug.WriteLine("MainWindow restored and brought to foreground");
 

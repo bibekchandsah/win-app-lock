@@ -236,9 +236,9 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtAutoLockIdle" Text="Auto-lock when idle"/>
+                                    <TextBlock x:Name="TxtAutoLockIdle" Text="Lock AppLock when idle"/>
                                     <TextBlock x:Name="TxtAutoLockIdleDesc" 
-                                               Text="Hide the main window and require the admin password again after this period without keyboard/mouse activity. Set to 0 to disable."
+                                               Text="Ask for the password again after this period without keyboard/mouse activity in the AppLock window (activity in other apps doesn't count). Set to 0 to disable."
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                TextWrapping="Wrap"/>

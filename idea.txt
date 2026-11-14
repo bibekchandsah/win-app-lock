@@ -300,14 +300,18 @@ fixed - let user select microphone and sync the microphone in realtime
 fixed - let user choose the speaker and sync in realtime
 fixed - add brightness slider too with toggle option 
 
-auto lock whatever page is in currently on Idle
-after idle lock it's also asking to verify admin password
-when some dialogbox is open then it don't show idle unlock dialogbox
-after unlock it redirects to protection page instead of current page 
-auto trigger window hellow when available
-clicking in "running applications" app list will open the selected app list 
-sometime have to click two time close icon to close window 
+fixed - auto trigger window hellow when available
+fixed - auto lock whatever page is in currently on Idle
+fixed - after idle lock it's also asking to verify admin password
+fixed - after unlock it redirects to protection page instead of current page 
+fixed - sometime have to click two time close icon to close window 
+fixed - clicking in "running applications" app list will open the selected app list 
+fixed - when some dialogbox is open then it don't show idle unlock dialogbox
 when start app with window auto start then minimize it
+brightness page: edit & blur hotkey -> change 
+ring light page: hotkey -> change
+self-discipline accent color
+
 
 
 rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box

@@ -239,7 +239,9 @@
                                 CornerRadius="8">
                             <ListView x:Name="RunningProgramsList"
                                       ItemsSource="{x:Bind RunningViewModel.FilteredWindows, Mode=OneWay}"
-                                      SelectionMode="None">
+                                      SelectionMode="None"
+                                      IsItemClickEnabled="True"
+                                      ItemClick="RunningProgramsList_ItemClick">
                                 <!-- Only added/removed rows animate, so a refresh fades rows instead of
                                      replaying an entrance animation over the whole list. -->
                                 <ListView.ItemContainerTransitions>

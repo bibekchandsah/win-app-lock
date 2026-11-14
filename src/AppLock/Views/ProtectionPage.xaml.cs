@@ -7,6 +7,9 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace AppLock.Views;
 
@@ -882,6 +885,27 @@ public sealed partial class ProtectionPage : Page
         return new SolidColorBrush(isDark
             ? Color.FromArgb(35, 255, 255, 255)   // ~14% white overlay for dark theme
             : Color.FromArgb(22, 0, 0, 0));        // ~9% black overlay for light theme
+    }
+
+    /// <summary>
+    /// Clicking an entry in "Running programs" brings that app's window to the foreground (and
+    /// restores it first if it is minimized).
+    /// </summary>
+    private void RunningProgramsList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not RunningWindow window || window.Handle == nint.Zero)
+            return;
+
+        try
+        {
+            var hwnd = new HWND(window.Handle);
+            PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
+            PInvoke.SetForegroundWindow(hwnd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Protection] Could not focus window: {ex.Message}");
+        }
     }
 
     private void ListItem_PointerEntered(object sender, PointerRoutedEventArgs e)
