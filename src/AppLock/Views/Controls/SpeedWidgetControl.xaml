@@ -62,12 +62,18 @@
                     <Polyline x:Name="UpSpark" StrokeThickness="1.5"/>
                 </Canvas>
 
-                <!-- "metered" badge: shown when Windows reports a metered connection -->
-                <TextBlock x:Name="MeteredBadge"
-                           Text="metered"
-                           FontSize="9"
-                           Opacity="0.75"
-                           Visibility="Collapsed"/>
+                <!-- Status badges: metered connection and VPN adapter -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock x:Name="MeteredBadge"
+                               Text="metered"
+                               FontSize="9"
+                               Opacity="0.75"
+                               Visibility="Collapsed"/>
+                    <StackPanel x:Name="VpnBadge" Orientation="Horizontal" Spacing="3" Visibility="Collapsed">
+                        <FontIcon Glyph="&#xE72E;" FontSize="9" Opacity="0.75"/>
+                        <TextBlock Text="VPN" FontSize="9" Opacity="0.75"/>
+                    </StackPanel>
+                </StackPanel>
 
                 <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
                 <StackPanel x:Name="ExtraPanel" Spacing="2"/>

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using AppLock.Services;
+using AppLock.Views.Dialogs;
 using AppLock.Services.SpeedMeter;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -57,6 +59,7 @@ public sealed partial class NetworkFlyoutWindow : Window
 
     private NetworkDetails _details = new();
     private string _localIp = string.Empty;
+    private string? _publicIp;
 
     /// <summary>Raised when the user pauses or resumes tracking from the flyout.</summary>
     public event EventHandler<bool>? PauseToggled;
@@ -312,6 +315,55 @@ public sealed partial class NetworkFlyoutWindow : Window
         catch (Exception ex)
         {
             Debug.WriteLine($"[SpeedMeter] Copy IP error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Opt-in: one request to api.ipify.org, only when this button is pressed.</summary>
+    private async void PublicIp_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_publicIp is not null) CopyToClipboard(_publicIp);
+            else
+            {
+                PublicIpButton.IsEnabled = false;
+                PublicIpText.Visibility = Visibility.Visible;
+                PublicIpText.Text = "Contacting api.ipify.org…";
+
+                _publicIp = await SpeedTestService.GetPublicIpAsync(CancellationToken.None);
+
+                PublicIpText.Text = $"Public IP: {_publicIp}";
+                PublicIpButton.Content = "Copy public IP";
+            }
+        }
+        catch (Exception ex)
+        {
+            PublicIpText.Visibility = Visibility.Visible;
+            PublicIpText.Text = $"Public IP unavailable: {ex.Message}";
+        }
+        finally
+        {
+            PublicIpButton.IsEnabled = true;
+        }
+    }
+
+    private async void SpeedTest_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SpeedTestDialog { XamlRoot = Card.XamlRoot };
+        await dialog.ShowAsync();
+    }
+
+    private static void CopyToClipboard(string text)
+    {
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(text);
+            Clipboard.SetContent(package);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[SpeedMeter] Clipboard error: {ex.Message}");
         }
     }
 

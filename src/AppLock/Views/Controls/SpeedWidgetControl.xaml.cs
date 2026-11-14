@@ -35,6 +35,7 @@ public sealed partial class SpeedWidgetControl : UserControl
     private long _todayDown;
     private long _todayUp;
     private bool _metered;
+    private bool _vpn;
 
     private readonly Queue<double> _downHistory = new();
     private readonly Queue<double> _upHistory = new();
@@ -155,6 +156,8 @@ public sealed partial class SpeedWidgetControl : UserControl
         MeteredBadge.FontSize = 9 * scale;
         MeteredBadge.Foreground = textBrush;
 
+        VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
+
         BuildRows(settings, textBrush, 11 * scale, font, textBrush);
         ApplyStatsValues();
     }
@@ -228,13 +231,15 @@ public sealed partial class SpeedWidgetControl : UserControl
     };
 
     /// <summary>Today's totals and the metered flag, fed by the service.</summary>
-    public void SetUsage(long todayDown, long todayUp, bool metered)
+    public void SetUsage(long todayDown, long todayUp, bool metered, bool vpn)
     {
         _todayDown = todayDown;
         _todayUp = todayUp;
         _metered = metered;
+        _vpn = vpn;
 
         MeteredBadge.Visibility = metered ? Visibility.Visible : Visibility.Collapsed;
+        VpnBadge.Visibility = vpn ? Visibility.Visible : Visibility.Collapsed;
         ApplyStatsValues();
     }
 

@@ -81,6 +81,9 @@ public sealed partial class SpeedWidgetWindow : Window
     private bool _clickThroughActive;
     private bool _captureExcluded;
     private bool _hiddenForFullscreen;
+    private bool _idleHidden;
+    private bool _disconnectedHidden;
+    private bool _currentlyHidden;
     private POINT _dragStartCursor;
     private PointInt32 _dragStartWindow;
 
@@ -313,18 +316,39 @@ public sealed partial class SpeedWidgetWindow : Window
     /// <summary>Updates the optional CPU / RAM / disk / GPU / battery rows.</summary>
     public void SetStats(SystemStats stats) => Widget.SetStats(stats);
 
-    /// <summary>Today's totals row and the metered badge.</summary>
-    public void SetUsage(long todayDown, long todayUp, bool metered)
-        => Widget.SetUsage(todayDown, todayUp, metered);
+    /// <summary>Today's totals row plus the metered and VPN badges.</summary>
+    public void SetUsage(long todayDown, long todayUp, bool metered, bool vpn)
+        => Widget.SetUsage(todayDown, todayUp, metered, vpn);
 
     /// <summary>Hides for full-screen apps / unhides afterwards without closing the window.</summary>
     public void SetFullscreenHidden(bool hidden)
     {
-        if (_hiddenForFullscreen == hidden) return;
+        _hiddenForFullscreen = hidden;
+        ApplyVisibility();
+    }
+
+    /// <summary>Hidden because traffic stayed below the idle threshold.</summary>
+    public void SetIdleHidden(bool hidden)
+    {
+        _idleHidden = hidden;
+        ApplyVisibility();
+    }
+
+    /// <summary>Hidden because the connection is down and the user asked for that.</summary>
+    public void SetDisconnectedHidden(bool hidden)
+    {
+        _disconnectedHidden = hidden;
+        ApplyVisibility();
+    }
+
+    private void ApplyVisibility()
+    {
+        var hide = _hiddenForFullscreen || _idleHidden || _disconnectedHidden;
+        if (hide == _currentlyHidden) return;
 
         try
         {
-            if (hidden)
+            if (hide)
             {
                 AppWindow?.Hide();
             }
@@ -334,11 +358,31 @@ public sealed partial class SpeedWidgetWindow : Window
                 KeepOnTop();
             }
 
-            _hiddenForFullscreen = hidden;
+            _currentlyHidden = hide;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Visibility error: {ex.Message}");
+        }
+    }
+
+    /// <summary>True when the mouse is over the widget, used to "peek" while idle-hidden.</summary>
+    public bool ContainsCursor()
+    {
+        try
+        {
+            if (AppWindow is not { } appWindow) return false;
+            if (!GetCursorPos(out var cursor)) return false;
+
+            var position = appWindow.Position;
+            var size = appWindow.Size;
+
+            return cursor.x >= position.X && cursor.x < position.X + size.Width
+                && cursor.y >= position.Y && cursor.y < position.Y + size.Height;
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 

@@ -1,0 +1,50 @@
+<ContentDialog
+    x:Class="AppLock.Views.Dialogs.SpeedTestDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Speed test"
+    CloseButtonText="Close"
+    DefaultButton="Close"
+    CornerRadius="8">
+
+    <StackPanel Spacing="12" MinWidth="420">
+        <TextBlock Text="This test downloads 10 MB and uploads 5 MB using Cloudflare's public speed-test endpoints. It only runs when you press Start."
+                   FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="StartButton" Content="Start test" Click="Start_Click"/>
+            <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False"/>
+            <ProgressRing x:Name="Progress" Width="20" Height="20" IsActive="False"/>
+        </StackPanel>
+
+        <TextBlock x:Name="StatusText"
+                   Text="Not started."
+                   FontSize="13"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12">
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="ResultText"
+                           Text="No result yet"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="Results are kept for this session only."
+                           FontSize="11"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Recent results" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <StackPanel x:Name="HistoryPanel" Spacing="2"/>
+    </StackPanel>
+</ContentDialog>

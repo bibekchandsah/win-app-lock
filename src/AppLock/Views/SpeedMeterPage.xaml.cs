@@ -65,6 +65,11 @@ public sealed partial class SpeedMeterPage : Page
         MinOutageBox.Minimum = 1;
         MinOutageBox.Maximum = 300;
 
+        IdleThresholdBox.Minimum = 0;
+        IdleThresholdBox.Maximum = 100_000;
+        IdleSecondsBox.Minimum = 1;
+        IdleSecondsBox.Maximum = 3600;
+
         DailyCapBox.Minimum = 0;
         DailyCapBox.Maximum = 10_000;
         MonthlyCapBox.Minimum = 0;
@@ -185,7 +190,12 @@ public sealed partial class SpeedMeterPage : Page
         ClickThroughToggle.IsOn = Settings.ClickThrough;
         HideFullscreenToggle.IsOn = Settings.HideInFullscreen;
         HideFromCaptureToggle.IsOn = Settings.HideFromCapture;
+        HideIdleToggle.IsOn = Settings.HideWhenIdle;
+        HideDisconnectedToggle.IsOn = Settings.HideWhenDisconnected;
+        IdleThresholdBox.Value = Math.Clamp(Settings.IdleThresholdKBps, 0, 100_000);
+        IdleSecondsBox.Value = Math.Clamp(Settings.IdleSeconds, 1, 3600);
         UpdateHotkeyText();
+        BuildPresetCombo();
 
         SelectComboByTag(FontCombo, Settings.FontFamily);
         SelectComboByTag(WeightCombo, Settings.FontWeight);
@@ -850,6 +860,180 @@ public sealed partial class SpeedMeterPage : Page
         if (_loading) return;
         Settings.HideInFullscreen = HideFullscreenToggle.IsOn;
         SaveBehavior();
+    }
+
+    private void HideIdleToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.HideWhenIdle = HideIdleToggle.IsOn;
+        if (!HideIdleToggle.IsOn) ServiceContainer.SpeedMeterService?.RevealWidget();
+        SaveBehavior();
+    }
+
+    private void HideDisconnectedToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+
+        Settings.HideWhenDisconnected = HideDisconnectedToggle.IsOn;
+        if (!HideDisconnectedToggle.IsOn) ServiceContainer.SpeedMeterService?.RevealWidget();
+        SaveBehavior();
+    }
+
+    private void IdleNumber_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loading) return;
+
+        if (!double.IsNaN(IdleThresholdBox.Value))
+        {
+            Settings.IdleThresholdKBps = Math.Clamp(IdleThresholdBox.Value, 0, 100_000);
+        }
+
+        if (!double.IsNaN(IdleSecondsBox.Value))
+        {
+            Settings.IdleSeconds = (int)Math.Clamp(IdleSecondsBox.Value, 1, 3600);
+        }
+
+        SaveBehavior();
+    }
+
+    // ── Presets and settings file ────────────────────────────────────────────
+
+    private void BuildPresetCombo()
+    {
+        PresetCombo.Items.Clear();
+
+        foreach (var (id, name) in SpeedMeterPresets.BuiltIn)
+        {
+            PresetCombo.Items.Add(new ComboBoxItem { Content = name, Tag = $"builtin:{id}" });
+        }
+
+        foreach (var preset in Settings.CustomPresets)
+        {
+            PresetCombo.Items.Add(new ComboBoxItem { Content = preset.Name, Tag = $"custom:{preset.Name}" });
+        }
+
+        if (PresetCombo.Items.Count > 0) PresetCombo.SelectedIndex = 0;
+    }
+
+    private void ApplyPreset_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = (PresetCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        if (tag is null) return;
+
+        if (tag.StartsWith("builtin:", StringComparison.Ordinal))
+        {
+            SpeedMeterPresets.Apply(Settings, tag["builtin:".Length..]);
+        }
+        else if (tag.StartsWith("custom:", StringComparison.Ordinal))
+        {
+            var name = tag["custom:".Length..];
+            var preset = Settings.CustomPresets.FirstOrDefault(p => p.Name == name);
+            if (preset is null) return;
+
+            SpeedMeterPresets.ApplyAppearanceJson(Settings, preset.SettingsJson);
+        }
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.ApplySettings();
+
+        LoadFromSettings();
+    }
+
+    private void SavePreset_Click(object sender, RoutedEventArgs e)
+    {
+        var name = NewPresetNameBox.Text?.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        var json = SpeedMeterPresets.CaptureAppearance(Settings);
+        var existing = Settings.CustomPresets.FirstOrDefault(p => p.Name == name);
+
+        if (existing is null)
+        {
+            Settings.CustomPresets.Add(new SpeedMeterPreset { Name = name, SettingsJson = json });
+        }
+        else
+        {
+            existing.SettingsJson = json;
+        }
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        NewPresetNameBox.Text = string.Empty;
+        BuildPresetCombo();
+    }
+
+    private void DeletePreset_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = (PresetCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        if (tag is null || !tag.StartsWith("custom:", StringComparison.Ordinal)) return;
+
+        var name = tag["custom:".Length..];
+        Settings.CustomPresets.RemoveAll(p => p.Name == name);
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        BuildPresetCombo();
+    }
+
+    private async void ExportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileSavePicker
+            {
+                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
+                SuggestedFileName = "applock-speed-meter"
+            };
+            picker.FileTypeChoices.Add("JSON", new List<string> { ".json" });
+
+            if (App.MainWindowInstance is { } window)
+            {
+                WinRT.Interop.InitializeWithWindow.Initialize(
+                    picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
+            }
+
+            var file = await picker.PickSaveFileAsync();
+            if (file is null) return;
+
+            await Windows.Storage.FileIO.WriteTextAsync(
+                file, SpeedMeterPresets.CaptureAppearance(Settings));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Export error: {ex.Message}");
+        }
+    }
+
+    private async void ImportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker
+            {
+                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
+            };
+            picker.FileTypeFilter.Add(".json");
+
+            if (App.MainWindowInstance is { } window)
+            {
+                WinRT.Interop.InitializeWithWindow.Initialize(
+                    picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
+            }
+
+            var file = await picker.PickSingleFileAsync();
+            if (file is null) return;
+
+            var json = await Windows.Storage.FileIO.ReadTextAsync(file);
+            SpeedMeterPresets.ApplyAppearanceJson(Settings, json);
+
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            ServiceContainer.SpeedMeterService?.ApplySettings();
+
+            LoadFromSettings();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Import error: {ex.Message}");
+        }
     }
 
     private void HideFromCaptureToggle_Toggled(object sender, RoutedEventArgs e)

@@ -347,3 +347,27 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   dialog both construct); probe removed.
 - Not done: per-adapter breakdown in the page (caps can be limited to the active adapter only),
   threshold configuration (fixed at 80/100%), and usage history retention/export per adapter filter.
+
+## Speed Meter — Milestone 9 (presets, import/export, idle hide, VPN badge, opt-in requests)
+
+- `Services/SpeedMeter/SpeedMeterPresets`: four built-in looks (Minimal, Gamer, Streamer, Monitor)
+  and appearance-only capture/apply used by custom presets and by the settings file. Applying a
+  preset or importing never touches Enabled, the shortcut, alert settings or usage data.
+- Page gained a *Presets and settings file* card: preset combo (built-in + custom), Apply, Delete,
+  "save the current look as" with a name box, plus **Export settings…** / **Import settings…**
+  through `FileSavePicker` / `FileOpenPicker`. Custom presets live in
+  `SpeedMeterSettings.CustomPresets`.
+- Idle auto-hide: when traffic stays below `IdleThresholdKBps` for `IdleSeconds` the widget hides
+  itself; moving the mouse into its former spot or pressing the shortcut brings it back. *Hide while
+  disconnected* was added to the same Behavior card and uses `ConnectivityMonitor.IsOnline`. Both
+  flags (with full-screen) now share one visibility path in `SpeedWidgetWindow`.
+- VPN badge: the default-route adapter is checked for VPN-style names every ~30 s and the widget
+  shows a small lock + "VPN" next to the metered badge.
+- Opt-in network requests, both only on a click: **Show public IP** (`https://api.ipify.org`, then the
+  button copies it) and **Speed test** (`Services/SpeedMeter/SpeedTestService`, 10 MB download +
+  5 MB upload against `speed.cloudflare.com`), with a dialog showing progress, cancel and the last
+  20 results for the session.
+- Not done: **top apps by process**. That needs an ETW session via `Microsoft.Diagnostics.Tracing.
+  TraceEvent` (a new NuGet dependency) plus administrator rights; the rest of the flyout works
+  without it. Also skipped: the optional taskbar-docked mode (phase 2 in the spec) and a configurable
+  per-app profile list.

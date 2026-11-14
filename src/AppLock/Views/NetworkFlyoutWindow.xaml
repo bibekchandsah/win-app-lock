@@ -162,6 +162,22 @@
                     <Button Content="Network settings" Click="OpenNetworkSettings_Click"/>
                     <Button x:Name="PauseButton" Content="Pause tracking" Click="Pause_Click"/>
                 </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="PublicIpButton" Content="Show public IP" Click="PublicIp_Click"/>
+                    <Button Content="Speed test…" Click="SpeedTest_Click"/>
+                </StackPanel>
+
+                <TextBlock x:Name="PublicIpText"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <TextBlock Text="The public IP lookup and the speed test are the only parts of the meter that contact the internet, and only when you press them."
+                           FontSize="10"
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
             </StackPanel>
         </Border>
     </Grid>

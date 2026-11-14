@@ -585,6 +585,47 @@
                                           Toggled="HideFromCaptureToggle_Toggled"/>
                         </Grid>
 
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Hide when idle" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Hides after the speed stays below the threshold; move the mouse into its spot to peek"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="HideIdleToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="HideIdleToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <NumberBox x:Name="IdleThresholdBox"
+                                       Grid.Column="0"
+                                       Header="Idle below (KB/s)"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="IdleNumber_ValueChanged"/>
+                            <NumberBox x:Name="IdleSecondsBox"
+                                       Grid.Column="1"
+                                       Header="For (seconds)"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="IdleNumber_ValueChanged"/>
+                            <ToggleSwitch x:Name="HideDisconnectedToggle"
+                                          Grid.Column="2"
+                                          Header="Hide while disconnected"
+                                          OffContent="" OnContent=""
+                                          Toggled="HideDisconnectedToggle_Toggled"/>
+                        </Grid>
+
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -785,6 +826,59 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Preview &quot;Disconnected&quot;" Click="PreviewLost_Click"/>
                             <Button Content="Preview &quot;Back online&quot;" Click="PreviewRestored_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Presets and settings file -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Presets and settings file"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Presets change the look and the extra rows only — never the shortcut, alerts or usage data."
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox x:Name="PresetCombo"
+                                      Grid.Column="0"
+                                      Header="Preset"
+                                      HorizontalAlignment="Stretch"/>
+                            <Button Grid.Column="1" Content="Apply" Click="ApplyPreset_Click" VerticalAlignment="Bottom"/>
+                            <Button Grid.Column="2" Content="Delete" Click="DeletePreset_Click" VerticalAlignment="Bottom"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox x:Name="NewPresetNameBox"
+                                     Grid.Column="0"
+                                     Header="Save the current look as"
+                                     PlaceholderText="Preset name"/>
+                            <Button Grid.Column="1" Content="Save preset" Click="SavePreset_Click" VerticalAlignment="Bottom"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Export settings…" Click="ExportSettings_Click"/>
+                            <Button Content="Import settings…" Click="ImportSettings_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

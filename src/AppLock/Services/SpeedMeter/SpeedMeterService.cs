@@ -21,7 +21,11 @@ public sealed class SpeedMeterService : IDisposable
     private readonly UsageStore _usage = new();
 
     private bool _metered;
+    private bool _vpn;
     private int _meterTick;
+
+    private DateTime? _idleSince;
+    private bool _idleHidden;
 
     private DispatcherQueueTimer? _timer;
     private SpeedWidgetWindow? _widget;
@@ -142,6 +146,74 @@ public sealed class SpeedMeterService : IDisposable
     {
         if (!IsRunning) return;
         EnsureWidget();
+        RevealWidget();
+    }
+
+    /// <summary>Brings the widget back when it is hidden by idle or a dropped connection.</summary>
+    public void RevealWidget()
+    {
+        _idleSince = null;
+        _idleHidden = false;
+        _widget?.SetIdleHidden(false);
+        _widget?.SetDisconnectedHidden(false);
+    }
+
+    /// <summary>Hides the widget once traffic stayed below the threshold for the idle time.</summary>
+    private void ApplyIdleVisibility(NetworkSpeedSample sample)
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        if (!settings.HideWhenIdle)
+        {
+            if (_idleHidden)
+            {
+                _idleHidden = false;
+                _widget?.SetIdleHidden(false);
+            }
+
+            _idleSince = null;
+            return;
+        }
+
+        var activeBytes = sample.BytesDownPerSec + sample.BytesUpPerSec;
+        var threshold = Math.Max(1, settings.IdleThresholdKBps) * 1024;
+
+        if (activeBytes > threshold)
+        {
+            _idleSince = null;
+
+            if (_idleHidden)
+            {
+                _idleHidden = false;
+                _widget?.SetIdleHidden(false);
+            }
+
+            return;
+        }
+
+        _idleSince ??= DateTime.UtcNow;
+
+        if (!_idleHidden
+            && (DateTime.UtcNow - _idleSince.Value).TotalSeconds >= Math.Max(1, settings.IdleSeconds))
+        {
+            _idleHidden = true;
+            _widget?.SetIdleHidden(true);
+            return;
+        }
+
+        // Moving the mouse into its former spot brings an idle-hidden widget back.
+        if (_idleHidden && _widget?.ContainsCursor() == true)
+        {
+            _idleHidden = false;
+            _idleSince = null;
+            _widget?.SetIdleHidden(false);
+        }
+    }
+
+    private void ApplyDisconnectedVisibility()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        _widget?.SetDisconnectedHidden(settings.HideWhenDisconnected && !_connectivity.IsOnline);
     }
 
     /// <summary>Shows or hides the details flyout. Opening it starts the quality pings.</summary>
@@ -252,7 +324,16 @@ public sealed class SpeedMeterService : IDisposable
             (Windows.Win32.UI.Input.KeyboardAndMouse.HOT_KEY_MODIFIERS)binding.Modifiers,
             binding.VirtualKey,
             () => _dispatcher.TryEnqueue(() =>
-                ServiceContainer.SetSpeedMeterEnabled(!ServiceContainer.Settings.SpeedMeter.Enabled)));
+            {
+                // While it is on, the shortcut first brings a hidden widget back instead of hiding it.
+                if (ServiceContainer.Settings.SpeedMeter.Enabled && _idleHidden)
+                {
+                    RevealWidget();
+                    return;
+                }
+
+                ServiceContainer.SetSpeedMeterEnabled(!ServiceContainer.Settings.SpeedMeter.Enabled);
+            }));
     }
 
     public void UnregisterHotkey()
@@ -415,8 +496,12 @@ public sealed class SpeedMeterService : IDisposable
                         DateTime.Now);
                 }
 
-                // The metered flag rarely changes; checking it about every half minute is enough.
-                if (_meterTick++ % 30 == 0) _metered = ReadMetered();
+                // The metered/VPN flags rarely change; checking them about every half minute is enough.
+                if (_meterTick++ % 30 == 0)
+                {
+                    _metered = ReadMetered();
+                    _vpn = NetworkDetailsProvider.Read().IsVpn;
+                }
 
                 var stats = _systemStats.TrackCpu || _systemStats.TrackRam || _systemStats.TrackDisk
                             || _systemStats.TrackGpu || _systemStats.TrackBattery
@@ -433,7 +518,7 @@ public sealed class SpeedMeterService : IDisposable
 
                     var (todayDown, todayUp) = _usage.Today();
 
-                    _widget?.SetUsage(todayDown, todayUp, _metered);
+                    _widget?.SetUsage(todayDown, todayUp, _metered, _vpn);
 
                     _flyout?.Update(sample);
                     _flyout?.SetSessionTotals(_sessionDown, _sessionUp);
@@ -446,6 +531,9 @@ public sealed class SpeedMeterService : IDisposable
                     var hide = ServiceContainer.Settings.SpeedMeter.HideInFullscreen
                                && FullscreenDetector.IsFullscreenAppActive();
                     _widget?.SetFullscreenHidden(hide);
+
+                    ApplyIdleVisibility(sample);
+                    ApplyDisconnectedVisibility();
 
                     SampleUpdated?.Invoke(this, sample);
                 });
