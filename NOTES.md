@@ -395,3 +395,19 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   clicking: drag/snap, full-screen hiding, screen-capture exclusion, connection toasts on a real
   disconnect, adapter switching, flyout graph/quality, cap toast and CSV export end-to-end, and
   disabling the feature to confirm no timers remain.
+
+### Bug found in use: customizations reverted after leaving the page, crash dialog on exit
+
+- The settings page called `LoadFromSettings()` from its constructor, before the control templates
+  existed. When the page was inserted into the frame, WinUI's template initialization raised
+  `ValueChanged`/`ColorChanged`/`Toggled` events with default values while `_loading` was already
+  false, so those defaults were written into `SpeedMeterSettings` and saved. Result: coming back to
+  the page showed defaults. Fixed by starting `_loading` at `true` and loading once from `Loaded`
+  (guarded by `_settingsLoaded`), i.e. after template initialization. Verified with a temporary
+  probe that hosted the page in a window: the saved values survived the load
+  (`OK color=#123456 scale=137 radius=23 preset=Solid`).
+- The `AppLock.exe - System Error ... stack-based buffer overrun` dialog on exit is a teardown
+  crash: the speed widget, flyout and connection toasts are separate top-level windows that were
+  still open when the process called `Environment.Exit`. `MainWindow_ActualClose` now stops the
+  speed meter (timers, hooks, toasts, widget/flyout, usage flush) before the tray and icons are
+  disposed, and `ServiceContainer.Reset` disposes the service too.

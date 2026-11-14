@@ -22,7 +22,11 @@ namespace AppLock.Views;
 public sealed partial class SpeedMeterPage : Page
 {
     // Setting controls from code fires their change events; this keeps those out of the handlers.
-    private bool _loading;
+    // Starts true: controls fire change events while their templates initialize, and those defaults
+    // must not be written back over the saved settings.
+    private bool _loading = true;
+
+    private bool _settingsLoaded;
 
     private NetworkSpeedSample? _lastSample;
 
@@ -78,7 +82,6 @@ public sealed partial class SpeedMeterPage : Page
         ResetDayBox.Maximum = 28;
 
         BuildComboItems();
-        LoadFromSettings();
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -86,6 +89,14 @@ public sealed partial class SpeedMeterPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // Loading in Loaded (not the constructor) means the control templates exist, so applying the
+        // saved values cannot be undone by template initialization.
+        if (!_settingsLoaded)
+        {
+            _settingsLoaded = true;
+            LoadFromSettings();
+        }
+
         if (ServiceContainer.SpeedMeterService is { } service)
         {
             service.SampleUpdated -= OnSampleUpdated;

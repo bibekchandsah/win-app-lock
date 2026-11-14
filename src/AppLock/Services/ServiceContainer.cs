@@ -289,7 +289,9 @@ public static class ServiceContainer
         _windowEventMonitor?.Dispose();
         _brightnessHotkeyManager?.Dispose();
         _volumeMixerHotkeyManager?.Dispose();
-        
+        _speedMeterService?.Dispose();
+
+        _speedMeterService = null;
         _settingsStore = null;
         _settings = null;
         _authService = null;

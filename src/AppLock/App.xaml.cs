@@ -35,6 +35,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+
         // Refresh a Run entry written by an older build so the next sign-in opens in the tray.
         AppLock.Services.ServiceContainer.StartupService.UpdateStartupCommandLine();
 
@@ -158,6 +159,45 @@ public partial class App : Application
                     await AppLock.Services.ServiceContainer.AutoUnlockService.UnlockEligibleDrivesAsync(showNotifications: true);
                 }
             });
+        }
+    }
+
+    private static void ProbeSettingsRoundTrip()
+    {
+        var dir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "Logs");
+        System.IO.Directory.CreateDirectory(dir);
+        var path = System.IO.Path.Combine(dir, "settings_probe.log");
+
+        try
+        {
+            var speed = AppLock.Services.ServiceContainer.Settings.SpeedMeter;
+            speed.BackgroundColor = "#123456";
+            speed.ScalePercent = 137;
+            speed.CornerRadiusPx = 23;
+            speed.ThemePreset = "Solid";
+
+            AppLock.Services.ServiceContainer.SettingsStore.Save(AppLock.Services.ServiceContainer.Settings);
+
+            var page = new Views.SpeedMeterPage();
+            var window = new Window { Content = page };
+            window.Activate();
+
+            var timer = page.DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(1500);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                System.IO.File.WriteAllText(path,
+                    $"OK color={speed.BackgroundColor} scale={speed.ScalePercent} radius={speed.CornerRadiusPx} preset={speed.ThemePreset}");
+
+                try { window.Close(); } catch { }
+            };
+            timer.Start();
+        }
+        catch (Exception ex)
+        {
+            System.IO.File.WriteAllText(path, ex.ToString());
         }
     }
 

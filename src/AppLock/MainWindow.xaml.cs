@@ -1933,6 +1933,18 @@ public sealed partial class MainWindow : Window
         // Without this, the "Locked" DWM bitmap persists in target apps after AppLock exits.
         ServiceContainer.ThumbnailService.Dispose();
 
+        // The speed widget, flyout and toasts are separate top-level windows. Close them and stop
+        // their timers while the XAML host is still alive, otherwise exiting the process with them
+        // open can crash during teardown.
+        try
+        {
+            ServiceContainer.SpeedMeterService?.Stop();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Shutdown error: {ex.Message}");
+        }
+
         ServiceContainer.TrayService.Dispose();
         _windowIcon?.Dispose();
         _windowIcon = null;
