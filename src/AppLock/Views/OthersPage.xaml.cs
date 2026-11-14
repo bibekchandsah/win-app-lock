@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AppLock.Services;
@@ -45,6 +46,11 @@ public sealed partial class OthersPage : Page
 {
     public List<UtilityCard> Cards { get; } = new();
 
+    /// <summary>The cards currently on screen; the search box filters this collection.</summary>
+    public ObservableCollection<UtilityCard> VisibleCards { get; } = new();
+
+    private string _searchText = string.Empty;
+
     // Guards the programmatic IsOn revert below from re-entering the Toggled handler.
     private bool _syncingKeyboardToggle;
 
@@ -54,6 +60,55 @@ public sealed partial class OthersPage : Page
         this.InitializeComponent();
         this.Loaded += OthersPage_Loaded;
         this.Unloaded += OthersPage_Unloaded;
+
+        ApplyCardFilter();
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchText = SearchBox?.Text?.Trim() ?? string.Empty;
+        ApplyCardFilter();
+    }
+
+    /// <summary>
+    /// Shows the cards whose title or description contains the search text. The collection is updated
+    /// in place so cards that stay visible keep their expander state.
+    /// </summary>
+    private void ApplyCardFilter()
+    {
+        var matches = string.IsNullOrEmpty(_searchText)
+            ? Cards
+            : Cards.Where(c =>
+                c.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                c.Description.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        for (int i = VisibleCards.Count - 1; i >= 0; i--)
+        {
+            if (!matches.Contains(VisibleCards[i]))
+            {
+                VisibleCards.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var card = matches[i];
+            int existingIndex = VisibleCards.IndexOf(card);
+
+            if (existingIndex < 0)
+            {
+                if (i < VisibleCards.Count)
+                    VisibleCards.Insert(i, card);
+                else
+                    VisibleCards.Add(card);
+            }
+            else if (existingIndex != i)
+            {
+                VisibleCards.Move(existingIndex, i);
+            }
+        }
+
+        NoResultsText.Visibility = matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OthersPage_Loaded(object sender, RoutedEventArgs e)

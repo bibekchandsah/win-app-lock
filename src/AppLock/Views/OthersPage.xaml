@@ -223,19 +223,34 @@
         </Grid.RowDefinitions>
 
         <!-- Page Header -->
-        <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,24">
-            <TextBlock Text="Others" 
-                       FontSize="28" 
-                       FontWeight="SemiBold"
-                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-            <TextBlock Text="Additional utilities and tools" 
-                       FontSize="14" 
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="0,0,0,24" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Others" 
+                           FontSize="28" 
+                           FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="Additional utilities and tools" 
+                           FontSize="14" 
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Filters the cards below by their name or description -->
+            <TextBox x:Name="SearchBox"
+                     Grid.Column="1"
+                     Width="260"
+                     VerticalAlignment="Center"
+                     PlaceholderText="Search utilities..."
+                     TextChanged="SearchBox_TextChanged"/>
+        </Grid>
 
         <!-- Responsive Cards Grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{x:Bind Cards, Mode=OneTime}">
+            <ItemsControl ItemsSource="{x:Bind VisibleCards}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <controls:WrapPanel HorizontalSpacing="16" VerticalSpacing="16"/>
@@ -353,5 +368,14 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <TextBlock x:Name="NoResultsText"
+                   Grid.Row="1"
+                   Text="No utilities match your search"
+                   FontSize="13"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Visibility="Collapsed"/>
     </Grid>
 </Page>

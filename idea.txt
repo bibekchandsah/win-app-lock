@@ -309,8 +309,8 @@ fixed - clicking in "running applications" app list will open the selected app l
 fixed - when some dialogbox is open then it don't show idle unlock dialogbox
 fixed - when app start with window auto start then open in minimize in tray
 fixed - in protection page "self-discipline" dialog don't follow accent color
-add the meaningful message in the "running applications" tab when no application is running
-search bar in others page
+fixed - add the meaningful message in the "running applications" tab when no application is running
+fixed - search bar in others page
 brightness page: edit button & blur hotkey -> change button isn't working 
 ring light page: hotkey -> change button isn't working
 
