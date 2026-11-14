@@ -347,27 +347,27 @@
                                     </Grid>
                                 </Button>
 
-                                <!-- Expander for Quick Settings -->
-                                <Expander Grid.Row="1"
-                                          HorizontalAlignment="Stretch"
-                                          HorizontalContentAlignment="Stretch"
-                                          Margin="12,0,12,12"
-                                          IsExpanded="False"
-                                          Loaded="CardExpander_Loaded"
-                                          Expanding="CardExpander_Expanding"
-                                          Collapsed="CardExpander_Collapsed">
-                                    <Expander.Header>
+                                <!-- Quick Settings opens as a floating panel, so the card grid never reflows -->
+                                <Button Grid.Row="1"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Margin="12,0,12,12"
+                                        Padding="12,8"
+                                        Background="{ThemeResource SubtleFillColorTransparentBrush}"
+                                        BorderThickness="0"
+                                        CornerRadius="4"
+                                        Click="QuickSettingsButton_Click">
+                                    <Grid>
                                         <TextBlock Text="Quick Settings"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                    </Expander.Header>
-                                    <Expander.Content>
-                                        <ContentControl Content="{Binding}"
-                                                        ContentTemplateSelector="{StaticResource CardContentSelector}"
-                                                        HorizontalContentAlignment="Stretch"/>
-                                    </Expander.Content>
-                                </Expander>
+                                        <FontIcon Glyph="&#xE70D;"
+                                                  FontSize="10"
+                                                  HorizontalAlignment="Right"
+                                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </Grid>
+                                </Button>
                             </Grid>
                         </Border>
                     </DataTemplate>

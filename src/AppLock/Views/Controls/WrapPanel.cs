@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Windows.Foundation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -74,24 +75,49 @@ public sealed class WrapPanel : Panel
     {
         double x = 0;
         double y = 0;
-        double rowHeight = 0;
+        var row = new List<UIElement>();
 
         foreach (var child in Children)
         {
             var size = child.DesiredSize;
             if (x > 0 && x + size.Width > finalSize.Width)
             {
+                y = ArrangeRow(row, y);
                 x = 0;
-                y += rowHeight + VerticalSpacing;
-                rowHeight = 0;
+                row.Clear();
             }
 
-            child.Arrange(new Rect(x, y, size.Width, size.Height));
+            row.Add(child);
             x += size.Width + HorizontalSpacing;
-            rowHeight = Math.Max(rowHeight, size.Height);
         }
 
+        ArrangeRow(row, y);
         return finalSize;
+    }
+
+    /// <summary>
+    /// Arranges one row and returns the Y where the next row starts. Every child in the row is
+    /// given the row's tallest height, so cards whose content is shorter fill their cell instead
+    /// of leaving a gap below the neighbouring card.
+    /// </summary>
+    private double ArrangeRow(List<UIElement> row, double y)
+    {
+        if (row.Count == 0) return y;
+
+        double rowHeight = 0;
+        foreach (var child in row)
+        {
+            rowHeight = Math.Max(rowHeight, child.DesiredSize.Height);
+        }
+
+        double x = 0;
+        foreach (var child in row)
+        {
+            child.Arrange(new Rect(x, y, child.DesiredSize.Width, rowHeight));
+            x += child.DesiredSize.Width + HorizontalSpacing;
+        }
+
+        return y + rowHeight + VerticalSpacing;
     }
 }
 

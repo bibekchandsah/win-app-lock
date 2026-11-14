@@ -374,65 +374,29 @@ public sealed partial class OthersPage : Page
         }
     }
 
-    private void CardExpander_Loaded(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Shows the card's quick settings in a flyout anchored to its "Quick Settings" button. The
+    /// panel floats above the grid, so neighbouring cards keep their position and size.
+    /// </summary>
+    private void QuickSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        // Show expander for brightness, eyecare, clipboard, ringlight, volumemixer, notifications, and keyboard cards
-        if (sender is Expander expander && expander.DataContext is UtilityCard card)
-        {
-            expander.Visibility = (card.Id == "brightness" || card.Id == "eyecare" || card.Id == "clipboard" || card.Id == "ringlight" || card.Id == "volumemixer" || card.Id == "notifications" || card.Id == "keyboard")
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-        }
-    }
+        if (sender is not Button button || button.DataContext is not UtilityCard card) return;
 
-    private void CardExpander_Expanding(Expander sender, ExpanderExpandingEventArgs args)
-    {
-        // Elevate the card when expanding (bring to front with z-index and shadow)
-        var border = GetParentBorder(sender);
-        if (border != null)
+        var content = new ContentControl
         {
-            // Set high z-index to appear on top
-            Canvas.SetZIndex(border, 10);
-            
-            // Add elevation with translation and shadow
-            border.Translation = new System.Numerics.Vector3(0, 0, 16);
-            
-            // Force layout update
-            border.InvalidateMeasure();
-            border.InvalidateArrange();
-            border.UpdateLayout();
-        }
-    }
+            Content = card,
+            ContentTemplateSelector = (DataTemplateSelector)Resources["CardContentSelector"],
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 300
+        };
 
-    private void CardExpander_Collapsed(Expander sender, ExpanderCollapsedEventArgs args)
-    {
-        // Reset the card elevation when collapsing
-        var border = GetParentBorder(sender);
-        if (border != null)
+        var flyout = new Flyout
         {
-            // Reset z-index to normal
-            Canvas.SetZIndex(border, 0);
-            
-            // Remove elevation
-            border.Translation = new System.Numerics.Vector3(0, 0, 0);
-            
-            // Force layout update
-            border.InvalidateMeasure();
-            border.InvalidateArrange();
-            border.UpdateLayout();
-        }
-    }
+            Content = content,
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedLeft
+        };
 
-    private Border? GetParentBorder(DependencyObject child)
-    {
-        var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(child);
-        while (parent != null)
-        {
-            if (parent is Border border)
-                return border;
-            parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
-        }
-        return null;
+        flyout.ShowAt(button);
     }
 
     private void EyeCareToggle_Toggled(object sender, RoutedEventArgs e)
