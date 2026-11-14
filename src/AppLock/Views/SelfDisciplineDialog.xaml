@@ -15,25 +15,12 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="LilacAccentBrush" Color="#8B3DA8"/>
-                    <SolidColorBrush x:Key="LilacButtonBgBrush" Color="#D9A0E8"/>
                     <SolidColorBrush x:Key="RingTrackBrush" Color="#E5E5EA"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="LilacAccentBrush" Color="#D9A0E8"/>
-                    <SolidColorBrush x:Key="LilacButtonBgBrush" Color="#D9A0E8"/>
                     <SolidColorBrush x:Key="RingTrackBrush" Color="#3A3A3E"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
-
-            <Style x:Key="LilacPrimaryButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#D9A0E8"/>
-                <Setter Property="Foreground" Value="#1A1A1A"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="MinWidth" Value="130"/>
-                <Setter Property="CornerRadius" Value="4"/>
-                <Setter Property="Padding" Value="16,6"/>
-            </Style>
 
             <Style x:Key="SegmentedTabButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
@@ -64,7 +51,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <FontIcon Grid.Column="0" Glyph="&#xE916;" FontSize="20" Foreground="{ThemeResource LilacAccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <FontIcon Grid.Column="0" Glyph="&#xE916;" FontSize="20" Foreground="{ThemeResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="Self-Discipline" FontSize="16" FontWeight="SemiBold"/>
                 <TextBlock x:Name="TargetAppSubheader" Text="Settings for this app" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
@@ -182,7 +169,7 @@
                                   Minimum="0"
                                   Maximum="60"
                                   Value="0"
-                                  Foreground="#D9A0E8"/>
+                                  Foreground="{ThemeResource AccentBrush}"/>
 
                     <!-- Center text -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="2">
@@ -214,8 +201,7 @@
                     <Button x:Name="EmptyAddBlockButton"
                             Content="Add time block"
                             Click="AddBlockButton_Click"
-                            Background="#D9A0E8"
-                            Foreground="#1A1A1A"
+                            Background="{ThemeResource AccentBrush}"
                             FontWeight="SemiBold"
                             CornerRadius="4"
                             Padding="16,6"
@@ -237,10 +223,10 @@
                             Click="AddBlockButton_Click"
                             HorizontalAlignment="Center"
                             Margin="0,6,0,0"
-                            BorderBrush="{ThemeResource LilacAccentBrush}"
+                            BorderBrush="{ThemeResource AccentBrush}"
                             BorderThickness="1"
                             Background="Transparent"
-                            Foreground="{ThemeResource LilacAccentBrush}"
+                            Foreground="{ThemeResource AccentBrush}"
                             CornerRadius="4"
                             Padding="18,6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -310,14 +296,14 @@
         <Border x:Name="WeakeningAuthPanel"
                 Grid.Row="3"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource LilacAccentBrush}"
+                BorderBrush="{ThemeResource AccentBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="12,10"
                 Visibility="Collapsed">
             <StackPanel Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE72E;" FontSize="13" Foreground="{ThemeResource LilacAccentBrush}"/>
+                    <FontIcon Glyph="&#xE72E;" FontSize="13" Foreground="{ThemeResource AccentBrush}"/>
                     <TextBlock Text="Admin password required to weaken settings" FontWeight="SemiBold" FontSize="12"/>
                 </StackPanel>
                 <Grid ColumnSpacing="8">

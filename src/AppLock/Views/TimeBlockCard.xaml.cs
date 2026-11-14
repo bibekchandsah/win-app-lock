@@ -15,9 +15,10 @@ public sealed partial class TimeBlockCard : UserControl
     private static readonly string[] Hours = Enumerable.Range(0, 24).Select(h => h.ToString("D2")).ToArray();
     private static readonly string[] Minutes = Enumerable.Range(0, 12).Select(m => (m * 5).ToString("D2")).ToArray();
 
-    private static readonly SolidColorBrush SelectedDayBg = new(Color.FromArgb(255, 0xD9, 0xA0, 0xE8)); // Lilac
-    private static readonly SolidColorBrush SelectedDayFg = new(Color.FromArgb(255, 0x1A, 0x1A, 0x1A)); // Dark text
-    private static readonly SolidColorBrush SelectedDayBorder = new(Color.FromArgb(255, 0xD9, 0xA0, 0xE8));
+    // Follows the live Windows accent color, like the rest of the shell.
+    private SolidColorBrush _selectedDayBg = new(Color.FromArgb(255, 0x00, 0x78, 0xD4));
+    private SolidColorBrush _selectedDayFg = new(Color.FromArgb(255, 0xFF, 0xFF, 0xFF));
+    private SolidColorBrush _selectedDayBorder = new(Color.FromArgb(255, 0x00, 0x78, 0xD4));
 
     private readonly ToggleButton[] _dayButtons;
     private bool _isInitializing = true;
@@ -31,6 +32,11 @@ public sealed partial class TimeBlockCard : UserControl
     {
         InitializeComponent();
         Block = block;
+
+        var accent = MainWindow.GetWindowAccentColor();
+        _selectedDayBg = new SolidColorBrush(accent);
+        _selectedDayBorder = new SolidColorBrush(accent);
+        _selectedDayFg = new SolidColorBrush(GetContrastingTextColor(accent));
 
         _dayButtons = new[] { DayBtn0, DayBtn1, DayBtn2, DayBtn3, DayBtn4, DayBtn5, DayBtn6 };
 
@@ -77,9 +83,9 @@ public sealed partial class TimeBlockCard : UserControl
     {
         if (isChecked)
         {
-            btn.Background = SelectedDayBg;
-            btn.Foreground = SelectedDayFg;
-            btn.BorderBrush = SelectedDayBorder;
+            btn.Background = _selectedDayBg;
+            btn.Foreground = _selectedDayFg;
+            btn.BorderBrush = _selectedDayBorder;
             btn.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
         }
         else
@@ -89,6 +95,15 @@ public sealed partial class TimeBlockCard : UserControl
             btn.ClearValue(ToggleButton.BorderBrushProperty);
             btn.ClearValue(ToggleButton.FontWeightProperty);
         }
+    }
+
+    /// <summary>Dark text on light accents, white text on dark ones.</summary>
+    private static Color GetContrastingTextColor(Color accent)
+    {
+        double luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        return luminance > 0.6
+            ? Color.FromArgb(255, 0x1A, 0x1A, 0x1A)
+            : Color.FromArgb(255, 0xFF, 0xFF, 0xFF);
     }
 
     private void DayButton_Click(object sender, RoutedEventArgs e)

@@ -16,9 +16,9 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
 {
     private static int _lastUsedTabIndex = 0;
 
-    private static readonly SolidColorBrush SelectedTabBg = new(Color.FromArgb(255, 0xD9, 0xA0, 0xE8)); // Lilac
-    private static readonly SolidColorBrush SelectedTabFg = new(Color.FromArgb(255, 0x1A, 0x1A, 0x1A)); // Dark text
-    private static readonly SolidColorBrush UnselectedTabBg = new(Color.FromArgb(0, 0, 0, 0));
+    // Follows the live Windows accent color (the same brush MainWindow publishes as "AccentBrush").
+    private SolidColorBrush _accentBrush = new(Color.FromArgb(255, 0x00, 0x78, 0xD4));
+    private SolidColorBrush _onAccentBrush = new(Color.FromArgb(255, 0xFF, 0xFF, 0xFF));
 
     private readonly LockRule _rule;
     private readonly SelfDisciplineSettings _settingsCopy;
@@ -45,8 +45,6 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
             SelectTab(_lastUsedTabIndex);
         };
 
-        PrimaryButtonStyle = (Style)Resources["LilacPrimaryButtonStyle"];
-
         string appName = !string.IsNullOrWhiteSpace(rule.DisplayName) ? rule.DisplayName : rule.ProcessName;
         TargetAppSubheader.Text = $"Settings for {appName}";
 
@@ -71,6 +69,35 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         {
             this.RequestedTheme = ServiceContainer.CurrentTheme;
         }
+
+        ApplyAccent();
+    }
+
+    /// <summary>Rebuilds the accent brushes from the current Windows accent color.</summary>
+    private void ApplyAccent()
+    {
+        var accent = MainWindow.GetWindowAccentColor();
+        _accentBrush = new SolidColorBrush(accent);
+        _onAccentBrush = new SolidColorBrush(GetContrastingTextColor(accent));
+
+        if (EmptyAddBlockButton != null)
+        {
+            EmptyAddBlockButton.Foreground = _onAccentBrush;
+        }
+
+        if (QuotaProgressRing != null)
+        {
+            UpdateProgressRing();
+        }
+    }
+
+    /// <summary>Dark text on light accents, white text on dark ones.</summary>
+    private static Color GetContrastingTextColor(Color accent)
+    {
+        double luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        return luminance > 0.6
+            ? Color.FromArgb(255, 0x1A, 0x1A, 0x1A)
+            : Color.FromArgb(255, 0xFF, 0xFF, 0xFF);
     }
 
     private async void CheckHelloAvailabilityAsync()
@@ -131,8 +158,8 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
     {
         if (isSelected)
         {
-            button.Background = SelectedTabBg;
-            button.Foreground = SelectedTabFg;
+            button.Background = _accentBrush;
+            button.Foreground = _onAccentBrush;
             button.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
         }
         else
@@ -185,7 +212,7 @@ public sealed partial class SelfDisciplineDialog : ContentDialog
         }
         else
         {
-            QuotaProgressRing.Foreground = SelectedTabBg; // Lilac
+            QuotaProgressRing.Foreground = _accentBrush; // Window accent
         }
 
         QuotaRingContainer.Opacity = QuotaToggle.IsOn ? 1.0 : 0.4;

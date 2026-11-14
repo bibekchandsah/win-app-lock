@@ -307,10 +307,11 @@ fixed - after unlock it redirects to protection page instead of current page
 fixed - sometime have to click two time close icon to close window 
 fixed - clicking in "running applications" app list will open the selected app list 
 fixed - when some dialogbox is open then it don't show idle unlock dialogbox
-fixewhen app start with window auto start then open in minimize in tray
+fixed - when app start with window auto start then open in minimize in tray
+fixed - in protection page "self-discipline" dialog don't follow accent color
+add the meaningful message in the "running applications" tab when no application is running
 brightness page: edit button & blur hotkey -> change button isn't working 
 ring light page: hotkey -> change button isn't working
-in protection page "self-discipline" dialog don't follow accent color
 
 
 
@@ -320,7 +321,6 @@ z-index like microsoft store effect in other page
 in keyboard page add button to "restart app with administrator" show this card in top
 show the way to do manually too if this don't work 
 in clipboard insted of 1day ago show the exact date & time
-add the meaningful message in the "running applications" tab when no application is running
 search in others page
 
 right click in taskbar app don't show content menu and show first time in notification area 
