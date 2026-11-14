@@ -3478,17 +3478,24 @@ public sealed partial class VolumeOverlayWindow : Window
         int iconSize = settings.IconSize;
         int baseBarHeight = iconSize + 12; // 32 + 12 = 44px
         
-        // Calculate height based on number of rows
-        int rowCount = 1; // Base: master volume
-        rowCount += _speakerRowCount;     // One row per extra speaker (only shown when >1)
-        rowCount += _microphoneRowCount;  // Add each microphone
-        rowCount += _brightnessRowCount;  // Screen brightness row
-        if (_hasActiveAppRow) rowCount++;
-        if (_hasCameraRow) rowCount++;
-        
-        int barHeight = rowCount == 1 
-            ? baseBarHeight 
-            : (iconSize * rowCount) + (rowCount * 4) + 8; // icon height * rows + spacing between rows + padding
+        // Height must match the real layout: every control row is at least one icon high, each
+        // device row adds a 4px top margin, and the device rows sit in a StackPanel with 4px
+        // spacing between them. Under-counting clips the last row (camera brightness).
+        int rowContent = Math.Max(iconSize, 32); // Slider rows are at least 32px tall
+        int rowGap = 4;
+        int deviceRows = _speakerRowCount + _microphoneRowCount + _brightnessRowCount;
+
+        int barContentHeight = rowContent; // Master volume
+        if (_hasActiveAppRow) barContentHeight += rowContent + rowGap;
+        if (deviceRows > 0)
+        {
+            barContentHeight += deviceRows * (rowContent + rowGap) + (deviceRows - 1) * rowGap;
+        }
+        if (_hasCameraRow) barContentHeight += rowContent + rowGap;
+
+        // CardBorder padding (6 top + 6 bottom) plus a little breathing room so the last row
+        // (camera brightness) is never clipped by the rounded card edge.
+        int barHeight = barContentHeight + 12 + 6;
 
         if (state == OverlayState.Idle)
         {
