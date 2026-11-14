@@ -175,3 +175,34 @@ Use `New-BurntToastNotification` PowerShell module or trigger Focus Assist notif
   solution build fails with CS0246.
 - Pre-existing build warnings (mostly CS8618/CS1998 in Audio, VolumeMixer, App.xaml.cs) were left
   untouched; this milestone added none.
+
+## Speed Meter — Milestone 2 (engine + widget window)
+
+- `Services/SpeedMeter/NetworkStatsProvider.cs`: adapter selection plus byte-counter deltas
+  measured with `Stopwatch`, a 3-sample average, counter-reset handling (negative delta → 0) and
+  per-adapter baselines. Uses the managed `NetworkInterface.GetIPStatistics()` (same 64-bit octets
+  as `GetIfTable2`) instead of hand-marshalling `MIB_IF_ROW2`; the spec lists this API as the
+  fallback, and it avoids a 1.3 KB struct definition with no behavioural loss.
+- Adapter logic: *Auto* = an adapter that carries a default gateway (`GatewayAddresses`), fastest
+  link first. .NET does not expose the IPv4 route metric (`IPv4InterfaceProperties` has no
+  `InterfaceMetric`), so metric ordering was not possible without IP Helper; the gateway + speed
+  heuristic selects the same adapter in practice. *AllPhysical* and *Specific* also work.
+  Virtual adapters (Hyper-V, vEthernet, VMware, VirtualBox, WSL, TAP, Tailscale, …) are excluded
+  unless `IncludeVirtualAdapters` is on.
+- `Views/SpeedWidgetWindow.xaml(.cs)`: borderless `OverlappedPresenter`, always-on-top, not
+  resizable/minimizable, hidden from switchers, DWM glass (`DwmExtendFrameIntoClientArea(-1)` +
+  NC rendering disabled, same technique as the volume overlay) so the rounded card floats with
+  per-pixel transparency. `WS_EX_NOACTIVATE` is applied after the first frame. `WS_EX_TOOLWINDOW`
+  is deliberately **not** applied: the volume overlay had to remove it because it made the window
+  invisible in this app — `AppWindow.IsShownInSwitchers = false` already keeps it out of Alt+Tab and
+  the taskbar.
+- Size is measured from the card (`DesiredSize × RasterizationScale`) and the window is placed at
+  `PositionPercentX/Y` (98/90) of the monitor work area. Dragging, snapping, multi-monitor and DPI
+  change handling are milestone 4; monitor choice is still always the primary one.
+- `SpeedMeterService`: 1 s `DispatcherQueueTimer` (interval from settings, 0.5–2 s), sampling on a
+  background thread with one-at-a-time guard, UI update marshalled back; owns the widget window and
+  stops/closes it when the feature is turned off. `ServiceContainer.InitializeSpeedMeter` restores
+  the widget at startup when *Enabled* and *Start with AppLock* are both on.
+- Card subtitle now shows the live rates (`On · ↓ … ↑ …`), and the page's status line shows the
+  adapter, link speed and current rates.
+- Still no network requests. Nothing is drawn while the widget is disabled (no timer, no window).

@@ -85,6 +85,7 @@ public partial class App : Application
         {
             AppLock.Services.ServiceContainer.InitializeVolumeMixer(_mainWindow.DispatcherQueue);
             AppLock.Services.ServiceContainer.InitializeNotificationCustomizer();
+            AppLock.Services.ServiceContainer.InitializeSpeedMeter(_mainWindow.DispatcherQueue);
         }
 
         // Wire session lock change to dismiss popup immediately on lock screen

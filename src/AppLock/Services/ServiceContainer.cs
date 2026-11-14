@@ -46,6 +46,7 @@ public static class ServiceContainer
     private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
     private static KeyboardService? _keyboardService;
     private static ViewModels.KeyboardViewModel? _keyboardViewModel;
+    private static AppLock.Services.SpeedMeter.SpeedMeterService? _speedMeterService;
 
     public static NotificationService NotificationService
     {
@@ -562,6 +563,44 @@ public static class ServiceContainer
     {
         RingLightService.SetEnabled(enabled, "user");
         RingLightEnabledChanged?.Invoke(null, enabled);
+    }
+
+    // ── Speed Meter ───────────────────────────────────────────────────────────
+
+    public static AppLock.Services.SpeedMeter.SpeedMeterService? SpeedMeterService => _speedMeterService;
+
+    public static event EventHandler<bool>? SpeedMeterEnabledChanged;
+
+    /// <summary>
+    /// Creates the speed meter once and restores the widget when it was left enabled at exit.
+    /// </summary>
+    public static void InitializeSpeedMeter(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
+    {
+        if (_speedMeterService != null) return;
+
+        _speedMeterService = new AppLock.Services.SpeedMeter.SpeedMeterService(dispatcherQueue);
+
+        if (Settings.SpeedMeter.Enabled && Settings.SpeedMeter.StartWithAppLock)
+        {
+            _speedMeterService.Start();
+        }
+    }
+
+    public static void SetSpeedMeterEnabled(bool enabled)
+    {
+        Settings.SpeedMeter.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            _speedMeterService?.Start();
+        }
+        else
+        {
+            _speedMeterService?.Stop();
+        }
+
+        SpeedMeterEnabledChanged?.Invoke(null, enabled);
     }
 
     // ── Volume Mixer ──────────────────────────────────────────────────────────

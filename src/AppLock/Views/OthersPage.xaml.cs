@@ -131,6 +131,13 @@ public sealed partial class OthersPage : Page
         ServiceContainer.VolumeMixerEnabledChanged += OnVolumeMixerEnabledChanged;
         ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
         ServiceContainer.NotificationCustomizerEnabledChanged += OnNotificationCustomizerEnabledChanged;
+        ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
+        ServiceContainer.SpeedMeterEnabledChanged += OnSpeedMeterEnabledChanged;
+        if (ServiceContainer.SpeedMeterService is { } speedMeter)
+        {
+            speedMeter.SampleUpdated -= OnSpeedMeterSample;
+            speedMeter.SampleUpdated += OnSpeedMeterSample;
+        }
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
         UpdateRingLightCardState();
@@ -148,7 +155,14 @@ public sealed partial class OthersPage : Page
         ServiceContainer.RingLightService.EnabledChanged -= OnRingLightServiceChanged;
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
+        ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
+        if (ServiceContainer.SpeedMeterService is { } speedMeter)
+        {
+            speedMeter.SampleUpdated -= OnSpeedMeterSample;
+        }
     }
+
+    private void OnSpeedMeterEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateSpeedMeterCardState);
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
     private void OnClipboardPauseStateChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
@@ -404,10 +418,22 @@ public sealed partial class OthersPage : Page
     {
         if (sender is not ToggleSwitch toggle || toggle.DataContext is not UtilityCard card) return;
 
-        ServiceContainer.Settings.SpeedMeter.Enabled = toggle.IsOn;
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SetSpeedMeterEnabled(toggle.IsOn);
         card.SpeedMeterEnabled = toggle.IsOn;
         card.Status = toggle.IsOn ? "On" : "Off";
+    }
+
+    /// <summary>Card subtitle with the live rates; the service already ticks at most once a second.</summary>
+    private void OnSpeedMeterSample(object? sender, AppLock.Services.SpeedMeter.NetworkSpeedSample sample)
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "speedmeter");
+        if (card is null) return;
+
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        var down = AppLock.Services.SpeedMeter.SpeedFormatter.Format(sample.BytesDownPerSec, settings.Units, settings.Decimals);
+        var up = AppLock.Services.SpeedMeter.SpeedFormatter.Format(sample.BytesUpPerSec, settings.Units, settings.Decimals);
+
+        card.Status = $"On · ↓ {down} ↑ {up}";
     }
 
     private void UpdateSpeedMeterCardState()

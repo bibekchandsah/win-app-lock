@@ -1,5 +1,7 @@
+using System;
 using AppLock.Models;
 using AppLock.Services;
+using AppLock.Services.SpeedMeter;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -20,7 +22,31 @@ public sealed partial class SpeedMeterPage : Page
     {
         InitializeComponent();
         LoadFromSettings();
+
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (ServiceContainer.SpeedMeterService is { } service)
+        {
+            service.SampleUpdated -= OnSampleUpdated;
+            service.SampleUpdated += OnSampleUpdated;
+        }
+
+        UpdateStatus();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (ServiceContainer.SpeedMeterService is { } service)
+        {
+            service.SampleUpdated -= OnSampleUpdated;
+        }
+    }
+
+    private void OnSampleUpdated(object? sender, NetworkSpeedSample sample) => UpdateStatus(sample);
 
     private void LoadFromSettings()
     {
@@ -32,19 +58,38 @@ public sealed partial class SpeedMeterPage : Page
         UpdateStatus();
     }
 
-    private void UpdateStatus()
+    private void UpdateStatus(NetworkSpeedSample? sample = null)
     {
-        StatusText.Text = Settings.Enabled
-            ? "On · the floating widget arrives with the engine in the next milestone."
-            : "Off · turn this on to show the widget on your desktop.";
+        if (!Settings.Enabled)
+        {
+            StatusText.Text = "Off · turn this on to show the widget on your desktop.";
+            return;
+        }
+
+        if (sample is null)
+        {
+            StatusText.Text = "On · waiting for the first reading…";
+            return;
+        }
+
+        var units = Settings.Units;
+        var decimals = Settings.Decimals;
+        var down = SpeedFormatter.Format(sample.BytesDownPerSec, units, decimals);
+        var up = SpeedFormatter.Format(sample.BytesUpPerSec, units, decimals);
+
+        var adapter = sample.HasAdapter ? sample.AdapterName : "No active adapter";
+        var link = sample.LinkSpeedBitsPerSec > 0
+            ? $" · link {SpeedFormatter.Format(sample.LinkSpeedBitsPerSec / 8.0, "Bits", 0)}"
+            : string.Empty;
+
+        StatusText.Text = $"On · {adapter}{link} · ↓ {down} ↑ {up}";
     }
 
     private void MasterToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
 
-        Settings.Enabled = MasterToggle.IsOn;
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SetSpeedMeterEnabled(MasterToggle.IsOn);
         UpdateStatus();
     }
 
