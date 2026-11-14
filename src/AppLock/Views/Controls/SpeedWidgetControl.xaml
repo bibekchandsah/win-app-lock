@@ -6,7 +6,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid x:Name="Root" Background="Transparent">
+    <Grid x:Name="Root" Background="Transparent"
+          AutomationProperties.Name="Speed meter widget">
         <Border x:Name="Card"
                 CornerRadius="14"
                 BorderThickness="0"
@@ -26,6 +27,7 @@
                                   FontSize="12"
                                   VerticalAlignment="Center"/>
                         <TextBlock x:Name="DownText"
+                                   AutomationProperties.Name="Download speed"
                                    Text="0 B/s"
                                    Width="84"
                                    TextAlignment="Right"
@@ -47,6 +49,7 @@
                                   FontSize="12"
                                   VerticalAlignment="Center"/>
                         <TextBlock x:Name="UpText"
+                                   AutomationProperties.Name="Upload speed"
                                    Text="0 B/s"
                                    Width="84"
                                    TextAlignment="Right"
@@ -65,18 +68,20 @@
                 <!-- Status badges: metered connection and VPN adapter -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock x:Name="MeteredBadge"
+                               AutomationProperties.Name="Metered connection"
                                Text="metered"
                                FontSize="9"
                                Opacity="0.75"
                                Visibility="Collapsed"/>
-                    <StackPanel x:Name="VpnBadge" Orientation="Horizontal" Spacing="3" Visibility="Collapsed">
+                    <StackPanel x:Name="VpnBadge" Orientation="Horizontal" Spacing="3" Visibility="Collapsed"
+                                AutomationProperties.Name="VPN connection">
                         <FontIcon Glyph="&#xE72E;" FontSize="9" Opacity="0.75"/>
                         <TextBlock Text="VPN" FontSize="9" Opacity="0.75"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
-                <StackPanel x:Name="ExtraPanel" Spacing="2"/>
+                <StackPanel x:Name="ExtraPanel" Spacing="2" AutomationProperties.Name="Additional stats"/>
             </StackPanel>
         </Border>
     </Grid>

@@ -371,3 +371,27 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   TraceEvent` (a new NuGet dependency) plus administrator rights; the rest of the flyout works
   without it. Also skipped: the optional taskbar-docked mode (phase 2 in the spec) and a configurable
   per-app profile list.
+
+## Speed Meter — Milestone 10 (tests, accessibility, performance, checklist)
+
+- Tests: `tests/AppLock.Tests/SpeedMeter/` with 24 xunit cases (unit formatting incl. bits/decimals,
+  usage store accumulation/date ranges/daily buckets/CSV/reload/pruning/reset/month-boundary, preset
+  apply and appearance-only round-trip). The test project links `NetworkStatsProvider.cs` (for
+  `SpeedFormatter`), `UsageStore.cs` and `SpeedMeterPresets.cs`; `dotnet test --filter SpeedMeter`
+  passes 24/24. Testing the appearance JSON with invalid input exposed one real gap: a malformed
+  import used to throw, and `ApplyAppearanceJson` now ignores invalid JSON.
+- Accessibility: the widget's root, download/upload values, extra stats panel and both badges carry
+  `AutomationProperties.Name`, so a screen reader gets labels instead of bare numbers; page controls
+  are standard WinUI controls with `Header`/content labels. Live-region announcements are **not**
+  implemented (that would need a throttled UIA notification call).
+- Theme: the page and dialogs use only `ThemeResource` brushes; the widget keeps its own user-chosen
+  colours by design. No visual pass was done for light/dark beyond the existing startup probes.
+- Performance: measured with the release build on this machine (8 logical cores, 45–60 s samples):
+  meter off 3.64% of total CPU, meter at 1 s with no extra rows 3.35%, meter with CPU/RAM/disk/GPU
+  rows 4.04%. The app's own baseline dominates, so the meter's delta is inside measurement noise
+  (<0.3% total); the WMI-based disk/GPU rows are the only measurable extra cost (~0.4% total).
+- Manual checklist status: card/pages/open flows and the settings probes are verified; the usage
+  store was verified with a real write (`usage.json` row from live traffic). **Not** verified by
+  clicking: drag/snap, full-screen hiding, screen-capture exclusion, connection toasts on a real
+  disconnect, adapter switching, flyout graph/quality, cap toast and CSV export end-to-end, and
+  disabling the feature to confirm no timers remain.

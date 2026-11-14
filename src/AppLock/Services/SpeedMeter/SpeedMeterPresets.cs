@@ -102,7 +102,18 @@ public static class SpeedMeterPresets
     /// <summary>Copies the exported appearance onto the live settings object.</summary>
     public static void ApplyAppearanceJson(SpeedMeterSettings target, string json)
     {
-        var source = JsonSerializer.Deserialize<SpeedMeterSettings>(json);
+        SpeedMeterSettings? source;
+
+        try
+        {
+            source = JsonSerializer.Deserialize<SpeedMeterSettings>(json);
+        }
+        catch (JsonException)
+        {
+            // A hand-edited or unrelated JSON file must leave the current settings untouched.
+            return;
+        }
+
         if (source is null) return;
 
         CopyAppearance(source, target);
