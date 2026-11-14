@@ -47,6 +47,7 @@
     <Compile Include="..\..\src\AppLock\Models\VolumeMixerSettings.cs" Link="Models\VolumeMixerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\NotificationCustomSettings.cs" Link="Models\NotificationCustomSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\KeyboardSettings.cs" Link="Models\KeyboardSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\ColorTemperature.cs" Link="Services\RingLight\ColorTemperature.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\RingPresets.cs" Link="Services\RingLight\RingPresets.cs" />
     <Compile Include="..\..\src\AppLock\Services\RingLight\CameraUsageMonitor.cs" Link="Services\RingLight\CameraUsageMonitor.cs" />

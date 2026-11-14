@@ -79,6 +79,9 @@ public class AppSettings
     // Keyboard
     public KeyboardSettings Keyboard { get; set; } = new();
 
+    // Speed Meter
+    public SpeedMeterSettings SpeedMeter { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

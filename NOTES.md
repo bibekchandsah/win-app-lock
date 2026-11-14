@@ -151,3 +151,27 @@ Use `New-BurntToastNotification` PowerShell module or trigger Focus Assist notif
 ---
 
 *Updated: 2026-11-11 - Discovery spike successful, awaiting real toast for size validation*
+
+## Speed Meter — Milestone 1 (card, page shell, preview)
+
+- Card in the Others registry: id `speedmeter`, icon `\uEC4A` (SpeedHigh), title "Speed Meter",
+  description "Live download and upload speed in a floating widget".
+- **Order 86, not 70**: the spec asks for 70, but Notifications already uses 70 (see the note above).
+  The user also asked for the card "next to the wifi card", so it sits directly after Wi-Fi (85).
+  Nothing else was renumbered.
+- `Models/SpeedMeterSettings.cs` holds the full section-7 model (settings, `ConnectionAlertSettings`,
+  `SpeedMeterPreset`) and is persisted as `AppSettings.SpeedMeter`. Only `Enabled`/`StartWithAppLock`
+  are used so far. `ToggleHotkey` is stored as the same "Ctrl+Alt+N" string the other hotkey sections
+  use; there is no `HotkeyBinding` type in this codebase, so one was not invented.
+- `Views/SpeedMeterPage.xaml(.cs)`: breadcrumb (Others › Speed Meter) + back button, master
+  "Show speed meter" toggle, "Start with AppLock" toggle, and a themed preview strip with a mock
+  widget. Everything uses theme resources (`CardBackgroundFillColorDefaultBrush`,
+  `LayerFillColorDefaultBrush`, `TextFillColor*`, `AccentFillColorDefaultBrush`) so Light/Dark/System
+  follow the app theme with the same accent as the other pages.
+- The preview is still a static mock: it becomes the real widget control fed with live data once
+  `NetworkStatsProvider` and the widget window exist (milestone 2/3).
+- No network requests, no timers, no windows created yet.
+- Tests project links the new model file (`tests/AppLock.Tests/AppLock.Tests.csproj`), otherwise the
+  solution build fails with CS0246.
+- Pre-existing build warnings (mostly CS8618/CS1998 in Audio, VolumeMixer, App.xaml.cs) were left
+  untouched; this milestone added none.

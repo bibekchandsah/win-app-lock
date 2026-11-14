@@ -218,6 +218,37 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Speed Meter Card Template -->
+        <DataTemplate x:Key="SpeedMeterTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <!-- Speed Meter Toggle -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Floating Speed Meter"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="Enable/disable the speed widget"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind SpeedMeterEnabled, Mode=TwoWay}"
+                                  Toggled="SpeedMeterToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+                <Button Content="Open speed meter settings"
+                        Click="OpenSpeedMeter_Click"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
@@ -227,7 +258,8 @@
                                            VolumeMixerTemplate="{StaticResource VolumeMixerTemplate}"
                                            NotificationsTemplate="{StaticResource NotificationsTemplate}"
                                            KeyboardTemplate="{StaticResource KeyboardTemplate}"
-                                           WifiTemplate="{StaticResource WifiTemplate}"/>
+                                           WifiTemplate="{StaticResource WifiTemplate}"
+                                           SpeedMeterTemplate="{StaticResource SpeedMeterTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

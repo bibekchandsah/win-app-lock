@@ -19,6 +19,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? NotificationsTemplate { get; set; }
     public DataTemplate? KeyboardTemplate { get; set; }
     public DataTemplate? WifiTemplate { get; set; }
+    public DataTemplate? SpeedMeterTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -34,6 +35,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "notifications" => NotificationsTemplate,
                 "keyboard" => KeyboardTemplate,
                 "wifi" => WifiTemplate,
+                "speedmeter" => SpeedMeterTemplate,
                 _ => null
             };
         }
@@ -134,6 +136,7 @@ public sealed partial class OthersPage : Page
         UpdateRingLightCardState();
         UpdateVolumeMixerCardState();
         UpdateNotificationCardState();
+        UpdateSpeedMeterCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -318,6 +321,18 @@ public sealed partial class OthersPage : Page
                 Description = "View and copy the passwords of the wireless networks saved on this PC",
                 Status = "",
                 StatusVisibility = Visibility.Collapsed
+            },
+            new UtilityCard
+            {
+                Id = "speedmeter",
+                // Notifications already occupies 70, so this sits directly after Wi-Fi (85).
+                Order = 86,
+                Icon = "\uEC4A", // SpeedHigh (speedometer)
+                Title = "Speed Meter",
+                Description = "Live download and upload speed in a floating widget",
+                Status = ServiceContainer.Settings.SpeedMeter.Enabled ? "On" : "Off",
+                StatusVisibility = Visibility.Visible,
+                SpeedMeterEnabled = ServiceContainer.Settings.SpeedMeter.Enabled
             }
         };
 
@@ -367,12 +382,41 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(WifiPasswordsPage));
             }
+            else if (card.Id == "speedmeter")
+            {
+                Frame.Navigate(typeof(SpeedMeterPage));
+            }
         }
     }
 
     private void OpenWifiPasswords_Click(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(WifiPasswordsPage));
+    }
+
+    private void OpenSpeedMeter_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(SpeedMeterPage));
+    }
+
+    /// <summary>The card switch and the settings page share one setting, so both stay in sync.</summary>
+    private void SpeedMeterToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle || toggle.DataContext is not UtilityCard card) return;
+
+        ServiceContainer.Settings.SpeedMeter.Enabled = toggle.IsOn;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        card.SpeedMeterEnabled = toggle.IsOn;
+        card.Status = toggle.IsOn ? "On" : "Off";
+    }
+
+    private void UpdateSpeedMeterCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "speedmeter");
+        if (card == null) return;
+
+        card.SpeedMeterEnabled = ServiceContainer.Settings.SpeedMeter.Enabled;
+        card.Status = ServiceContainer.Settings.SpeedMeter.Enabled ? "On" : "Off";
     }
 
     private void BrightnessHotkeysToggle_Toggled(object sender, RoutedEventArgs e)
@@ -624,6 +668,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_notificationsEnabled != value)
             {
                 _notificationsEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _speedMeterEnabled;
+    public bool SpeedMeterEnabled
+    {
+        get => _speedMeterEnabled;
+        set
+        {
+            if (_speedMeterEnabled != value)
+            {
+                _speedMeterEnabled = value;
                 OnPropertyChanged();
             }
         }

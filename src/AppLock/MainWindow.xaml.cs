@@ -323,6 +323,7 @@ public sealed partial class MainWindow : Window
                         pageType == typeof(VolumeMixerSettingsPage) ||
                         pageType == typeof(NotificationsPage) ||
                         pageType == typeof(KeyboardPage) ||
+                        pageType == typeof(SpeedMeterPage) ||
                         pageType == typeof(RingLightPage);
 
         bool isDark = IsDarkMode;
