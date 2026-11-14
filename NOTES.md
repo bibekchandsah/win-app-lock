@@ -324,3 +324,26 @@ NOTE: adding new `Slider Minimum=...` attributes in XAML may hit the same proble
   *Speed widget click-through* and *Reset speed widget position*, all driving the shared service.
 - Not done in this milestone: Top apps (needs the ETW/admin path, milestone 9), the public IP
   button, data-usage "today" totals (milestone 8), and adapter switching toasts.
+
+## Speed Meter — Milestone 8 (data usage, history, caps, metered badge)
+
+- `Services/SpeedMeter/UsageStore`: one row per day + adapter (`date, adapterId, adapterName,
+  bytesDown, bytesUp`) in `%APPDATA%\AppLock\SpeedMeter\usage.json` — the spec's `usage.db` is a JSON
+  file here. Writes are atomic (`usage.json.tmp` then replace), flushed at most once a minute plus on
+  stop, and rows older than 12 whole months are pruned. Deltas are added from the sampled rate, never
+  from absolute counters, so reboots do not inflate totals. Includes daily/weekly/monthly grouping,
+  `UsageStore.MonthStart` for the monthly cap period, CSV export and a reset.
+- The service feeds it only while *Track data usage* is on, shows **Today ↓/↑** (optional widget row)
+  and `NetworkCostType` → a small **metered** badge on the widget, re-read about every 30 s.
+- Cap warnings: daily and monthly limits (NumberBox, GB; blank = no cap) with the 80% and 100%
+  thresholds; each threshold fires once per period (the last fired key is stored with the usage
+  data), and the warning goes through the same AppLock toast / native fallback as the alerts.
+- Page gained a *Data usage* card (track toggle, daily/monthly caps, reset day, "count only the active
+  adapter", today's totals, **View history**, **Reset statistics** with confirmation).
+- `Views/Dialogs/UsageHistoryDialog`: bar chart for last 7 days, 5 weeks or 12 months (download and
+  upload stacked, value scale, sparse labels), period totals, and **Export CSV** through
+  `FileSavePicker`.
+- Verified with a temporary startup probe (`OK today=2097152/1048576 csv=3 file=True`, page and
+  dialog both construct); probe removed.
+- Not done: per-adapter breakdown in the page (caps can be limited to the active adapter only),
+  threshold configuration (fixed at 80/100%), and usage history retention/export per adapter filter.

@@ -18,6 +18,10 @@ public sealed class SpeedMeterService : IDisposable
     private readonly SystemStatsProvider _systemStats = new();
     private readonly ConnectivityMonitor _connectivity;
     private readonly ConnectionToastService _toasts;
+    private readonly UsageStore _usage = new();
+
+    private bool _metered;
+    private int _meterTick;
 
     private DispatcherQueueTimer? _timer;
     private SpeedWidgetWindow? _widget;
@@ -40,6 +44,9 @@ public sealed class SpeedMeterService : IDisposable
 
     /// <summary>Outage history for the details flyout.</summary>
     public ConnectivityMonitor Connectivity => _connectivity;
+
+    /// <summary>Local data usage history (page, flyout and cap warnings).</summary>
+    public UsageStore Usage => _usage;
 
     public bool IsRunning { get; private set; }
 
@@ -91,6 +98,7 @@ public sealed class SpeedMeterService : IDisposable
         _connectivity.Stop();
         _toasts.CloseAll();
         CloseFlyout();
+        _usage.FlushIfDue(DateTime.Now, force: true);
 
         try
         {
@@ -299,6 +307,78 @@ public sealed class SpeedMeterService : IDisposable
         }
     }
 
+    /// <summary>Writes the usage file once a minute and fires cap warnings once per period.</summary>
+    private void RefreshUsage()
+    {
+        _usage.FlushIfDue(DateTime.Now);
+        CheckCaps();
+    }
+
+    private const double Gigabyte = 1024d * 1024d * 1024d;
+
+    private void CheckCaps()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        var adapter = settings.CapAdapterId;
+
+        if (settings.DailyCapGb is > 0)
+        {
+            var capBytes = settings.DailyCapGb.Value * Gigabyte;
+            var used = _usage.Today(adapter);
+
+            CheckCap(
+                used.Down + used.Up,
+                capBytes,
+                $"{DateTime.Today:yyyy-MM-dd}",
+                settings.DailyCapGb.Value,
+                _usage.LastDailyCapAlert,
+                key => _usage.MarkDailyCapAlert(key),
+                "Daily data cap");
+        }
+
+        if (settings.MonthlyCapGb is > 0)
+        {
+            var capBytes = settings.MonthlyCapGb.Value * Gigabyte;
+            var start = UsageStore.MonthStart(DateTime.Today, settings.MonthlyResetDay);
+            var used = _usage.Total(start, DateTime.Today.AddDays(1), adapter);
+
+            CheckCap(
+                used.Down + used.Up,
+                capBytes,
+                $"{start:yyyy-MM-dd}",
+                settings.MonthlyCapGb.Value,
+                _usage.LastMonthlyCapAlert,
+                key => _usage.MarkMonthlyCapAlert(key),
+                "Monthly data cap");
+        }
+    }
+
+    private void CheckCap(
+        long usedBytes,
+        double capBytes,
+        string period,
+        double capGb,
+        string? lastAlert,
+        Action<string> markAlert,
+        string title)
+    {
+        if (capBytes <= 0) return;
+
+        var ratio = usedBytes / capBytes;
+        var threshold = ratio >= 1 ? 100 : ratio >= 0.8 ? 80 : 0;
+        if (threshold == 0) return;
+
+        var key = $"{period}|{threshold}";
+        if (string.Equals(lastAlert, key, StringComparison.Ordinal)) return;
+
+        markAlert(key);
+        _usage.FlushIfDue(DateTime.Now, force: true);
+
+        _toasts.ShowWarning(
+            title,
+            $"{FormatBytes(usedBytes)} of {capGb:F0} GB used ({threshold}%)");
+    }
+
     private static string FormatDuration(TimeSpan duration)
     {
         if (duration.TotalHours >= 1) return $"{(int)duration.TotalHours} h {duration.Minutes} min";
@@ -324,6 +404,20 @@ public sealed class SpeedMeterService : IDisposable
             try
             {
                 var sample = _provider.Sample();
+
+                if (ServiceContainer.Settings.SpeedMeter.TrackUsage)
+                {
+                    _usage.AddBytes(
+                        sample.AdapterId,
+                        sample.AdapterName,
+                        (long)(sample.BytesDownPerSec * intervalSeconds),
+                        (long)(sample.BytesUpPerSec * intervalSeconds),
+                        DateTime.Now);
+                }
+
+                // The metered flag rarely changes; checking it about every half minute is enough.
+                if (_meterTick++ % 30 == 0) _metered = ReadMetered();
+
                 var stats = _systemStats.TrackCpu || _systemStats.TrackRam || _systemStats.TrackDisk
                             || _systemStats.TrackGpu || _systemStats.TrackBattery
                     ? _systemStats.Sample()
@@ -337,8 +431,15 @@ public sealed class SpeedMeterService : IDisposable
                     _widget?.Update(sample);
                     _widget?.SetStats(stats);
 
+                    var (todayDown, todayUp) = _usage.Today();
+
+                    _widget?.SetUsage(todayDown, todayUp, _metered);
+
                     _flyout?.Update(sample);
                     _flyout?.SetSessionTotals(_sessionDown, _sessionUp);
+                    _flyout?.SetTodayTotals(todayDown, todayUp);
+
+                    RefreshUsage();
                     StatsUpdated?.Invoke(this, stats);
 
                     // Step aside for full-screen apps and videos, then come back afterwards.
@@ -358,6 +459,39 @@ public sealed class SpeedMeterService : IDisposable
                 Volatile.Write(ref _sampling, 0);
             }
         });
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double value = bytes;
+        var index = 0;
+
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+
+        return $"{value.ToString(index == 0 ? "F0" : "F1")} {units[index]}";
+    }
+
+    /// <summary>Windows reports fixed/variable cost connections (mobile broadband, metered Wi-Fi).</summary>
+    private static bool ReadMetered()
+    {
+        try
+        {
+            var cost = Windows.Networking.Connectivity.NetworkInformation
+                .GetInternetConnectionProfile()
+                ?.GetConnectionCost();
+
+            return cost?.NetworkCostType is Windows.Networking.Connectivity.NetworkCostType.Fixed
+                or Windows.Networking.Connectivity.NetworkCostType.Variable;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public void Dispose() => Stop();

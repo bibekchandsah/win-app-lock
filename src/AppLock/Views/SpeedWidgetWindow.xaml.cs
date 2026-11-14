@@ -313,6 +313,10 @@ public sealed partial class SpeedWidgetWindow : Window
     /// <summary>Updates the optional CPU / RAM / disk / GPU / battery rows.</summary>
     public void SetStats(SystemStats stats) => Widget.SetStats(stats);
 
+    /// <summary>Today's totals row and the metered badge.</summary>
+    public void SetUsage(long todayDown, long todayUp, bool metered)
+        => Widget.SetUsage(todayDown, todayUp, metered);
+
     /// <summary>Hides for full-screen apps / unhides afterwards without closing the window.</summary>
     public void SetFullscreenHidden(bool hidden)
     {

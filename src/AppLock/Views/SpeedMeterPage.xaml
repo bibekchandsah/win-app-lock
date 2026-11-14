@@ -633,6 +633,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <ToggleSwitch x:Name="ShowCpuToggle" Grid.Row="0" Grid.Column="0"
@@ -652,6 +653,9 @@
                                           Toggled="ExtraStatToggle_Toggled"/>
                             <ToggleSwitch x:Name="ShowSparklineToggle" Grid.Row="2" Grid.Column="1"
                                           Header="Mini graph" OffContent="" OnContent=""
+                                          Toggled="ExtraStatToggle_Toggled"/>
+                            <ToggleSwitch x:Name="ShowTodayTotalToggle" Grid.Row="3" Grid.Column="0"
+                                          Header="Total data used today" OffContent="" OnContent=""
                                           Toggled="ExtraStatToggle_Toggled"/>
                         </Grid>
 
@@ -781,6 +785,75 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Preview &quot;Disconnected&quot;" Click="PreviewLost_Click"/>
                             <Button Content="Preview &quot;Back online&quot;" Click="PreviewRestored_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Data usage -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16">
+                    <StackPanel Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Data usage"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="Daily totals are kept on this PC for 12 months. Nothing is uploaded."
+                                       FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <ToggleSwitch x:Name="TrackUsageToggle"
+                                      Header="Track data usage"
+                                      OffContent="" OnContent=""
+                                      Toggled="UsageSetting_Changed"/>
+
+                        <TextBlock x:Name="UsageSummaryText"
+                                   Text="Today —"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <NumberBox x:Name="DailyCapBox"
+                                       Grid.Column="0"
+                                       Header="Daily cap (GB)"
+                                       PlaceholderText="No cap"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="UsageNumber_ValueChanged"/>
+
+                            <NumberBox x:Name="MonthlyCapBox"
+                                       Grid.Column="1"
+                                       Header="Monthly cap (GB)"
+                                       PlaceholderText="No cap"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="UsageNumber_ValueChanged"/>
+
+                            <NumberBox x:Name="ResetDayBox"
+                                       Grid.Column="2"
+                                       Header="Monthly reset day"
+                                       SpinButtonPlacementMode="Inline"
+                                       ValueChanged="UsageNumber_ValueChanged"/>
+                        </Grid>
+
+                        <ToggleSwitch x:Name="CapActiveToggle"
+                                      Header="Count only the active adapter"
+                                      OffContent="" OnContent=""
+                                      Toggled="UsageSetting_Changed"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="View history" Click="ViewUsageHistory_Click"/>
+                            <Button Content="Reset statistics" Click="ResetUsage_Click"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

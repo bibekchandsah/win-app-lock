@@ -200,6 +200,12 @@ public sealed partial class NetworkFlyoutWindow : Window
         SessionUpText.Text = $"Session ↑ {FormatBytes(upBytes)}";
     }
 
+    /// <summary>Today's totals from the usage store.</summary>
+    public void SetTodayTotals(long downBytes, long upBytes)
+    {
+        TodayText.Text = $"Today ↓ {FormatBytes(downBytes)} · ↑ {FormatBytes(upBytes)}";
+    }
+
     public void SetQuality(QualityStats stats)
     {
         QualityText.Text = stats.HasData

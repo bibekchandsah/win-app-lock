@@ -9,6 +9,7 @@ namespace AppLock.Services.SpeedMeter;
 /// <summary>Adapter, address and Wi-Fi information shown in the details flyout.</summary>
 public sealed class NetworkDetails
 {
+    public string AdapterId { get; init; } = string.Empty;
     public string AdapterName { get; init; } = string.Empty;
     public string AdapterDescription { get; init; } = string.Empty;
     public string LocalIp { get; init; } = string.Empty;
@@ -70,6 +71,7 @@ public static class NetworkDetailsProvider
 
             return new NetworkDetails
             {
+                AdapterId = adapter.Id,
                 AdapterName = adapter.Name,
                 AdapterDescription = adapter.Description,
                 LocalIp = localIp,

@@ -62,6 +62,13 @@
                     <Polyline x:Name="UpSpark" StrokeThickness="1.5"/>
                 </Canvas>
 
+                <!-- "metered" badge: shown when Windows reports a metered connection -->
+                <TextBlock x:Name="MeteredBadge"
+                           Text="metered"
+                           FontSize="9"
+                           Opacity="0.75"
+                           Visibility="Collapsed"/>
+
                 <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
                 <StackPanel x:Name="ExtraPanel" Spacing="2"/>
             </StackPanel>

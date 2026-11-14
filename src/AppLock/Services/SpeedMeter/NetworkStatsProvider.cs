@@ -9,6 +9,7 @@ public sealed class NetworkSpeedSample
     public double BytesDownPerSec { get; init; }
     public double BytesUpPerSec { get; init; }
     public long PeakBytesDownPerSec { get; init; }
+    public string AdapterId { get; init; } = string.Empty;
     public string AdapterName { get; init; } = string.Empty;
     public long LinkSpeedBitsPerSec { get; init; }
 
@@ -99,6 +100,7 @@ public sealed class NetworkStatsProvider
             BytesDownPerSec = downPerSec,
             BytesUpPerSec = upPerSec,
             PeakBytesDownPerSec = _peakDown,
+            AdapterId = primary?.Id ?? string.Empty,
             AdapterName = primary?.Name ?? string.Empty,
             LinkSpeedBitsPerSec = primary?.Speed ?? 0
         };

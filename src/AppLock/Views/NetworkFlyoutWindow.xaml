@@ -89,6 +89,11 @@
                     </StackPanel>
                 </StackPanel>
 
+                <TextBlock x:Name="TodayText"
+                           Text="Today ↓ 0 B · ↑ 0 B"
+                           FontSize="11"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
                 <Border Background="{ThemeResource FlyoutGraphBrush}"
                         CornerRadius="6"
                         Padding="6">

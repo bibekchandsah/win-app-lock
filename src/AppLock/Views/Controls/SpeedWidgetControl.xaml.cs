@@ -32,6 +32,10 @@ public sealed partial class SpeedWidgetControl : UserControl
     /// <summary>Row order used when the user has not rearranged anything.</summary>
     private static readonly string[] DefaultRowOrder = { "cpu", "ram", "disk", "gpu", "battery" };
 
+    private long _todayDown;
+    private long _todayUp;
+    private bool _metered;
+
     private readonly Queue<double> _downHistory = new();
     private readonly Queue<double> _upHistory = new();
     private readonly Dictionary<string, TextBlock> _rowValues = new();
@@ -147,6 +151,10 @@ public sealed partial class SpeedWidgetControl : UserControl
         DownSpark.Stroke = new SolidColorBrush(ParseColor(settings.DownloadColor, DefaultDown));
         UpSpark.Stroke = new SolidColorBrush(ParseColor(settings.UploadColor, DefaultUp));
 
+        MeteredBadge.FontFamily = font;
+        MeteredBadge.FontSize = 9 * scale;
+        MeteredBadge.Foreground = textBrush;
+
         BuildRows(settings, textBrush, 11 * scale, font, textBrush);
         ApplyStatsValues();
     }
@@ -163,6 +171,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         if (settings.ShowDisk) enabled.Add("disk");
         if (settings.ShowGpu) enabled.Add("gpu");
         if (settings.ShowBattery) enabled.Add("battery");
+        if (settings.ShowTodayTotal) enabled.Add("today");
 
         var order = (settings.RowOrder is { Count: > 0 } ? settings.RowOrder : DefaultRowOrder.ToList())
             .Where(enabled.Contains)
@@ -214,8 +223,20 @@ public sealed partial class SpeedWidgetControl : UserControl
         "disk" => "Disk",
         "gpu" => "GPU",
         "battery" => "Battery",
+        "today" => "Today",
         _ => id
     };
+
+    /// <summary>Today's totals and the metered flag, fed by the service.</summary>
+    public void SetUsage(long todayDown, long todayUp, bool metered)
+    {
+        _todayDown = todayDown;
+        _todayUp = todayUp;
+        _metered = metered;
+
+        MeteredBadge.Visibility = metered ? Visibility.Visible : Visibility.Collapsed;
+        ApplyStatsValues();
+    }
 
     /// <summary>Shows the latest CPU/RAM/disk/GPU/battery values with warning colors.</summary>
     public void SetStats(SystemStats? stats)
@@ -249,6 +270,23 @@ public sealed partial class SpeedWidgetControl : UserControl
         SetRow("disk", stats?.DiskPercent, 101, $"{stats?.DiskPercent ?? 0:F0}%");
         SetRow("gpu", stats?.GpuPercent, 101, $"{stats?.GpuPercent ?? 0:F0}%");
         SetRow("battery", stats?.BatteryPercent, 101, $"{stats?.BatteryPercent ?? 0}%");
+
+        SetRow("today", null, 101, $"↓{FormatBytes(_todayDown)} ↑{FormatBytes(_todayUp)}");
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double value = bytes;
+        var index = 0;
+
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+
+        return $"{value.ToString(index == 0 ? "F0" : "F1")} {units[index]}";
     }
 
     private void SetRow(string id, double? value, int warnAbove, string text)

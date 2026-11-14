@@ -105,6 +105,35 @@ public sealed class ConnectionToastService
         }
     }
 
+    /// <summary>A cap warning; it is its own event, so the lost/restored toggles do not gate it.</summary>
+    public void ShowWarning(string title, string subtitle)
+    {
+        var alerts = ServiceContainer.Settings.SpeedMeter.Alerts;
+
+        if (alerts.SuppressInFullscreen && FullscreenDetector.IsFullscreenAppActive()) return;
+
+        if (string.Equals(alerts.Style, "Windows", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowNative(title, subtitle);
+            PlaySound(lost: true);
+            return;
+        }
+
+        _open.RemoveAll(w => w is null);
+        while (_open.Count >= MaxToasts)
+        {
+            try { _open[0].Close(); } catch { /* already gone */ }
+            _open.RemoveAt(0);
+        }
+
+        var toast = new ConnectionToastWindow(alerts, false, title, subtitle, _open.Count);
+        toast.Closed += (_, _) => _open.Remove(toast);
+        _open.Add(toast);
+
+        toast.Activate();
+        PlaySound(lost: true);
+    }
+
     /// <summary>Used by the page's preview buttons.</summary>
     public void ShowPreview(bool lost)
     {

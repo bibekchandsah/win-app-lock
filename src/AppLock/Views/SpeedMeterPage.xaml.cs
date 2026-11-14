@@ -65,6 +65,13 @@ public sealed partial class SpeedMeterPage : Page
         MinOutageBox.Minimum = 1;
         MinOutageBox.Maximum = 300;
 
+        DailyCapBox.Minimum = 0;
+        DailyCapBox.Maximum = 10_000;
+        MonthlyCapBox.Minimum = 0;
+        MonthlyCapBox.Maximum = 100_000;
+        ResetDayBox.Minimum = 1;
+        ResetDayBox.Maximum = 28;
+
         BuildComboItems();
         LoadFromSettings();
 
@@ -144,6 +151,7 @@ public sealed partial class SpeedMeterPage : Page
         ShowGpuToggle.IsOn = Settings.ShowGpu;
         ShowBatteryToggle.IsOn = Settings.ShowBattery;
         ShowSparklineToggle.IsOn = Settings.ShowSparkline;
+        ShowTodayTotalToggle.IsOn = Settings.ShowTodayTotal;
         SelectComboByTag(RamFormatCombo, Settings.RamFormat);
         WarnCpuBox.Value = Math.Clamp(Settings.WarnCpuPercent, 0, 100);
         WarnRamBox.Value = Math.Clamp(Settings.WarnRamPercent, 0, 100);
@@ -164,6 +172,13 @@ public sealed partial class SpeedMeterPage : Page
         MarginBox.Value = Math.Clamp(alerts.MarginPx, 0, 200);
         DebounceBox.Value = Math.Clamp(alerts.DebounceSeconds, 1, 30);
         MinOutageBox.Value = Math.Clamp(alerts.MinOutageToAnnounceSeconds, 1, 300);
+
+        TrackUsageToggle.IsOn = Settings.TrackUsage;
+        DailyCapBox.Value = Settings.DailyCapGb is { } dailyCap && dailyCap > 0 ? dailyCap : double.NaN;
+        MonthlyCapBox.Value = Settings.MonthlyCapGb is { } monthlyCap && monthlyCap > 0 ? monthlyCap : double.NaN;
+        ResetDayBox.Value = Math.Clamp(Settings.MonthlyResetDay, 1, 28);
+        CapActiveToggle.IsOn = !string.IsNullOrEmpty(Settings.CapAdapterId);
+        UsageSummaryText.Text = BuildUsageSummary();
 
         LockPositionToggle.IsOn = Settings.LockPosition;
         SnapToggle.IsOn = Settings.SnapToEdges;
@@ -540,7 +555,7 @@ public sealed partial class SpeedMeterPage : Page
     private static List<string> EffectiveRowOrder()
     {
         var order = new List<string>(Settings.RowOrder);
-        foreach (var id in new[] { "cpu", "ram", "disk", "gpu", "battery" })
+        foreach (var id in new[] { "cpu", "ram", "disk", "gpu", "battery", "today" })
         {
             if (!order.Contains(id)) order.Add(id);
         }
@@ -559,7 +574,8 @@ public sealed partial class SpeedMeterPage : Page
             ["ram"] = "RAM usage",
             ["disk"] = "Disk activity",
             ["gpu"] = "GPU usage",
-            ["battery"] = "Battery"
+            ["battery"] = "Battery",
+            ["today"] = "Total data today"
         };
 
         for (var i = 0; i < order.Count; i++)
@@ -626,6 +642,7 @@ public sealed partial class SpeedMeterPage : Page
         Settings.ShowGpu = ShowGpuToggle.IsOn;
         Settings.ShowBattery = ShowBatteryToggle.IsOn;
         Settings.ShowSparkline = ShowSparklineToggle.IsOn;
+        Settings.ShowTodayTotal = ShowTodayTotalToggle.IsOn;
 
         if (Settings.RowOrder.Count == 0) Settings.RowOrder = EffectiveRowOrder();
 
@@ -647,6 +664,101 @@ public sealed partial class SpeedMeterPage : Page
         if (!double.IsNaN(WarnRamBox.Value)) Settings.WarnRamPercent = (int)Math.Clamp(WarnRamBox.Value, 0, 100);
 
         SaveExtraStats();
+    }
+
+    private void SaveUsageSettings()
+    {
+        Settings.TrackUsage = TrackUsageToggle.IsOn;
+
+        Settings.DailyCapGb = double.IsNaN(DailyCapBox.Value) || DailyCapBox.Value <= 0
+            ? null
+            : Math.Clamp(DailyCapBox.Value, 0, 10_000);
+
+        Settings.MonthlyCapGb = double.IsNaN(MonthlyCapBox.Value) || MonthlyCapBox.Value <= 0
+            ? null
+            : Math.Clamp(MonthlyCapBox.Value, 0, 100_000);
+
+        if (!double.IsNaN(ResetDayBox.Value))
+        {
+            Settings.MonthlyResetDay = (int)Math.Clamp(ResetDayBox.Value, 1, 28);
+        }
+
+        Settings.CapAdapterId = CapActiveToggle.IsOn
+            ? Settings.CapAdapterId ?? NetworkDetailsProvider.Read().AdapterId
+            : null;
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        ServiceContainer.SpeedMeterService?.ApplySettings();
+
+        UsageSummaryText.Text = BuildUsageSummary();
+    }
+
+    private void UsageSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        SaveUsageSettings();
+    }
+
+    private void UsageNumber_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loading) return;
+        SaveUsageSettings();
+    }
+
+    private string BuildUsageSummary()
+    {
+        var store = ServiceContainer.SpeedMeterService?.Usage;
+        if (store is null) return "Today —";
+
+        var (down, up) = store.Today();
+        return $"Today ↓ {FormatBytes(down)} · ↑ {FormatBytes(up)}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double value = bytes;
+        var index = 0;
+
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+
+        return $"{value.ToString(index == 0 ? "F0" : "F1")} {units[index]}";
+    }
+
+    private async void ViewUsageHistory_Click(object sender, RoutedEventArgs e)
+    {
+        var store = ServiceContainer.SpeedMeterService?.Usage;
+        if (store is null) return;
+
+        var dialog = new UsageHistoryDialog(store) { XamlRoot = XamlRoot };
+        await dialog.ShowAsync();
+
+        UsageSummaryText.Text = BuildUsageSummary();
+    }
+
+    private async void ResetUsage_Click(object sender, RoutedEventArgs e)
+    {
+        var store = ServiceContainer.SpeedMeterService?.Usage;
+        if (store is null) return;
+
+        var confirm = new ContentDialog
+        {
+            Title = "Reset data usage?",
+            Content = "All stored daily totals are deleted. This cannot be undone.",
+            PrimaryButtonText = "Reset",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
+
+        store.Reset();
+        UsageSummaryText.Text = BuildUsageSummary();
     }
 
     private void SaveAlerts()
