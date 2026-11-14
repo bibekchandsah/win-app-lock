@@ -231,12 +231,44 @@
                             </Button>
                         </Grid>
 
+                        <!-- Empty state: nothing running (or nothing matches the search) -->
+                        <Border Grid.Row="1"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="32"
+                                Visibility="{x:Bind RunningViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel Spacing="10"
+                                        MaxWidth="440"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE71D;" FontSize="30"
+                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                <TextBlock Text="{x:Bind RunningViewModel.EmptyTitle, Mode=OneWay}"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"/>
+                                <TextBlock Text="{x:Bind RunningViewModel.EmptyDescription, Mode=OneWay}"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                                <Button Content="Refresh list"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,6,0,0"
+                                        Click="EmptyRefreshButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Programs List -->
                         <Border Grid.Row="1" 
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
-                                CornerRadius="8">
+                                CornerRadius="8"
+                                Visibility="{x:Bind RunningViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
                             <ListView x:Name="RunningProgramsList"
                                       ItemsSource="{x:Bind RunningViewModel.FilteredWindows, Mode=OneWay}"
                                       SelectionMode="None"

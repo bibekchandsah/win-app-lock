@@ -948,6 +948,11 @@ public sealed partial class ProtectionPage : Page
         RefreshRunningPrograms(showFeedback: true);
     }
 
+    private void EmptyRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshRunningPrograms(showFeedback: true);
+    }
+
     /// <summary>
     /// Re-reads the running windows. Only rows that actually changed are touched, so the list updates
     /// in place; the icon spins briefly so the click is acknowledged even when nothing changed.

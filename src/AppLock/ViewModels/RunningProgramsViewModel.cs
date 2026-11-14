@@ -32,6 +32,15 @@ public partial class RunningProgramsViewModel : ObservableObject
     private int _runningCount;
 
     [ObservableProperty]
+    private bool _isEmpty;
+
+    [ObservableProperty]
+    private string _emptyTitle = "No running applications found";
+
+    [ObservableProperty]
+    private string _emptyDescription = "Programs with an open window appear here automatically.";
+
+    [ObservableProperty]
     private bool _autoRefreshEnabled = true;
 
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _autoRefreshTimer;
@@ -69,6 +78,7 @@ public partial class RunningProgramsViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         FilterWindows();
+        UpdateEmptyState();
     }
 
     // Re-subscribe CollectionChanged whenever the FilteredWindows collection is replaced
@@ -76,6 +86,7 @@ public partial class RunningProgramsViewModel : ObservableObject
     {
         value.CollectionChanged += OnFilteredWindowsCollectionChanged;
         RunningCount = value.Count;
+        UpdateEmptyState();
     }
 
     private void OnFilteredWindowsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -83,7 +94,32 @@ public partial class RunningProgramsViewModel : ObservableObject
         // Dispatch to avoid re-entrancy in x:Bind generated code
         _dispatcherQueue?.TryEnqueue(
             Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal,
-            () => RunningCount = FilteredWindows.Count);
+            () =>
+            {
+                RunningCount = FilteredWindows.Count;
+                UpdateEmptyState();
+            });
+    }
+
+    /// <summary>
+    /// Keeps the list's empty state meaningful: nothing running at all reads differently from
+    /// a search that simply matched nothing.
+    /// </summary>
+    private void UpdateEmptyState()
+    {
+        IsEmpty = FilteredWindows.Count == 0;
+
+        string query = SearchText?.Trim() ?? string.Empty;
+        if (!string.IsNullOrEmpty(query) && Windows.Count > 0)
+        {
+            EmptyTitle = "No programs match your search";
+            EmptyDescription = $"Nothing running matches \u201C{query}\u201D. Try a different process name or window title, or clear the search box.";
+        }
+        else
+        {
+            EmptyTitle = "No running applications found";
+            EmptyDescription = "Programs with an open window appear here automatically. Start an application, or use \u201CPick a window\u201D to choose one, and it will show up in this list.";
+        }
     }
 
     partial void OnAutoRefreshEnabledChanged(bool value)
@@ -392,6 +428,9 @@ public partial class RunningProgramsViewModel : ObservableObject
                 FilteredWindows.Move(existingIndex, i);
             }
         }
+
+        // Also covers the "already empty and still empty" case, where no collection event fires.
+        UpdateEmptyState();
     }
 
     [RelayCommand]
