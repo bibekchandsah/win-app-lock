@@ -73,8 +73,26 @@ public sealed partial class VolumeOverlayWindow : Window
     // Session tracking — ViewModel, session IDs, the row Grid, and the play/pause FontIcon for status sync
     private readonly Dictionary<string, (MixerSessionViewModel ViewModel, List<string> SessionIds, Grid Row, FontIcon PlayIcon)> _appSessions = new();
 
-    // Microphone tracking — deviceId → (MicrophoneDevice, Icon Button, Controls Grid)
-    private readonly Dictionary<string, (Services.Audio.MicrophoneDevice Device, Button IconButton, Grid ControlsGrid)> _microphoneRows = new();
+    // Microphone tracking — deviceId → row controls
+    private readonly Dictionary<string, MicrophoneRowUi> _microphoneRows = new();
+
+    // Last time the capture device list was re-enumerated (default device / hot-plug sync)
+    private DateTime _lastMicrophoneScan = DateTime.MinValue;
+    private const int MicrophoneScanIntervalMs = 2000;
+
+    /// <summary>
+    /// Controls of one microphone row: the left button selects this device as the default input,
+    /// the right-hand button mutes/unmutes it.
+    /// </summary>
+    private sealed class MicrophoneRowUi
+    {
+        public Services.Audio.MicrophoneDevice Device = null!;
+        public Button IconButton = null!;
+        public Grid ControlsGrid = null!;
+        public Slider Slider = null!;
+        public TextBlock PercentText = null!;
+        public Button MuteButton = null!;
+    }
 
     // Win32 imports for window styling — use Ptr variants for 64-bit safety
     private const int GWL_EXSTYLE = -20;
@@ -329,8 +347,9 @@ public sealed partial class VolumeOverlayWindow : Window
             
             // Initialize camera brightness service
             _ = InitializeCameraAsync();
-            
-            // Initialize microphone volume service
+
+            // Initialize microphone volume service (ApplySettings may already have built the rows;
+            // this rebuilds them from a fresh enumeration so startup state is always current)
             _ = InitializeMicrophoneAsync();
             
             System.Diagnostics.Debug.WriteLine("[VolumeMixer] Constructor complete");
@@ -807,40 +826,13 @@ public sealed partial class VolumeOverlayWindow : Window
 
             Debug.WriteLine("[VolumeMixer] Initializing microphone volume controls...");
             bool success = _microphoneService.Initialize();
-            
+            _lastMicrophoneScan = DateTime.UtcNow;
+
             Debug.WriteLine($"[VolumeMixer] Microphone init result: {success}");
-            
-            if (success)
-            {
-                var microphones = _microphoneService.GetMicrophones();
-                Debug.WriteLine($"[VolumeMixer] Found {microphones.Count} microphone(s)");
-                
-                // Clear existing rows
-                ClearMicrophoneRows();
-                
-                // Create a row for each microphone
-                foreach (var mic in microphones)
-                {
-                    CreateMicrophoneRow(mic);
-                }
-                
-                _microphoneRowCount = microphones.Count;
-                
-                // Show container if we have microphones
-                if (_microphoneRowCount > 0)
-                {
-                    MicrophoneIconsContainer.Visibility = Visibility.Visible;
-                    MicrophoneControlsContainer.Visibility = Visibility.Visible;
-                }
-                
-                Debug.WriteLine($"[VolumeMixer] Microphone initialization complete: {_microphoneRowCount} device(s)");
-            }
-            else
-            {
-                Debug.WriteLine("[VolumeMixer] No microphone devices found");
-                ClearMicrophoneRows();
-            }
-            
+
+            RebuildMicrophoneRows();
+            Debug.WriteLine($"[VolumeMixer] Microphone initialization complete: {_microphoneRowCount} device(s)");
+
             await Task.CompletedTask;
         }
         catch (Exception ex)
@@ -870,13 +862,11 @@ public sealed partial class VolumeOverlayWindow : Window
                 Tag = mic.DeviceId
             };
 
-            // Add tooltip with device name
-            ToolTipService.SetToolTip(iconButton, mic.FriendlyName + (mic.IsDefault ? " (Default)" : ""));
-
             var icon = new FontIcon
             {
-                // E720 = Microphone, EC54 = Microphone Off (crossed out mic)
-                Glyph = mic.IsMuted() ? "\uEC54" : "\uE720",
+                // E720 = Microphone. This button selects the default input device, so it always
+                // shows a plain mic; mute state lives on the right-hand button.
+                Glyph = "\uE720",
                 FontSize = 16,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
             };
@@ -885,13 +875,7 @@ public sealed partial class VolumeOverlayWindow : Window
             iconButton.Click += (s, e) =>
             {
                 var deviceId = (string)((Button)s).Tag;
-                var device = _microphoneService.GetMicrophone(deviceId);
-                if (device != null)
-                {
-                    bool currentMute = device.IsMuted();
-                    device.SetMute(!currentMute);
-                    UpdateMicrophoneIcon(deviceId);
-                }
+                SetDefaultMicrophone(deviceId);
             };
 
             // Create controls grid for expanded view
@@ -1007,8 +991,16 @@ public sealed partial class VolumeOverlayWindow : Window
             MicrophoneIconsContainer.Children.Add(iconButton);
             MicrophoneControlsContainer.Children.Add(controlsGrid);
             
-            // Store references (icon button and controls grid)
-            _microphoneRows[mic.DeviceId] = (mic, iconButton, controlsGrid);
+            // Store references so polling can update this row in place
+            _microphoneRows[mic.DeviceId] = new MicrophoneRowUi
+            {
+                Device = mic,
+                IconButton = iconButton,
+                ControlsGrid = controlsGrid,
+                Slider = slider,
+                PercentText = percentText,
+                MuteButton = muteButton,
+            };
             
             Debug.WriteLine($"[VolumeMixer] Created row for: {mic.FriendlyName} ({(mic.IsDefault ? "Default" : "Secondary")})");
         }
@@ -1028,6 +1020,147 @@ public sealed partial class VolumeOverlayWindow : Window
         MicrophoneControlsContainer.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>Recreates every microphone row from the current device list.</summary>
+    private void RebuildMicrophoneRows()
+    {
+        var microphones = _microphoneService.GetMicrophones();
+        ClearMicrophoneRows();
+
+        foreach (var mic in microphones)
+        {
+            CreateMicrophoneRow(mic);
+        }
+
+        _microphoneRowCount = microphones.Count;
+        bool hasDevices = microphones.Count > 0;
+        MicrophoneIconsContainer.Visibility = hasDevices ? Visibility.Visible : Visibility.Collapsed;
+        MicrophoneControlsContainer.Visibility = hasDevices ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateMicrophoneSelection();
+    }
+
+    /// <summary>
+    /// Marks the default input device: its left-hand mic button gets the accent background so the
+    /// selected microphone is visible at a glance.
+    /// </summary>
+    private void UpdateMicrophoneSelection()
+    {
+        var accentBackground = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+        var onAccent = ResourceBrush("TextOnAccentFillColorPrimaryBrush", accentBackground);
+        var primary = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+
+        foreach (var row in _microphoneRows.Values)
+        {
+            try
+            {
+                var device = _microphoneService.GetMicrophone(row.Device.DeviceId) ?? row.Device;
+                bool isDefault = device.IsDefault;
+
+                row.IconButton.Background = isDefault
+                    ? accentBackground
+                    : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+                if (row.IconButton.Content is FontIcon icon)
+                {
+                    icon.Foreground = isDefault ? onAccent : primary;
+                }
+
+                ToolTipService.SetToolTip(row.IconButton, isDefault
+                    ? $"{device.FriendlyName} — selected microphone (default)"
+                    : $"Set {device.FriendlyName} as the default microphone");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[VolumeMixer] UpdateMicrophoneSelection error: {ex.Message}");
+            }
+        }
+    }
+
+    private static Brush ResourceBrush(string key, Brush fallback)
+    {
+        try { return (Brush)Application.Current.Resources[key]; }
+        catch { return fallback; }
+    }
+
+    private void SetDefaultMicrophone(string deviceId)
+    {
+        try
+        {
+            if (_microphoneService.SetDefaultMicrophone(deviceId))
+            {
+                Debug.WriteLine($"[VolumeMixer] Default microphone set: {deviceId}");
+                _lastMicrophoneScan = DateTime.UtcNow;
+                UpdateMicrophoneSelection();
+            }
+            else
+            {
+                Debug.WriteLine($"[VolumeMixer] Could not set default microphone: {deviceId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] SetDefaultMicrophone error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Keeps the microphone rows in step with the system: devices plugged/unplugged, the default
+    /// device changed in Windows (or by another app), and volume/mute changed elsewhere.
+    /// </summary>
+    private void SyncMicrophones()
+    {
+        try
+        {
+            if (!ServiceContainer.Settings.VolumeMixer.ShowMicrophoneVolume)
+                return;
+
+            if ((DateTime.UtcNow - _lastMicrophoneScan).TotalMilliseconds >= MicrophoneScanIntervalMs)
+            {
+                _lastMicrophoneScan = DateTime.UtcNow;
+                if (_microphoneService.RefreshDevices())
+                {
+                    Debug.WriteLine("[VolumeMixer] Microphone devices changed - rebuilding rows");
+                    RebuildMicrophoneRows();
+                    return;
+                }
+            }
+
+            SyncMicrophoneValues();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] SyncMicrophones error: {ex.Message}");
+        }
+    }
+
+    private void SyncMicrophoneValues()
+    {
+        foreach (var row in _microphoneRows.Values)
+        {
+            try
+            {
+                var device = _microphoneService.GetMicrophone(row.Device.DeviceId);
+                if (device == null) continue;
+
+                float volume = device.GetVolume();
+                if (Math.Abs(row.Slider.Value - volume) > 0.5)
+                {
+                    _isUpdatingMicrophoneVolume = true;
+                    try { row.Slider.Value = volume; }
+                    finally { _isUpdatingMicrophoneVolume = false; }
+                }
+
+                row.PercentText.Text = $"{(int)Math.Round(volume)}%";
+
+                if (row.MuteButton.Content is FontIcon muteIcon)
+                {
+                    muteIcon.Glyph = device.IsMuted() ? "\uEC54" : "\uE720";
+                }
+            }
+            catch { }
+        }
+    }
+
     private void UpdateMicrophoneIcon(string deviceId)
     {
         if (!_microphoneRows.TryGetValue(deviceId, out var row))
@@ -1035,26 +1168,13 @@ public sealed partial class VolumeOverlayWindow : Window
 
         try
         {
-            var device = row.Device;
-            bool isMuted = device.IsMuted();
-            // E720 = Microphone, EC54 = Microphone Off (crossed out mic, not speaker)
-            string glyph = isMuted ? "\uEC54" : "\uE720";
+            var device = _microphoneService.GetMicrophone(deviceId) ?? row.Device;
+            // The left button shows selection, so only the right-hand mute button reflects mute.
+            string glyph = device.IsMuted() ? "\uEC54" : "\uE720";
 
-            // Update icon button
-            if (row.IconButton?.Content is FontIcon iconFontIcon)
+            if (row.MuteButton?.Content is FontIcon muteFontIcon)
             {
-                iconFontIcon.Glyph = glyph;
-            }
-
-            // Update mute button in controls grid (Column 2: 0=slider, 1=percent, 2=mute)
-            var controlsGrid = row.ControlsGrid;
-            if (controlsGrid != null && controlsGrid.Children.Count > 2)
-            {
-                var muteButton = controlsGrid.Children[2] as Button;
-                if (muteButton?.Content is FontIcon muteFontIcon)
-                {
-                    muteFontIcon.Glyph = glyph;
-                }
+                muteFontIcon.Glyph = glyph;
             }
         }
         catch (Exception ex)
@@ -1070,15 +1190,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
         try
         {
-            var controlsGrid = row.ControlsGrid;
-            if (controlsGrid != null && controlsGrid.Children.Count > 1)
+            if (row.PercentText != null)
             {
-                // Column 1 is the percent text (0=slider, 1=percent, 2=mute)
-                var percentText = controlsGrid.Children[1] as TextBlock;
-                if (percentText != null)
-                {
-                    percentText.Text = $"{percent}%";
-                }
+                row.PercentText.Text = $"{percent}%";
             }
         }
         catch (Exception ex)
@@ -1228,13 +1342,22 @@ public sealed partial class VolumeOverlayWindow : Window
             {
                 try
                 {
-                    var controlsGrid = row.ControlsGrid;
-                    if (controlsGrid?.Children.Count > 0 && controlsGrid.Children[0] is Slider micSlider)
+                    if (row.Slider != null)
                     {
-                        micSlider.Width = settings.SliderWidth;
+                        row.Slider.Width = settings.SliderWidth;
                     }
                 }
                 catch { }
+            }
+
+            // Show or hide the microphone list when the setting changes at runtime
+            if (settings.ShowMicrophoneVolume && _microphoneRows.Count == 0)
+            {
+                _ = InitializeMicrophoneAsync();
+            }
+            else if (!settings.ShowMicrophoneVolume && _microphoneRows.Count > 0)
+            {
+                ClearMicrophoneRows();
             }
 
             // Idle opacity — applied as window (layered) alpha so the desktop behind the idle
@@ -1300,6 +1423,9 @@ public sealed partial class VolumeOverlayWindow : Window
 
     private void RefreshSessions()
     {
+        // Microphones: hot-plug, default-device and volume/mute changes from other apps.
+        SyncMicrophones();
+
         // Post the session snapshot work to the audio thread; result comes back on UI thread.
         _audioService.GetAudioSessionsAsync(sessions =>
         {
