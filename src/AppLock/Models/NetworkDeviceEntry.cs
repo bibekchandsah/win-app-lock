@@ -48,5 +48,8 @@ public enum NetworkDeviceType
     Computer,     // PC / laptop / server
     Printer,
     SmartTV,
-    IoT,          // smart home, NAS, cameras, etc.
+    GameConsole,  // PlayStation, Xbox, Switch
+    Speaker,      // smart speakers, audio devices
+    Camera,       // IP cameras, webcams
+    IoT,          // smart home, NAS, other IoT devices
 }

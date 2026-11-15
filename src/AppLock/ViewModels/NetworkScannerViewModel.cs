@@ -332,8 +332,8 @@ public partial class NetworkDeviceViewModel : ObservableObject
             Hostname = fresh.Hostname;
         }
 
-        if (fresh.DeviceType != AppLock.Models.NetworkDeviceType.Unknown &&
-            fresh.DeviceType != Entry.DeviceType)
+        // Always update device type if fresh scan has better information
+        if (fresh.DeviceType != Entry.DeviceType)
         {
             Entry.DeviceType = fresh.DeviceType;
             DeviceIcon = GlyphForType(fresh.DeviceType);
@@ -364,23 +364,65 @@ public partial class NetworkDeviceViewModel : ObservableObject
     partial void OnHostnameChanged(string value)  => OnPropertyChanged(nameof(DisplayName));
 
     /// <summary>
-    /// Priority: user FriendlyName → resolved Hostname → IP address.
+    /// Priority: user FriendlyName → resolved Hostname → Vendor + short MAC → IP address.
+    /// Special labels for "This PC" and "Router/Gateway".
     /// </summary>
-    public string DisplayName =>
-        !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
-        !string.IsNullOrWhiteSpace(Hostname)     ? Hostname     :
-        IpAddress;
+    public string DisplayName
+    {
+        get
+        {
+            // Special label for this PC
+            if (IsThisDevice)
+            {
+                var baseName = !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
+                              !string.IsNullOrWhiteSpace(Hostname) ? Hostname : "This PC";
+                return baseName;
+            }
+
+            // Special label for router/gateway
+            if (Entry.DeviceType == AppLock.Models.NetworkDeviceType.Router && 
+                string.IsNullOrWhiteSpace(FriendlyName) && 
+                string.IsNullOrWhiteSpace(Hostname))
+            {
+                return "Router / Gateway";
+            }
+
+            if (!string.IsNullOrWhiteSpace(FriendlyName))
+                return FriendlyName;
+            
+            if (!string.IsNullOrWhiteSpace(Hostname))
+                return Hostname;
+            
+            // Fallback: Show "Vendor (short MAC)" for better readability
+            var manufacturer = Manufacturer;
+            if (!string.IsNullOrEmpty(manufacturer) && manufacturer != "Unknown")
+            {
+                // Get last 3 octets of MAC for short identifier
+                var macParts = MacAddress.Split(':');
+                if (macParts.Length == 6)
+                {
+                    var shortMac = string.Join(":", macParts[3..6]);
+                    return $"{manufacturer} ({shortMac})";
+                }
+            }
+            
+            return IpAddress;
+        }
+    }
 
     // ── Icon glyphs (Segoe Fluent Icons / MDL2) ────────────────────────────────
     private static string GlyphForType(AppLock.Models.NetworkDeviceType type) => type switch
     {
-        AppLock.Models.NetworkDeviceType.ThisDevice => "\uE977", // PC / This PC
-        AppLock.Models.NetworkDeviceType.Router     => "\uE968", // Network / Router
-        AppLock.Models.NetworkDeviceType.Phone      => "\uE8EA", // Cell phone
-        AppLock.Models.NetworkDeviceType.Computer   => "\uE7F4", // PC / Laptop
-        AppLock.Models.NetworkDeviceType.Printer    => "\uE749", // Print
-        AppLock.Models.NetworkDeviceType.SmartTV    => "\uE7F4", // TV / Monitor (reuse)
-        AppLock.Models.NetworkDeviceType.IoT        => "\uECF0", // IOT / smart home
-        _                                           => "\uE968", // Generic network node
+        AppLock.Models.NetworkDeviceType.ThisDevice  => "\uE977", // PC / This PC
+        AppLock.Models.NetworkDeviceType.Router      => "\uE968", // Network / Router
+        AppLock.Models.NetworkDeviceType.Phone       => "\uE8EA", // Cell phone
+        AppLock.Models.NetworkDeviceType.Computer    => "\uE7F4", // PC / Laptop
+        AppLock.Models.NetworkDeviceType.Printer     => "\uE749", // Print
+        AppLock.Models.NetworkDeviceType.SmartTV     => "\uE7F4", // TV / Monitor
+        AppLock.Models.NetworkDeviceType.GameConsole => "\uE7FC", // Game console / Xbox
+        AppLock.Models.NetworkDeviceType.Speaker     => "\uE767", // Volume / Speaker
+        AppLock.Models.NetworkDeviceType.Camera      => "\uE8B8", // Camera
+        AppLock.Models.NetworkDeviceType.IoT         => "\uECF0", // IOT / smart home
+        _                                            => "\uE968", // Generic network node
     };
 }

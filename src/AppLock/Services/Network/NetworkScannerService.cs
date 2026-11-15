@@ -257,8 +257,9 @@ public sealed class NetworkScannerService : IDisposable
     /// </summary>
     private static async Task EnrichAsync(IReadOnlyList<NetworkDeviceEntry> devices, CancellationToken ct)
     {
-        // Collect this machine's own IP addresses once
+        // Collect this machine's own IP addresses and gateway once
         var localIps = GetLocalIpAddresses();
+        var gatewayIp = GetGatewayIp();
 
         // Parallel DNS resolution (capped to avoid flooding the router)
         var tasks = devices.Select(d => ResolveHostnameAsync(d, ct)).ToList();
@@ -268,9 +269,16 @@ public sealed class NetworkScannerService : IDisposable
         foreach (var d in devices)
         {
             d.IsThisDevice = localIps.Contains(d.IpAddress);
-            d.DeviceType   = d.IsThisDevice
-                ? NetworkDeviceType.ThisDevice
-                : InferDeviceType(d.Hostname, d.MacAddress, d.IpAddress);
+            
+            // Check if this is the gateway/router
+            bool isGateway = !string.IsNullOrEmpty(gatewayIp) && d.IpAddress == gatewayIp;
+            
+            if (d.IsThisDevice)
+                d.DeviceType = NetworkDeviceType.ThisDevice;
+            else if (isGateway)
+                d.DeviceType = NetworkDeviceType.Router;
+            else
+                d.DeviceType = InferDeviceType(d.Hostname, d.MacAddress, d.IpAddress);
         }
     }
 
@@ -317,6 +325,56 @@ public sealed class NetworkScannerService : IDisposable
     }
 
     /// <summary>
+    /// Gets the default gateway IP address for the active network adapter.
+    /// Returns empty string if no gateway is found.
+    /// </summary>
+    private static string GetGatewayIp()
+    {
+        try
+        {
+            // Find the adapter with the default route (same logic as NetworkDetailsProvider)
+            var adapters = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(a => a.OperationalStatus == OperationalStatus.Up)
+                .Where(a => a.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .ToList();
+
+            var adapter = adapters
+                .OrderByDescending(a => HasGateway(a))
+                .ThenByDescending(a => a.Speed)
+                .FirstOrDefault();
+
+            if (adapter == null) return string.Empty;
+
+            var properties = adapter.GetIPProperties();
+            var gateway = properties.GatewayAddresses
+                .Select(g => g.Address)
+                .FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                                    && !a.Equals(System.Net.IPAddress.Any));
+
+            return gateway?.ToString() ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[NetworkScanner] GetGatewayIp: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
+    private static bool HasGateway(NetworkInterface adapter)
+    {
+        try
+        {
+            return adapter.GetIPProperties().GatewayAddresses
+                .Any(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                          && !g.Address.Equals(System.Net.IPAddress.Any));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Infers a device type from its hostname and the first 3 bytes (OUI) of its MAC address.
     /// All matching is case-insensitive and keyword-based — good enough for home networks.
     /// </summary>
@@ -326,34 +384,59 @@ public sealed class NetworkScannerService : IDisposable
         var oui = mac.Length >= 8 ? mac[..8].ToUpperInvariant() : string.Empty;
 
         // ── Hostname keyword matching ───────────────────────────────────────────
+        
+        // Routers and network equipment
         if (ContainsAny(h, "router", "gateway", "modem", "dlink", "tplink", "tp-link",
                            "netgear", "asus", "ubiquiti", "unifi", "mikrotik", "fritz",
-                           "airport", "access-point", "ap-", "-ap"))
+                           "airport", "access-point", "ap-", "-ap", "linksys"))
             return NetworkDeviceType.Router;
 
+        // Mobile phones and tablets
         if (ContainsAny(h, "iphone", "ipad", "android", "phone", "pixel", "samsung",
-                           "huawei", "xiaomi", "oneplus", "oppo", "vivo", "redmi"))
+                           "galaxy", "huawei", "xiaomi", "oneplus", "oppo", "vivo", "redmi",
+                           "nokia", "motorola", "lg-", "tablet"))
             return NetworkDeviceType.Phone;
 
-        if (ContainsAny(h, "macbook", "imac", "laptop", "desktop", "workstation",
-                           "pc-", "-pc", "win-", "ubuntu", "fedora", "debian",
-                           "raspberrypi", "raspberry"))
+        // Computers (desktops, laptops, servers)
+        if (ContainsAny(h, "macbook", "imac", "laptop", "desktop", "workstation", "notebook",
+                           "pc-", "-pc", "win-", "windows", "ubuntu", "fedora", "debian",
+                           "raspberrypi", "raspberry-pi", "server", "nas", "synology", "qnap"))
             return NetworkDeviceType.Computer;
 
+        // Printers
         if (ContainsAny(h, "print", "printer", "hp-", "canon", "epson", "brother",
-                           "xerox", "lexmark"))
+                           "xerox", "lexmark", "ricoh", "kyocera"))
             return NetworkDeviceType.Printer;
 
+        // Smart TVs and streaming devices
         if (ContainsAny(h, "tv", "firetv", "appletv", "chromecast", "roku", "shield",
-                           "smarttv", "bravia", "viziotv", "lgwebos"))
+                           "smarttv", "bravia", "viziotv", "lgwebos", "samsung-tv",
+                           "androidtv", "sony", "tcl-", "hisense"))
             return NetworkDeviceType.SmartTV;
 
-        if (ContainsAny(h, "nas", "synology", "qnap", "drobo", "camera", "cam-",
-                           "ring", "nest", "hue", "echo", "alexa", "homepod",
-                           "smartplug", "homekit", "esp", "arduino", "tasmota"))
+        // Game consoles
+        if (ContainsAny(h, "playstation", "ps4", "ps5", "xbox", "switch", "nintendo",
+                           "steam-deck", "steamdeck", "console"))
+            return NetworkDeviceType.GameConsole;
+
+        // Smart speakers and audio devices
+        if (ContainsAny(h, "echo", "alexa", "homepod", "google-home", "nest-audio",
+                           "nest-mini", "sonos", "speaker", "soundbar"))
+            return NetworkDeviceType.Speaker;
+
+        // IP cameras and security devices
+        if (ContainsAny(h, "camera", "cam-", "-cam", "ring", "nest-cam", "arlo",
+                           "wyze", "blink", "hikvision", "dahua", "ipcam", "webcam"))
+            return NetworkDeviceType.Camera;
+
+        // IoT and smart home devices
+        if (ContainsAny(h, "hue", "smartplug", "homekit", "esp", "esp8266", "esp32",
+                           "arduino", "tasmota", "shelly", "wemo", "smart-", "iot-",
+                           "thermostat", "doorbell", "sensor", "hub"))
             return NetworkDeviceType.IoT;
 
         // ── OUI prefix matching (first 3 octets → vendor) ──────────────────────
+        
         // Routers / AP vendors
         if (OuiAny(oui, "00:0C:E7", "00:17:DF", "00:26:5A",   // Cisco/Linksys
                         "90:72:40", "EC:08:6B", "50:FF:20",    // TP-Link
@@ -375,11 +458,51 @@ public sealed class NetworkScannerService : IDisposable
         if (OuiAny(oui, "00:15:99", "84:25:DB", "CC:07:AB", "E8:03:9A"))
             return ContainsAny(h, "tv", "smart") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Phone;
 
+        // Sony (PlayStation consoles)
+        if (OuiAny(oui, "00:1F:A7", "00:04:1F", "00:19:C5"))
+            return NetworkDeviceType.GameConsole;
+
+        // Microsoft (Xbox consoles)
+        if (OuiAny(oui, "00:50:F2", "7C:ED:8D", "D8:B3:77"))
+            return NetworkDeviceType.GameConsole;
+
+        // Nintendo (Switch, Wii)
+        if (OuiAny(oui, "00:09:BF", "00:19:1D", "00:1F:32"))
+            return NetworkDeviceType.GameConsole;
+
+        // Amazon (Echo, Fire devices)
+        if (OuiAny(oui, "44:65:0D", "F0:81:73", "FC:A6:67"))
+            return ContainsAny(h, "echo", "alexa") ? NetworkDeviceType.Speaker : NetworkDeviceType.SmartTV;
+
+        // Google (Nest, Chromecast, Home devices)
+        if (OuiAny(oui, "6C:AD:F8", "F4:F5:D8", "54:60:09"))
+            return ContainsAny(h, "chromecast", "tv") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Speaker;
+
+        // Sonos speakers
+        if (OuiAny(oui, "00:0E:58", "94:9F:3E", "B8:E9:37"))
+            return NetworkDeviceType.Speaker;
+
+        // Hikvision, Dahua (IP cameras)
+        if (OuiAny(oui, "44:19:B6", "BC:AD:28", "00:12:12"))
+            return NetworkDeviceType.Camera;
+
+        // HP, Canon, Epson printers
+        if (OuiAny(oui, "00:1E:0B", "00:A0:60", "00:23:7D", "04:F1:28"))
+            return NetworkDeviceType.Printer;
+
+        // Philips Hue, Wemo IoT
+        if (OuiAny(oui, "00:17:88", "EC:1B:BD", "F4:5E:AB"))
+            return NetworkDeviceType.IoT;
+
+        // Raspberry Pi (often used as servers or IoT devices)
+        if (OuiAny(oui, "B8:27:EB", "DC:A6:32", "E4:5F:01"))
+            return NetworkDeviceType.Computer;
+
         // Generic Windows/PC (Intel NIC OUIs)
         if (OuiAny(oui, "00:1B:21", "00:1F:3C", "F0:1F:AF", "8C:8D:28"))
             return NetworkDeviceType.Computer;
 
-        // .1 address on common home subnets is almost always the gateway
+        // .1 or .254 address on common home subnets is almost always the gateway
         if (ip.EndsWith(".1") || ip.EndsWith(".254"))
             return NetworkDeviceType.Router;
 
