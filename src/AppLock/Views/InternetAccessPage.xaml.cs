@@ -69,6 +69,7 @@ public sealed partial class InternetAccessPage : Page
         _networkScannerViewModel.LoadDevices();
         UpdateNetworkDevicesVisibility();
         InitializeScanIntervalComboBox();
+        MacApiKeyBox.Password = ServiceContainer.Settings.NetworkDeviceScanner.MacVendorsApiKey ?? string.Empty;
 
         // Resume the scan loop if it was left enabled
         if (ServiceContainer.Settings.NetworkDeviceScanner.ScannerEnabled)
@@ -1173,6 +1174,20 @@ public sealed partial class InternetAccessPage : Page
     {
         // Friendly name is two-way bound; just persist when focus leaves the box
         _settingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private void SaveMacApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        var key = MacApiKeyBox.Password?.Trim() ?? string.Empty;
+        MacApiKeyFlyout.Hide();
+        _ = _networkScannerViewModel.SaveMacVendorsApiKeyAsync(key);
+    }
+
+    private void ClearMacApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        MacApiKeyBox.Password = string.Empty;
+        MacApiKeyFlyout.Hide();
+        _ = _networkScannerViewModel.SaveMacVendorsApiKeyAsync(string.Empty);
     }
 }
 

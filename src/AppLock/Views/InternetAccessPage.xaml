@@ -592,6 +592,35 @@
                                     <TextBlock Text="Forget all"/>
                                 </StackPanel>
                             </Button>
+                            <Button x:Name="MacApiKeyButton">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8D7;" FontSize="14"/>
+                                    <TextBlock Text="MAC API Key"/>
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <Flyout x:Name="MacApiKeyFlyout" Placement="Bottom">
+                                        <StackPanel Width="320" Spacing="10" Padding="4">
+                                            <TextBlock Text="MACVendors.com API Key" FontWeight="SemiBold" FontSize="14"/>
+                                            <TextBlock Text="Optional. Enter your API key from macvendors.com for live lookups. If left blank, free lookups via maclookup.app and macvendors.com are used automatically."
+                                                       FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                            <PasswordBox x:Name="MacApiKeyBox"
+                                                         Header="API Key"
+                                                         PlaceholderText="Paste your API key here"
+                                                         PasswordRevealMode="Peek"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                                <Button Content="Clear" Click="ClearMacApiKey_Click"/>
+                                                <Button Content="Save" Style="{StaticResource AccentButtonStyle}" Click="SaveMacApiKey_Click"/>
+                                            </StackPanel>
+                                            <HyperlinkButton Content="Get an API key at macvendors.com"
+                                                             NavigateUri="https://macvendors.com/api"
+                                                             Padding="0"
+                                                             FontSize="11"/>
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
 
                         <TextBlock Grid.Column="1"
@@ -609,7 +638,7 @@
                                     VerticalAlignment="Center"
                                     Spacing="12"
                                     Visibility="Visible">
-                            <FontIcon Glyph="&#xE968;"
+                            <FontIcon Glyph="&#xE770;"
                                       FontSize="56"
                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                             <TextBlock Text="No devices found yet"
@@ -671,11 +700,17 @@
                                                 <Border CornerRadius="4"
                                                         Padding="6,2"
                                                         Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                        Visibility="{Binding IsThisDevice, Converter={StaticResource BoolToVisConverter}}">
-                                                    <TextBlock Text="This device"
-                                                               FontSize="11"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                                        Visibility="{Binding IsThisDevice, Converter={StaticResource BoolToVisConverter}}"
+                                                        VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                        <FontIcon Glyph="&#xE7F8;"
+                                                                  FontSize="10"
+                                                                  Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                                        <TextBlock Text="This device"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                                    </StackPanel>
                                                 </Border>
 
                                                 <!-- Trust indicator dot -->

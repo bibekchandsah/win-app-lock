@@ -10,4 +10,7 @@ public class NetworkDeviceSettings
 
     /// <summary>Show an in-app alert when an unknown device appears on the network.</summary>
     public bool AlertOnNewDevice { get; set; } = true;
+
+    /// <summary>Optional API key for macvendors.com API lookup.</summary>
+    public string MacVendorsApiKey { get; set; } = string.Empty;
 }

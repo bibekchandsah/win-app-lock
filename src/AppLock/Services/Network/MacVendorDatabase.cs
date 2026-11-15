@@ -1381,6 +1381,17 @@ public static class MacVendorDatabase
         ["F8:0C:F3"] = "LG",
     };
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _onlineCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Lazy<Dictionary<string, string>> _csvVendorsLazy =
+        new(LoadCsvDatabase, System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static readonly System.Net.Http.HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(5)
+    };
+
     /// <summary>
     /// Checks if a MAC address has the locally administered bit set (bit 1 of the first octet).
     /// Modern iOS (Private Address), Android (Randomized MAC), and Windows devices enable this
@@ -1402,8 +1413,17 @@ public static class MacVendorDatabase
     }
 
     /// <summary>
-    /// Looks up the manufacturer from the first 3 bytes (OUI) of the MAC address,
+    /// Looks up the manufacturer from the MAC address,
     /// or identifies randomized private Wi-Fi addresses.
+    /// </summary>
+    public static string Resolve(string macAddress) => GetVendor(macAddress);
+
+    /// <summary>
+    /// Looks up manufacturer offline:
+    /// 1. Checks memory cache
+    /// 2. Checks local CSV database (Assets\MacVendors\mac-vendors-export.csv, covering 77k+ prefixes: MA-S, MA-M, MA-L)
+    /// 3. Falls back to embedded offline dictionary.
+    /// Requires no internet and consumes zero API tokens.
     /// </summary>
     public static string GetVendor(string macAddress)
     {
@@ -1414,12 +1434,341 @@ public static class MacVendorDatabase
         if (IsRandomMac(macAddress))
             return "Private address (Random MAC)";
 
-        if (macAddress.Length < 8)
+        var normalized = NormalizeMac(macAddress);
+        if (normalized.Length < 8)
             return string.Empty;
 
-        // Extract first 3 octets: "AA:BB:CC:DD:EE:FF" → "AA:BB:CC"
-        var oui = macAddress[..8].ToUpperInvariant();
+        var oui = normalized[..8];
 
-        return _vendors.TryGetValue(oui, out var vendor) ? vendor : "Unknown";
+        // 1. Check in-memory cache
+        if (_onlineCache.TryGetValue(normalized, out var fullCached) && !string.IsNullOrWhiteSpace(fullCached))
+            return fullCached;
+        if (_onlineCache.TryGetValue(oui, out var ouiCached) && !string.IsNullOrWhiteSpace(ouiCached))
+            return ouiCached;
+
+        // 2. Check local CSV database (longest prefix match: 36-bit MA-S/IAB -> 28-bit MA-M -> 24-bit MA-L/CID)
+        var csvVendor = LookupCsv(normalized);
+        if (!string.IsNullOrWhiteSpace(csvVendor))
+        {
+            _onlineCache[oui] = csvVendor;
+            return csvVendor;
+        }
+
+        // 3. Fallback to embedded offline dictionary
+        if (_vendors.TryGetValue(oui, out var vendor))
+        {
+            _onlineCache[oui] = vendor;
+            return vendor;
+        }
+
+        return "Unknown";
+    }
+
+    /// <summary>
+    /// Looks up MAC vendor:
+    /// 1. Offline first via CSV database and embedded database (no internet, zero token loss).
+    /// 2. If local lookup fails:
+    ///    - If API key is not entered: queries free maclookup.app v2 API, then free macvendors.com.
+    ///    - If API key is entered: uses user's keyed macvendors.com API at last.
+    /// Caches successful lookups in memory.
+    /// </summary>
+    public static async System.Threading.Tasks.Task<string> LookupOnlineAsync(
+        string macAddress,
+        string? apiKey = null,
+        System.Threading.CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(macAddress))
+            return string.Empty;
+
+        if (IsRandomMac(macAddress))
+            return "Private address (Random MAC)";
+
+        // 1. Try local offline resolution first (CSV DB + embedded)
+        var local = GetVendor(macAddress);
+        if (!string.IsNullOrWhiteSpace(local) && local != "Unknown")
+            return local;
+
+        var normalized = NormalizeMac(macAddress);
+        var oui = normalized.Length >= 8 ? normalized[..8] : normalized;
+        string? resolved = null;
+
+        // 2. If API key is entered, use the paid API key at last after local lookup failed
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            try
+            {
+                using var request = new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Get,
+                    $"https://api.macvendors.com/v1/lookup/{Uri.EscapeDataString(macAddress)}");
+
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey.Trim());
+                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.UserAgent.ParseAdd("AppLock-NetworkScanner/1.0");
+
+                using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("data", out var data) &&
+                        data.TryGetProperty("organization_name", out var orgName))
+                    {
+                        resolved = orgName.GetString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MacVendorDatabase] Keyed lookup failed for {macAddress}: {ex.Message}");
+            }
+        }
+
+        // 3. If API key is not entered (or keyed lookup failed to resolve), query free maclookup.app v2 API
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            try
+            {
+                using var request = new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Get,
+                    $"https://api.maclookup.app/v2/macs/{Uri.EscapeDataString(macAddress)}");
+                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.UserAgent.ParseAdd("AppLock-NetworkScanner/1.0");
+
+                using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("success", out var succ) && succ.GetBoolean() &&
+                        root.TryGetProperty("found", out var found) && found.GetBoolean() &&
+                        root.TryGetProperty("company", out var comp))
+                    {
+                        var companyName = comp.GetString();
+                        if (!string.IsNullOrWhiteSpace(companyName))
+                        {
+                            resolved = companyName.Trim();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MacVendorDatabase] maclookup.app lookup failed for {macAddress}: {ex.Message}");
+            }
+        }
+
+        // 4. Fallback to macvendors.com free public endpoint
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            try
+            {
+                using var request = new System.Net.Http.HttpRequestMessage(
+                    System.Net.Http.HttpMethod.Get,
+                    $"https://api.macvendors.com/{Uri.EscapeDataString(macAddress)}");
+                request.Headers.UserAgent.ParseAdd("AppLock-NetworkScanner/1.0");
+
+                using var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                {
+                    var text = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(text) && !text.Contains("errors", StringComparison.OrdinalIgnoreCase))
+                    {
+                        resolved = text.Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MacVendorDatabase] Free lookup failed for {macAddress}: {ex.Message}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolved) && resolved != "Unknown")
+        {
+            _onlineCache[oui] = resolved;
+            return resolved;
+        }
+
+        return "Unknown";
+    }
+
+    // ── Local CSV Database Helper ─────────────────────────────────────────────
+
+    private static string NormalizeMac(string macAddress)
+    {
+        if (string.IsNullOrWhiteSpace(macAddress)) return string.Empty;
+
+        var trimmed = macAddress.Trim();
+        if (trimmed.Contains(':'))
+            return trimmed.ToUpperInvariant();
+
+        if (trimmed.Contains('-'))
+            return trimmed.Replace('-', ':').ToUpperInvariant();
+
+        // Raw hex without separators
+        var hex = new string(trimmed.Where(char.IsAsciiHexDigit).ToArray()).ToUpperInvariant();
+        if (hex.Length >= 6)
+        {
+            var sb = new System.Text.StringBuilder(17);
+            for (int i = 0; i < hex.Length && i < 12; i += 2)
+            {
+                if (i > 0) sb.Append(':');
+                if (i + 1 < hex.Length)
+                {
+                    sb.Append(hex[i]);
+                    sb.Append(hex[i + 1]);
+                }
+                else
+                {
+                    sb.Append(hex[i]);
+                }
+            }
+            return sb.ToString();
+        }
+
+        return trimmed.ToUpperInvariant();
+    }
+
+    private static string? LookupCsv(string normalized)
+    {
+        if (string.IsNullOrEmpty(normalized)) return null;
+
+        var csv = _csvVendorsLazy.Value;
+        if (csv.Count == 0) return null;
+
+        // Longest prefix match:
+        // 1. 36-bit prefix (MA-S / IAB, 13 chars, e.g. "00:1B:C5:00:1")
+        if (normalized.Length >= 13 && csv.TryGetValue(normalized[..13], out var v36))
+            return v36;
+
+        // 2. 28-bit prefix (MA-M, 10 chars, e.g. "1C:87:76:D")
+        if (normalized.Length >= 10 && csv.TryGetValue(normalized[..10], out var v28))
+            return v28;
+
+        // 3. 24-bit prefix (MA-L / CID, 8 chars, e.g. "88:52:EB" or "00:00:0C")
+        if (normalized.Length >= 8 && csv.TryGetValue(normalized[..8], out var v24))
+            return v24;
+
+        return null;
+    }
+
+    private static Dictionary<string, string> LoadCsvDatabase()
+    {
+        var dict = new Dictionary<string, string>(80000, StringComparer.OrdinalIgnoreCase);
+        var csvPath = FindCsvFile();
+        if (string.IsNullOrEmpty(csvPath) || !File.Exists(csvPath))
+            return dict;
+
+        try
+        {
+            using var stream = new FileStream(csvPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+
+            string? line;
+            bool isHeader = true;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (isHeader)
+                {
+                    isHeader = false;
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                int firstComma = line.IndexOf(',');
+                if (firstComma <= 0) continue;
+
+                var prefix = line[..firstComma].Trim();
+                if (prefix.Length == 0) continue;
+
+                // Parse vendor name from column 2 (handles RFC 4180 quotes)
+                string vendor = string.Empty;
+                int restStart = firstComma + 1;
+                if (restStart < line.Length)
+                {
+                    if (line[restStart] == '"')
+                    {
+                        int closeQuote = -1;
+                        for (int i = restStart + 1; i < line.Length; i++)
+                        {
+                            if (line[i] == '"')
+                            {
+                                if (i + 1 < line.Length && line[i + 1] == '"')
+                                {
+                                    i++; // skip escaped quote ""
+                                }
+                                else
+                                {
+                                    closeQuote = i;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (closeQuote > restStart)
+                        {
+                            vendor = line.Substring(restStart + 1, closeQuote - (restStart + 1))
+                                        .Replace("\"\"", "\"")
+                                        .Trim();
+                        }
+                    }
+                    else
+                    {
+                        int nextComma = line.IndexOf(',', restStart);
+                        vendor = nextComma >= 0 
+                            ? line[restStart..nextComma].Trim() 
+                            : line[restStart..].Trim();
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(vendor) && 
+                    !string.Equals(vendor, "Private", StringComparison.OrdinalIgnoreCase))
+                {
+                    dict[prefix] = vendor;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MacVendorDatabase] Failed loading CSV database: {ex.Message}");
+        }
+
+        return dict;
+    }
+
+    private static string? FindCsvFile()
+    {
+        string subPath = Path.Combine("Assets", "MacVendors", "mac-vendors-export.csv");
+
+        // 1. AppDomain BaseDirectory
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (!string.IsNullOrEmpty(baseDir))
+        {
+            var p1 = Path.Combine(baseDir, subPath);
+            if (File.Exists(p1)) return p1;
+
+            var p2 = Path.GetFullPath(Path.Combine(baseDir, "..", subPath));
+            if (File.Exists(p2)) return p2;
+
+            var dir = new DirectoryInfo(baseDir);
+            for (int i = 0; i < 7 && dir != null; i++)
+            {
+                var candidate = Path.Combine(dir.FullName, subPath);
+                if (File.Exists(candidate)) return candidate;
+                dir = dir.Parent;
+            }
+        }
+
+        // 2. Current working directory
+        var cwd = Path.Combine(Environment.CurrentDirectory, subPath);
+        if (File.Exists(cwd)) return cwd;
+
+        // 3. AppContext BaseDirectory
+        var appCtx = Path.Combine(AppContext.BaseDirectory, subPath);
+        if (File.Exists(appCtx)) return appCtx;
+
+        return null;
     }
 }

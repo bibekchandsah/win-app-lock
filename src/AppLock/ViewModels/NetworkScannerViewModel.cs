@@ -40,6 +40,9 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _lastScanText = string.Empty;
 
+    [ObservableProperty]
+    private string _macVendorsApiKey = string.Empty;
+
     // ── Constructor ────────────────────────────────────────────────────────────
 
     public NetworkScannerViewModel(NetworkScannerService scanner, SettingsStore settingsStore)
@@ -51,6 +54,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         _scannerEnabled = settings.ScannerEnabled;
         _alertOnNewDevice = settings.AlertOnNewDevice;
         _scanIntervalSeconds = settings.ScanIntervalSeconds;
+        _macVendorsApiKey = settings.MacVendorsApiKey;
 
         _scanner.ScanCompleted += OnScanCompleted;
         _scanner.NewDeviceDetected += OnNewDeviceDetected;
@@ -105,17 +109,67 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         Devices.Clear();
 
         // Prune any legacy multicast/broadcast entries that may have been saved previously
+        bool changed = false;
         var known = ServiceContainer.Settings.KnownNetworkDevices;
         for (int i = known.Count - 1; i >= 0; i--)
         {
             var e = known[i];
-            if (string.IsNullOrEmpty(e.MacAddress) ||
-                e.MacAddress.StartsWith("01:00:5E", StringComparison.OrdinalIgnoreCase) ||
-                e.MacAddress.StartsWith("33:33", StringComparison.OrdinalIgnoreCase) ||
-                (System.Net.IPAddress.TryParse(e.IpAddress, out var ip) && ip.GetAddressBytes()[0] >= 224 && ip.GetAddressBytes()[0] <= 239))
+            if (!NetworkScannerService.IsValidDevice(e.MacAddress, e.IpAddress))
             {
                 known.RemoveAt(i);
+                changed = true;
             }
+        }
+
+        // Ensure "This device" is present in the list
+        var thisDev = known.FirstOrDefault(d => d.IsThisDevice);
+        if (thisDev == null)
+        {
+            var activeAdapter = NetworkScannerService.GetActiveInternetAdapter();
+            if (activeAdapter != null)
+            {
+                var ip = activeAdapter.GetIPProperties().UnicastAddresses
+                    .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)?
+                    .Address.ToString();
+                var physAddr = activeAdapter.GetPhysicalAddress().GetAddressBytes();
+                var mac = NetworkScannerService.FormatMac(physAddr, physAddr.Length);
+
+                if (!string.IsNullOrEmpty(ip) && !string.IsNullOrEmpty(mac))
+                {
+                    var match = known.FirstOrDefault(d =>
+                        string.Equals(d.MacAddress, mac, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(d.IpAddress, ip, StringComparison.OrdinalIgnoreCase));
+
+                    if (match != null)
+                    {
+                        match.IsThisDevice = true;
+                        match.DeviceType = AppLock.Models.NetworkDeviceType.ThisDevice;
+                        if (string.IsNullOrEmpty(match.Hostname))
+                            match.Hostname = Environment.MachineName;
+                        match.LastSeen = DateTime.Now;
+                    }
+                    else
+                    {
+                        known.Insert(0, new NetworkDeviceEntry
+                        {
+                            MacAddress = mac,
+                            IpAddress = ip,
+                            Hostname = Environment.MachineName,
+                            DeviceType = AppLock.Models.NetworkDeviceType.ThisDevice,
+                            IsThisDevice = true,
+                            FirstSeen = DateTime.Now,
+                            LastSeen = DateTime.Now,
+                            IsTrusted = true
+                        });
+                    }
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            _settingsStore.Save(ServiceContainer.Settings);
         }
 
         foreach (var entry in known.OrderBy(d => d.FirstSeen))
@@ -131,17 +185,28 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     /// </summary>
     private void ApplySnapshot(System.Collections.Generic.IReadOnlyList<NetworkDeviceEntry> latestEntries)
     {
+        // Only accept valid devices
+        var validEntries = latestEntries
+            .Where(e => NetworkScannerService.IsValidDevice(e.MacAddress, e.IpAddress))
+            .ToList();
+
         // Build a lookup by MAC (MAC is the stable identity)
-        var latestByMac = latestEntries
+        var latestByMac = validEntries
             .GroupBy(e => e.MacAddress, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         var seenMacs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Update or remove existing rows
+        // 1. Update or remove existing rows (also prune any invalid rows)
         for (int i = Devices.Count - 1; i >= 0; i--)
         {
             var vm = Devices[i];
+            if (!NetworkScannerService.IsValidDevice(vm.MacAddress, vm.IpAddress))
+            {
+                Devices.RemoveAt(i);
+                continue;
+            }
+
             if (latestByMac.TryGetValue(vm.MacAddress, out var updated))
             {
                 seenMacs.Add(vm.MacAddress);
@@ -156,7 +221,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         }
 
         // 2. Append genuinely new entries (sorted by first-seen, appended at end)
-        foreach (var entry in latestEntries.OrderBy(e => e.FirstSeen))
+        foreach (var entry in validEntries.OrderBy(e => e.FirstSeen))
         {
             if (!seenMacs.Contains(entry.MacAddress))
                 Devices.Add(new NetworkDeviceViewModel(entry));
@@ -170,7 +235,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     {
         if (IsScanning) return;
         IsScanning = true;
-        StatusText = "Scanning…";
+        UpdateStatusText();
 
         try
         {
@@ -185,6 +250,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         finally
         {
             IsScanning = false;
+            UpdateStatusText();
         }
     }
 
@@ -211,6 +277,37 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         UpdateStatusText();
     }
 
+    /// <summary>
+    /// Saves the MACVendors.com API key and refreshes vendor names for all known devices.
+    /// </summary>
+    public async Task SaveMacVendorsApiKeyAsync(string key)
+    {
+        MacVendorsApiKey = key?.Trim() ?? string.Empty;
+        var s = ServiceContainer.Settings;
+        s.NetworkDeviceScanner.MacVendorsApiKey = MacVendorsApiKey;
+        _settingsStore.Save(s);
+
+        await RefreshVendorsAsync();
+    }
+
+    /// <summary>
+    /// Looks up vendor names online for all devices that do not have a randomized MAC.
+    /// </summary>
+    public async Task RefreshVendorsAsync(CancellationToken ct = default)
+    {
+        var key = MacVendorsApiKey;
+        var list = Devices.ToList();
+        foreach (var dev in list)
+        {
+            if (ct.IsCancellationRequested) break;
+            if (MacVendorDatabase.IsRandomMac(dev.MacAddress)) continue;
+
+            await MacVendorDatabase.LookupOnlineAsync(dev.MacAddress, key, ct);
+            dev.RefreshDisplay();
+        }
+        UpdateStatusText();
+    }
+
     // ── Scanner event handlers ─────────────────────────────────────────────────
 
     private void OnScanCompleted(object? sender, System.Collections.Generic.IReadOnlyList<NetworkDeviceEntry> snapshot)
@@ -221,8 +318,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
             var persisted = ServiceContainer.Settings.KnownNetworkDevices;
             ApplySnapshot(persisted);
             LastScanText = $"Last scan: {DateTime.Now:HH:mm:ss}";
-            if (ScannerEnabled)
-                StatusText = $"Watching · {Devices.Count} device{(Devices.Count == 1 ? "" : "s")} known";
+            UpdateStatusText();
         });
     }
 
@@ -241,12 +337,27 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
 
     private void UpdateStatusText()
     {
-        if (!ScannerEnabled)
+        int total = Devices.Count;
+        int online = Devices.Count(d => d.IsOnline);
+        int offline = total - online;
+
+        string countInfo = total == 0
+            ? "0 devices known"
+            : $"{total} device{(total == 1 ? "" : "s")} known ({online} online, {offline} offline)";
+
+        if (IsScanning)
         {
-            StatusText = "Scanner is off";
+            StatusText = $"Scanning… · {countInfo}";
             return;
         }
-        StatusText = $"Watching · {Devices.Count} device{(Devices.Count == 1 ? "" : "s")} known";
+
+        if (!ScannerEnabled)
+        {
+            StatusText = $"Scanner is off · {countInfo}";
+            return;
+        }
+
+        StatusText = $"Watching · {countInfo}";
     }
 
     private void Dispatch(Action action)
@@ -288,11 +399,13 @@ public partial class NetworkDeviceViewModel : ObservableObject
 
     /// <summary>
     /// Device is "online" if last seen within 2× scan interval threshold.
+    /// This machine ("This device") is running this code, so it is always online.
     /// </summary>
     public bool IsOnline
     {
         get
         {
+            if (IsThisDevice) return true;
             var thresholdSeconds = ServiceContainer.Settings.NetworkDeviceScanner.ScanIntervalSeconds * 2;
             var elapsed = (DateTime.Now - Entry.LastSeen).TotalSeconds;
             return elapsed < thresholdSeconds;
@@ -400,6 +513,9 @@ public partial class NetworkDeviceViewModel : ObservableObject
             Entry.IsThisDevice = fresh.IsThisDevice;
             IsThisDevice = fresh.IsThisDevice;
             OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(SubtitleHostname));
+            OnPropertyChanged(nameof(IsOnline));
+            OnPropertyChanged(nameof(StatusText));
         }
 
         // FriendlyName: only push from entry if the user hasn't set one locally
@@ -409,6 +525,9 @@ public partial class NetworkDeviceViewModel : ObservableObject
             FriendlyName = fresh.FriendlyName;
             OnPropertyChanged(nameof(DisplayName));
         }
+
+        OnPropertyChanged(nameof(Manufacturer));
+        OnPropertyChanged(nameof(DisplayName));
     }
 
     partial void OnFriendlyNameChanged(string value)
@@ -494,10 +613,49 @@ public partial class NetworkDeviceViewModel : ObservableObject
     /// <summary>
     /// Hostname shown in the subtitle only if different from DisplayName.
     /// </summary>
-    public string SubtitleHostname => !string.IsNullOrEmpty(Hostname) && Hostname != DisplayName ? Hostname : string.Empty;
+    public string SubtitleHostname => !IsThisDevice && !string.IsNullOrEmpty(Hostname) && Hostname != DisplayName ? Hostname : string.Empty;
 
     public void RefreshDisplay()
     {
+        if (Entry.DeviceType == AppLock.Models.NetworkDeviceType.Unknown)
+        {
+            if (MacVendorDatabase.IsRandomMac(Entry.MacAddress))
+            {
+                Entry.DeviceType = AppLock.Models.NetworkDeviceType.Phone;
+            }
+            else
+            {
+                var v = MacVendorDatabase.GetVendor(Entry.MacAddress);
+                if (!string.IsNullOrEmpty(v) && v != "Unknown")
+                {
+                    if (v.Contains("Motorola", StringComparison.OrdinalIgnoreCase) ||
+                        v.Contains("Xiaomi", StringComparison.OrdinalIgnoreCase) ||
+                        v.Contains("Huawei", StringComparison.OrdinalIgnoreCase) ||
+                        v.Contains("Oppo", StringComparison.OrdinalIgnoreCase) ||
+                        v.Contains("Vivo", StringComparison.OrdinalIgnoreCase) ||
+                        v.Contains("OnePlus", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Entry.DeviceType = AppLock.Models.NetworkDeviceType.Phone;
+                    }
+                    else if (v.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("Intel", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("Realtek", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Entry.DeviceType = AppLock.Models.NetworkDeviceType.Computer;
+                    }
+                    else if (v.Contains("TP-Link", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("D-Link", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("Netgear", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("ASUS", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("Nokia", StringComparison.OrdinalIgnoreCase) ||
+                             v.Contains("Cisco", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Entry.DeviceType = AppLock.Models.NetworkDeviceType.Router;
+                    }
+                }
+            }
+        }
+
         DeviceIcon = GlyphForType(Entry.DeviceType);
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(SubtitleHostname));
@@ -512,7 +670,7 @@ public partial class NetworkDeviceViewModel : ObservableObject
     // ── Icon glyphs (Segoe Fluent Icons / MDL2) ────────────────────────────────
     public static string GlyphForType(AppLock.Models.NetworkDeviceType type) => type switch
     {
-        AppLock.Models.NetworkDeviceType.ThisDevice  => "\uE721", // Desktop PC / Computer
+        AppLock.Models.NetworkDeviceType.ThisDevice  => "\uE7F8", // Laptop / Computer
         AppLock.Models.NetworkDeviceType.Router      => "\uE774", // Globe / Router Gateway
         AppLock.Models.NetworkDeviceType.Phone       => "\uE8EA", // Cell phone / Tablet
         AppLock.Models.NetworkDeviceType.Computer    => "\uE7F8", // Laptop / Computer

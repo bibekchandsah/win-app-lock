@@ -27,6 +27,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\Assets\**\*">
+      <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\..\src\AppLock\Models\LockRule.cs" Link="Models\LockRule.cs" />
     <Compile Include="..\..\src\AppLock\Models\SelfDisciplineSettings.cs" Link="Models\SelfDisciplineSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />

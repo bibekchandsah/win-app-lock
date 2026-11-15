@@ -157,6 +157,22 @@ public sealed class NetworkScannerService : IDisposable
         var settings = ServiceContainer.Settings;
         bool alertEnabled = settings.NetworkDeviceScanner.AlertOnNewDevice;
 
+        // Prune any legacy/invalid entries from settings (multicast, invalid IPs)
+        bool settingsChanged = false;
+        for (int i = settings.KnownNetworkDevices.Count - 1; i >= 0; i--)
+        {
+            var d = settings.KnownNetworkDevices[i];
+            if (!IsValidDevice(d.MacAddress, d.IpAddress))
+            {
+                settings.KnownNetworkDevices.RemoveAt(i);
+                settingsChanged = true;
+            }
+        }
+        if (settingsChanged)
+        {
+            _settingsStore.Save(settings);
+        }
+
         // Find MACs we have never seen before
         var knownMacs = new HashSet<string>(
             settings.KnownNetworkDevices.Select(d => d.MacAddress),
@@ -234,9 +250,9 @@ public sealed class NetworkScannerService : IDisposable
 
                 known.LastSeen = seen.LastSeen;
                 known.IpAddress = seen.IpAddress;
-                if (string.IsNullOrEmpty(known.Hostname) && !string.IsNullOrEmpty(seen.Hostname))
+                if (!string.IsNullOrEmpty(seen.Hostname))
                     known.Hostname = seen.Hostname;
-                if (known.DeviceType == NetworkDeviceType.Unknown && seen.DeviceType != NetworkDeviceType.Unknown)
+                if (seen.DeviceType != NetworkDeviceType.Unknown)
                     known.DeviceType = seen.DeviceType;
                 known.IsThisDevice = seen.IsThisDevice;
             }
@@ -270,23 +286,44 @@ public sealed class NetworkScannerService : IDisposable
         var gatewayIp = GetGatewayIp();
 
         // Parallel DNS resolution (capped to avoid flooding the router)
-        var tasks = devices.Select(d => ResolveHostnameAsync(d, ct)).ToList();
-        await Task.WhenAll(tasks);
+        var dnsTasks = devices.Select(d => ResolveHostnameAsync(d, ct)).ToList();
+
+        // Online MAC vendor lookups via MACVendors.com (uses API key if configured)
+        var apiKey = ServiceContainer.Settings.NetworkDeviceScanner.MacVendorsApiKey;
+        var vendorTasks = devices
+            .Where(d => !MacVendorDatabase.IsRandomMac(d.MacAddress))
+            .Select(d => MacVendorDatabase.LookupOnlineAsync(d.MacAddress, apiKey, ct))
+            .ToList();
+
+        await Task.WhenAll(dnsTasks).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(vendorTasks).ConfigureAwait(false);
+        }
+        catch { }
 
         // Determine device type and "this device" flag after hostnames are set
         foreach (var d in devices)
         {
-            d.IsThisDevice = localIps.Contains(d.IpAddress);
+            d.IsThisDevice = d.IsThisDevice || localIps.Contains(d.IpAddress);
             
             // Check if this is the gateway/router
             bool isGateway = !string.IsNullOrEmpty(gatewayIp) && d.IpAddress == gatewayIp;
             
             if (d.IsThisDevice)
+            {
                 d.DeviceType = NetworkDeviceType.ThisDevice;
+                if (string.IsNullOrEmpty(d.Hostname))
+                    d.Hostname = Environment.MachineName;
+            }
             else if (isGateway)
+            {
                 d.DeviceType = NetworkDeviceType.Router;
+            }
             else
+            {
                 d.DeviceType = InferDeviceType(d.Hostname, d.MacAddress, d.IpAddress);
+            }
         }
     }
 
@@ -680,28 +717,10 @@ public sealed class NetworkScannerService : IDisposable
                     if (row.dwType != ArpTypeDynamic && row.dwType != ArpTypeStatic) continue;
 
                     var mac = FormatMac(row.bPhysAddr, (int)row.dwPhysAddrLen);
-                    if (string.IsNullOrEmpty(mac)) continue;
-
-                    // Skip all-zero MAC (incomplete ARP entry) and broadcast FF:FF:FF:FF:FF:FF
-                    if (mac == "00:00:00:00:00:00" || mac == "FF:FF:FF:FF:FF:FF") continue;
-
-                    // Skip multicast MACs (IPv4 multicast starts with 01:00:5E, IPv6 with 33:33)
-                    if (mac.StartsWith("01:00:5E", StringComparison.OrdinalIgnoreCase) ||
-                        mac.StartsWith("33:33", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
                     var ipBytes = BitConverter.GetBytes(row.dwAddr);
                     var ip = new IPAddress(ipBytes).ToString();
 
-                    // Skip 0.0.0.0, 255.x broadcast
-                    if (ip == "0.0.0.0" || ip.StartsWith("255.")) continue;
-
-                    // Skip multicast IPs (224.0.0.0 to 239.255.255.255) and loopback (127.x)
-                    if (ipBytes[0] >= 224 && ipBytes[0] <= 239) continue;
-                    if (ipBytes[0] == 127) continue;
-
-                    // Validate private IP range (RFC 1918 + Link-Local: 10.x, 172.16-31.x, 192.168.x, 169.254.x)
-                    if (!IsPrivateIp(ipBytes)) continue;
+                    if (!IsValidDevice(mac, ip)) continue;
 
                     devices.Add(new NetworkDeviceEntry
                     {
@@ -738,6 +757,36 @@ public sealed class NetworkScannerService : IDisposable
         return unique;
     }
 
+    public static bool IsValidDevice(string mac, string ip)
+    {
+        if (string.IsNullOrWhiteSpace(mac) || string.IsNullOrWhiteSpace(ip)) return false;
+
+        // Skip multicast MACs (IPv4 multicast starts with 01:00:5E, IPv6 with 33:33)
+        if (mac.StartsWith("01:00:5E", StringComparison.OrdinalIgnoreCase) ||
+            mac.StartsWith("33:33", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Skip zero / broadcast MAC
+        if (mac == "00:00:00:00:00:00" || mac.Equals("FF:FF:FF:FF:FF:FF", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Skip broadcast / loopback / zero IPs
+        if (ip == "0.0.0.0" || ip.StartsWith("255.") || ip.StartsWith("127."))
+            return false;
+
+        if (!IPAddress.TryParse(ip, out var parsed)) return false;
+        var bytes = parsed.GetAddressBytes();
+        if (bytes.Length < 4) return false;
+
+        // Skip multicast IPs (224.0.0.0 to 239.255.255.255)
+        if (bytes[0] >= 224 && bytes[0] <= 239) return false;
+
+        // Validate private IP range (RFC 1918 + Link-Local)
+        if (!IsPrivateIp(bytes)) return false;
+
+        return true;
+    }
+
     private static bool IsPrivateIp(byte[] b)
     {
         if (b == null || b.Length < 4) return false;
@@ -752,46 +801,100 @@ public sealed class NetworkScannerService : IDisposable
         return false;
     }
 
-    private static void AddThisDeviceIfMissing(List<NetworkDeviceEntry> devices)
+    public static NetworkInterface? GetActiveInternetAdapter()
     {
         try
         {
-            var localIps = GetLocalIpAddresses();
-            if (devices.Any(d => d.IsThisDevice || localIps.Contains(d.IpAddress)))
-                return;
-
             var adapters = NetworkInterface.GetAllNetworkInterfaces()
                 .Where(a => a.OperationalStatus == OperationalStatus.Up)
                 .Where(a => a.NetworkInterfaceType != NetworkInterfaceType.Loopback)
                 .ToList();
 
-            var adapter = adapters
-                .OrderByDescending(a => HasGateway(a))
-                .ThenByDescending(a => a.Speed)
-                .FirstOrDefault();
+            // First prefer physical Wi-Fi or Ethernet with a default gateway
+            var physicalWithGateway = adapters
+                .Where(a => a.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ||
+                            a.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                .Where(a => !a.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Description.Contains("VMware", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Description.Contains("vEthernet", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Name.Contains("vEthernet", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Name.Contains("VMnet", StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault(a => HasGateway(a));
 
-            if (adapter == null) return;
+            if (physicalWithGateway != null)
+                return physicalWithGateway;
 
-            var ip = adapter.GetIPProperties().UnicastAddresses
-                .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?
-                .Address.ToString();
+            // Fallback: any adapter with gateway
+            var anyWithGateway = adapters.FirstOrDefault(a => HasGateway(a));
+            if (anyWithGateway != null)
+                return anyWithGateway;
 
-            var physAddr = adapter.GetPhysicalAddress().GetAddressBytes();
-            var mac = FormatMac(physAddr, physAddr.Length);
+            return adapters.FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
-            if (!string.IsNullOrEmpty(ip) && !string.IsNullOrEmpty(mac))
+    private static void AddThisDeviceIfMissing(List<NetworkDeviceEntry> devices)
+    {
+        try
+        {
+            var activeAdapter = GetActiveInternetAdapter();
+            if (activeAdapter != null)
             {
-                devices.Insert(0, new NetworkDeviceEntry
+                var ip = activeAdapter.GetIPProperties().UnicastAddresses
+                    .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?
+                    .Address.ToString();
+
+                var physAddr = activeAdapter.GetPhysicalAddress().GetAddressBytes();
+                var mac = FormatMac(physAddr, physAddr.Length);
+
+                if (!string.IsNullOrEmpty(ip) && !string.IsNullOrEmpty(mac))
                 {
-                    MacAddress = mac,
-                    IpAddress = ip,
-                    Hostname = Environment.MachineName,
-                    DeviceType = NetworkDeviceType.ThisDevice,
-                    IsThisDevice = true,
-                    FirstSeen = DateTime.Now,
-                    LastSeen = DateTime.Now,
-                    IsTrusted = true
-                });
+                    var existing = devices.FirstOrDefault(d =>
+                        string.Equals(d.MacAddress, mac, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(d.IpAddress, ip, StringComparison.OrdinalIgnoreCase));
+
+                    if (existing != null)
+                    {
+                        existing.IsThisDevice = true;
+                        existing.DeviceType = NetworkDeviceType.ThisDevice;
+                        if (string.IsNullOrEmpty(existing.Hostname))
+                            existing.Hostname = Environment.MachineName;
+                        existing.LastSeen = DateTime.Now;
+                    }
+                    else
+                    {
+                        devices.Insert(0, new NetworkDeviceEntry
+                        {
+                            MacAddress = mac,
+                            IpAddress = ip,
+                            Hostname = Environment.MachineName,
+                            DeviceType = NetworkDeviceType.ThisDevice,
+                            IsThisDevice = true,
+                            FirstSeen = DateTime.Now,
+                            LastSeen = DateTime.Now,
+                            IsTrusted = true
+                        });
+                    }
+                }
+            }
+
+            // Also check all local IP addresses to ensure any interface belonging to this PC is marked
+            var localIps = GetLocalIpAddresses();
+            foreach (var d in devices)
+            {
+                if (localIps.Contains(d.IpAddress))
+                {
+                    d.IsThisDevice = true;
+                    d.DeviceType = NetworkDeviceType.ThisDevice;
+                    if (string.IsNullOrEmpty(d.Hostname))
+                        d.Hostname = Environment.MachineName;
+                    d.LastSeen = DateTime.Now;
+                }
             }
         }
         catch (Exception ex)
@@ -799,15 +902,8 @@ public sealed class NetworkScannerService : IDisposable
             Debug.WriteLine($"[NetworkScanner] AddThisDeviceIfMissing: {ex.Message}");
         }
     }
-        {
-            if (seen.Add(d.MacAddress))
-                unique.Add(d);
-        }
 
-        return unique;
-    }
-
-    private static string FormatMac(byte[] addr, int len)
+    public static string FormatMac(byte[] addr, int len)
     {
         if (addr == null || len == 0) return string.Empty;
         return string.Join(":", addr.Take(len).Select(b => b.ToString("X2")));
