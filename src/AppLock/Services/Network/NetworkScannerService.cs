@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
@@ -99,6 +101,9 @@ public sealed class NetworkScannerService : IDisposable
     /// </summary>
     public async Task<IReadOnlyList<NetworkDeviceEntry>> ScanOnceAsync(CancellationToken ct = default)
     {
+        var gatewayIp = GetGatewayIp();
+        await SweepSubnetAsync(gatewayIp, ct).ConfigureAwait(false);
+
         var raw = await Task.Run(() => DoScan(ct), ct);
         await EnrichAsync(raw, ct);
         return raw;
@@ -139,6 +144,9 @@ public sealed class NetworkScannerService : IDisposable
 
     private void DoScanAndAlert(CancellationToken ct)
     {
+        var gatewayIp = GetGatewayIp();
+        SweepSubnetAsync(gatewayIp, ct).GetAwaiter().GetResult();
+
         var snapshot = DoScan(ct);
         if (ct.IsCancellationRequested) return;
 
@@ -284,22 +292,103 @@ public sealed class NetworkScannerService : IDisposable
 
     private static async Task ResolveHostnameAsync(NetworkDeviceEntry device, CancellationToken ct)
     {
+        // 1. If it's This PC, use the machine name
+        if (device.IsThisDevice)
+        {
+            device.Hostname = Environment.MachineName;
+            return;
+        }
+
+        // 2. Reverse DNS lookup
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(1));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(800));
 
             var entry = await Dns.GetHostEntryAsync(device.IpAddress, cts.Token);
             var host  = entry.HostName;
 
             // Strip fully-qualified suffix to keep it readable
             var dot = host.IndexOf('.');
-            device.Hostname = dot > 0 ? host[..dot] : host;
+            var resolved = dot > 0 ? host[..dot] : host;
+            if (!string.IsNullOrWhiteSpace(resolved) && resolved != device.IpAddress)
+            {
+                device.Hostname = resolved;
+                return;
+            }
         }
-        catch
+        catch { }
+
+        // 3. Fallback: NetBIOS name query on UDP 137 (finds Windows PCs, NAS, and Samba shares)
+        try
         {
-            device.Hostname = string.Empty;
+            var netbiosName = await QueryNetBiosNameAsync(device.IpAddress, 300);
+            if (!string.IsNullOrWhiteSpace(netbiosName))
+            {
+                device.Hostname = netbiosName;
+                return;
+            }
         }
+        catch { }
+
+        device.Hostname = string.Empty;
+    }
+
+    private static async Task<string?> QueryNetBiosNameAsync(string ipAddress, int timeoutMs = 300)
+    {
+        try
+        {
+            using var udp = new UdpClient();
+            udp.Client.ReceiveTimeout = timeoutMs;
+            udp.Client.SendTimeout = timeoutMs;
+            var target = new IPEndPoint(IPAddress.Parse(ipAddress), 137);
+
+            // NetBIOS node status request (50 bytes)
+            byte[] request = new byte[50];
+            request[0] = 0x82; // Transaction ID
+            request[1] = 0x28;
+            request[4] = 0x00; // Questions: 1
+            request[5] = 0x01;
+            request[12] = 0x20; // Question length
+            request[13] = 0x43; // 'C'
+            request[14] = 0x4B; // 'K'
+            for (int i = 15; i < 45; i++) request[i] = 0x41; // 'A'
+            request[46] = 0x00; // Type: NBSTAT
+            request[47] = 0x21;
+            request[48] = 0x00; // Class: IN
+            request[49] = 0x01;
+
+            await udp.SendAsync(request, request.Length, target);
+
+            using var cts = new CancellationTokenSource(timeoutMs);
+            var receiveTask = udp.ReceiveAsync();
+            var completedTask = await Task.WhenAny(receiveTask, Task.Delay(timeoutMs, cts.Token));
+
+            if (completedTask == receiveTask)
+            {
+                var result = receiveTask.Result;
+                if (result.Buffer.Length > 56)
+                {
+                    int numNames = result.Buffer[56];
+                    int offset = 57;
+                    for (int i = 0; i < numNames && offset + 18 <= result.Buffer.Length; i++)
+                    {
+                        byte nameType = result.Buffer[offset + 15];
+                        byte flags = result.Buffer[offset + 16];
+                        bool isGroup = (flags & 0x80) != 0;
+                        if (!isGroup && nameType == 0x00) // Workstation / Computer name
+                        {
+                            string name = Encoding.ASCII.GetString(result.Buffer, offset, 15).Trim();
+                            if (!string.IsNullOrEmpty(name))
+                                return name;
+                        }
+                        offset += 18;
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     private static HashSet<string> GetLocalIpAddresses()
@@ -435,74 +524,60 @@ public sealed class NetworkScannerService : IDisposable
                            "thermostat", "doorbell", "sensor", "hub"))
             return NetworkDeviceType.IoT;
 
-        // ── OUI prefix matching (first 3 octets → vendor) ──────────────────────
-        
-        // Routers / AP vendors
-        if (OuiAny(oui, "00:0C:E7", "00:17:DF", "00:26:5A",   // Cisco/Linksys
-                        "90:72:40", "EC:08:6B", "50:FF:20",    // TP-Link
-                        "00:14:6C", "20:4E:7F", "A0:40:A0",    // Netgear
-                        "04:D4:C4", "14:DA:E9", "50:46:5D",    // ASUS
-                        "00:1E:E5", "00:0F:66", "14:CC:20"))   // D-Link
-            return NetworkDeviceType.Router;
+        // ── 2. Randomized MAC: mobile phones/tablets use random MACs by default ──
+        if (MacVendorDatabase.IsRandomMac(mac))
+            return NetworkDeviceType.Phone;
 
-        // Apple devices (iPhone, iPad, Mac — differentiate by hostname if possible)
-        if (OuiAny(oui, "00:17:F2", "F0:DB:F8", "60:F8:1D",
-                        "F4:5C:89", "8C:85:90", "A8:BE:27",
-                        "DC:2B:2A", "00:3E:E1", "98:FE:94"))
+        // ── 3. Vendor-based inference via MacVendorDatabase ──────────────────────
+        var vendor = MacVendorDatabase.GetVendor(mac);
+        if (!string.IsNullOrEmpty(vendor) && vendor != "Unknown")
         {
-            // Macs tend to have longer fully-qualified hostnames; phones/tablets tend short
-            return ContainsAny(h, "mac", "imac", "book") ? NetworkDeviceType.Computer : NetworkDeviceType.Phone;
+            if (vendor.Contains("Motorola", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Xiaomi", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("OnePlus", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Oppo", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Vivo", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Huawei", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.Phone;
+
+            if (vendor.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Intel", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Realtek", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Raspberry Pi", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.Computer;
+
+            if (vendor.Contains("TP-Link", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("D-Link", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Netgear", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("ASUS", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Nokia", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Cisco", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.Router;
+
+            if (vendor.Contains("HP", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Canon", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Epson", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.Printer;
+
+            if (vendor.Contains("Sony", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Nintendo", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.GameConsole;
+
+            if (vendor.Contains("Amazon", StringComparison.OrdinalIgnoreCase) ||
+                vendor.Contains("Sonos", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.Speaker;
+
+            if (vendor.Contains("Espressif", StringComparison.OrdinalIgnoreCase))
+                return NetworkDeviceType.IoT;
+
+            if (vendor.Contains("Apple", StringComparison.OrdinalIgnoreCase))
+                return ContainsAny(h, "mac", "imac", "book") ? NetworkDeviceType.Computer : NetworkDeviceType.Phone;
+
+            if (vendor.Contains("Samsung", StringComparison.OrdinalIgnoreCase))
+                return ContainsAny(h, "tv", "smart") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Phone;
         }
 
-        // Samsung (mix of phones and TVs — hostname usually disambiguates)
-        if (OuiAny(oui, "00:15:99", "84:25:DB", "CC:07:AB", "E8:03:9A"))
-            return ContainsAny(h, "tv", "smart") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Phone;
-
-        // Sony (PlayStation consoles)
-        if (OuiAny(oui, "00:1F:A7", "00:04:1F", "00:19:C5"))
-            return NetworkDeviceType.GameConsole;
-
-        // Microsoft (Xbox consoles)
-        if (OuiAny(oui, "00:50:F2", "7C:ED:8D", "D8:B3:77"))
-            return NetworkDeviceType.GameConsole;
-
-        // Nintendo (Switch, Wii)
-        if (OuiAny(oui, "00:09:BF", "00:19:1D", "00:1F:32"))
-            return NetworkDeviceType.GameConsole;
-
-        // Amazon (Echo, Fire devices)
-        if (OuiAny(oui, "44:65:0D", "F0:81:73", "FC:A6:67"))
-            return ContainsAny(h, "echo", "alexa") ? NetworkDeviceType.Speaker : NetworkDeviceType.SmartTV;
-
-        // Google (Nest, Chromecast, Home devices)
-        if (OuiAny(oui, "6C:AD:F8", "F4:F5:D8", "54:60:09"))
-            return ContainsAny(h, "chromecast", "tv") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Speaker;
-
-        // Sonos speakers
-        if (OuiAny(oui, "00:0E:58", "94:9F:3E", "B8:E9:37"))
-            return NetworkDeviceType.Speaker;
-
-        // Hikvision, Dahua (IP cameras)
-        if (OuiAny(oui, "44:19:B6", "BC:AD:28", "00:12:12"))
-            return NetworkDeviceType.Camera;
-
-        // HP, Canon, Epson printers
-        if (OuiAny(oui, "00:1E:0B", "00:A0:60", "00:23:7D", "04:F1:28"))
-            return NetworkDeviceType.Printer;
-
-        // Philips Hue, Wemo IoT
-        if (OuiAny(oui, "00:17:88", "EC:1B:BD", "F4:5E:AB"))
-            return NetworkDeviceType.IoT;
-
-        // Raspberry Pi (often used as servers or IoT devices)
-        if (OuiAny(oui, "B8:27:EB", "DC:A6:32", "E4:5F:01"))
-            return NetworkDeviceType.Computer;
-
-        // Generic Windows/PC (Intel NIC OUIs)
-        if (OuiAny(oui, "00:1B:21", "00:1F:3C", "F0:1F:AF", "8C:8D:28"))
-            return NetworkDeviceType.Computer;
-
-        // .1 or .254 address on common home subnets is almost always the gateway
+        // ── 4. Gateway IP pattern ───────────────────────────────────────────────
         if (ip.EndsWith(".1") || ip.EndsWith(".254"))
             return NetworkDeviceType.Router;
 
@@ -514,6 +589,51 @@ public sealed class NetworkScannerService : IDisposable
 
     private static bool OuiAny(string oui, params string[] prefixes)
         => prefixes.Any(p => oui.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+
+    // ── Subnet sweep via SendARP ───────────────────────────────────────────────
+
+    private static async Task SweepSubnetAsync(string gatewayIp, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(gatewayIp)) return;
+
+        var lastDot = gatewayIp.LastIndexOf('.');
+        if (lastDot <= 0) return;
+        var prefix = gatewayIp[..(lastDot + 1)];
+
+        var tasks = new List<Task>();
+        using var sem = new SemaphoreSlim(64); // concurrency cap as per spec section 5.2
+
+        for (int i = 1; i <= 254; i++)
+        {
+            if (ct.IsCancellationRequested) break;
+            var targetIpStr = prefix + i;
+            if (!IPAddress.TryParse(targetIpStr, out var ipAddr)) continue;
+
+            uint destIp = BitConverter.ToUInt32(ipAddr.GetAddressBytes(), 0);
+
+            tasks.Add(Task.Run(async () =>
+            {
+                await sem.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    byte[] mac = new byte[6];
+                    int len = mac.Length;
+                    SendARP(destIp, 0, mac, ref len);
+                }
+                catch { }
+                finally
+                {
+                    sem.Release();
+                }
+            }, ct));
+        }
+
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch { }
+    }
 
     // ── Core ARP scan ──────────────────────────────────────────────────────────
 
@@ -565,11 +685,23 @@ public sealed class NetworkScannerService : IDisposable
                     // Skip all-zero MAC (incomplete ARP entry) and broadcast FF:FF:FF:FF:FF:FF
                     if (mac == "00:00:00:00:00:00" || mac == "FF:FF:FF:FF:FF:FF") continue;
 
+                    // Skip multicast MACs (IPv4 multicast starts with 01:00:5E, IPv6 with 33:33)
+                    if (mac.StartsWith("01:00:5E", StringComparison.OrdinalIgnoreCase) ||
+                        mac.StartsWith("33:33", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
                     var ipBytes = BitConverter.GetBytes(row.dwAddr);
                     var ip = new IPAddress(ipBytes).ToString();
 
                     // Skip 0.0.0.0, 255.x broadcast
                     if (ip == "0.0.0.0" || ip.StartsWith("255.")) continue;
+
+                    // Skip multicast IPs (224.0.0.0 to 239.255.255.255) and loopback (127.x)
+                    if (ipBytes[0] >= 224 && ipBytes[0] <= 239) continue;
+                    if (ipBytes[0] == 127) continue;
+
+                    // Validate private IP range (RFC 1918 + Link-Local: 10.x, 172.16-31.x, 192.168.x, 169.254.x)
+                    if (!IsPrivateIp(ipBytes)) continue;
 
                     devices.Add(new NetworkDeviceEntry
                     {
@@ -591,10 +723,82 @@ public sealed class NetworkScannerService : IDisposable
             Debug.WriteLine($"[NetworkScanner] DoScan exception: {ex.Message}");
         }
 
-        // De-duplicate by MAC (keep first occurrence — lowest interface index tends to be the real one)
+        // Ensure "This PC" is included in the list
+        AddThisDeviceIfMissing(devices);
+
+        // De-duplicate by MAC (keep first occurrence)
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var unique = new List<NetworkDeviceEntry>();
         foreach (var d in devices)
+        {
+            if (seen.Add(d.MacAddress))
+                unique.Add(d);
+        }
+
+        return unique;
+    }
+
+    private static bool IsPrivateIp(byte[] b)
+    {
+        if (b == null || b.Length < 4) return false;
+        // 10.0.0.0/8
+        if (b[0] == 10) return true;
+        // 172.16.0.0/12 (172.16.0.0 – 172.31.255.255)
+        if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true;
+        // 192.168.0.0/16
+        if (b[0] == 192 && b[1] == 168) return true;
+        // 169.254.0.0/16 (link-local)
+        if (b[0] == 169 && b[1] == 254) return true;
+        return false;
+    }
+
+    private static void AddThisDeviceIfMissing(List<NetworkDeviceEntry> devices)
+    {
+        try
+        {
+            var localIps = GetLocalIpAddresses();
+            if (devices.Any(d => d.IsThisDevice || localIps.Contains(d.IpAddress)))
+                return;
+
+            var adapters = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(a => a.OperationalStatus == OperationalStatus.Up)
+                .Where(a => a.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .ToList();
+
+            var adapter = adapters
+                .OrderByDescending(a => HasGateway(a))
+                .ThenByDescending(a => a.Speed)
+                .FirstOrDefault();
+
+            if (adapter == null) return;
+
+            var ip = adapter.GetIPProperties().UnicastAddresses
+                .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?
+                .Address.ToString();
+
+            var physAddr = adapter.GetPhysicalAddress().GetAddressBytes();
+            var mac = FormatMac(physAddr, physAddr.Length);
+
+            if (!string.IsNullOrEmpty(ip) && !string.IsNullOrEmpty(mac))
+            {
+                devices.Insert(0, new NetworkDeviceEntry
+                {
+                    MacAddress = mac,
+                    IpAddress = ip,
+                    Hostname = Environment.MachineName,
+                    DeviceType = NetworkDeviceType.ThisDevice,
+                    IsThisDevice = true,
+                    FirstSeen = DateTime.Now,
+                    LastSeen = DateTime.Now,
+                    IsTrusted = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[NetworkScanner] AddThisDeviceIfMissing: {ex.Message}");
+        }
+    }
         {
             if (seen.Add(d.MacAddress))
                 unique.Add(d);

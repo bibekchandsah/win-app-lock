@@ -65,6 +65,7 @@
     <Compile Include="..\..\src\AppLock\Services\SensitiveDetector.cs" Link="Services\SensitiveDetector.cs" />
     <Compile Include="..\..\src\AppLock\Services\IClock.cs" Link="Services\IClock.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScheduleEvaluator.cs" Link="Services\ScheduleEvaluator.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Network\MacVendorDatabase.cs" Link="Services\Network\MacVendorDatabase.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\IFirewallService.cs" Link="Services\Firewall\IFirewallService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\FakeFirewallService.cs" Link="Services\Firewall\FakeFirewallService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\RuleSyncService.cs" Link="Services\Firewall\RuleSyncService.cs" />

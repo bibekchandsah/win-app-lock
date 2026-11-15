@@ -103,7 +103,22 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     public void LoadDevices()
     {
         Devices.Clear();
-        foreach (var entry in ServiceContainer.Settings.KnownNetworkDevices.OrderBy(d => d.FirstSeen))
+
+        // Prune any legacy multicast/broadcast entries that may have been saved previously
+        var known = ServiceContainer.Settings.KnownNetworkDevices;
+        for (int i = known.Count - 1; i >= 0; i--)
+        {
+            var e = known[i];
+            if (string.IsNullOrEmpty(e.MacAddress) ||
+                e.MacAddress.StartsWith("01:00:5E", StringComparison.OrdinalIgnoreCase) ||
+                e.MacAddress.StartsWith("33:33", StringComparison.OrdinalIgnoreCase) ||
+                (System.Net.IPAddress.TryParse(e.IpAddress, out var ip) && ip.GetAddressBytes()[0] >= 224 && ip.GetAddressBytes()[0] <= 239))
+            {
+                known.RemoveAt(i);
+            }
+        }
+
+        foreach (var entry in known.OrderBy(d => d.FirstSeen))
             Devices.Add(new NetworkDeviceViewModel(entry));
         UpdateStatusText();
     }
@@ -295,7 +310,45 @@ public partial class NetworkDeviceViewModel : ObservableObject
         _lastSeen     = entry.LastSeen.ToString("yyyy-MM-dd HH:mm");
         _hostname     = entry.Hostname;
         _isThisDevice = entry.IsThisDevice;
-        _deviceIcon   = GlyphForType(entry.DeviceType);
+
+        // If saved with Unknown type, infer it now
+        if (entry.DeviceType == AppLock.Models.NetworkDeviceType.Unknown)
+        {
+            if (MacVendorDatabase.IsRandomMac(entry.MacAddress))
+            {
+                entry.DeviceType = AppLock.Models.NetworkDeviceType.Phone;
+            }
+            else
+            {
+                var v = MacVendorDatabase.GetVendor(entry.MacAddress);
+                if (v.Contains("Motorola", StringComparison.OrdinalIgnoreCase) ||
+                    v.Contains("Xiaomi", StringComparison.OrdinalIgnoreCase) ||
+                    v.Contains("Huawei", StringComparison.OrdinalIgnoreCase) ||
+                    v.Contains("Oppo", StringComparison.OrdinalIgnoreCase) ||
+                    v.Contains("Vivo", StringComparison.OrdinalIgnoreCase) ||
+                    v.Contains("OnePlus", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.DeviceType = AppLock.Models.NetworkDeviceType.Phone;
+                }
+                else if (v.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("Intel", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("Realtek", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.DeviceType = AppLock.Models.NetworkDeviceType.Computer;
+                }
+                else if (v.Contains("TP-Link", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("D-Link", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("Netgear", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("ASUS", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("Nokia", StringComparison.OrdinalIgnoreCase) ||
+                         v.Contains("Cisco", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.DeviceType = AppLock.Models.NetworkDeviceType.Router;
+                }
+            }
+        }
+
+        _deviceIcon = GlyphForType(entry.DeviceType);
     }
 
     /// <summary>
@@ -330,19 +383,23 @@ public partial class NetworkDeviceViewModel : ObservableObject
         {
             Entry.Hostname = fresh.Hostname;
             Hostname = fresh.Hostname;
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(SubtitleHostname));
         }
 
         // Always update device type if fresh scan has better information
-        if (fresh.DeviceType != Entry.DeviceType)
+        if (fresh.DeviceType != Entry.DeviceType || DeviceIcon != GlyphForType(fresh.DeviceType))
         {
             Entry.DeviceType = fresh.DeviceType;
             DeviceIcon = GlyphForType(fresh.DeviceType);
+            OnPropertyChanged(nameof(DisplayName));
         }
 
         if (fresh.IsThisDevice != Entry.IsThisDevice)
         {
             Entry.IsThisDevice = fresh.IsThisDevice;
             IsThisDevice = fresh.IsThisDevice;
+            OnPropertyChanged(nameof(DisplayName));
         }
 
         // FriendlyName: only push from entry if the user hasn't set one locally
@@ -350,6 +407,7 @@ public partial class NetworkDeviceViewModel : ObservableObject
         {
             Entry.FriendlyName = fresh.FriendlyName;
             FriendlyName = fresh.FriendlyName;
+            OnPropertyChanged(nameof(DisplayName));
         }
     }
 
@@ -364,65 +422,106 @@ public partial class NetworkDeviceViewModel : ObservableObject
     partial void OnHostnameChanged(string value)  => OnPropertyChanged(nameof(DisplayName));
 
     /// <summary>
-    /// Priority: user FriendlyName → resolved Hostname → Vendor + short MAC → IP address.
-    /// Special labels for "This PC" and "Router/Gateway".
+    /// Priority: user FriendlyName → This PC → Router/Gateway → resolved Hostname →
+    /// Random MAC ("Mobile device") → Vendor + short MAC → DeviceType + short MAC.
+    /// Never returns raw IP address so the title and subtitle are distinct and meaningful.
     /// </summary>
     public string DisplayName
     {
         get
         {
-            // Special label for this PC
+            // 1. Manual user friendly name
+            if (!string.IsNullOrWhiteSpace(FriendlyName))
+                return FriendlyName;
+
+            // 2. Special label for This PC
             if (IsThisDevice)
             {
-                var baseName = !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
-                              !string.IsNullOrWhiteSpace(Hostname) ? Hostname : "This PC";
-                return baseName;
+                var machine = !string.IsNullOrWhiteSpace(Hostname) ? Hostname : Environment.MachineName;
+                return $"This PC ({machine})";
             }
 
-            // Special label for router/gateway
-            if (Entry.DeviceType == AppLock.Models.NetworkDeviceType.Router && 
-                string.IsNullOrWhiteSpace(FriendlyName) && 
-                string.IsNullOrWhiteSpace(Hostname))
+            // 3. Special label for Router / Gateway
+            if (Entry.DeviceType == AppLock.Models.NetworkDeviceType.Router)
             {
+                if (!string.IsNullOrWhiteSpace(Hostname) && !Hostname.Equals("router", StringComparison.OrdinalIgnoreCase))
+                    return $"Router ({Hostname})";
+                var mfg = Manufacturer;
+                if (!string.IsNullOrWhiteSpace(mfg) && mfg != "Unknown")
+                    return $"Router / Gateway ({mfg})";
                 return "Router / Gateway";
             }
 
-            if (!string.IsNullOrWhiteSpace(FriendlyName))
-                return FriendlyName;
-            
+            // 4. Discovered hostname (via DNS, NetBIOS, etc.)
             if (!string.IsNullOrWhiteSpace(Hostname))
                 return Hostname;
-            
-            // Fallback: Show "Vendor (short MAC)" for better readability
-            var manufacturer = Manufacturer;
-            if (!string.IsNullOrEmpty(manufacturer) && manufacturer != "Unknown")
+
+            // 5. Short MAC for identification
+            var macParts = MacAddress.Split(':');
+            var shortMac = macParts.Length == 6 ? string.Join(":", macParts[3..6]) : MacAddress;
+
+            // 6. Randomized / Private MAC address (iOS, Android, Windows)
+            if (MacVendorDatabase.IsRandomMac(MacAddress))
             {
-                // Get last 3 octets of MAC for short identifier
-                var macParts = MacAddress.Split(':');
-                if (macParts.Length == 6)
-                {
-                    var shortMac = string.Join(":", macParts[3..6]);
-                    return $"{manufacturer} ({shortMac})";
-                }
+                return $"Mobile device ({shortMac})";
             }
-            
-            return IpAddress;
+
+            // 7. Known manufacturer
+            var manufacturer = Manufacturer;
+            if (!string.IsNullOrWhiteSpace(manufacturer) && manufacturer != "Unknown")
+            {
+                return $"{manufacturer} ({shortMac})";
+            }
+
+            // 8. Fallback by inferred device type + short MAC
+            var typeName = Entry.DeviceType switch
+            {
+                AppLock.Models.NetworkDeviceType.Phone       => "Phone",
+                AppLock.Models.NetworkDeviceType.Computer    => "Computer",
+                AppLock.Models.NetworkDeviceType.Printer     => "Printer",
+                AppLock.Models.NetworkDeviceType.SmartTV     => "Smart TV",
+                AppLock.Models.NetworkDeviceType.GameConsole => "Console",
+                AppLock.Models.NetworkDeviceType.Camera      => "Camera",
+                AppLock.Models.NetworkDeviceType.Speaker     => "Speaker",
+                AppLock.Models.NetworkDeviceType.IoT         => "Smart device",
+                _                                            => "Network device"
+            };
+
+            return $"{typeName} ({shortMac})";
         }
     }
 
-    // ── Icon glyphs (Segoe Fluent Icons / MDL2) ────────────────────────────────
-    private static string GlyphForType(AppLock.Models.NetworkDeviceType type) => type switch
+    /// <summary>
+    /// Hostname shown in the subtitle only if different from DisplayName.
+    /// </summary>
+    public string SubtitleHostname => !string.IsNullOrEmpty(Hostname) && Hostname != DisplayName ? Hostname : string.Empty;
+
+    public void RefreshDisplay()
     {
-        AppLock.Models.NetworkDeviceType.ThisDevice  => "\uE977", // PC / This PC
-        AppLock.Models.NetworkDeviceType.Router      => "\uE968", // Network / Router
-        AppLock.Models.NetworkDeviceType.Phone       => "\uE8EA", // Cell phone
-        AppLock.Models.NetworkDeviceType.Computer    => "\uE7F4", // PC / Laptop
+        DeviceIcon = GlyphForType(Entry.DeviceType);
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(SubtitleHostname));
+        OnPropertyChanged(nameof(Manufacturer));
+        OnPropertyChanged(nameof(DeviceIcon));
+        OnPropertyChanged(nameof(IsOnline));
+        OnPropertyChanged(nameof(StatusText));
+    }
+
+    public string GlyphForTypePublic(AppLock.Models.NetworkDeviceType type) => GlyphForType(type);
+
+    // ── Icon glyphs (Segoe Fluent Icons / MDL2) ────────────────────────────────
+    public static string GlyphForType(AppLock.Models.NetworkDeviceType type) => type switch
+    {
+        AppLock.Models.NetworkDeviceType.ThisDevice  => "\uE721", // Desktop PC / Computer
+        AppLock.Models.NetworkDeviceType.Router      => "\uE774", // Globe / Router Gateway
+        AppLock.Models.NetworkDeviceType.Phone       => "\uE8EA", // Cell phone / Tablet
+        AppLock.Models.NetworkDeviceType.Computer    => "\uE7F8", // Laptop / Computer
         AppLock.Models.NetworkDeviceType.Printer     => "\uE749", // Print
         AppLock.Models.NetworkDeviceType.SmartTV     => "\uE7F4", // TV / Monitor
         AppLock.Models.NetworkDeviceType.GameConsole => "\uE7FC", // Game console / Xbox
         AppLock.Models.NetworkDeviceType.Speaker     => "\uE767", // Volume / Speaker
         AppLock.Models.NetworkDeviceType.Camera      => "\uE8B8", // Camera
         AppLock.Models.NetworkDeviceType.IoT         => "\uECF0", // IOT / smart home
-        _                                            => "\uE968", // Generic network node
+        _                                            => "\uE770", // Connected Devices silhouette
     };
 }

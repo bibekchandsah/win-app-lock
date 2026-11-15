@@ -686,10 +686,10 @@
 
                                             <!-- Subtitle: hostname if different from display name, then IP -->
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="{Binding Hostname}"
+                                                <TextBlock Text="{Binding SubtitleHostname}"
                                                            FontSize="11"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                           Visibility="{Binding Hostname, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                           Visibility="{Binding SubtitleHostname, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
                                                 <TextBlock Text="{Binding IpAddress}"
                                                            FontSize="11"
                                                            FontFamily="Consolas"
