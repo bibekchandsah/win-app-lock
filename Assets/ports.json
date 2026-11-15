@@ -1,0 +1,250 @@
+[
+  {
+    "protocol": "TCP",
+    "port": 21,
+    "serviceName": "FTP",
+    "category": "File Transfer",
+    "hint": "FTP transmits credentials and files in plaintext without encryption.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 22,
+    "serviceName": "SSH",
+    "category": "Remote Access",
+    "hint": "Secure encrypted remote terminal access.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 23,
+    "serviceName": "Telnet",
+    "category": "Remote Access",
+    "hint": "Telnet transmits all data unencrypted. Use SSH instead.",
+    "severity": "Important"
+  },
+  {
+    "protocol": "Any",
+    "port": 53,
+    "serviceName": "DNS",
+    "category": "Network",
+    "hint": "Domain Name System server or resolver.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 80,
+    "serviceName": "HTTP",
+    "category": "Web",
+    "hint": "Standard unencrypted web server port.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 135,
+    "serviceName": "RPC Endpoint Mapper",
+    "category": "System",
+    "hint": "Windows Remote Procedure Call service. Keep blocked from untrusted networks.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "Any",
+    "port": 137,
+    "serviceName": "NetBIOS Name Service",
+    "category": "Network",
+    "hint": "Legacy Windows network name resolution service.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "UDP",
+    "port": 138,
+    "serviceName": "NetBIOS Datagram",
+    "category": "Network",
+    "hint": "Legacy Windows NetBIOS datagram distribution service.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 139,
+    "serviceName": "NetBIOS Session",
+    "category": "File Sharing",
+    "hint": "Legacy NetBIOS file and print sharing.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 443,
+    "serviceName": "HTTPS",
+    "category": "Web",
+    "hint": "Secure encrypted web server port (SSL/TLS).",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 445,
+    "serviceName": "SMB",
+    "category": "File Sharing",
+    "hint": "Windows File and Printer Sharing. Only expose to trusted home/work networks.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 1433,
+    "serviceName": "SQL Server",
+    "category": "Database",
+    "hint": "Microsoft SQL Server database engine.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "UDP",
+    "port": 1900,
+    "serviceName": "SSDP / UPnP",
+    "category": "Discovery",
+    "hint": "Universal Plug and Play local device discovery.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 3000,
+    "serviceName": "Dev Server (Node/React)",
+    "category": "Development",
+    "hint": "A development server is reachable from other devices on this network (bound to all interfaces). Bind it to localhost if you don't need that.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 3306,
+    "serviceName": "MySQL",
+    "category": "Database",
+    "hint": "MySQL / MariaDB database server.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 3389,
+    "serviceName": "Remote Desktop",
+    "category": "Remote Access",
+    "hint": "Remote Desktop is open to your network. If you don't use it, block it.",
+    "severity": "Important"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5037,
+    "serviceName": "ADB Server",
+    "category": "Development",
+    "hint": "Android Debug Bridge daemon for local Android debugging.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5040,
+    "serviceName": "Device Sharing",
+    "category": "System",
+    "hint": "Windows Connected Devices Service.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5173,
+    "serviceName": "Dev Server (Vite)",
+    "category": "Development",
+    "hint": "A development server is reachable from other devices on this network (bound to all interfaces). Bind it to localhost if you don't need that.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "UDP",
+    "port": 5353,
+    "serviceName": "mDNS",
+    "category": "Discovery",
+    "hint": "Multicast DNS / Bonjour zero-configuration discovery.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5432,
+    "serviceName": "PostgreSQL",
+    "category": "Database",
+    "hint": "PostgreSQL relational database server.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5555,
+    "serviceName": "ADB over Network",
+    "category": "Development",
+    "hint": "Android Debug Bridge is reachable on the network. Anyone on this network could try to connect to ADB.",
+    "severity": "Important"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5900,
+    "serviceName": "VNC",
+    "category": "Remote Access",
+    "hint": "Virtual Network Computing remote screen sharing.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5985,
+    "serviceName": "WinRM HTTP",
+    "category": "Remote Access",
+    "hint": "Windows Remote Management unencrypted HTTP endpoint.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 5986,
+    "serviceName": "WinRM HTTPS",
+    "category": "Remote Access",
+    "hint": "Windows Remote Management encrypted HTTPS endpoint.",
+    "severity": "Info"
+  },
+  {
+    "protocol": "TCP",
+    "port": 6379,
+    "serviceName": "Redis",
+    "category": "Database",
+    "hint": "Redis in-memory data store. Ensure authentication is enabled.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 8000,
+    "serviceName": "Dev Server (HTTP/Python)",
+    "category": "Development",
+    "hint": "A development server is reachable from other devices on this network (bound to all interfaces). Bind it to localhost if you don't need that.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 8080,
+    "serviceName": "Dev Server (HTTP-Alt)",
+    "category": "Development",
+    "hint": "A development server is reachable from other devices on this network (bound to all interfaces). Bind it to localhost if you don't need that.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 8081,
+    "serviceName": "Dev Server",
+    "category": "Development",
+    "hint": "A development server is reachable from other devices on this network (bound to all interfaces). Bind it to localhost if you don't need that.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 9200,
+    "serviceName": "Elasticsearch",
+    "category": "Database",
+    "hint": "Elasticsearch distributed search and analytics engine.",
+    "severity": "Review"
+  },
+  {
+    "protocol": "TCP",
+    "port": 27017,
+    "serviceName": "MongoDB",
+    "category": "Database",
+    "hint": "MongoDB document database server.",
+    "severity": "Review"
+  }
+]

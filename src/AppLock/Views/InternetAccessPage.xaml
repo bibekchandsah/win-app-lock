@@ -1019,9 +1019,10 @@
                                     <Grid Padding="12,10" ColumnSpacing="14">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="65"/>   <!-- Protocol -->
-                                            <ColumnDefinition Width="180"/>  <!-- Port & Address -->
-                                            <ColumnDefinition Width="160"/>  <!-- Reach / Scope -->
-                                            <ColumnDefinition Width="*"/>    <!-- Process Name & PID -->
+                                            <ColumnDefinition Width="180"/>  <!-- Port & Service -->
+                                            <ColumnDefinition Width="145"/>  <!-- Reach / Scope -->
+                                            <ColumnDefinition Width="*"/>    <!-- Process info -->
+                                            <ColumnDefinition Width="Auto"/> <!-- Port hint -->
                                             <ColumnDefinition Width="160"/>  <!-- Exposure -->
                                         </Grid.ColumnDefinitions>
 
@@ -1040,18 +1041,13 @@
                                                        HorizontalAlignment="Center"/>
                                         </Border>
 
-                                        <!-- Port and Local Address -->
+                                        <!-- Port, Service name and Local Address -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock Text="Port"
-                                                           FontSize="11"
-                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                                           VerticalAlignment="Center"/>
-                                                <TextBlock Text="{x:Bind Port}"
-                                                           FontSize="14"
-                                                           FontWeight="SemiBold"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
+                                            <TextBlock Text="{x:Bind PortAndServiceText}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Text="{x:Bind LocalAddressText}"
                                                        FontSize="11"
                                                        FontFamily="Consolas"
@@ -1076,20 +1072,65 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Process Name & PID -->
-                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock Text="{x:Bind AppName}"
-                                                       FontSize="13"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{x:Bind PidText}"
-                                                       FontSize="11"
-                                                       FontFamily="Consolas"
-                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                                        </StackPanel>
+                                        <!-- Process Info (Icon + Name/Services + Publisher/PID) -->
+                                        <Grid Grid.Column="3" ColumnSpacing="10" VerticalAlignment="Center"
+                                              ToolTipService.ToolTip="{x:Bind AppPath}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Process icon -->
+                                            <Border Grid.Column="0"
+                                                    Width="36" Height="36"
+                                                    CornerRadius="6"
+                                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    VerticalAlignment="Center">
+                                                <FontIcon Glyph="{x:Bind DefaultProcessGlyph}"
+                                                          FontSize="16"
+                                                          Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- App and service details -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Text="{x:Bind DisplayAppName}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{x:Bind DisplaySubtitle}"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Risk / Port hint badge (if present) -->
+                                        <Border Grid.Column="4"
+                                                CornerRadius="12"
+                                                Padding="8,3"
+                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Visibility="{x:Bind HasHint, Converter={StaticResource BoolToVisConverter}}"
+                                                ToolTipService.ToolTip="{x:Bind HintText}">
+                                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                                <FontIcon Glyph="{x:Bind HintIcon}" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                                <TextBlock Text="{x:Bind HintText}"
+                                                           FontSize="11"
+                                                           MaxWidth="180"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </StackPanel>
+                                        </Border>
 
                                         <!-- Exposure chip -->
-                                        <Border Grid.Column="4"
+                                        <Border Grid.Column="5"
                                                 CornerRadius="4"
                                                 Padding="8,3"
                                                 Background="{ThemeResource ControlFillColorDefaultBrush}"

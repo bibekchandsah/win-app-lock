@@ -16,8 +16,60 @@ public partial class ListeningPortItemViewModel : ObservableObject
     public int Pid => Model.Pid;
     public string AppName => !string.IsNullOrEmpty(Model.AppName) ? Model.AppName : $"PID {Pid}";
     public string? AppPath => Model.AppPath;
+    public string? Publisher => Model.Publisher;
+    public IReadOnlyList<string> Services => Model.Services;
+    public string? ServiceLabel => Model.ServiceLabel;
+    public string? ServiceName => Model.ServiceName;
+    public PortHint? Hint => Model.Hint;
     public PortScope Scope => Model.Scope;
     public FirewallExposure Exposure => Model.Exposure;
+
+    public string DisplayAppName
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(ServiceLabel))
+                return $"svchost · {ServiceLabel}";
+            return AppName;
+        }
+    }
+
+    public string DisplaySubtitle
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(Publisher))
+                return $"PID {Pid}  ·  {Publisher}";
+            return $"PID {Pid}";
+        }
+    }
+
+    public string PortAndServiceText => !string.IsNullOrEmpty(ServiceName)
+        ? $"Port {Port} · {ServiceName}"
+        : $"Port {Port}";
+
+    public bool HasHint => Hint != null;
+    public string HintText => Hint?.Text ?? string.Empty;
+    public HintSeverity HintSeverity => Hint?.Severity ?? HintSeverity.None;
+
+    public string HintIcon => HintSeverity switch
+    {
+        HintSeverity.Important => "\uE7BA", // Warning / Alert
+        HintSeverity.Review    => "\uE897", // Search / Review
+        _                      => "\uE946"  // Info
+    };
+
+    public string DefaultProcessGlyph
+    {
+        get
+        {
+            if (Services != null && Services.Count > 0 || (AppName != null && AppName.Contains("svchost", StringComparison.OrdinalIgnoreCase)))
+                return "\uE71D"; // Settings / Gear / Service
+            if (AppName == "System" || Pid == 4)
+                return "\uE770"; // Computer / Server
+            return "\uE74C"; // Application
+        }
+    }
 
     public void UpdateFrom(ListeningPort fresh)
     {
@@ -25,6 +77,10 @@ public partial class ListeningPortItemViewModel : ObservableObject
         bool exposureChanged = fresh.Exposure != Model.Exposure;
         bool appNameChanged = fresh.AppName != Model.AppName;
         bool appPathChanged = fresh.AppPath != Model.AppPath;
+        bool publisherChanged = fresh.Publisher != Model.Publisher;
+        bool serviceChanged = fresh.ServiceLabel != Model.ServiceLabel;
+        bool hintChanged = fresh.Hint != Model.Hint;
+        bool serviceNameChanged = fresh.ServiceName != Model.ServiceName;
 
         Model = fresh;
 
@@ -44,14 +100,34 @@ public partial class ListeningPortItemViewModel : ObservableObject
             OnPropertyChanged(nameof(ExposureTooltip));
         }
 
-        if (appNameChanged)
+        if (appNameChanged || serviceChanged)
         {
             OnPropertyChanged(nameof(AppName));
+            OnPropertyChanged(nameof(ServiceLabel));
+            OnPropertyChanged(nameof(DisplayAppName));
+            OnPropertyChanged(nameof(DefaultProcessGlyph));
         }
 
-        if (appPathChanged)
+        if (appPathChanged || publisherChanged)
         {
             OnPropertyChanged(nameof(AppPath));
+            OnPropertyChanged(nameof(Publisher));
+            OnPropertyChanged(nameof(DisplaySubtitle));
+        }
+
+        if (serviceNameChanged)
+        {
+            OnPropertyChanged(nameof(ServiceName));
+            OnPropertyChanged(nameof(PortAndServiceText));
+        }
+
+        if (hintChanged)
+        {
+            OnPropertyChanged(nameof(Hint));
+            OnPropertyChanged(nameof(HasHint));
+            OnPropertyChanged(nameof(HintText));
+            OnPropertyChanged(nameof(HintSeverity));
+            OnPropertyChanged(nameof(HintIcon));
         }
     }
 

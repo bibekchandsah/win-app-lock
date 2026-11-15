@@ -93,7 +93,53 @@ public class ListeningPortService : IListeningPortService
 
     #endregion
 
-    private readonly ConcurrentDictionary<int, (string Name, string? Path)> _processCache = new();
+    #region Win32 Process and Service API
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern IntPtr OpenSCManager(string? lpMachineName, string? lpDatabaseName, uint dwDesiredAccess);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseServiceHandle(IntPtr hSCObject);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumServicesStatusEx(
+        IntPtr hSCManager,
+        int infoLevel,
+        uint dwServiceType,
+        uint dwServiceState,
+        IntPtr lpServices,
+        uint cbBufSize,
+        out uint pcbBytesNeeded,
+        out uint lpServicesReturned,
+        ref uint lpResumeHandle,
+        string? pszGroupName);
+
+    private const uint SC_MANAGER_ENUMERATE_SERVICE = 0x0004;
+    private const int SC_ENUM_PROCESS_INFO = 0;
+    private const uint SERVICE_WIN32 = 0x00000030;
+    private const uint SERVICE_STATE_ALL = 0x00000003;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ENUM_SERVICE_STATUS_PROCESS
+    {
+        public IntPtr lpServiceName;
+        public IntPtr lpDisplayName;
+        public uint dwServiceType;
+        public uint dwCurrentState;
+        public uint dwControlsAccepted;
+        public uint dwWin32ExitCode;
+        public uint dwServiceSpecificExitCode;
+        public uint dwCheckPoint;
+        public uint dwWaitHint;
+        public uint dwProcessId;
+        public uint dwServiceFlags;
+    }
+
+    #endregion
+
+    private readonly ConcurrentDictionary<int, (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel)> _processInfoCache = new();
 
     public async Task<IReadOnlyList<ListeningPort>> GetListeningPortsAsync(CancellationToken ct = default)
     {
@@ -147,8 +193,10 @@ public class ListeningPortService : IListeningPortService
                         var localAddr = new IPAddress(row.dwLocalAddr);
                         int localPort = ConvertPort(row.dwLocalPort);
                         int pid = (int)row.dwOwningPid;
-                        var (procName, procPath) = ResolveProcess(pid);
+                        var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
                         var scope = ClassifyScope(localAddr);
+                        var classification = PortClassifier.Classify("TCP", localPort, scope);
+                        var exposure = EvaluateExposure(scope, "TCP", localPort, procPath);
 
                         results.Add(new ListeningPort(
                             Protocol: "TCP",
@@ -157,12 +205,13 @@ public class ListeningPortService : IListeningPortService
                             Pid: pid,
                             AppPath: procPath,
                             AppName: procName,
-                            Publisher: null,
-                            Services: Array.Empty<string>(),
+                            Publisher: publisher,
+                            Services: services,
                             Scope: scope,
-                            Exposure: EvaluateExposure(scope, "TCP", localPort, procPath),
-                            ServiceLabel: null,
-                            Hint: null));
+                            Exposure: exposure,
+                            ServiceLabel: serviceLabel,
+                            Hint: classification.Hint,
+                            ServiceName: classification.ServiceName));
                     }
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_TCPROW_OWNER_PID>());
@@ -206,8 +255,10 @@ public class ListeningPortService : IListeningPortService
                         var localAddr = new IPAddress(row.ucLocalAddr, row.dwLocalScopeId);
                         int localPort = ConvertPort(row.dwLocalPort);
                         int pid = (int)row.dwOwningPid;
-                        var (procName, procPath) = ResolveProcess(pid);
+                        var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
                         var scope = ClassifyScope(localAddr);
+                        var classification = PortClassifier.Classify("TCP", localPort, scope);
+                        var exposure = EvaluateExposure(scope, "TCP", localPort, procPath);
 
                         results.Add(new ListeningPort(
                             Protocol: "TCP",
@@ -216,12 +267,13 @@ public class ListeningPortService : IListeningPortService
                             Pid: pid,
                             AppPath: procPath,
                             AppName: procName,
-                            Publisher: null,
-                            Services: Array.Empty<string>(),
+                            Publisher: publisher,
+                            Services: services,
                             Scope: scope,
-                            Exposure: EvaluateExposure(scope, "TCP", localPort, procPath),
-                            ServiceLabel: null,
-                            Hint: null));
+                            Exposure: exposure,
+                            ServiceLabel: serviceLabel,
+                            Hint: classification.Hint,
+                            ServiceName: classification.ServiceName));
                     }
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_TCP6ROW_OWNER_PID>());
@@ -263,8 +315,10 @@ public class ListeningPortService : IListeningPortService
                     var localAddr = new IPAddress(row.dwLocalAddr);
                     int localPort = ConvertPort(row.dwLocalPort);
                     int pid = (int)row.dwOwningPid;
-                    var (procName, procPath) = ResolveProcess(pid);
+                    var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
                     var scope = ClassifyScope(localAddr);
+                    var classification = PortClassifier.Classify("UDP", localPort, scope);
+                    var exposure = EvaluateExposure(scope, "UDP", localPort, procPath);
 
                     results.Add(new ListeningPort(
                         Protocol: "UDP",
@@ -273,12 +327,13 @@ public class ListeningPortService : IListeningPortService
                         Pid: pid,
                         AppPath: procPath,
                         AppName: procName,
-                        Publisher: null,
-                        Services: Array.Empty<string>(),
+                        Publisher: publisher,
+                        Services: services,
                         Scope: scope,
-                        Exposure: EvaluateExposure(scope, "UDP", localPort, procPath),
-                        ServiceLabel: null,
-                        Hint: null));
+                        Exposure: exposure,
+                        ServiceLabel: serviceLabel,
+                        Hint: classification.Hint,
+                        ServiceName: classification.ServiceName));
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_UDPROW_OWNER_PID>());
                 }
@@ -319,8 +374,10 @@ public class ListeningPortService : IListeningPortService
                     var localAddr = new IPAddress(row.ucLocalAddr, row.dwLocalScopeId);
                     int localPort = ConvertPort(row.dwLocalPort);
                     int pid = (int)row.dwOwningPid;
-                    var (procName, procPath) = ResolveProcess(pid);
+                    var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
                     var scope = ClassifyScope(localAddr);
+                    var classification = PortClassifier.Classify("UDP", localPort, scope);
+                    var exposure = EvaluateExposure(scope, "UDP", localPort, procPath);
 
                     results.Add(new ListeningPort(
                         Protocol: "UDP",
@@ -329,12 +386,13 @@ public class ListeningPortService : IListeningPortService
                         Pid: pid,
                         AppPath: procPath,
                         AppName: procName,
-                        Publisher: null,
-                        Services: Array.Empty<string>(),
+                        Publisher: publisher,
+                        Services: services,
                         Scope: scope,
-                        Exposure: EvaluateExposure(scope, "UDP", localPort, procPath),
-                        ServiceLabel: null,
-                        Hint: null));
+                        Exposure: exposure,
+                        ServiceLabel: serviceLabel,
+                        Hint: classification.Hint,
+                        ServiceName: classification.ServiceName));
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_UDP6ROW_OWNER_PID>());
                 }
@@ -366,16 +424,116 @@ public class ListeningPortService : IListeningPortService
         return (int)(((dwPort & 0xFF) << 8) | ((dwPort >> 8) & 0xFF));
     }
 
-    private (string Name, string? Path) ResolveProcess(int pid)
-    {
-        if (pid <= 0) return ("System Idle", null);
-        if (pid == 4) return ("System", null);
+    private static Dictionary<int, List<string>>? _cachedServiceMap;
+    private static DateTime _lastServiceMapCheck = DateTime.MinValue;
 
-        if (_processCache.TryGetValue(pid, out var cached))
+    private static Dictionary<int, List<string>> GetServiceMap()
+    {
+        if (_cachedServiceMap != null && (DateTime.Now - _lastServiceMapCheck).TotalSeconds < 30)
+            return _cachedServiceMap;
+
+        var map = new Dictionary<int, List<string>>();
+        _lastServiceMapCheck = DateTime.Now;
+
+        IntPtr scm = IntPtr.Zero;
+        IntPtr buffer = IntPtr.Zero;
+
+        try
+        {
+            scm = OpenSCManager(null, null, SC_MANAGER_ENUMERATE_SERVICE);
+            if (scm != IntPtr.Zero)
+            {
+                uint bytesNeeded = 0;
+                uint servicesReturned = 0;
+                uint resumeHandle = 0;
+
+                EnumServicesStatusEx(
+                    scm,
+                    SC_ENUM_PROCESS_INFO,
+                    SERVICE_WIN32,
+                    SERVICE_STATE_ALL,
+                    IntPtr.Zero,
+                    0,
+                    out bytesNeeded,
+                    out servicesReturned,
+                    ref resumeHandle,
+                    null);
+
+                if (bytesNeeded > 0)
+                {
+                    buffer = Marshal.AllocHGlobal((int)bytesNeeded);
+                    if (EnumServicesStatusEx(
+                        scm,
+                        SC_ENUM_PROCESS_INFO,
+                        SERVICE_WIN32,
+                        SERVICE_STATE_ALL,
+                        buffer,
+                        bytesNeeded,
+                        out _,
+                        out servicesReturned,
+                        ref resumeHandle,
+                        null))
+                    {
+                        int structSize = Marshal.SizeOf<ENUM_SERVICE_STATUS_PROCESS>();
+                        IntPtr current = buffer;
+
+                        for (int i = 0; i < servicesReturned; i++)
+                        {
+                            var ssp = Marshal.PtrToStructure<ENUM_SERVICE_STATUS_PROCESS>(current);
+                            int sPid = (int)ssp.dwProcessId;
+
+                            if (sPid > 0)
+                            {
+                                string? svcName = Marshal.PtrToStringUni(ssp.lpServiceName);
+                                string? dispName = Marshal.PtrToStringUni(ssp.lpDisplayName);
+
+                                string label = !string.IsNullOrEmpty(dispName) && dispName != svcName
+                                    ? $"{dispName} ({svcName})"
+                                    : svcName ?? string.Empty;
+
+                                if (!string.IsNullOrEmpty(label))
+                                {
+                                    if (!map.TryGetValue(sPid, out var list))
+                                    {
+                                        list = new List<string>();
+                                        map[sPid] = list;
+                                    }
+                                    list.Add(label);
+                                }
+                            }
+
+                            current = IntPtr.Add(current, structSize);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ListeningPortService] GetServiceMap failed: {ex.Message}");
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
+            if (scm != IntPtr.Zero) CloseServiceHandle(scm);
+        }
+
+        return _cachedServiceMap = map;
+    }
+
+    private (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel) ResolveProcess(int pid)
+    {
+        if (pid <= 0) return ("System Idle", null, null, Array.Empty<string>(), null);
+        if (pid == 4) return ("System", null, "Microsoft Corporation", Array.Empty<string>(), null);
+
+        if (_processInfoCache.TryGetValue(pid, out var cached))
             return cached;
 
         string name = $"PID {pid}";
         string? path = null;
+        string? publisher = null;
+        var services = new List<string>();
+        string? serviceLabel = null;
 
         try
         {
@@ -392,8 +550,27 @@ public class ListeningPortService : IListeningPortService
             name = "System / protected process";
         }
 
-        var entry = (name, path);
-        _processCache[pid] = entry;
+        // Get Publisher from FileVersionInfo if path is accessible
+        if (!string.IsNullOrEmpty(path))
+        {
+            try
+            {
+                var vi = FileVersionInfo.GetVersionInfo(path);
+                publisher = vi.CompanyName;
+            }
+            catch { }
+        }
+
+        // Check services for this PID (e.g. svchost)
+        var serviceMap = GetServiceMap();
+        if (serviceMap.TryGetValue(pid, out var matchedServices) && matchedServices.Count > 0)
+        {
+            services.AddRange(matchedServices);
+            serviceLabel = string.Join(", ", matchedServices);
+        }
+
+        var entry = (name, path, publisher, (IReadOnlyList<string>)services, serviceLabel);
+        _processInfoCache[pid] = entry;
         return entry;
     }
 

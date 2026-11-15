@@ -45,4 +45,20 @@ public class ListeningPortTests
             Assert.False(string.IsNullOrEmpty(p.AppName));
         }
     }
+
+    [Theory]
+    [InlineData("TCP", 53, PortScope.AllInterfaces, "DNS", HintSeverity.Info)]
+    [InlineData("TCP", 3389, PortScope.AllInterfaces, "Remote Desktop", HintSeverity.Important)]
+    [InlineData("TCP", 8000, PortScope.AllInterfaces, "Dev Server (HTTP/Python)", HintSeverity.Review)]
+    [InlineData("TCP", 8000, PortScope.LocalhostOnly, "Dev Server (HTTP/Python)", HintSeverity.Info)]
+    [InlineData("TCP", 50000, PortScope.AllInterfaces, "Windows dynamic port", HintSeverity.Info)]
+    public void PortClassifier_ClassifiesKnownPortsAndSeverities(
+        string proto, int port, PortScope scope, string expectedService, HintSeverity expectedSeverity)
+    {
+        var result = PortClassifier.Classify(proto, port, scope);
+        Assert.NotNull(result);
+        Assert.Equal(expectedService, result.ServiceName);
+        Assert.NotNull(result.Hint);
+        Assert.Equal(expectedSeverity, result.Hint.Severity);
+    }
 }

@@ -165,6 +165,10 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
                 p.AddressAndPort.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 p.AppName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 p.Pid.ToString().Contains(q) ||
+                (p.ServiceName != null && p.ServiceName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (p.ServiceLabel != null && p.ServiceLabel.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (p.Publisher != null && p.Publisher.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (p.HintText != null && p.HintText.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
                 (p.AppPath != null && p.AppPath.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
                 p.ScopeText.Contains(q, StringComparison.OrdinalIgnoreCase));
         }

@@ -21,6 +21,16 @@ public enum FirewallExposure
     Unknown
 }
 
+public enum HintSeverity
+{
+    None,
+    Info,
+    Review,
+    Important
+}
+
+public record PortHint(string Text, HintSeverity Severity);
+
 public record ListeningPort(
     string Protocol,
     IPAddress LocalAddress,
@@ -33,7 +43,8 @@ public record ListeningPort(
     PortScope Scope,
     FirewallExposure Exposure,
     string? ServiceLabel,
-    string? Hint
+    PortHint? Hint,
+    string? ServiceName = null
 );
 
 public class KnownPort
