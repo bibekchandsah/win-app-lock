@@ -1191,3 +1191,17 @@ public class BoolToTrustColorConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language)
         => throw new NotImplementedException();
 }
+
+// ── Converter: bool (IsOnline) → status pill color ────────────────────────────
+public class BoolToStatusColorConverter : IValueConverter
+{
+    // Online → green, Offline → gray
+    private static readonly Color OnlineColor = Color.FromArgb(255, 52, 199, 89);   // Green #34C759
+    private static readonly Color OfflineColor = Color.FromArgb(255, 142, 142, 147); // Gray #8E8E93
+
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is bool b && b ? OnlineColor : OfflineColor;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
+}

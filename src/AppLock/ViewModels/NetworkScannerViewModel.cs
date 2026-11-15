@@ -263,17 +263,39 @@ public partial class NetworkDeviceViewModel : ObservableObject
     [ObservableProperty] private string _friendlyName;
     [ObservableProperty] private string _ipAddress;
     [ObservableProperty] private string _lastSeen;
+    [ObservableProperty] private string _hostname;
+    [ObservableProperty] private string _deviceIcon;
+    [ObservableProperty] private bool _isThisDevice;
 
     public string MacAddress => Entry.MacAddress;
-    public string FirstSeen => Entry.FirstSeen.ToString("yyyy-MM-dd HH:mm");
+    public string FirstSeen  => Entry.FirstSeen.ToString("yyyy-MM-dd HH:mm");
+    public string Manufacturer => MacVendorDatabase.GetVendor(Entry.MacAddress);
+
+    /// <summary>
+    /// Device is "online" if last seen within 2× scan interval threshold.
+    /// </summary>
+    public bool IsOnline
+    {
+        get
+        {
+            var thresholdSeconds = ServiceContainer.Settings.NetworkDeviceScanner.ScanIntervalSeconds * 2;
+            var elapsed = (DateTime.Now - Entry.LastSeen).TotalSeconds;
+            return elapsed < thresholdSeconds;
+        }
+    }
+
+    public string StatusText => IsOnline ? "Online" : "Offline";
 
     public NetworkDeviceViewModel(NetworkDeviceEntry entry)
     {
         Entry = entry;
-        _isTrusted = entry.IsTrusted;
+        _isTrusted    = entry.IsTrusted;
         _friendlyName = entry.FriendlyName;
-        _ipAddress = entry.IpAddress;
-        _lastSeen = entry.LastSeen.ToString("yyyy-MM-dd HH:mm");
+        _ipAddress    = entry.IpAddress;
+        _lastSeen     = entry.LastSeen.ToString("yyyy-MM-dd HH:mm");
+        _hostname     = entry.Hostname;
+        _isThisDevice = entry.IsThisDevice;
+        _deviceIcon   = GlyphForType(entry.DeviceType);
     }
 
     /// <summary>
@@ -293,6 +315,9 @@ public partial class NetworkDeviceViewModel : ObservableObject
         {
             Entry.LastSeen = fresh.LastSeen;
             LastSeen = freshLastSeen;
+            // LastSeen affects IsOnline, so notify both
+            OnPropertyChanged(nameof(IsOnline));
+            OnPropertyChanged(nameof(StatusText));
         }
 
         if (fresh.IsTrusted != Entry.IsTrusted)
@@ -301,9 +326,26 @@ public partial class NetworkDeviceViewModel : ObservableObject
             IsTrusted = fresh.IsTrusted;
         }
 
+        if (!string.IsNullOrEmpty(fresh.Hostname) && fresh.Hostname != Entry.Hostname)
+        {
+            Entry.Hostname = fresh.Hostname;
+            Hostname = fresh.Hostname;
+        }
+
+        if (fresh.DeviceType != AppLock.Models.NetworkDeviceType.Unknown &&
+            fresh.DeviceType != Entry.DeviceType)
+        {
+            Entry.DeviceType = fresh.DeviceType;
+            DeviceIcon = GlyphForType(fresh.DeviceType);
+        }
+
+        if (fresh.IsThisDevice != Entry.IsThisDevice)
+        {
+            Entry.IsThisDevice = fresh.IsThisDevice;
+            IsThisDevice = fresh.IsThisDevice;
+        }
+
         // FriendlyName: only push from entry if the user hasn't set one locally
-        // (the in-memory VM's FriendlyName is the authority — the user may have
-        //  just typed into the TextBox and not yet had the scanner overwrite it)
         if (!string.IsNullOrEmpty(fresh.FriendlyName) && fresh.FriendlyName != FriendlyName)
         {
             Entry.FriendlyName = fresh.FriendlyName;
@@ -317,19 +359,28 @@ public partial class NetworkDeviceViewModel : ObservableObject
         OnPropertyChanged(nameof(DisplayName));
     }
 
-    partial void OnIsTrustedChanged(bool value)
-    {
-        Entry.IsTrusted = value;
-    }
+    partial void OnIsTrustedChanged(bool value)   => Entry.IsTrusted  = value;
+    partial void OnIpAddressChanged(string value) => OnPropertyChanged(nameof(DisplayName));
+    partial void OnHostnameChanged(string value)  => OnPropertyChanged(nameof(DisplayName));
 
-    partial void OnIpAddressChanged(string value)
-    {
-        // When IP changes, DisplayName may also change (it shows IP when no friendly name set)
-        OnPropertyChanged(nameof(DisplayName));
-    }
+    /// <summary>
+    /// Priority: user FriendlyName → resolved Hostname → IP address.
+    /// </summary>
+    public string DisplayName =>
+        !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
+        !string.IsNullOrWhiteSpace(Hostname)     ? Hostname     :
+        IpAddress;
 
-    /// <summary>Display name: friendly name when set, otherwise the IP address.</summary>
-    public string DisplayName => string.IsNullOrWhiteSpace(FriendlyName)
-        ? IpAddress
-        : FriendlyName;
+    // ── Icon glyphs (Segoe Fluent Icons / MDL2) ────────────────────────────────
+    private static string GlyphForType(AppLock.Models.NetworkDeviceType type) => type switch
+    {
+        AppLock.Models.NetworkDeviceType.ThisDevice => "\uE977", // PC / This PC
+        AppLock.Models.NetworkDeviceType.Router     => "\uE968", // Network / Router
+        AppLock.Models.NetworkDeviceType.Phone      => "\uE8EA", // Cell phone
+        AppLock.Models.NetworkDeviceType.Computer   => "\uE7F4", // PC / Laptop
+        AppLock.Models.NetworkDeviceType.Printer    => "\uE749", // Print
+        AppLock.Models.NetworkDeviceType.SmartTV    => "\uE7F4", // TV / Monitor (reuse)
+        AppLock.Models.NetworkDeviceType.IoT        => "\uECF0", // IOT / smart home
+        _                                           => "\uE968", // Generic network node
+    };
 }

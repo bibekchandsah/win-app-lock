@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -96,8 +97,12 @@ public sealed class NetworkScannerService : IDisposable
     /// <summary>
     /// Run a single scan and return the current ARP snapshot. Does not require the loop to be running.
     /// </summary>
-    public Task<IReadOnlyList<NetworkDeviceEntry>> ScanOnceAsync(CancellationToken ct = default)
-        => Task.Run(() => (IReadOnlyList<NetworkDeviceEntry>)DoScan(ct), ct);
+    public async Task<IReadOnlyList<NetworkDeviceEntry>> ScanOnceAsync(CancellationToken ct = default)
+    {
+        var raw = await Task.Run(() => DoScan(ct), ct);
+        await EnrichAsync(raw, ct);
+        return raw;
+    }
 
     // ── Background loop ────────────────────────────────────────────────────────
 
@@ -137,6 +142,10 @@ public sealed class NetworkScannerService : IDisposable
         var snapshot = DoScan(ct);
         if (ct.IsCancellationRequested) return;
 
+        // Enrich synchronously on the background thread (DNS can block briefly)
+        EnrichAsync(snapshot, ct).GetAwaiter().GetResult();
+        if (ct.IsCancellationRequested) return;
+
         var settings = ServiceContainer.Settings;
         bool alertEnabled = settings.NetworkDeviceScanner.AlertOnNewDevice;
 
@@ -157,12 +166,44 @@ public sealed class NetworkScannerService : IDisposable
                 // Mark untrusted only when alerts are on — that's when the user cares about unknowns
                 device.IsTrusted = !alertEnabled;
                 settings.KnownNetworkDevices.Add(device);
+
+                // Log "Joined" event
+                settings.NetworkDeviceHistory.Add(new NetworkDeviceHistoryEntry
+                {
+                    MacAddress = device.MacAddress,
+                    EventType = NetworkDeviceEventType.Joined,
+                    Timestamp = device.FirstSeen,
+                    NewValue = device.IpAddress
+                });
             }
 
             _settingsStore.Save(settings);
         }
 
-        // Update LastSeen and IP for already-known devices
+        // Detect "Left" devices (devices that haven't been seen in over 2× scan interval)
+        var thresholdSeconds = settings.NetworkDeviceScanner.ScanIntervalSeconds * 2;
+        var now = DateTime.Now;
+        var seenMacs = new HashSet<string>(snapshot.Select(d => d.MacAddress), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var known in settings.KnownNetworkDevices)
+        {
+            bool wasOnline = (now - known.LastSeen).TotalSeconds < thresholdSeconds;
+            bool isNowOnline = seenMacs.Contains(known.MacAddress);
+
+            // Device just went offline
+            if (wasOnline && !isNowOnline)
+            {
+                settings.NetworkDeviceHistory.Add(new NetworkDeviceHistoryEntry
+                {
+                    MacAddress = known.MacAddress,
+                    EventType = NetworkDeviceEventType.Left,
+                    Timestamp = now,
+                    OldValue = known.IpAddress
+                });
+            }
+        }
+
+        // Update LastSeen, IP, hostname, and type for already-known devices
         foreach (var seen in snapshot)
         {
             var known = settings.KnownNetworkDevices
@@ -170,8 +211,26 @@ public sealed class NetworkScannerService : IDisposable
 
             if (known != null)
             {
+                // Detect IP change
+                if (known.IpAddress != seen.IpAddress)
+                {
+                    settings.NetworkDeviceHistory.Add(new NetworkDeviceHistoryEntry
+                    {
+                        MacAddress = known.MacAddress,
+                        EventType = NetworkDeviceEventType.ChangedIP,
+                        Timestamp = seen.LastSeen,
+                        OldValue = known.IpAddress,
+                        NewValue = seen.IpAddress
+                    });
+                }
+
                 known.LastSeen = seen.LastSeen;
-                known.IpAddress = seen.IpAddress; // IP can change (DHCP)
+                known.IpAddress = seen.IpAddress;
+                if (string.IsNullOrEmpty(known.Hostname) && !string.IsNullOrEmpty(seen.Hostname))
+                    known.Hostname = seen.Hostname;
+                if (known.DeviceType == NetworkDeviceType.Unknown && seen.DeviceType != NetworkDeviceType.Unknown)
+                    known.DeviceType = seen.DeviceType;
+                known.IsThisDevice = seen.IsThisDevice;
             }
         }
 
@@ -188,6 +247,150 @@ public sealed class NetworkScannerService : IDisposable
             }
         }
     }
+
+    // ── Enrichment ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Populates Hostname, DeviceType, and IsThisDevice for every entry in
+    /// <paramref name="devices"/> using reverse-DNS and local adapter info.
+    /// Runs DNS lookups in parallel with a 1-second timeout each.
+    /// </summary>
+    private static async Task EnrichAsync(IReadOnlyList<NetworkDeviceEntry> devices, CancellationToken ct)
+    {
+        // Collect this machine's own IP addresses once
+        var localIps = GetLocalIpAddresses();
+
+        // Parallel DNS resolution (capped to avoid flooding the router)
+        var tasks = devices.Select(d => ResolveHostnameAsync(d, ct)).ToList();
+        await Task.WhenAll(tasks);
+
+        // Determine device type and "this device" flag after hostnames are set
+        foreach (var d in devices)
+        {
+            d.IsThisDevice = localIps.Contains(d.IpAddress);
+            d.DeviceType   = d.IsThisDevice
+                ? NetworkDeviceType.ThisDevice
+                : InferDeviceType(d.Hostname, d.MacAddress, d.IpAddress);
+        }
+    }
+
+    private static async Task ResolveHostnameAsync(NetworkDeviceEntry device, CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(1));
+
+            var entry = await Dns.GetHostEntryAsync(device.IpAddress, cts.Token);
+            var host  = entry.HostName;
+
+            // Strip fully-qualified suffix to keep it readable
+            var dot = host.IndexOf('.');
+            device.Hostname = dot > 0 ? host[..dot] : host;
+        }
+        catch
+        {
+            device.Hostname = string.Empty;
+        }
+    }
+
+    private static HashSet<string> GetLocalIpAddresses()
+    {
+        var ips = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var iface in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (iface.OperationalStatus != OperationalStatus.Up) continue;
+                foreach (var addr in iface.GetIPProperties().UnicastAddresses)
+                {
+                    if (addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        ips.Add(addr.Address.ToString());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[NetworkScanner] GetLocalIpAddresses: {ex.Message}");
+        }
+        return ips;
+    }
+
+    /// <summary>
+    /// Infers a device type from its hostname and the first 3 bytes (OUI) of its MAC address.
+    /// All matching is case-insensitive and keyword-based — good enough for home networks.
+    /// </summary>
+    private static NetworkDeviceType InferDeviceType(string hostname, string mac, string ip)
+    {
+        var h = hostname.ToLowerInvariant();
+        var oui = mac.Length >= 8 ? mac[..8].ToUpperInvariant() : string.Empty;
+
+        // ── Hostname keyword matching ───────────────────────────────────────────
+        if (ContainsAny(h, "router", "gateway", "modem", "dlink", "tplink", "tp-link",
+                           "netgear", "asus", "ubiquiti", "unifi", "mikrotik", "fritz",
+                           "airport", "access-point", "ap-", "-ap"))
+            return NetworkDeviceType.Router;
+
+        if (ContainsAny(h, "iphone", "ipad", "android", "phone", "pixel", "samsung",
+                           "huawei", "xiaomi", "oneplus", "oppo", "vivo", "redmi"))
+            return NetworkDeviceType.Phone;
+
+        if (ContainsAny(h, "macbook", "imac", "laptop", "desktop", "workstation",
+                           "pc-", "-pc", "win-", "ubuntu", "fedora", "debian",
+                           "raspberrypi", "raspberry"))
+            return NetworkDeviceType.Computer;
+
+        if (ContainsAny(h, "print", "printer", "hp-", "canon", "epson", "brother",
+                           "xerox", "lexmark"))
+            return NetworkDeviceType.Printer;
+
+        if (ContainsAny(h, "tv", "firetv", "appletv", "chromecast", "roku", "shield",
+                           "smarttv", "bravia", "viziotv", "lgwebos"))
+            return NetworkDeviceType.SmartTV;
+
+        if (ContainsAny(h, "nas", "synology", "qnap", "drobo", "camera", "cam-",
+                           "ring", "nest", "hue", "echo", "alexa", "homepod",
+                           "smartplug", "homekit", "esp", "arduino", "tasmota"))
+            return NetworkDeviceType.IoT;
+
+        // ── OUI prefix matching (first 3 octets → vendor) ──────────────────────
+        // Routers / AP vendors
+        if (OuiAny(oui, "00:0C:E7", "00:17:DF", "00:26:5A",   // Cisco/Linksys
+                        "90:72:40", "EC:08:6B", "50:FF:20",    // TP-Link
+                        "00:14:6C", "20:4E:7F", "A0:40:A0",    // Netgear
+                        "04:D4:C4", "14:DA:E9", "50:46:5D",    // ASUS
+                        "00:1E:E5", "00:0F:66", "14:CC:20"))   // D-Link
+            return NetworkDeviceType.Router;
+
+        // Apple devices (iPhone, iPad, Mac — differentiate by hostname if possible)
+        if (OuiAny(oui, "00:17:F2", "F0:DB:F8", "60:F8:1D",
+                        "F4:5C:89", "8C:85:90", "A8:BE:27",
+                        "DC:2B:2A", "00:3E:E1", "98:FE:94"))
+        {
+            // Macs tend to have longer fully-qualified hostnames; phones/tablets tend short
+            return ContainsAny(h, "mac", "imac", "book") ? NetworkDeviceType.Computer : NetworkDeviceType.Phone;
+        }
+
+        // Samsung (mix of phones and TVs — hostname usually disambiguates)
+        if (OuiAny(oui, "00:15:99", "84:25:DB", "CC:07:AB", "E8:03:9A"))
+            return ContainsAny(h, "tv", "smart") ? NetworkDeviceType.SmartTV : NetworkDeviceType.Phone;
+
+        // Generic Windows/PC (Intel NIC OUIs)
+        if (OuiAny(oui, "00:1B:21", "00:1F:3C", "F0:1F:AF", "8C:8D:28"))
+            return NetworkDeviceType.Computer;
+
+        // .1 address on common home subnets is almost always the gateway
+        if (ip.EndsWith(".1") || ip.EndsWith(".254"))
+            return NetworkDeviceType.Router;
+
+        return NetworkDeviceType.Unknown;
+    }
+
+    private static bool ContainsAny(string source, params string[] keywords)
+        => keywords.Any(k => source.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+    private static bool OuiAny(string oui, params string[] prefixes)
+        => prefixes.Any(p => oui.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 
     // ── Core ARP scan ──────────────────────────────────────────────────────────
 

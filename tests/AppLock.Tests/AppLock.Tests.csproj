@@ -34,6 +34,7 @@
     <Compile Include="..\..\src\AppLock\Models\NetworkRuleEntry.cs" Link="Models\NetworkRuleEntry.cs" />
     <Compile Include="..\..\src\AppLock\Models\NetworkDeviceEntry.cs" Link="Models\NetworkDeviceEntry.cs" />
     <Compile Include="..\..\src\AppLock\Models\NetworkDeviceSettings.cs" Link="Models\NetworkDeviceSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\NetworkDeviceHistoryEntry.cs" Link="Models\NetworkDeviceHistoryEntry.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerDrive.cs" Link="Models\BitLockerDrive.cs" />
     <Compile Include="..\..\src\AppLock\Models\KeyProtectorInfo.cs" Link="Models\KeyProtectorInfo.cs" />
     <Compile Include="..\..\src\AppLock\Models\BitLockerActionResult.cs" Link="Models\BitLockerActionResult.cs" />
