@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:AppLock.Models"
     xmlns:local="using:AppLock.Views"
+    xmlns:vm="using:AppLock.ViewModels"
     mc:Ignorable="d"
     Background="Transparent">
 
@@ -106,6 +107,12 @@
                         Click="NetworkDevicesTabButton_Click"
                         AutomationProperties.Name="Network devices tab"
                         AutomationProperties.HelpText="Scan Wi-Fi devices and get alerted when an unknown one joins"
+                        Padding="16,8"/>
+                <Button x:Name="ListeningPortsTabButton"
+                        Content="Listening ports"
+                        Click="ListeningPortsTabButton_Click"
+                        AutomationProperties.Name="Listening ports tab"
+                        AutomationProperties.HelpText="Monitor listening ports and incoming traffic"
                         Padding="16,8"/>
             </StackPanel>
 
@@ -621,6 +628,12 @@
                                     </Flyout>
                                 </Button.Flyout>
                             </Button>
+                            <AutoSuggestBox x:Name="NetworkDeviceSearchBox"
+                                            PlaceholderText="Search IP, MAC, vendor, online/offline…"
+                                            QueryIcon="Find"
+                                            Width="280"
+                                            TextChanged="NetworkDeviceSearchBox_TextChanged"
+                                            QuerySubmitted="NetworkDeviceSearchBox_QuerySubmitted"/>
                         </StackPanel>
 
                         <TextBlock Grid.Column="1"
@@ -641,11 +654,13 @@
                             <FontIcon Glyph="&#xE770;"
                                       FontSize="56"
                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                            <TextBlock Text="No devices found yet"
+                            <TextBlock x:Name="NetworkDevicesEmptyStateTitle"
+                                       Text="No devices found yet"
                                        Style="{StaticResource SubtitleTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        HorizontalAlignment="Center"/>
-                            <TextBlock Text="Enable the scanner or press Scan now to discover devices on your network."
+                            <TextBlock x:Name="NetworkDevicesEmptyStateSubtitle"
+                                       Text="Enable the scanner or press Scan now to discover devices on your network."
                                        Style="{StaticResource BodyTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                        HorizontalAlignment="Center"
@@ -818,6 +833,279 @@
                         <ProgressRing Width="16" Height="16"
                                       IsActive="{x:Bind NetworkScannerViewModel.IsScanning, Mode=OneWay}"/>
                         <TextBlock Text="{x:Bind NetworkScannerViewModel.StatusText, Mode=OneWay}"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Listening Ports Tab -->
+                <Grid x:Name="ListeningPortsTabContent" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Summary strip -->
+                        <RowDefinition Height="Auto"/> <!-- Filters & Toolbar -->
+                        <RowDefinition Height="*"/>    <!-- Port list / empty state -->
+                        <RowDefinition Height="Auto"/> <!-- Status bar -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Summary strip -->
+                    <Border Grid.Row="0"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16,12"
+                            Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Metric counts -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Listening"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="{x:Bind ListeningPortsViewModel.TotalListeningCount, Mode=OneWay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
+
+                                <Border Width="1" Height="28" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Reachable from network"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="{x:Bind ListeningPortsViewModel.ReachableCount, Mode=OneWay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource SystemFillColorCautionBrush}"/>
+                                </StackPanel>
+
+                                <Border Width="1" Height="28" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Localhost only"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="{x:Bind ListeningPortsViewModel.LocalhostCount, Mode=OneWay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+
+                                <Border Width="1" Height="28" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Blocked by AppLock"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="{x:Bind ListeningPortsViewModel.BlockedCount, Mode=OneWay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Auto-refresh & Last updated -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <StackPanel Spacing="2" HorizontalAlignment="Right">
+                                    <TextBlock Text="Auto-refreshing (5s)"
+                                               FontSize="11"
+                                               HorizontalAlignment="Right"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Last updated:"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        <TextBlock Text="{x:Bind ListeningPortsViewModel.LastUpdatedText, Mode=OneWay}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Button Click="RefreshListeningPorts_Click"
+                                        ToolTipService.ToolTip="Refresh listening ports"
+                                        Padding="8,6">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="14"/>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Filters & Toolbar -->
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Search Box -->
+                        <AutoSuggestBox x:Name="ListeningPortSearchBox"
+                                        Grid.Column="0"
+                                        PlaceholderText="Search port, protocol, address, app, PID…"
+                                        QueryIcon="Find"
+                                        Width="300"
+                                        TextChanged="ListeningPortSearchBox_TextChanged"
+                                        QuerySubmitted="ListeningPortSearchBox_QuerySubmitted"/>
+
+                        <!-- Filter Chips -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button x:Name="PortFilterAllButton"
+                                    Content="All"
+                                    Click="PortFilterChip_Click"
+                                    Tag="All"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Padding="12,6"/>
+                            <Button x:Name="PortFilterReachableButton"
+                                    Content="Reachable from network"
+                                    Click="PortFilterChip_Click"
+                                    Tag="Reachable"
+                                    Padding="12,6"/>
+                            <Button x:Name="PortFilterLocalhostButton"
+                                    Content="Localhost only"
+                                    Click="PortFilterChip_Click"
+                                    Tag="Localhost"
+                                    Padding="12,6"/>
+                            <Button x:Name="PortFilterTcpButton"
+                                    Content="TCP"
+                                    Click="PortFilterChip_Click"
+                                    Tag="TCP"
+                                    Padding="12,6"/>
+                            <Button x:Name="PortFilterUdpButton"
+                                    Content="UDP"
+                                    Click="PortFilterChip_Click"
+                                    Tag="UDP"
+                                    Padding="12,6"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Port List / Empty State -->
+                    <Grid Grid.Row="2">
+                        <!-- Empty State -->
+                        <StackPanel x:Name="ListeningPortsEmptyState"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="12"
+                                    Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE774;"
+                                      FontSize="56"
+                                      Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            <TextBlock x:Name="ListeningPortsEmptyStateTitle"
+                                       Text="No listening ports found"
+                                       Style="{StaticResource SubtitleTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="ListeningPortsEmptyStateSubtitle"
+                                       Text="No sockets are currently waiting for incoming connections."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       MaxWidth="400"/>
+                        </StackPanel>
+
+                        <!-- ListView -->
+                        <ListView x:Name="ListeningPortsListView"
+                                  ItemsSource="{x:Bind ListeningPortsViewModel.Ports, Mode=OneWay}"
+                                  SelectionMode="None"
+                                  Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ListeningPortItemViewModel">
+                                    <Grid Padding="12,10" ColumnSpacing="14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="65"/>   <!-- Protocol -->
+                                            <ColumnDefinition Width="180"/>  <!-- Port & Address -->
+                                            <ColumnDefinition Width="160"/>  <!-- Reach / Scope -->
+                                            <ColumnDefinition Width="*"/>    <!-- Process Name & PID -->
+                                            <ColumnDefinition Width="160"/>  <!-- Exposure -->
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Protocol pill -->
+                                        <Border Grid.Column="0"
+                                                CornerRadius="4"
+                                                Padding="8,3"
+                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{x:Bind Protocol}"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Port and Local Address -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock Text="Port"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="{x:Bind Port}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{x:Bind LocalAddressText}"
+                                                       FontSize="11"
+                                                       FontFamily="Consolas"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+
+                                        <!-- Reach / Scope chip -->
+                                        <Border Grid.Column="2"
+                                                CornerRadius="12"
+                                                Padding="10,4"
+                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <FontIcon Glyph="{x:Bind ScopeIcon}" FontSize="12"/>
+                                                <TextBlock Text="{x:Bind ScopeText}"
+                                                           FontSize="11"
+                                                           FontWeight="Medium"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Process Name & PID -->
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{x:Bind AppName}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{x:Bind PidText}"
+                                                       FontSize="11"
+                                                       FontFamily="Consolas"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+
+                                        <!-- Exposure chip -->
+                                        <Border Grid.Column="4"
+                                                CornerRadius="4"
+                                                Padding="8,3"
+                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{x:Bind ExposureText}"
+                                                       FontSize="11"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <!-- Status bar -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <ProgressRing Width="16" Height="16"
+                                      IsActive="{x:Bind ListeningPortsViewModel.IsLoading, Mode=OneWay}"/>
+                        <TextBlock Text="Listening ports monitor active"
                                    Style="{ThemeResource CaptionTextBlockStyle}"
                                    VerticalAlignment="Center"/>
                     </StackPanel>

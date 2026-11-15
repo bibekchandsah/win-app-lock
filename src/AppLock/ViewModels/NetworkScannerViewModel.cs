@@ -23,6 +23,12 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     private ObservableCollection<NetworkDeviceViewModel> _devices = new();
 
     [ObservableProperty]
+    private ObservableCollection<NetworkDeviceViewModel> _filteredDevices = new();
+
+    [ObservableProperty]
+    private string _searchQuery = string.Empty;
+
+    [ObservableProperty]
     private bool _scannerEnabled;
 
     [ObservableProperty]
@@ -174,6 +180,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
 
         foreach (var entry in known.OrderBy(d => d.FirstSeen))
             Devices.Add(new NetworkDeviceViewModel(entry));
+        ApplyFilter();
         UpdateStatusText();
     }
 
@@ -227,6 +234,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
                 Devices.Add(new NetworkDeviceViewModel(entry));
         }
 
+        ApplyFilter();
         UpdateStatusText();
     }
 
@@ -264,6 +272,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     public void ForgetDevice(NetworkDeviceViewModel vm)
     {
         Devices.Remove(vm);
+        FilteredDevices.Remove(vm);
         ServiceContainer.Settings.KnownNetworkDevices.Remove(vm.Entry);
         _settingsStore.Save(ServiceContainer.Settings);
         UpdateStatusText();
@@ -272,6 +281,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     public void ForgetAll()
     {
         Devices.Clear();
+        FilteredDevices.Clear();
         ServiceContainer.Settings.KnownNetworkDevices.Clear();
         _settingsStore.Save(ServiceContainer.Settings);
         UpdateStatusText();
@@ -305,7 +315,52 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
             await MacVendorDatabase.LookupOnlineAsync(dev.MacAddress, key, ct);
             dev.RefreshDisplay();
         }
+        ApplyFilter();
         UpdateStatusText();
+    }
+
+    partial void OnSearchQueryChanged(string value)
+    {
+        ApplyFilter();
+    }
+
+    public void ApplyFilter()
+    {
+        var q = SearchQuery?.Trim() ?? string.Empty;
+        FilteredDevices.Clear();
+
+        if (string.IsNullOrEmpty(q))
+        {
+            foreach (var d in Devices)
+                FilteredDevices.Add(d);
+            return;
+        }
+
+        bool matchOnline = q.Equals("online", StringComparison.OrdinalIgnoreCase) || q.Equals("on", StringComparison.OrdinalIgnoreCase);
+        bool matchOffline = q.Equals("offline", StringComparison.OrdinalIgnoreCase) || q.Equals("off", StringComparison.OrdinalIgnoreCase);
+
+        foreach (var d in Devices)
+        {
+            if (matchOnline && d.IsOnline)
+            {
+                FilteredDevices.Add(d);
+                continue;
+            }
+            if (matchOffline && !d.IsOnline)
+            {
+                FilteredDevices.Add(d);
+                continue;
+            }
+
+            if ((d.IpAddress != null && d.IpAddress.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (d.MacAddress != null && d.MacAddress.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (d.Manufacturer != null && d.Manufacturer.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (d.DisplayName != null && d.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                (d.Hostname != null && d.Hostname.Contains(q, StringComparison.OrdinalIgnoreCase)))
+            {
+                FilteredDevices.Add(d);
+            }
+        }
     }
 
     // ── Scanner event handlers ─────────────────────────────────────────────────

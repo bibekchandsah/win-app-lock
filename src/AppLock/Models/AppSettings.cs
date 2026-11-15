@@ -48,6 +48,9 @@ public class AppSettings
     public NetworkDeviceSettings NetworkDeviceScanner { get; set; } = new();
     public List<NetworkDeviceEntry> KnownNetworkDevices { get; set; } = new();
     public List<NetworkDeviceHistoryEntry> NetworkDeviceHistory { get; set; } = new();
+
+    // Listening Ports
+    public ListeningPortsSettings ListeningPorts { get; set; } = new();
     
     // Firewall settings
     public bool RequirePasswordForFirewallUnblock { get; set; } = true;

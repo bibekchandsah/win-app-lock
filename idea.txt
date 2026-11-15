@@ -372,7 +372,7 @@ Secure folder vault: an encrypted folder that opens only after AppLock authentic
 add search box to search in google, edge 
 website lock: Website category blocking: adult, gambling and social media blocking through a filtered DNS or a block list.
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
-Network device scanner: list devices on your Wi-Fi and alert when a new unknown one joins.
+implemented - Network device scanner: list devices on your Wi-Fi and alert when a new unknown one joins.
 Open ports monitor: show which apps are listening on which ports, with a link to block them.
 
 

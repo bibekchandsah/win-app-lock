@@ -27,6 +27,7 @@ public sealed partial class InternetAccessPage : Page
     private readonly InternetAccessViewModel _viewModel;
     private readonly ActiveConnectionViewModel _activeConnectionsViewModel;
     private readonly NetworkScannerViewModel _networkScannerViewModel;
+    private readonly ListeningPortsViewModel _listeningPortsViewModel;
     private readonly InstalledAppsService _installedAppsService;
     private readonly SettingsStore _settingsStore;
     private bool _isElevated;
@@ -36,6 +37,7 @@ public sealed partial class InternetAccessPage : Page
     public InternetAccessViewModel ViewModel => _viewModel;
     public ActiveConnectionViewModel ActiveConnectionsViewModel => _activeConnectionsViewModel;
     public NetworkScannerViewModel NetworkScannerViewModel => _networkScannerViewModel;
+    public ListeningPortsViewModel ListeningPortsViewModel => _listeningPortsViewModel;
 
     public InternetAccessPage()
     {
@@ -46,6 +48,7 @@ public sealed partial class InternetAccessPage : Page
         _viewModel = new InternetAccessViewModel(_firewallService, _settingsStore, _installedAppsService);
         _activeConnectionsViewModel = new ActiveConnectionViewModel();
         _networkScannerViewModel = new NetworkScannerViewModel(ServiceContainer.NetworkScannerService, _settingsStore);
+        _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), DispatcherQueue);
         DataContext = _viewModel;
         Loaded += InternetAccessPage_Loaded;
         Unloaded += InternetAccessPage_Unloaded;
@@ -55,6 +58,7 @@ public sealed partial class InternetAccessPage : Page
     {
         _activeConnectionsViewModel.StopAutoRefresh();
         _networkScannerViewModel.Dispose();
+        _listeningPortsViewModel.Dispose();
     }
 
     private async void InternetAccessPage_Loaded(object sender, RoutedEventArgs e)
@@ -128,12 +132,15 @@ public sealed partial class InternetAccessPage : Page
         AppsTabContent.Visibility = Visibility.Visible;
         ActiveConnectionsTabContent.Visibility = Visibility.Collapsed;
         NetworkDevicesTabContent.Visibility = Visibility.Collapsed;
+        ListeningPortsTabContent.Visibility = Visibility.Collapsed;
         AppsTabButton.Style = (Style)Resources["AccentButtonStyle"];
         ActiveConnectionsTabButton.Style = null;
         NetworkDevicesTabButton.Style = null;
+        ListeningPortsTabButton.Style = null;
         
-        // Stop auto-refresh when leaving Active connections tab
+        // Stop auto-refresh when leaving tabs
         _activeConnectionsViewModel.StopAutoRefresh();
+        _listeningPortsViewModel.StopAutoRefresh();
     }
 
     private void ActiveConnectionsTabButton_Click(object sender, RoutedEventArgs e)
@@ -141,10 +148,13 @@ public sealed partial class InternetAccessPage : Page
         AppsTabContent.Visibility = Visibility.Collapsed;
         ActiveConnectionsTabContent.Visibility = Visibility.Visible;
         NetworkDevicesTabContent.Visibility = Visibility.Collapsed;
+        ListeningPortsTabContent.Visibility = Visibility.Collapsed;
         ActiveConnectionsTabButton.Style = (Style)Resources["AccentButtonStyle"];
         AppsTabButton.Style = null;
         NetworkDevicesTabButton.Style = null;
+        ListeningPortsTabButton.Style = null;
         
+        _listeningPortsViewModel.StopAutoRefresh();
         // Start auto-refresh when tab becomes visible
         _ = _activeConnectionsViewModel.LoadConnectionsAsync();
         _activeConnectionsViewModel.StartAutoRefresh(3);
@@ -155,12 +165,31 @@ public sealed partial class InternetAccessPage : Page
         AppsTabContent.Visibility = Visibility.Collapsed;
         ActiveConnectionsTabContent.Visibility = Visibility.Collapsed;
         NetworkDevicesTabContent.Visibility = Visibility.Visible;
+        ListeningPortsTabContent.Visibility = Visibility.Collapsed;
         NetworkDevicesTabButton.Style = (Style)Resources["AccentButtonStyle"];
         AppsTabButton.Style = null;
         ActiveConnectionsTabButton.Style = null;
+        ListeningPortsTabButton.Style = null;
 
         _activeConnectionsViewModel.StopAutoRefresh();
+        _listeningPortsViewModel.StopAutoRefresh();
         UpdateNetworkDevicesVisibility();
+    }
+
+    private void ListeningPortsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppsTabContent.Visibility = Visibility.Collapsed;
+        ActiveConnectionsTabContent.Visibility = Visibility.Collapsed;
+        NetworkDevicesTabContent.Visibility = Visibility.Collapsed;
+        ListeningPortsTabContent.Visibility = Visibility.Visible;
+        ListeningPortsTabButton.Style = (Style)Resources["AccentButtonStyle"];
+        AppsTabButton.Style = null;
+        ActiveConnectionsTabButton.Style = null;
+        NetworkDevicesTabButton.Style = null;
+
+        _activeConnectionsViewModel.StopAutoRefresh();
+        _ = _listeningPortsViewModel.LoadPortsAsync();
+        _listeningPortsViewModel.StartAutoRefresh(5);
     }
 
     // Command bar actions
@@ -1081,12 +1110,68 @@ public sealed partial class InternetAccessPage : Page
 
     private void UpdateNetworkDevicesVisibility()
     {
-        bool hasDevices = _networkScannerViewModel.Devices.Count > 0;
-        NetworkDevicesEmptyState.Visibility = hasDevices ? Visibility.Collapsed : Visibility.Visible;
-        NetworkDevicesListView.Visibility   = hasDevices ? Visibility.Visible  : Visibility.Collapsed;
+        bool hasAnyDevices = _networkScannerViewModel.Devices.Count > 0;
+        bool hasFiltered = _networkScannerViewModel.FilteredDevices.Count > 0;
+        NetworkDevicesEmptyState.Visibility = hasFiltered ? Visibility.Collapsed : Visibility.Visible;
+        NetworkDevicesListView.Visibility   = hasFiltered ? Visibility.Visible  : Visibility.Collapsed;
 
-        if (hasDevices)
-            NetworkDevicesListView.ItemsSource = _networkScannerViewModel.Devices;
+        if (hasAnyDevices && !hasFiltered)
+        {
+            NetworkDevicesEmptyStateTitle.Text = "No matching devices";
+            NetworkDevicesEmptyStateSubtitle.Text = "Try adjusting your search query.";
+        }
+        else
+        {
+            NetworkDevicesEmptyStateTitle.Text = "No devices found yet";
+            NetworkDevicesEmptyStateSubtitle.Text = "Enable the scanner or press Scan now to discover devices on your network.";
+        }
+
+        NetworkDevicesListView.ItemsSource = _networkScannerViewModel.FilteredDevices;
+    }
+
+    private void NetworkDeviceSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        _networkScannerViewModel.SearchQuery = sender.Text;
+        UpdateNetworkDevicesVisibility();
+    }
+
+    private void NetworkDeviceSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        _networkScannerViewModel.SearchQuery = sender.Text;
+        UpdateNetworkDevicesVisibility();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Listening Ports tab
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void RefreshListeningPorts_Click(object sender, RoutedEventArgs e)
+    {
+        _ = _listeningPortsViewModel.LoadPortsAsync();
+    }
+
+    private void ListeningPortSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        _listeningPortsViewModel.SearchQuery = sender.Text;
+    }
+
+    private void ListeningPortSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        _listeningPortsViewModel.SearchQuery = sender.Text;
+    }
+
+    private void PortFilterChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string tag)
+        {
+            _listeningPortsViewModel.SelectedFilter = tag;
+
+            PortFilterAllButton.Style = tag == "All" ? (Style)Resources["AccentButtonStyle"] : null;
+            PortFilterReachableButton.Style = tag == "Reachable" ? (Style)Resources["AccentButtonStyle"] : null;
+            PortFilterLocalhostButton.Style = tag == "Localhost" ? (Style)Resources["AccentButtonStyle"] : null;
+            PortFilterTcpButton.Style = tag == "TCP" ? (Style)Resources["AccentButtonStyle"] : null;
+            PortFilterUdpButton.Style = tag == "UDP" ? (Style)Resources["AccentButtonStyle"] : null;
+        }
     }
 
     private void InitializeScanIntervalComboBox()
