@@ -108,6 +108,8 @@ public partial class ListeningPortItemViewModel : ObservableObject
             OnPropertyChanged(nameof(ExposureTooltip));
             OnPropertyChanged(nameof(MatchingRuleName));
             OnPropertyChanged(nameof(ActiveProfileName));
+            OnPropertyChanged(nameof(IsBlockedByAppLock));
+            OnPropertyChanged(nameof(BlockButtonText));
         }
 
         if (appNameChanged || serviceChanged)
@@ -212,6 +214,25 @@ public partial class ListeningPortItemViewModel : ObservableObject
     public bool IsIPv4 => LocalAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork;
     public bool IsIPv6 => LocalAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
     public bool IsBlocked => Exposure == FirewallExposure.BlockedByAppLock || Exposure == FirewallExposure.BlockedByDefault;
+    public bool IsBlockedByAppLock => Exposure == FirewallExposure.BlockedByAppLock;
+    public string BlockButtonText => IsBlockedByAppLock ? "Unblock" : "Block";
+
+    public bool IsCriticalPortOrApp =>
+        Port == 135 || Port == 139 || Port == 445 ||
+        (Port >= 49152 && Port <= 65535 && IsSystemOrService) ||
+        (!string.IsNullOrEmpty(AppName) && (
+            AppName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+            AppName.IndexOf("svchost", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("services.exe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("lsass.exe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("wininit.exe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("AppLock", StringComparison.OrdinalIgnoreCase) >= 0));
+
+    public string CriticalWarningMessage =>
+        $"Blocking port {Port} or Windows core service ({DisplayAppName}) can break file sharing, RPC endpoints, network discovery, and Windows core features.\n\nAre you sure you want to proceed?";
+
+    public string LocalhostWarningMessage =>
+        $"Port {Port} only listens on localhost (127.0.0.1 / ::1). Other devices cannot connect to it from the network anyway, and Windows Firewall does not filter loopback traffic.\n\nA block rule is usually unnecessary. Do you still want to proceed?";
 
     public bool IsSystemOrService =>
         (Services != null && Services.Count > 0) ||

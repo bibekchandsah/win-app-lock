@@ -22,6 +22,8 @@ public class WindowsFirewallService : IFirewallService
     private const int NET_FW_ACTION_BLOCK = 0;
     private const int NET_FW_PROFILE2_ALL = 0x7; // Domain (1) + Private (2) + Public (4)
     private const int NET_FW_IP_PROTOCOL_ANY = 256;
+    private const int NET_FW_IP_PROTOCOL_TCP = 6;
+    private const int NET_FW_IP_PROTOCOL_UDP = 17;
 
     private bool IsElevated()
     {
@@ -457,6 +459,102 @@ public class WindowsFirewallService : IFirewallService
             }
 
             return status;
+        });
+    }
+
+    public async Task<bool> CreatePortBlockRuleAsync(string protocol, int port, Guid id, int profiles = int.MaxValue, string? note = null)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+                if (policyType == null) return false;
+
+                dynamic? policy = Activator.CreateInstance(policyType);
+                if (policy == null) return false;
+
+                dynamic rules = policy.Rules;
+                string protoUpper = protocol.ToUpperInvariant();
+                string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
+
+                // Remove existing rule if present
+                try
+                {
+                    dynamic? existing = FindRuleByName(rules, ruleName);
+                    if (existing != null)
+                    {
+                        string grouping = existing.Grouping ?? string.Empty;
+                        if (grouping == APPLOCK_GROUP)
+                        {
+                            rules.Remove(ruleName);
+                        }
+                    }
+                }
+                catch { }
+
+                Type? ruleType = Type.GetTypeFromProgID("HNetCfg.FWRule");
+                if (ruleType == null) return false;
+
+                dynamic? rule = Activator.CreateInstance(ruleType);
+                if (rule == null) return false;
+
+                rule.Name = ruleName;
+                rule.Description = $"{DESCRIPTION_PREFIX}{id:N}";
+                rule.Grouping = APPLOCK_GROUP;
+                rule.Direction = NET_FW_RULE_DIR_IN;
+                rule.Action = NET_FW_ACTION_BLOCK;
+                rule.Enabled = true;
+                rule.Profiles = profiles;
+                rule.Protocol = protoUpper == "UDP" ? NET_FW_IP_PROTOCOL_UDP : NET_FW_IP_PROTOCOL_TCP;
+                rule.LocalPorts = port.ToString();
+
+                rules.Add(rule);
+                LogService.LogFirewallAction("PORT_BLOCK", $"{port}/{protoUpper}", $"Rule created: {ruleName}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogService.LogFirewallAction("PORT_BLOCK_ERROR", $"{port}/{protocol}", ex.Message);
+                return false;
+            }
+        });
+    }
+
+    public async Task<bool> RemovePortBlockRuleAsync(string protocol, int port)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+                if (policyType == null) return false;
+
+                dynamic? policy = Activator.CreateInstance(policyType);
+                if (policy == null) return false;
+
+                dynamic rules = policy.Rules;
+                string protoUpper = protocol.ToUpperInvariant();
+                string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
+
+                dynamic? existing = FindRuleByName(rules, ruleName);
+                if (existing != null)
+                {
+                    string grouping = existing.Grouping ?? string.Empty;
+                    if (grouping == APPLOCK_GROUP)
+                    {
+                        rules.Remove(ruleName);
+                        LogService.LogFirewallAction("PORT_UNBLOCK", $"{port}/{protoUpper}", $"Rule removed: {ruleName}");
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LogService.LogFirewallAction("PORT_UNBLOCK_ERROR", $"{port}/{protocol}", ex.Message);
+                return false;
+            }
         });
     }
 }

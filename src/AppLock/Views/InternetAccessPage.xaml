@@ -936,6 +936,12 @@
                                         Padding="8,6">
                                     <FontIcon Glyph="&#xE72C;" FontSize="14"/>
                                 </Button>
+
+                                <Button Click="RepairPortRules_Click"
+                                        ToolTipService.ToolTip="Check and repair drifted port rules"
+                                        Padding="8,6">
+                                    <FontIcon Glyph="&#xE90F;" FontSize="14"/>
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -1147,6 +1153,7 @@
                                                                 <ColumnDefinition Width="145"/>  <!-- Reach / Scope -->
                                                                 <ColumnDefinition Width="*"/>    <!-- Port hint -->
                                                                 <ColumnDefinition Width="165"/>  <!-- Exposure -->
+                                                                <ColumnDefinition Width="Auto"/> <!-- Quick Block -->
                                                                 <ColumnDefinition Width="Auto"/> <!-- Actions: More -->
                                                             </Grid.ColumnDefinitions>
 
@@ -1248,8 +1255,17 @@
                                                                 </StackPanel>
                                                             </Border>
 
-                                                            <!-- More actions button -->
+                                                            <!-- Quick Block / Unblock button -->
                                                             <Button Grid.Column="5"
+                                                                    Content="{x:Bind BlockButtonText, Mode=OneWay}"
+                                                                    Click="PortBlockButton_Click"
+                                                                    Tag="{x:Bind}"
+                                                                    Padding="10,4"
+                                                                    FontSize="11"
+                                                                    VerticalAlignment="Center"/>
+
+                                                            <!-- More actions button -->
+                                                            <Button Grid.Column="6"
                                                                     Padding="6,4"
                                                                     VerticalAlignment="Center"
                                                                     Click="PortMoreButton_Click"
@@ -1283,6 +1299,7 @@
                                             <ColumnDefinition Width="*"/>    <!-- Process info -->
                                             <ColumnDefinition Width="Auto"/> <!-- Port hint -->
                                             <ColumnDefinition Width="165"/>  <!-- Exposure -->
+                                            <ColumnDefinition Width="Auto"/> <!-- Quick Block -->
                                             <ColumnDefinition Width="Auto"/> <!-- Actions: More -->
                                         </Grid.ColumnDefinitions>
 
@@ -1420,8 +1437,17 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- More actions button -->
+                                        <!-- Quick Block / Unblock button -->
                                         <Button Grid.Column="6"
+                                                Content="{x:Bind BlockButtonText, Mode=OneWay}"
+                                                Click="PortBlockButton_Click"
+                                                Tag="{x:Bind}"
+                                                Padding="10,4"
+                                                FontSize="11"
+                                                VerticalAlignment="Center"/>
+
+                                        <!-- More actions button -->
+                                        <Button Grid.Column="7"
                                                 Padding="6,4"
                                                 VerticalAlignment="Center"
                                                 Click="PortMoreButton_Click"

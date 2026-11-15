@@ -131,4 +131,35 @@ public class FakeFirewallService : IFirewallService
             CurrentProfile = 0x7FFFFFFF
         });
     }
+
+    public Task<bool> CreatePortBlockRuleAsync(string protocol, int port, Guid id, int profiles = int.MaxValue, string? note = null)
+    {
+        if (!_isElevated) return Task.FromResult(false);
+
+        string protoUpper = protocol.ToUpperInvariant();
+        string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
+        _rules.RemoveAll(r => r.Name == ruleName);
+        _rules.Add(new FirewallRuleInfo
+        {
+            Name = ruleName,
+            Description = $"AppLock-managed|id={id}",
+            Grouping = "AppLock Connection Firewall",
+            Enabled = true,
+            BlocksInbound = true,
+            BlocksOutbound = false,
+            Profiles = profiles,
+            RuleId = id
+        });
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> RemovePortBlockRuleAsync(string protocol, int port)
+    {
+        if (!_isElevated) return Task.FromResult(false);
+
+        string protoUpper = protocol.ToUpperInvariant();
+        string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
+        int removed = _rules.RemoveAll(r => r.Name == ruleName && r.Grouping == "AppLock Connection Firewall");
+        return Task.FromResult(removed > 0);
+    }
 }

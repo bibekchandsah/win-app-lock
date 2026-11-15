@@ -2,6 +2,7 @@ using System.Net;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services.Firewall;
+using AppLock.ViewModels;
 using Xunit;
 
 namespace AppLock.Tests;
@@ -256,6 +257,92 @@ public class ListeningPortTests
 
         Assert.Equal(FirewallExposure.BlockedByAppLock, result.Exposure);
         Assert.Contains("app.exe", result.MatchingRuleName);
+    }
+
+    [Fact]
+    public async Task ListeningPortsViewModel_BlockAndUnblockPort_UpdatesSettingsAndFirewall()
+    {
+        var fakeFirewall = new FakeFirewallService();
+        var settings = new AppSettings
+        {
+            ListeningPorts = new ListeningPortsSettings()
+        };
+
+        var port = new ListeningPort("TCP", IPAddress.Parse("0.0.0.0"), 8080, 100, @"C:\web\server.exe", "server", null, Array.Empty<string>(), PortScope.AllInterfaces, FirewallExposure.AllowedByRule, null, null);
+        var portItem = new ListeningPortItemViewModel(port);
+
+        var vm = new ListeningPortsViewModel(new FakeListeningPortService(new[] { port }))
+        {
+            SettingsProvider = () => settings,
+            SettingsSaver = _ => { }
+        };
+
+        // Block port
+        var (blockSuccess, _) = await vm.BlockPortAsync(portItem, fakeFirewall);
+        Assert.True(blockSuccess);
+        Assert.Single(settings.ListeningPorts.PortRules);
+        Assert.Equal("8080", settings.ListeningPorts.PortRules[0].LocalPorts);
+        Assert.Equal("TCP", settings.ListeningPorts.PortRules[0].Protocol);
+
+        var rules = await fakeFirewall.GetAppLockRulesAsync();
+        Assert.Contains(rules, r => r.Name.Contains("Block port 8080/TCP"));
+
+        // Unblock port
+        var (unblockSuccess, _) = await vm.UnblockPortAsync(portItem, fakeFirewall);
+        Assert.True(unblockSuccess);
+        Assert.Empty(settings.ListeningPorts.PortRules);
+    }
+
+    [Fact]
+    public async Task ListeningPortsViewModel_BlockAppInbound_CreatesInboundRule()
+    {
+        var fakeFirewall = new FakeFirewallService();
+        var settings = new AppSettings();
+
+        var port = new ListeningPort("TCP", IPAddress.Parse("0.0.0.0"), 3000, 200, @"C:\dev\node.exe", "node", null, Array.Empty<string>(), PortScope.AllInterfaces, FirewallExposure.AllowedByRule, null, null);
+        var portItem = new ListeningPortItemViewModel(port);
+
+        var vm = new ListeningPortsViewModel(new FakeListeningPortService(new[] { port }))
+        {
+            SettingsProvider = () => settings,
+            SettingsSaver = _ => { }
+        };
+
+        var (success, _) = await vm.BlockAppInboundAsync(portItem, fakeFirewall);
+        Assert.True(success);
+
+        var appRule = settings.NetworkRules.FirstOrDefault(r => r.ExePath == @"C:\dev\node.exe");
+        Assert.NotNull(appRule);
+        Assert.True(appRule.BlockInbound);
+
+        var rules = await fakeFirewall.GetAppLockRulesAsync();
+        Assert.Contains(rules, r => r.Name.Contains("node") && r.Name.Contains("(Inbound)"));
+    }
+
+    [Fact]
+    public async Task RuleSyncService_PortRuleDriftAndRepair_WorksCorrectly()
+    {
+        var fakeFirewall = new FakeFirewallService();
+        var sync = new RuleSyncService(fakeFirewall);
+
+        var portRules = new List<PortRuleEntry>
+        {
+            new() { Protocol = "TCP", LocalPorts = "9999", Note = "Test Drift" }
+        };
+
+        // Without rule in firewall, drift should be detected
+        var drifted = await sync.DetectPortRuleDriftAsync(portRules);
+        Assert.Single(drifted);
+        Assert.True(drifted[0].IsMissingInFirewall);
+
+        // Repair
+        var repairResult = await sync.RepairPortRulesAsync(drifted);
+        Assert.Equal(1, repairResult.Repaired);
+        Assert.Equal(0, repairResult.Failed);
+
+        // After repair, no drift
+        var afterDrift = await sync.DetectPortRuleDriftAsync(portRules);
+        Assert.Empty(afterDrift);
     }
 
     private class FakeListeningPortService : IListeningPortService

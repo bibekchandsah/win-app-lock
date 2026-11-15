@@ -42,6 +42,16 @@ public interface IFirewallService
     /// Gets firewall status for current profile
     /// </summary>
     Task<FirewallStatus> GetFirewallStatusAsync();
+
+    /// <summary>
+    /// Creates an inbound block rule for a port in AppLock's rule group
+    /// </summary>
+    Task<bool> CreatePortBlockRuleAsync(string protocol, int port, Guid id, int profiles = int.MaxValue, string? note = null);
+
+    /// <summary>
+    /// Removes an inbound block rule for a port in AppLock's rule group
+    /// </summary>
+    Task<bool> RemovePortBlockRuleAsync(string protocol, int port);
 }
 
 public class FirewallRuleInfo

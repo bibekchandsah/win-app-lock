@@ -1349,11 +1349,223 @@ public sealed partial class InternetAccessPage : Page
         _ = _networkScannerViewModel.SaveMacVendorsApiKeyAsync(string.Empty);
     }
 
+    private async void PortBlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ListeningPortItemViewModel vm)
+        {
+            if (vm.IsBlockedByAppLock)
+            {
+                await UnblockPortWithAuthAsync(vm);
+            }
+            else
+            {
+                await BlockPortWithSafetyAsync(vm);
+            }
+        }
+    }
+
+    private async Task<bool> EnsureFirewallAuthorizedAsync()
+    {
+        return await _viewModel.AuthService.AuthenticateForUnblockAsync(XamlRoot, "unblock");
+    }
+
+    private async Task<bool> ConfirmActionAsync(string title, string content, string primaryButtonText = "Proceed")
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            PrimaryButtonText = primaryButtonText,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
+    }
+
+    private async Task BlockPortWithSafetyAsync(ListeningPortItemViewModel vm)
+    {
+        if (!_isElevated)
+        {
+            await ShowMessageAsync("Administrator Rights Required",
+                "Creating Windows Firewall rules requires administrator privileges. Please restart AppLock as administrator.");
+            return;
+        }
+
+        if (vm.IsCriticalPortOrApp)
+        {
+            bool proceed = await ConfirmActionAsync(
+                "Critical System Port / App Warning",
+                vm.CriticalWarningMessage,
+                "Block Anyway");
+            if (!proceed) return;
+        }
+
+        if (vm.Scope == PortScope.LocalhostOnly)
+        {
+            bool proceed = await ConfirmActionAsync(
+                "Localhost Port Warning",
+                vm.LocalhostWarningMessage,
+                "Block Anyway");
+            if (!proceed) return;
+        }
+
+        var (success, error) = await _listeningPortsViewModel.BlockPortAsync(vm, _firewallService);
+        if (success)
+        {
+            await ShowMessageAsync("Port Blocked",
+                $"Incoming network connections to port {vm.Port} ({vm.Protocol}) are now blocked by AppLock.\n\nNote: This affects new inbound connections; any currently active sessions may remain until terminated.");
+        }
+        else
+        {
+            await ShowMessageAsync("Block Failed", error ?? "Could not create firewall block rule.");
+        }
+    }
+
+    private async Task UnblockPortWithAuthAsync(ListeningPortItemViewModel vm)
+    {
+        if (!_isElevated)
+        {
+            await ShowMessageAsync("Administrator Rights Required",
+                "Removing Windows Firewall rules requires administrator privileges. Please restart AppLock as administrator.");
+            return;
+        }
+
+        if (!await EnsureFirewallAuthorizedAsync())
+            return;
+
+        var (success, error) = await _listeningPortsViewModel.UnblockPortAsync(vm, _firewallService);
+        if (success)
+        {
+            await ShowMessageAsync("Port Unblocked",
+                $"Port {vm.Port} ({vm.Protocol}) block rule has been removed from Windows Firewall.");
+        }
+        else
+        {
+            await ShowMessageAsync("Unblock Failed", error ?? "Could not remove firewall rule.");
+        }
+    }
+
+    private async Task BlockAppInboundWithSafetyAsync(ListeningPortItemViewModel vm)
+    {
+        if (!_isElevated)
+        {
+            await ShowMessageAsync("Administrator Rights Required",
+                "Creating Windows Firewall rules requires administrator privileges. Please restart AppLock as administrator.");
+            return;
+        }
+
+        if (vm.IsCriticalPortOrApp)
+        {
+            bool proceed = await ConfirmActionAsync(
+                "Critical System App Warning",
+                vm.CriticalWarningMessage,
+                "Block Anyway");
+            if (!proceed) return;
+        }
+
+        var (success, error) = await _listeningPortsViewModel.BlockAppInboundAsync(vm, _firewallService);
+        if (success)
+        {
+            await ShowMessageAsync("App Inbound Traffic Blocked",
+                $"Incoming network connections to {vm.DisplayAppName} are now blocked.\nThis app also appears on the Apps tab.");
+            await _viewModel.LoadAppsAsync();
+            UpdateAppsVisibility();
+        }
+        else
+        {
+            await ShowMessageAsync("Block Failed", error ?? "Could not create inbound firewall rule for this app.");
+        }
+    }
+
+    private async Task UnblockAppInboundWithAuthAsync(ListeningPortItemViewModel vm)
+    {
+        if (!_isElevated)
+        {
+            await ShowMessageAsync("Administrator Rights Required",
+                "Removing Windows Firewall rules requires administrator privileges. Please restart AppLock as administrator.");
+            return;
+        }
+
+        if (!await EnsureFirewallAuthorizedAsync())
+            return;
+
+        var (success, error) = await _listeningPortsViewModel.UnblockAppInboundAsync(vm, _firewallService);
+        if (success)
+        {
+            await ShowMessageAsync("App Inbound Traffic Unblocked",
+                $"Inbound firewall rule for {vm.DisplayAppName} has been removed.");
+            await _viewModel.LoadAppsAsync();
+            UpdateAppsVisibility();
+        }
+        else
+        {
+            await ShowMessageAsync("Unblock Failed", error ?? "Could not remove inbound rule.");
+        }
+    }
+
+    private async void RepairPortRules_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isElevated)
+        {
+            await ShowMessageAsync("Administrator Rights Required",
+                "Checking and repairing firewall rules requires administrator privileges. Please restart AppLock as administrator.");
+            return;
+        }
+
+        int repaired = await _listeningPortsViewModel.CheckAndRepairDriftedPortRulesAsync(_firewallService);
+        if (repaired > 0)
+        {
+            await ShowMessageAsync("Port Rules Repaired",
+                $"Successfully recreated {repaired} missing port block rule(s) in Windows Firewall.");
+        }
+        else
+        {
+            await ShowMessageAsync("Firewall In Sync",
+                "All AppLock port block rules are active and verified in Windows Firewall. No drift detected.");
+        }
+    }
+
     private void PortMoreButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is ListeningPortItemViewModel vm)
         {
             var flyout = new MenuFlyout();
+
+            if (vm.IsBlockedByAppLock)
+            {
+                var unblockPortItem = new MenuFlyoutItem
+                {
+                    Text = $"Unblock port {vm.Port}",
+                    Icon = new FontIcon { Glyph = "\uE785" }
+                };
+                unblockPortItem.Click += async (_, _) => await UnblockPortWithAuthAsync(vm);
+                flyout.Items.Add(unblockPortItem);
+            }
+            else
+            {
+                var blockPortItem = new MenuFlyoutItem
+                {
+                    Text = $"Block port {vm.Port}",
+                    Icon = new FontIcon { Glyph = "\uF140" }
+                };
+                blockPortItem.Click += async (_, _) => await BlockPortWithSafetyAsync(vm);
+                flyout.Items.Add(blockPortItem);
+            }
+
+            if (vm.HasAppPath)
+            {
+                var blockAppItem = new MenuFlyoutItem
+                {
+                    Text = $"Block app incoming ({vm.AppName})",
+                    Icon = new FontIcon { Glyph = "\uE718" }
+                };
+                blockAppItem.Click += async (_, _) => await BlockAppInboundWithSafetyAsync(vm);
+                flyout.Items.Add(blockAppItem);
+            }
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
 
             var detailsItem = new MenuFlyoutItem
             {

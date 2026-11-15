@@ -186,6 +186,63 @@ public class RuleSyncService
             Failed = failed
         };
     }
+
+    /// <summary>
+    /// Checks all configured port rules for drift against actual Windows Firewall rules
+    /// </summary>
+    public async Task<List<PortRuleDriftInfo>> DetectPortRuleDriftAsync(List<PortRuleEntry> portRules)
+    {
+        var driftList = new List<PortRuleDriftInfo>();
+        try
+        {
+            var actualRules = await _firewallService.GetAppLockRulesAsync();
+            foreach (var rule in portRules)
+            {
+                string expectedName = $"AppLock – Block port {rule.LocalPorts}/{rule.Protocol.ToUpperInvariant()} (Inbound)";
+                bool exists = actualRules.Any(r => string.Equals(r.Name, expectedName, StringComparison.OrdinalIgnoreCase) && r.Enabled);
+                if (!exists)
+                {
+                    driftList.Add(new PortRuleDriftInfo
+                    {
+                        Entry = rule,
+                        IsMissingInFirewall = true
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error detecting port rule drift: {ex.Message}");
+        }
+        return driftList;
+    }
+
+    /// <summary>
+    /// Re-creates missing port block rules in Windows Firewall
+    /// </summary>
+    public async Task<RepairResult> RepairPortRulesAsync(List<PortRuleDriftInfo> drifted)
+    {
+        int repaired = 0;
+        int failed = 0;
+        foreach (var item in drifted)
+        {
+            if (int.TryParse(item.Entry.LocalPorts, out int port))
+            {
+                bool success = await _firewallService.CreatePortBlockRuleAsync(
+                    item.Entry.Protocol, port, item.Entry.Id, item.Entry.Profiles, item.Entry.Note);
+                if (success) repaired++;
+                else failed++;
+            }
+            else failed++;
+        }
+        return new RepairResult { Repaired = repaired, Failed = failed };
+    }
+}
+
+public class PortRuleDriftInfo
+{
+    public PortRuleEntry Entry { get; set; } = null!;
+    public bool IsMissingInFirewall { get; set; }
 }
 
 [Flags]

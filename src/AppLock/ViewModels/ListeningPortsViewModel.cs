@@ -408,4 +408,142 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         _disposed = true;
         StopAutoRefresh();
     }
+
+    public async Task<(bool Success, string? Error)> BlockPortAsync(ListeningPortItemViewModel portItem, IFirewallService firewall)
+    {
+        var settings = SettingsProvider?.Invoke();
+        if (settings == null) return (false, "Settings not available");
+
+        string protoUpper = portItem.Protocol.ToUpperInvariant();
+        var portRule = new PortRuleEntry
+        {
+            Id = Guid.NewGuid(),
+            Protocol = protoUpper,
+            LocalPorts = portItem.Port.ToString(),
+            Profiles = int.MaxValue,
+            Created = DateTime.UtcNow,
+            Note = $"Blocked via Listening Ports ({portItem.DisplayAppName})"
+        };
+
+        bool created = await firewall.CreatePortBlockRuleAsync(protoUpper, portItem.Port, portRule.Id, portRule.Profiles, portRule.Note);
+        if (!created) return (false, "Failed to create firewall rule. Ensure AppLock is running as administrator.");
+
+        settings.ListeningPorts.PortRules.RemoveAll(r =>
+            string.Equals(r.Protocol, protoUpper, StringComparison.OrdinalIgnoreCase) &&
+            r.LocalPorts == portRule.LocalPorts);
+        settings.ListeningPorts.PortRules.Add(portRule);
+        SettingsSaver?.Invoke(settings);
+
+        _ = LoadPortsAsync(isManualOrInitial: false);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> UnblockPortAsync(ListeningPortItemViewModel portItem, IFirewallService firewall)
+    {
+        var settings = SettingsProvider?.Invoke();
+        if (settings == null) return (false, "Settings not available");
+
+        string protoUpper = portItem.Protocol.ToUpperInvariant();
+        bool removed = await firewall.RemovePortBlockRuleAsync(protoUpper, portItem.Port);
+
+        settings.ListeningPorts.PortRules.RemoveAll(r =>
+            string.Equals(r.Protocol, protoUpper, StringComparison.OrdinalIgnoreCase) &&
+            r.LocalPorts == portItem.Port.ToString());
+        SettingsSaver?.Invoke(settings);
+
+        _ = LoadPortsAsync(isManualOrInitial: false);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> BlockAppInboundAsync(ListeningPortItemViewModel portItem, IFirewallService firewall)
+    {
+        if (string.IsNullOrEmpty(portItem.AppPath))
+            return (false, "Cannot block an app without an executable path.");
+
+        var settings = SettingsProvider?.Invoke();
+        if (settings == null) return (false, "Settings not available");
+
+        var existing = settings.NetworkRules.FirstOrDefault(r =>
+            string.Equals(r.ExePath, portItem.AppPath, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            existing.BlockInbound = true;
+            existing.Blocked = true;
+        }
+        else
+        {
+            existing = new NetworkRuleEntry
+            {
+                Id = Guid.NewGuid(),
+                DisplayName = portItem.AppName,
+                ExePath = portItem.AppPath,
+                BlockInbound = true,
+                BlockOutbound = false,
+                Blocked = true,
+                Profiles = 0x7
+            };
+            settings.NetworkRules.Add(existing);
+        }
+
+        string ruleName = existing.CustomRuleName ?? $"AppLock - {existing.DisplayName}";
+        bool success = await firewall.CreateRuleAsync(
+            ruleName,
+            existing.ExePath,
+            blockInbound: true,
+            blockOutbound: existing.BlockOutbound,
+            profiles: existing.Profiles,
+            id: existing.Id);
+
+        if (success)
+        {
+            SettingsSaver?.Invoke(settings);
+            _ = LoadPortsAsync(isManualOrInitial: false);
+            return (true, null);
+        }
+        return (false, "Failed to create inbound rule for this app in Windows Firewall.");
+    }
+
+    public async Task<(bool Success, string? Error)> UnblockAppInboundAsync(ListeningPortItemViewModel portItem, IFirewallService firewall)
+    {
+        if (string.IsNullOrEmpty(portItem.AppPath)) return (false, "No executable path.");
+
+        var settings = SettingsProvider?.Invoke();
+        if (settings == null) return (false, "Settings not available");
+
+        var existing = settings.NetworkRules.FirstOrDefault(r =>
+            string.Equals(r.ExePath, portItem.AppPath, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            existing.BlockInbound = false;
+            if (!existing.BlockOutbound)
+            {
+                existing.Blocked = false;
+            }
+            string ruleName = existing.CustomRuleName ?? $"AppLock - {existing.DisplayName}";
+            await firewall.RemoveRuleAsync($"{ruleName} (Inbound)");
+            SettingsSaver?.Invoke(settings);
+            _ = LoadPortsAsync(isManualOrInitial: false);
+            return (true, null);
+        }
+        return (true, null);
+    }
+
+    public async Task<int> CheckAndRepairDriftedPortRulesAsync(IFirewallService firewall)
+    {
+        var settings = SettingsProvider?.Invoke();
+        if (settings?.ListeningPorts?.PortRules == null || settings.ListeningPorts.PortRules.Count == 0)
+            return 0;
+
+        var syncService = new RuleSyncService(firewall);
+        var drifted = await syncService.DetectPortRuleDriftAsync(settings.ListeningPorts.PortRules);
+        if (drifted.Count > 0)
+        {
+            var result = await syncService.RepairPortRulesAsync(drifted);
+            _ = LoadPortsAsync(isManualOrInitial: false);
+            return result.Repaired;
+        }
+        return 0;
+    }
 }
