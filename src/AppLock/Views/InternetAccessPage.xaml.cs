@@ -41,7 +41,6 @@ public sealed partial class InternetAccessPage : Page
 
     public InternetAccessPage()
     {
-        InitializeComponent();
         _firewallService = new WindowsFirewallService();
         _installedAppsService = new InstalledAppsService();
         _settingsStore = ServiceContainer.SettingsStore;
@@ -49,12 +48,16 @@ public sealed partial class InternetAccessPage : Page
         _activeConnectionsViewModel = new ActiveConnectionViewModel();
         _networkScannerViewModel = new NetworkScannerViewModel(ServiceContainer.NetworkScannerService, _settingsStore);
         ListeningPortService.SettingsProvider = () => ServiceContainer.Settings;
-        _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), DispatcherQueue)
+        var dq = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), dq)
         {
             SettingsProvider = () => ServiceContainer.Settings,
             SettingsSaver = s => _settingsStore.Save(s)
         };
         _listeningPortsViewModel.LoadSettings();
+
+        InitializeComponent();
+
         _listeningPortsViewModel.VisibilityOrFilterUpdated += UpdateListeningPortsVisibility;
         DataContext = _viewModel;
         Loaded += InternetAccessPage_Loaded;
@@ -1202,12 +1205,12 @@ public sealed partial class InternetAccessPage : Page
 
     private void PortSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (PortSortComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        if (_listeningPortsViewModel == null || PortSortComboBox?.SelectedItem is not ComboBoxItem item || item.Tag is not string tag)
+            return;
+
+        if (Enum.TryParse<ListeningPortSortOrder>(tag, true, out var order))
         {
-            if (Enum.TryParse<ListeningPortSortOrder>(tag, true, out var order))
-            {
-                _listeningPortsViewModel.SortBy = order;
-            }
+            _listeningPortsViewModel.SortBy = order;
         }
     }
 
@@ -1264,9 +1267,10 @@ public sealed partial class InternetAccessPage : Page
 
     private void ScanIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ScanIntervalComboBox.SelectedItem is ComboBoxItem item &&
-            item.Tag is string tag &&
-            int.TryParse(tag, out int seconds))
+        if (_networkScannerViewModel == null || ScanIntervalComboBox?.SelectedItem is not ComboBoxItem item || item.Tag is not string tag)
+            return;
+
+        if (int.TryParse(tag, out int seconds))
         {
             _networkScannerViewModel.ScanIntervalSeconds = seconds;
         }

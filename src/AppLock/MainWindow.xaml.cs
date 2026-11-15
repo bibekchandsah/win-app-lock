@@ -96,6 +96,11 @@ public sealed partial class MainWindow : Window
 
         // Wire navigation selection tracking
         ContentFrame.Navigated += ContentFrame_Navigated;
+        ContentFrame.NavigationFailed += (s, e) =>
+        {
+            LogService.LogAction("nav", $"ContentFrame NavigationFailed: {e.Exception?.Message}\n{e.Exception}");
+            System.Diagnostics.Debug.WriteLine($"[NavigationFailed] {e.Exception}");
+        };
 
         // WinUI shows the window before Mica's first frame, so the translucent tint painted over
         // black and the window appeared as a large black rectangle for the first seconds. Start
@@ -736,7 +741,14 @@ public sealed partial class MainWindow : Window
         if (!_isMainAuthenticated) return;
         if (ContentFrame.CurrentSourcePageType != typeof(InternetAccessPage))
         {
-            ContentFrame.Navigate(typeof(InternetAccessPage));
+            try
+            {
+                ContentFrame.Navigate(typeof(InternetAccessPage));
+            }
+            catch (Exception ex)
+            {
+                LogService.LogAction("nav", $"Error navigating to InternetAccessPage: {ex.Message}\n{ex}");
+            }
         }
     }
 
