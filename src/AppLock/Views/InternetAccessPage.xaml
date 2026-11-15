@@ -1259,6 +1259,54 @@
                                     <TextBlock Text="Known ports"/>
                                 </StackPanel>
                             </Button>
+                            <Button ToolTipService.ToolTip="Customize Port Watch toast position and theme"
+                                    Padding="10,5"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE713;" FontSize="12"/>
+                                    <TextBlock Text="Toast settings"/>
+                                </StackPanel>
+                                <Button.Flyout>
+                                    <Flyout Placement="Bottom">
+                                        <StackPanel Width="230" Spacing="12">
+                                            <TextBlock Text="Port Watch Toast Settings" FontWeight="SemiBold" FontSize="13"/>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Position on screen"
+                                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                <ComboBox x:Name="ToastAnchorComboBox"
+                                                          HorizontalAlignment="Stretch"
+                                                          SelectionChanged="ToastAnchorComboBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Top Left" Tag="TopLeft"/>
+                                                    <ComboBoxItem Content="Top Center" Tag="TopCenter"/>
+                                                    <ComboBoxItem Content="Top Right" Tag="TopRight"/>
+                                                    <ComboBoxItem Content="Middle Left" Tag="MiddleLeft"/>
+                                                    <ComboBoxItem Content="Center" Tag="Center"/>
+                                                    <ComboBoxItem Content="Middle Right" Tag="MiddleRight"/>
+                                                    <ComboBoxItem Content="Bottom Left" Tag="BottomLeft"/>
+                                                    <ComboBoxItem Content="Bottom Center" Tag="BottomCenter"/>
+                                                    <ComboBoxItem Content="Bottom Right" Tag="BottomRight"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Theme"
+                                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                <ComboBox x:Name="ToastThemeComboBox"
+                                                          HorizontalAlignment="Stretch"
+                                                          SelectionChanged="ToastThemeComboBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Follow system" Tag="FollowSystem"/>
+                                                    <ComboBoxItem Content="Light" Tag="Light"/>
+                                                    <ComboBoxItem Content="Dark" Tag="Dark"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <Button Content="Preview test toast"
+                                                    HorizontalAlignment="Stretch"
+                                                    Click="PreviewToast_Click"/>
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
 
                         <!-- Sort on right -->

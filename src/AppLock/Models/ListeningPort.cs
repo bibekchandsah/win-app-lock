@@ -78,6 +78,8 @@ public class ListeningPortsSettings
     public bool HideUdp { get; set; }
     public bool WatchNewPorts { get; set; }
     public bool WatchIgnoreSystemDynamic { get; set; } = true;
+    public string ToastAnchor { get; set; } = "BottomRight";
+    public string ToastTheme { get; set; } = "FollowSystem";
     public List<KnownPort> KnownPorts { get; set; } = new();
     public List<PortRuleEntry> PortRules { get; set; } = new();
 }

@@ -57,6 +57,8 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _showSystemServices = true;
     [ObservableProperty] private bool _hideUdp = false;
     [ObservableProperty] private bool _watchNewPorts = false;
+    [ObservableProperty] private string _toastAnchor = "BottomRight";
+    [ObservableProperty] private string _toastTheme = "FollowSystem";
     [ObservableProperty] private int _knownPortsCount;
     [ObservableProperty] private ListeningPortSortOrder _sortBy = ListeningPortSortOrder.Port;
     [ObservableProperty] private bool _hasItems;
@@ -78,6 +80,8 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             ShowSystemServices = s.ShowSystemServices;
             HideUdp = s.HideUdp;
             WatchNewPorts = s.WatchNewPorts;
+            ToastAnchor = s.ToastAnchor ?? "BottomRight";
+            ToastTheme = s.ToastTheme ?? "FollowSystem";
             KnownPortsCount = s.KnownPorts?.Count ?? 0;
         }
     }
@@ -91,9 +95,14 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             s.ListeningPorts.ShowSystemServices = ShowSystemServices;
             s.ListeningPorts.HideUdp = HideUdp;
             s.ListeningPorts.WatchNewPorts = WatchNewPorts;
+            s.ListeningPorts.ToastAnchor = ToastAnchor;
+            s.ListeningPorts.ToastTheme = ToastTheme;
             SettingsSaver?.Invoke(s);
         }
     }
+
+    partial void OnToastAnchorChanged(string value) => SaveSettings();
+    partial void OnToastThemeChanged(string value) => SaveSettings();
 
     partial void OnWatchNewPortsChanged(bool value)
     {

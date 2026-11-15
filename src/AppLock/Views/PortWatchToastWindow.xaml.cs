@@ -92,7 +92,10 @@ public sealed partial class PortWatchToastWindow : Window
     {
         try
         {
-            var theme = ServiceContainer.Settings?.SpeedMeter?.Alerts?.ToastTheme ?? "FollowSystem";
+            var theme = ServiceContainer.Settings?.ListeningPorts?.ToastTheme 
+                ?? ServiceContainer.Settings?.SpeedMeter?.Alerts?.ToastTheme 
+                ?? "FollowSystem";
+
             RootGrid.RequestedTheme = theme switch
             {
                 "Dark" => ElementTheme.Dark,
@@ -161,8 +164,23 @@ public sealed partial class PortWatchToastWindow : Window
         var work = area.WorkArea;
         var margin = 16;
 
-        int x = work.X + work.Width - width - margin;
-        int y = work.Y + work.Height - height - margin;
+        var anchor = ServiceContainer.Settings?.ListeningPorts?.ToastAnchor 
+            ?? ServiceContainer.Settings?.NotificationCustom?.Anchor 
+            ?? "BottomRight";
+
+        int x = anchor switch
+        {
+            "TopLeft" or "MiddleLeft" or "BottomLeft" => work.X + margin,
+            "TopRight" or "MiddleRight" or "BottomRight" => work.X + work.Width - width - margin,
+            _ => work.X + (work.Width - width) / 2
+        };
+
+        int y = anchor switch
+        {
+            "TopLeft" or "TopCenter" or "TopRight" => work.Y + margin,
+            "BottomLeft" or "BottomCenter" or "BottomRight" => work.Y + work.Height - height - margin,
+            _ => work.Y + (work.Height - height) / 2
+        };
 
         appWindow.Move(new PointInt32(x, y));
     }

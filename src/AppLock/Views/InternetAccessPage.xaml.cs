@@ -89,6 +89,7 @@ public sealed partial class InternetAccessPage : Page
         if (ServiceContainer.Settings.NetworkDeviceScanner.ScannerEnabled)
             ServiceContainer.NetworkScannerService.Start();
 
+        InitializeToastSettingsControls();
         UpdateConnScopeButtons();
     }
 
@@ -1363,6 +1364,67 @@ public sealed partial class InternetAccessPage : Page
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] Known ports dialog error: {ex.Message}");
+        }
+    }
+
+    private void InitializeToastSettingsControls()
+    {
+        if (ToastAnchorComboBox == null || ToastThemeComboBox == null) return;
+
+        var anchor = _listeningPortsViewModel.ToastAnchor;
+        foreach (var item in ToastAnchorComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), anchor, StringComparison.OrdinalIgnoreCase))
+            {
+                ToastAnchorComboBox.SelectedItem = item;
+                break;
+            }
+        }
+        if (ToastAnchorComboBox.SelectedIndex < 0) ToastAnchorComboBox.SelectedIndex = 8; // BottomRight
+
+        var theme = _listeningPortsViewModel.ToastTheme;
+        foreach (var item in ToastThemeComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), theme, StringComparison.OrdinalIgnoreCase))
+            {
+                ToastThemeComboBox.SelectedItem = item;
+                break;
+            }
+        }
+        if (ToastThemeComboBox.SelectedIndex < 0) ToastThemeComboBox.SelectedIndex = 0; // FollowSystem
+    }
+
+    private void ToastAnchorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ToastAnchorComboBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            _listeningPortsViewModel.ToastAnchor = tag;
+        }
+    }
+
+    private void ToastThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ToastThemeComboBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            _listeningPortsViewModel.ToastTheme = tag;
+        }
+    }
+
+    private void PreviewToast_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            new PortWatchToastWindow(
+                "Sample Port Alert",
+                "App · TCP Port 8080 (All interfaces)",
+                onBlock: () => { },
+                onAllow: () => { },
+                onDetails: () => { }
+            ).Activate();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] PreviewToast error: {ex.Message}");
         }
     }
 
