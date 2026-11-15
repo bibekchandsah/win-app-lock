@@ -49,6 +49,7 @@ public static class ServiceContainer
     private static LockKeyIndicatorService? _lockKeyIndicatorService;
     private static AppLock.Services.SpeedMeter.SpeedMeterService? _speedMeterService;
     private static AppLock.Services.Network.NetworkScannerService? _networkScannerService;
+    private static AppLock.Services.Firewall.PortWatchService? _portWatchService;
 
     public static NotificationService NotificationService
     {
@@ -293,9 +294,11 @@ public static class ServiceContainer
         _volumeMixerHotkeyManager?.Dispose();
         _speedMeterService?.Dispose();
         _networkScannerService?.Dispose();
+        _portWatchService?.Dispose();
 
         _speedMeterService = null;
         _networkScannerService = null;
+        _portWatchService = null;
         _settingsStore = null;
         _settings = null;
         _authService = null;
@@ -584,6 +587,25 @@ public static class ServiceContainer
             if (_networkScannerService == null)
                 _networkScannerService = new AppLock.Services.Network.NetworkScannerService(SettingsStore);
             return _networkScannerService;
+        }
+    }
+
+    // ── Port Watch ────────────────────────────────────────────────────────────
+
+    public static AppLock.Services.Firewall.PortWatchService PortWatchService
+    {
+        get
+        {
+            if (_portWatchService == null)
+            {
+                var portService = new AppLock.Services.Firewall.ListeningPortService();
+                _portWatchService = new AppLock.Services.Firewall.PortWatchService(portService, new AppLock.Services.Firewall.WindowsFirewallService())
+                {
+                    SettingsProvider = () => Settings,
+                    SettingsSaver = s => SettingsStore.Save(s)
+                };
+            }
+            return _portWatchService;
         }
     }
 

@@ -91,6 +91,11 @@ public partial class App : Application
             AppLock.Services.ServiceContainer.InitializeNotificationCustomizer();
             AppLock.Services.ServiceContainer.InitializeLockKeyIndicator(_mainWindow.DispatcherQueue);
             AppLock.Services.ServiceContainer.InitializeSpeedMeter(_mainWindow.DispatcherQueue);
+            AppLock.Services.ServiceContainer.PortWatchService.SetDispatcherQueue(_mainWindow.DispatcherQueue);
+            if (AppLock.Services.ServiceContainer.Settings.ListeningPorts.WatchNewPorts)
+            {
+                AppLock.Services.ServiceContainer.PortWatchService.Start();
+            }
         }
 
         // Wire session lock change to dismiss popup immediately on lock screen

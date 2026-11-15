@@ -57,6 +57,7 @@ public class KnownPort
     public string Protocol { get; set; } = "TCP";
     public int Port { get; set; }
     public DateTime Added { get; set; } = DateTime.Now;
+    public string AddedDisplay => Added.ToString("yyyy-MM-dd");
 }
 
 public class PortRuleEntry

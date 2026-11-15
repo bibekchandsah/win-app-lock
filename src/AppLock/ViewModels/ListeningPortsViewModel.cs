@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
+using AppLock.Services;
 using AppLock.Services.Firewall;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -55,6 +56,8 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _groupByApp = true;
     [ObservableProperty] private bool _showSystemServices = true;
     [ObservableProperty] private bool _hideUdp = false;
+    [ObservableProperty] private bool _watchNewPorts = false;
+    [ObservableProperty] private int _knownPortsCount;
     [ObservableProperty] private ListeningPortSortOrder _sortBy = ListeningPortSortOrder.Port;
     [ObservableProperty] private bool _hasItems;
 
@@ -74,6 +77,8 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             GroupByApp = s.GroupByApp;
             ShowSystemServices = s.ShowSystemServices;
             HideUdp = s.HideUdp;
+            WatchNewPorts = s.WatchNewPorts;
+            KnownPortsCount = s.KnownPorts?.Count ?? 0;
         }
     }
 
@@ -85,8 +90,28 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             s.ListeningPorts.GroupByApp = GroupByApp;
             s.ListeningPorts.ShowSystemServices = ShowSystemServices;
             s.ListeningPorts.HideUdp = HideUdp;
+            s.ListeningPorts.WatchNewPorts = WatchNewPorts;
             SettingsSaver?.Invoke(s);
         }
+    }
+
+    partial void OnWatchNewPortsChanged(bool value)
+    {
+        SaveSettings();
+#if !APPLOCK_TESTS
+        try
+        {
+            if (value)
+            {
+                ServiceContainer.PortWatchService.Start();
+            }
+            else
+            {
+                ServiceContainer.PortWatchService.Stop();
+            }
+        }
+        catch { }
+#endif
     }
 
     private void RunOnDispatcher(Action action)

@@ -317,8 +317,8 @@ public sealed partial class InternetAccessPage : Page
                 Title = "Select Running Program",
                 CloseButtonText = "Cancel",
                 PrimaryButtonText = "Add",
-                XamlRoot = XamlRoot,
-                RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme,
+                XamlRoot = GetEffectiveXamlRoot(),
+                RequestedTheme = GetCurrentActualTheme(),
                 Content = CreateRunningProgramsList(runningApps)
             };
 
@@ -417,7 +417,9 @@ public sealed partial class InternetAccessPage : Page
         try
         {
             var existingPaths = _viewModel.GetExistingPaths();
-            var dialog = new InstalledAppsDialog(XamlRoot, _installedAppsService, existingPaths);
+            var xamlRoot = GetEffectiveXamlRoot();
+            if (xamlRoot == null) return;
+            var dialog = new InstalledAppsDialog(xamlRoot, _installedAppsService, existingPaths);
             
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
@@ -461,8 +463,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Block Anyway",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+            XamlRoot = GetEffectiveXamlRoot(),
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         var result = await dialog.ShowAsync();
@@ -637,8 +639,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Remove",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+            XamlRoot = GetEffectiveXamlRoot(),
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         var result = await dialog.ShowAsync();
@@ -716,8 +718,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Remove All",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+            XamlRoot = GetEffectiveXamlRoot(),
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         var result = await dialog.ShowAsync();
@@ -839,17 +841,47 @@ public sealed partial class InternetAccessPage : Page
         catch { }
     }
 
+    private XamlRoot? GetEffectiveXamlRoot()
+    {
+        return this.XamlRoot ?? MainWindow.Instance?.Content?.XamlRoot;
+    }
+
+    private ElementTheme GetCurrentActualTheme()
+    {
+        var xamlRoot = GetEffectiveXamlRoot();
+        if (xamlRoot?.Content is FrameworkElement fe && fe.ActualTheme != ElementTheme.Default)
+            return fe.ActualTheme;
+        try
+        {
+            return ServiceContainer.CurrentTheme;
+        }
+        catch
+        {
+            return ElementTheme.Default;
+        }
+    }
+
     private async Task ShowMessageAsync(string title, string message)
     {
-        var dialog = new ContentDialog
+        try
         {
-            Title = title,
-            Content = message,
-            CloseButtonText = "OK",
-            XamlRoot = XamlRoot,
-            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
-        };
-        await dialog.ShowAsync();
+            var xamlRoot = GetEffectiveXamlRoot();
+            if (xamlRoot == null) return;
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = xamlRoot,
+                RequestedTheme = GetCurrentActualTheme()
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] ShowMessageAsync error: {ex.Message}");
+        }
     }
 
     private async void RepairSingle_Click(object sender, RoutedEventArgs e)
@@ -1071,8 +1103,8 @@ public sealed partial class InternetAccessPage : Page
                 PrimaryButtonText = "Import",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-                RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+                XamlRoot = GetEffectiveXamlRoot(),
+                RequestedTheme = GetCurrentActualTheme()
             };
 
             var result = await dialog.ShowAsync();
@@ -1098,7 +1130,9 @@ public sealed partial class InternetAccessPage : Page
                 return;
             }
 
-            var importDialog = new Dialogs.ImportExportDialog(XamlRoot, newRules, conflicts);
+            var xamlRoot = GetEffectiveXamlRoot();
+            if (xamlRoot == null) return;
+            var importDialog = new Dialogs.ImportExportDialog(xamlRoot, newRules, conflicts);
             var importResult = await importDialog.ShowAsync();
             
             if (importResult == ContentDialogResult.Primary)
@@ -1248,6 +1282,90 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private async void PortWatchToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle && toggle.IsOn)
+        {
+            var known = ServiceContainer.Settings.ListeningPorts.KnownPorts;
+            if (known == null || known.Count == 0)
+            {
+                await PromptBaselineDialogAsync();
+            }
+        }
+    }
+
+    private async void TakeBaseline_Click(object sender, RoutedEventArgs e)
+    {
+        await PromptBaselineDialogAsync();
+    }
+
+    private async Task PromptBaselineDialogAsync()
+    {
+        try
+        {
+            var reachable = await ServiceContainer.PortWatchService.TakeBaselineAsync();
+            int count = reachable.Count;
+
+            var preview = string.Join("\n", reachable.Take(6).Select(p => $"• {p.Protocol} {p.Port} ({p.AppName ?? "Unknown"})"));
+            if (count > 6) preview += $"\n...and {count - 6} more";
+
+            var dialog = new ContentDialog
+            {
+                Title = "Port Watch Baseline",
+                Content = $"Found {count} port(s) currently reachable from your network:\n\n{preview}\n\n" +
+                          "Mark them as known so they won't trigger alerts when Port Watch is active?\n" +
+                          "(Alerts will also be suppressed for the next 10 minutes)",
+                PrimaryButtonText = "Mark as known",
+                SecondaryButtonText = "Review",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = GetEffectiveXamlRoot(),
+                RequestedTheme = GetCurrentActualTheme()
+            };
+
+            var res = await dialog.ShowAsync();
+            if (res == ContentDialogResult.Primary)
+            {
+                if (_viewModel.AuthService.RequiresAuthForUnblock)
+                {
+                    bool auth = await _viewModel.AuthService.AuthenticateForUnblockAsync(GetEffectiveXamlRoot() ?? this.XamlRoot, "mark ports as known");
+                    if (!auth) return;
+                }
+
+                ServiceContainer.PortWatchService.MarkBaselineAsKnown(reachable);
+                await ShowMessageAsync("Baseline Saved", $"{count} port(s) marked as known. Port Watch alerts are paused for 10 minutes.");
+            }
+            else if (res == ContentDialogResult.Secondary)
+            {
+                _listeningPortsViewModel.SelectedFilter = "Reachable";
+                UpdatePortFilterChipStyles("Reachable");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] Baseline prompt error: {ex.Message}");
+        }
+    }
+
+    private async void OpenKnownPorts_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var xamlRoot = GetEffectiveXamlRoot();
+            if (xamlRoot == null) return;
+            var dialog = new KnownPortsDialog
+            {
+                XamlRoot = xamlRoot,
+                RequestedTheme = GetCurrentActualTheme()
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] Known ports dialog error: {ex.Message}");
+        }
+    }
+
     private void PortSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_listeningPortsViewModel == null || PortSortComboBox?.SelectedItem is not ComboBoxItem item || item.Tag is not string tag)
@@ -1346,8 +1464,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = "Forget all",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+            XamlRoot = GetEffectiveXamlRoot(),
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
@@ -1411,11 +1529,15 @@ public sealed partial class InternetAccessPage : Page
 
     private async Task<bool> EnsureFirewallAuthorizedAsync()
     {
-        return await _viewModel.AuthService.AuthenticateForUnblockAsync(XamlRoot, "unblock");
+        var xamlRoot = GetEffectiveXamlRoot();
+        if (xamlRoot == null) return true;
+        return await _viewModel.AuthService.AuthenticateForUnblockAsync(xamlRoot, "unblock");
     }
 
     private async Task<bool> ConfirmActionAsync(string title, string content, string primaryButtonText = "Proceed")
     {
+        var xamlRoot = GetEffectiveXamlRoot();
+        if (xamlRoot == null) return false;
         var dialog = new ContentDialog
         {
             Title = title,
@@ -1423,7 +1545,8 @@ public sealed partial class InternetAccessPage : Page
             PrimaryButtonText = primaryButtonText,
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = GetCurrentActualTheme()
         };
         var result = await dialog.ShowAsync();
         return result == ContentDialogResult.Primary;
@@ -1431,6 +1554,9 @@ public sealed partial class InternetAccessPage : Page
 
     private async Task BlockPortWithSafetyAsync(ListeningPortItemViewModel vm)
     {
+        await Task.Yield();
+        await Task.Delay(80);
+
         if (!IsElevated())
         {
             await ShowMessageAsync("Administrator Rights Required",
@@ -1470,6 +1596,9 @@ public sealed partial class InternetAccessPage : Page
 
     private async Task UnblockPortWithAuthAsync(ListeningPortItemViewModel vm)
     {
+        await Task.Yield();
+        await Task.Delay(80);
+
         if (!IsElevated())
         {
             await ShowMessageAsync("Administrator Rights Required",
@@ -1494,6 +1623,9 @@ public sealed partial class InternetAccessPage : Page
 
     private async Task BlockAppInboundWithSafetyAsync(ListeningPortItemViewModel vm)
     {
+        await Task.Yield();
+        await Task.Delay(80);
+
         if (!IsElevated())
         {
             await ShowMessageAsync("Administrator Rights Required",
@@ -1526,6 +1658,9 @@ public sealed partial class InternetAccessPage : Page
 
     private async Task UnblockAppInboundWithAuthAsync(ListeningPortItemViewModel vm)
     {
+        await Task.Yield();
+        await Task.Delay(80);
+
         if (!IsElevated())
         {
             await ShowMessageAsync("Administrator Rights Required",
@@ -1910,19 +2045,21 @@ public sealed partial class InternetAccessPage : Page
             adviceCard.Child = adviceStack;
             panel.Children.Add(adviceCard);
 
+            await Task.Yield();
+            await Task.Delay(80);
+
+            var xamlRoot = GetEffectiveXamlRoot();
+            if (xamlRoot == null) return;
+
             var dialog = new ContentDialog
             {
                 Title = $"Port {port.Port} ({port.Protocol}) Details",
                 Content = new ScrollViewer { Content = panel, MaxHeight = 520 },
                 CloseButtonText = "Close",
                 DefaultButton = ContentDialogButton.Close,
-                XamlRoot = XamlRoot ?? this.XamlRoot
+                XamlRoot = xamlRoot,
+                RequestedTheme = GetCurrentActualTheme()
             };
-
-            if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
-            {
-                dialog.RequestedTheme = rootFe.ActualTheme;
-            }
 
             await dialog.ShowAsync();
         }
