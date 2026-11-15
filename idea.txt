@@ -322,40 +322,50 @@ implemented - wifi saved password extraction
 rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
 
 
-right click in taskbar app don't show content menu and show first time in notification area 
-everytime notification isn't seen make it more robust so that user don't miss any notification 
+fixed - right click in taskbar app don't show content menu and show first time in notification area 
+fixed - everytime notification isn't seen make it more robust so that user don't miss any notification 
 
 eye care don't show the loaded templet and just shows blank screen
 keyboard page and wi-fi passwords page: improve keyboard navigation like brightness page 
 sync the quick setting enable/disable toggle and keyboard page enable/disable toggle
-on scroll fix the card above "enable keyboard" card 
+fixed - on scroll fix the card above "enable keyboard" card 
 
 speed meter:
-remove the on/off and current speed status from the card
-remove the "start with AppLock" card as "show speed meter" is enabled then widget will show automatically
-when the "show speed meter" is toggled on but still when the app is loads it don't show widget
-in the preview graph isn't shown and full preview isn't shown, we need to increase the length of preview to show full preview
+fixed - remove the on/off and current speed status from the card
+fixed - remove the "start with AppLock" card as "show speed meter" is enabled then widget will show automatically
+fixed - when the "show speed meter" is toggled on but still when the app is loads it don't show widget
+fixed - in the preview graph isn't shown and full preview isn't shown, we need to increase the length of preview to show full preview
+fixed - for background color, text color, download color, upload color show the color picker button and then show the color picker to choose the color and show the value of selected color as like it's in background color. so that it will use less space
+fixed - when the layout is horizontal then "mini graph" isn't show in full width
+fixed - snap to screen edges isn't working
+fixed - add reset button to reset hotkey
+fixed - show the toggle next to the text 
+fixed - in "presets and settings file" it don't show selected dropdown and shows "minimal" as hardcoded
+fixed - export settings... and import settings aren't working
+fixed - sync view history/data usage history dialog with the theme
+fixed - export CSV button isn't working
+fixed - sync "reset data usage" dialog with theme
+fixed - add the warn for download & upload & disk too
+fixed - show the toast notification when warning values is crossed of ram, cpu, download, upload "app.exe is using high cpu or ram or disk or download or upload"
+fixed - Battery charge/discharge/plugged in/plugged out alert: notify at 80% or 20%, custom percentage, using the same custom toast as Speed Meter.
+fixed - show arrows, border, compact show this toggle next to text instead of wrapping it down below
+fixed - in extra stats card move "ram format, warn cpu above %, warn ram above %" below the warn disk above %, warn download above mbps, warn upload above mbps"
+fixed - when all top apps line is toggled on then show all four top apps currently it shows only CPU
+fixed - in data usage history it don't show used value when selected or hovered on bar
 when the appearance theme is set to transparent and glass then widget background still shows black and background opacity has no effect
 when the appearance theme is set to "follows window" then show mica background effect instead of black background
-for background color, text color, download color, upload color show the color picker button and then show the color picker to choose the color and show the value of selected color as like it's in background color. so that it will use less space
-when the layout is horizontal then "mini graph" isn't show in full width
-snap to screen edges isn't working
-add reset button to reset hotkey
-show the toggle next to the text 
-in "presets and settings file" it don't show selected dropdown and shows "minimal" as hardcoded
-export settings... and import settings aren't working
-sync view history/data usage history dialog with the theme
-export CSV button isn't working
-sync "reset data usage" dialog with theme
-add the warn for download & upload & disk too
-show the toast notification when warning values is crossed of ram, cpu, download, upload "app.exe is using high cpu or ram or disk or download or upload"
-Battery charge alert: notify at 80% or 20%, using the same custom toast as Speed Meter.
-speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling and user can toggle it
+also add the support of custom battery values like 10, 20, 50, 70, 100 instead of 80% and 20%
+show the color preview of selected color in appearance card
+remember the position of widget 
+fixed - in appearance card when background color, text color, download color, upload color is selected then selected color don't show in preview which is infront of color code value
+when notification is shown black window border flashes everytime when i choose the color picker and notification flashes then color picker gets closed 
+speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
+font weight has no effect
 
 
 
 
-keyboard page: Caps/Num/fn lock indicator: a small on-screen pop-up when you press them.
+implemented - keyboard page: Caps/Num/fn lock indicator: a small on-screen pop-up when you press them.
 Wi-Fi password and QR share: show saved Wi-Fi passwords as a QR code
 Screen time tracker: per-app foreground time with daily and weekly charts, and a limit that feeds into Self-Discipline.
 Secure folder vault: an encrypted folder that opens only after AppLock authentication.

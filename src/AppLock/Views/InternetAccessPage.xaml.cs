@@ -16,6 +16,8 @@ using Windows.Storage.Pickers;
 using WinRT.Interop;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI;
+using Microsoft.UI.Xaml.Data;
+using Windows.UI;
 
 namespace AppLock.Views;
 
@@ -24,6 +26,7 @@ public sealed partial class InternetAccessPage : Page
     private readonly IFirewallService _firewallService;
     private readonly InternetAccessViewModel _viewModel;
     private readonly ActiveConnectionViewModel _activeConnectionsViewModel;
+    private readonly NetworkScannerViewModel _networkScannerViewModel;
     private readonly InstalledAppsService _installedAppsService;
     private readonly SettingsStore _settingsStore;
     private bool _isElevated;
@@ -32,6 +35,7 @@ public sealed partial class InternetAccessPage : Page
 
     public InternetAccessViewModel ViewModel => _viewModel;
     public ActiveConnectionViewModel ActiveConnectionsViewModel => _activeConnectionsViewModel;
+    public NetworkScannerViewModel NetworkScannerViewModel => _networkScannerViewModel;
 
     public InternetAccessPage()
     {
@@ -41,6 +45,7 @@ public sealed partial class InternetAccessPage : Page
         _settingsStore = ServiceContainer.SettingsStore;
         _viewModel = new InternetAccessViewModel(_firewallService, _settingsStore, _installedAppsService);
         _activeConnectionsViewModel = new ActiveConnectionViewModel();
+        _networkScannerViewModel = new NetworkScannerViewModel(ServiceContainer.NetworkScannerService, _settingsStore);
         DataContext = _viewModel;
         Loaded += InternetAccessPage_Loaded;
         Unloaded += InternetAccessPage_Unloaded;
@@ -49,6 +54,7 @@ public sealed partial class InternetAccessPage : Page
     private void InternetAccessPage_Unloaded(object sender, RoutedEventArgs e)
     {
         _activeConnectionsViewModel.StopAutoRefresh();
+        _networkScannerViewModel.Dispose();
     }
 
     private async void InternetAccessPage_Loaded(object sender, RoutedEventArgs e)
@@ -57,6 +63,16 @@ public sealed partial class InternetAccessPage : Page
         await CheckFirewallStatusAsync();
         await _viewModel.LoadAppsAsync();
         UpdateAppsVisibility();
+
+        // Wire the dispatcher queue so scanner callbacks can marshal to UI thread
+        _networkScannerViewModel.SetDispatcherQueue(DispatcherQueue);
+        _networkScannerViewModel.LoadDevices();
+        UpdateNetworkDevicesVisibility();
+        InitializeScanIntervalComboBox();
+
+        // Resume the scan loop if it was left enabled
+        if (ServiceContainer.Settings.NetworkDeviceScanner.ScannerEnabled)
+            ServiceContainer.NetworkScannerService.Start();
     }
 
     private void CheckElevation()
@@ -110,8 +126,10 @@ public sealed partial class InternetAccessPage : Page
     {
         AppsTabContent.Visibility = Visibility.Visible;
         ActiveConnectionsTabContent.Visibility = Visibility.Collapsed;
+        NetworkDevicesTabContent.Visibility = Visibility.Collapsed;
         AppsTabButton.Style = (Style)Resources["AccentButtonStyle"];
         ActiveConnectionsTabButton.Style = null;
+        NetworkDevicesTabButton.Style = null;
         
         // Stop auto-refresh when leaving Active connections tab
         _activeConnectionsViewModel.StopAutoRefresh();
@@ -121,12 +139,27 @@ public sealed partial class InternetAccessPage : Page
     {
         AppsTabContent.Visibility = Visibility.Collapsed;
         ActiveConnectionsTabContent.Visibility = Visibility.Visible;
+        NetworkDevicesTabContent.Visibility = Visibility.Collapsed;
         ActiveConnectionsTabButton.Style = (Style)Resources["AccentButtonStyle"];
         AppsTabButton.Style = null;
+        NetworkDevicesTabButton.Style = null;
         
         // Start auto-refresh when tab becomes visible
         _ = _activeConnectionsViewModel.LoadConnectionsAsync();
         _activeConnectionsViewModel.StartAutoRefresh(3);
+    }
+
+    private void NetworkDevicesTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppsTabContent.Visibility = Visibility.Collapsed;
+        ActiveConnectionsTabContent.Visibility = Visibility.Collapsed;
+        NetworkDevicesTabContent.Visibility = Visibility.Visible;
+        NetworkDevicesTabButton.Style = (Style)Resources["AccentButtonStyle"];
+        AppsTabButton.Style = null;
+        ActiveConnectionsTabButton.Style = null;
+
+        _activeConnectionsViewModel.StopAutoRefresh();
+        UpdateNetworkDevicesVisibility();
     }
 
     // Command bar actions
@@ -1040,4 +1073,121 @@ public sealed partial class InternetAccessPage : Page
             await ShowMessageAsync("Export Error", $"Failed to export rules:\n\n{errorDetails}");
         }
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Network Devices tab
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void UpdateNetworkDevicesVisibility()
+    {
+        bool hasDevices = _networkScannerViewModel.Devices.Count > 0;
+        NetworkDevicesEmptyState.Visibility = hasDevices ? Visibility.Collapsed : Visibility.Visible;
+        NetworkDevicesListView.Visibility   = hasDevices ? Visibility.Visible  : Visibility.Collapsed;
+
+        if (hasDevices)
+            NetworkDevicesListView.ItemsSource = _networkScannerViewModel.Devices;
+    }
+
+    private void InitializeScanIntervalComboBox()
+    {
+        int saved = ServiceContainer.Settings.NetworkDeviceScanner.ScanIntervalSeconds;
+        // Pick the closest option; default to 30 s
+        int[] options = { 10, 30, 60, 120, 300 };
+        int best = options.OrderBy(o => Math.Abs(o - saved)).First();
+        for (int i = 0; i < ScanIntervalComboBox.Items.Count; i++)
+        {
+            if (ScanIntervalComboBox.Items[i] is ComboBoxItem item &&
+                item.Tag is string tag && tag == best.ToString())
+            {
+                ScanIntervalComboBox.SelectedIndex = i;
+                return;
+            }
+        }
+        ScanIntervalComboBox.SelectedIndex = 1; // 30 s fallback
+    }
+
+    private void ScanIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ScanIntervalComboBox.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tag &&
+            int.TryParse(tag, out int seconds))
+        {
+            _networkScannerViewModel.ScanIntervalSeconds = seconds;
+        }
+    }
+
+    private async void ScanNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        ScanNowButton.IsEnabled = false;
+        try
+        {
+            await _networkScannerViewModel.ScanNowAsync();
+            UpdateNetworkDevicesVisibility();
+        }
+        finally
+        {
+            ScanNowButton.IsEnabled = true;
+        }
+    }
+
+    private async void ForgetAllDevices_Click(object sender, RoutedEventArgs e)
+    {
+        if (_networkScannerViewModel.Devices.Count == 0) return;
+
+        var dialog = new ContentDialog
+        {
+            Title = "Forget all devices",
+            Content = "This will remove all known devices from the list. The scanner will treat every device as new on the next scan.",
+            PrimaryButtonText = "Forget all",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            _networkScannerViewModel.ForgetAll();
+            UpdateNetworkDevicesVisibility();
+        }
+    }
+
+    private void TrustDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is NetworkDeviceViewModel vm)
+        {
+            _networkScannerViewModel.TrustDevice(vm);
+        }
+    }
+
+    private void ForgetDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is NetworkDeviceViewModel vm)
+        {
+            _networkScannerViewModel.ForgetDevice(vm);
+            UpdateNetworkDevicesVisibility();
+        }
+    }
+
+    private void DeviceName_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Friendly name is two-way bound; just persist when focus leaves the box
+        _settingsStore.Save(ServiceContainer.Settings);
+    }
+}
+
+// ── Converter: bool (IsTrusted) → dot colour ──────────────────────────────────
+public class BoolToTrustColorConverter : IValueConverter
+{
+    // Trusted → green, Untrusted → orange
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush TrustedBrush
+        = new(Color.FromArgb(255, 52, 199, 89));
+    private static readonly Microsoft.UI.Xaml.Media.SolidColorBrush UntrustedBrush
+        = new(Color.FromArgb(255, 255, 149, 0));
+
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is bool b && b ? TrustedBrush : UntrustedBrush;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
 }

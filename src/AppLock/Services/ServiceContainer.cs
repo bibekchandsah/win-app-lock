@@ -48,6 +48,7 @@ public static class ServiceContainer
     private static ViewModels.KeyboardViewModel? _keyboardViewModel;
     private static LockKeyIndicatorService? _lockKeyIndicatorService;
     private static AppLock.Services.SpeedMeter.SpeedMeterService? _speedMeterService;
+    private static AppLock.Services.Network.NetworkScannerService? _networkScannerService;
 
     public static NotificationService NotificationService
     {
@@ -291,8 +292,10 @@ public static class ServiceContainer
         _brightnessHotkeyManager?.Dispose();
         _volumeMixerHotkeyManager?.Dispose();
         _speedMeterService?.Dispose();
+        _networkScannerService?.Dispose();
 
         _speedMeterService = null;
+        _networkScannerService = null;
         _settingsStore = null;
         _settings = null;
         _authService = null;
@@ -571,6 +574,18 @@ public static class ServiceContainer
     // ── Speed Meter ───────────────────────────────────────────────────────────
 
     public static AppLock.Services.SpeedMeter.SpeedMeterService? SpeedMeterService => _speedMeterService;
+
+    // ── Network Device Scanner ─────────────────────────────────────────────────
+
+    public static AppLock.Services.Network.NetworkScannerService NetworkScannerService
+    {
+        get
+        {
+            if (_networkScannerService == null)
+                _networkScannerService = new AppLock.Services.Network.NetworkScannerService(SettingsStore);
+            return _networkScannerService;
+        }
+    }
 
     public static event EventHandler<bool>? SpeedMeterEnabledChanged;
 

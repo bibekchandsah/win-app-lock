@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 namespace AppLock.Models;
 
+
+
 public class AppSettings
 {
     // Security
@@ -41,6 +43,10 @@ public class AppSettings
 
     // Network/Firewall rules
     public List<NetworkRuleEntry> NetworkRules { get; set; } = new();
+
+    // Network Device Scanner
+    public NetworkDeviceSettings NetworkDeviceScanner { get; set; } = new();
+    public List<NetworkDeviceEntry> KnownNetworkDevices { get; set; } = new();
     
     // Firewall settings
     public bool RequirePasswordForFirewallUnblock { get; set; } = true;

@@ -12,6 +12,7 @@
     <Page.Resources>
         <!-- Converters -->
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <local:BoolToTrustColorConverter x:Key="BoolToColorConverter"/>
         
         <!-- Color converter for status chips -->
         <SolidColorBrush x:Key="BlockedColor" Color="#DC3545"/>
@@ -97,6 +98,12 @@
                         Click="ActiveConnectionsTabButton_Click"
                         AutomationProperties.Name="Active connections tab"
                         AutomationProperties.HelpText="View processes currently using network connections"
+                        Padding="16,8"/>
+                <Button x:Name="NetworkDevicesTabButton"
+                        Content="Network devices"
+                        Click="NetworkDevicesTabButton_Click"
+                        AutomationProperties.Name="Network devices tab"
+                        AutomationProperties.HelpText="Scan Wi-Fi devices and get alerted when an unknown one joins"
                         Padding="16,8"/>
             </StackPanel>
 
@@ -468,7 +475,255 @@
                             VerticalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
-            </Grid>
+
+                <!-- ═══════════════════════════════════════════════════════════
+                     Network Devices Tab
+                     ═══════════════════════════════════════════════════════════ -->
+                <Grid x:Name="NetworkDevicesTabContent" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Settings card -->
+                    <Border Grid.Row="0"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="20,16"
+                            Margin="0,0,0,12">
+                        <Grid ColumnSpacing="24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="16">
+                                <!-- Enable scanner row -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Network scanner"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"/>
+                                        <TextBlock Text="Periodically scan the ARP table to discover devices on your Wi-Fi or LAN."
+                                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1"
+                                                 x:Name="ScannerEnabledToggle"
+                                                 IsOn="{x:Bind NetworkScannerViewModel.ScannerEnabled, Mode=TwoWay}"
+                                                 OnContent=""
+                                                 OffContent=""
+                                                 MinWidth="0"
+                                                 VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <!-- Alert row -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Alert on new device"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"/>
+                                        <TextBlock Text="Show a notification when a device with an unknown MAC address joins the network."
+                                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1"
+                                                 IsOn="{x:Bind NetworkScannerViewModel.AlertOnNewDevice, Mode=TwoWay}"
+                                                 OnContent=""
+                                                 OffContent=""
+                                                 MinWidth="0"
+                                                 VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Scan interval picker -->
+                            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center" MinWidth="130">
+                                <TextBlock Text="Scan interval"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <ComboBox x:Name="ScanIntervalComboBox"
+                                          HorizontalAlignment="Stretch"
+                                          SelectionChanged="ScanIntervalComboBox_SelectionChanged">
+                                    <ComboBoxItem Tag="10"  Content="Every 10 s"/>
+                                    <ComboBoxItem Tag="30"  Content="Every 30 s"/>
+                                    <ComboBoxItem Tag="60"  Content="Every 1 min"/>
+                                    <ComboBoxItem Tag="120" Content="Every 2 min"/>
+                                    <ComboBoxItem Tag="300" Content="Every 5 min"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Toolbar -->
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="ScanNowButton"
+                                    Click="ScanNowButton_Click"
+                                    Style="{StaticResource AccentButtonStyle}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8D4;" FontSize="14"/>
+                                    <TextBlock Text="Scan now"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Click="ForgetAllDevices_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                                    <TextBlock Text="Forget all"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="{x:Bind NetworkScannerViewModel.LastScanText, Mode=OneWay}"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Device list / Empty state -->
+                    <Grid Grid.Row="2">
+                        <!-- Empty state -->
+                        <StackPanel x:Name="NetworkDevicesEmptyState"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="12"
+                                    Visibility="Visible">
+                            <FontIcon Glyph="&#xE968;"
+                                      FontSize="56"
+                                      Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            <TextBlock Text="No devices found yet"
+                                       Style="{StaticResource SubtitleTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Enable the scanner or press Scan now to discover devices on your network."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       MaxWidth="400"/>
+                        </StackPanel>
+
+                        <!-- Device ListView -->
+                        <ListView x:Name="NetworkDevicesListView"
+                                  Visibility="Collapsed"
+                                  SelectionMode="None"
+                                  Padding="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="12,10" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/> <!-- status dot -->
+                                            <ColumnDefinition Width="*"/>    <!-- info -->
+                                            <ColumnDefinition Width="160"/>  <!-- MAC -->
+                                            <ColumnDefinition Width="130"/>  <!-- first seen -->
+                                            <ColumnDefinition Width="130"/>  <!-- last seen -->
+                                            <ColumnDefinition Width="Auto"/> <!-- actions -->
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Trust indicator dot -->
+                                        <Ellipse Grid.Column="0"
+                                                 Width="10" Height="10"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{Binding IsTrusted, Converter={StaticResource BoolToColorConverter}}"/>
+
+                                        <!-- Device info -->
+                                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="14"/>
+                                            <TextBlock Text="{Binding IpAddress}"
+                                                       FontSize="11"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       FontFamily="Consolas"/>
+                                        </StackPanel>
+
+                                        <!-- MAC address -->
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding MacAddress}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                                        <!-- First seen -->
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="First seen"
+                                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding FirstSeen}"
+                                                       FontSize="12"/>
+                                        </StackPanel>
+
+                                        <!-- Last seen -->
+                                        <StackPanel Grid.Column="4" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Last seen"
+                                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding LastSeen}"
+                                                       FontSize="12"/>
+                                        </StackPanel>
+
+                                        <!-- Action buttons -->
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <!-- Rename inline -->
+                                            <TextBox Text="{Binding FriendlyName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                     PlaceholderText="Name…"
+                                                     Width="110"
+                                                     VerticalAlignment="Center"
+                                                     LostFocus="DeviceName_LostFocus"/>
+
+                                            <!-- Trust / Untrust -->
+                                            <Button Click="TrustDevice_Click"
+                                                    Tag="{Binding}"
+                                                    VerticalAlignment="Center"
+                                                    ToolTipService.ToolTip="Mark as trusted">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="14"/>
+                                            </Button>
+
+                                            <!-- Forget -->
+                                            <Button Click="ForgetDevice_Click"
+                                                    Tag="{Binding}"
+                                                    VerticalAlignment="Center"
+                                                    ToolTipService.ToolTip="Remove from list">
+                                                <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <!-- Status bar -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <ProgressRing Width="16" Height="16"
+                                      IsActive="{x:Bind NetworkScannerViewModel.IsScanning, Mode=OneWay}"/>
+                        <TextBlock Text="{x:Bind NetworkScannerViewModel.StatusText, Mode=OneWay}"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+            </Grid>  <!-- end tab content container -->
         </Grid>
     </Grid>
 </Page>
