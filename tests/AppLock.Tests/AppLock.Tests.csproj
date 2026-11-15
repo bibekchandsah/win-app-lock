@@ -79,6 +79,9 @@
     <Compile Include="..\..\src\AppLock\Services\Firewall\RuleSyncService.cs" Link="Services\Firewall\RuleSyncService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\PortClassifier.cs" Link="Services\Firewall\PortClassifier.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\ListeningPortService.cs" Link="Services\Firewall\ListeningPortService.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortItemViewModel.cs" Link="ViewModels\ListeningPortItemViewModel.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortGroupViewModel.cs" Link="ViewModels\ListeningPortGroupViewModel.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortsViewModel.cs" Link="ViewModels\ListeningPortsViewModel.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\IBitLockerService.cs" Link="Services\BitLocker\IBitLockerService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerSupportService.cs" Link="Services\BitLocker\BitLockerSupportService.cs" />
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerService.cs" Link="Services\BitLocker\BitLockerService.cs" />

@@ -184,8 +184,31 @@ public partial class ListeningPortItemViewModel : ObservableObject
 
     public bool IsReachable => Scope != PortScope.LocalhostOnly;
 
-    public ListeningPortItemViewModel(ListeningPort model)
+    public DateTime DiscoveredAt { get; }
+    public bool IsNew => (DateTime.UtcNow - DiscoveredAt).TotalSeconds < 60;
+
+    public bool IsIPv4 => LocalAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork;
+    public bool IsIPv6 => LocalAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
+    public bool IsBlocked => Exposure == FirewallExposure.BlockedByAppLock || Exposure == FirewallExposure.BlockedByDefault;
+
+    public bool IsSystemOrService =>
+        (Services != null && Services.Count > 0) ||
+        (!string.IsNullOrEmpty(AppName) && (
+            AppName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+            AppName.IndexOf("svchost", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("services.exe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("lsass.exe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            AppName.IndexOf("wininit.exe", StringComparison.OrdinalIgnoreCase) >= 0)) ||
+        Pid == 4;
+
+    public void RefreshIsNew()
+    {
+        OnPropertyChanged(nameof(IsNew));
+    }
+
+    public ListeningPortItemViewModel(ListeningPort model, bool isNewlyDiscovered = false, DateTime? discoveredAt = null)
     {
         Model = model;
+        DiscoveredAt = discoveredAt ?? (isNewlyDiscovered ? DateTime.UtcNow : DateTime.MinValue);
     }
 }

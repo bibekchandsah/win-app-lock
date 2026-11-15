@@ -49,7 +49,13 @@ public sealed partial class InternetAccessPage : Page
         _activeConnectionsViewModel = new ActiveConnectionViewModel();
         _networkScannerViewModel = new NetworkScannerViewModel(ServiceContainer.NetworkScannerService, _settingsStore);
         ListeningPortService.SettingsProvider = () => ServiceContainer.Settings;
-        _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), DispatcherQueue);
+        _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), DispatcherQueue)
+        {
+            SettingsProvider = () => ServiceContainer.Settings,
+            SettingsSaver = s => _settingsStore.Save(s)
+        };
+        _listeningPortsViewModel.LoadSettings();
+        _listeningPortsViewModel.VisibilityOrFilterUpdated += UpdateListeningPortsVisibility;
         DataContext = _viewModel;
         Loaded += InternetAccessPage_Loaded;
         Unloaded += InternetAccessPage_Unloaded;
@@ -189,6 +195,7 @@ public sealed partial class InternetAccessPage : Page
         NetworkDevicesTabButton.Style = null;
 
         _activeConnectionsViewModel.StopAutoRefresh();
+        UpdateListeningPortsVisibility();
         _ = _listeningPortsViewModel.LoadPortsAsync(isManualOrInitial: true);
         _listeningPortsViewModel.StartAutoRefresh(5);
     }
@@ -1166,12 +1173,74 @@ public sealed partial class InternetAccessPage : Page
         if (sender is Button btn && btn.Tag is string tag)
         {
             _listeningPortsViewModel.SelectedFilter = tag;
+            UpdatePortFilterChipStyles(tag);
+        }
+    }
 
-            PortFilterAllButton.Style = tag == "All" ? (Style)Resources["AccentButtonStyle"] : null;
-            PortFilterReachableButton.Style = tag == "Reachable" ? (Style)Resources["AccentButtonStyle"] : null;
-            PortFilterLocalhostButton.Style = tag == "Localhost" ? (Style)Resources["AccentButtonStyle"] : null;
-            PortFilterTcpButton.Style = tag == "TCP" ? (Style)Resources["AccentButtonStyle"] : null;
-            PortFilterUdpButton.Style = tag == "UDP" ? (Style)Resources["AccentButtonStyle"] : null;
+    private void UpdatePortFilterChipStyles(string activeTag)
+    {
+        Button[] buttons = {
+            PortFilterAllButton,
+            PortFilterReachableButton,
+            PortFilterLocalhostButton,
+            PortFilterBlockedButton,
+            PortFilterTcpButton,
+            PortFilterUdpButton,
+            PortFilterIpv4Button,
+            PortFilterIpv6Button
+        };
+
+        var accentStyle = (Style)Resources["AccentButtonStyle"];
+        foreach (var btn in buttons)
+        {
+            if (btn != null && btn.Tag is string t)
+            {
+                btn.Style = t.Equals(activeTag, StringComparison.OrdinalIgnoreCase) ? accentStyle : null;
+            }
+        }
+    }
+
+    private void PortSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PortSortComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            if (Enum.TryParse<ListeningPortSortOrder>(tag, true, out var order))
+            {
+                _listeningPortsViewModel.SortBy = order;
+            }
+        }
+    }
+
+    private void UpdateListeningPortsVisibility()
+    {
+        bool hasItems = _listeningPortsViewModel.HasItems;
+        ListeningPortsEmptyState.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
+
+        if (_listeningPortsViewModel.GroupByApp)
+        {
+            ListeningPortsGroupedListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+            ListeningPortsListView.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ListeningPortsGroupedListView.Visibility = Visibility.Collapsed;
+            ListeningPortsListView.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (!hasItems)
+        {
+            bool isFiltered = !string.IsNullOrWhiteSpace(_listeningPortsViewModel.SearchQuery) ||
+                              _listeningPortsViewModel.SelectedFilter != "All";
+            if (isFiltered)
+            {
+                ListeningPortsEmptyStateTitle.Text = "No matching ports";
+                ListeningPortsEmptyStateSubtitle.Text = "No open ports match your current search query or filter.";
+            }
+            else
+            {
+                ListeningPortsEmptyStateTitle.Text = "No listening ports found";
+                ListeningPortsEmptyStateSubtitle.Text = "No sockets are currently waiting for incoming connections.";
+            }
         }
     }
 

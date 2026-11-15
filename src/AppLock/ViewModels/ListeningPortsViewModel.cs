@@ -8,19 +8,41 @@ using AppLock.Models;
 using AppLock.Services.Firewall;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+#if !APPLOCK_TESTS
 using Microsoft.UI.Dispatching;
+#endif
 
 namespace AppLock.ViewModels;
+
+public enum ListeningPortSortOrder
+{
+    Port,
+    App,
+    Scope,
+    Pid
+}
+
+#if APPLOCK_TESTS
+public class DispatcherQueue
+{
+    public bool TryEnqueue(Action a) { a(); return true; }
+}
+#endif
 
 public partial class ListeningPortsViewModel : ObservableObject, IDisposable
 {
     private readonly IListeningPortService _portService;
-    private readonly DispatcherQueue _dispatcherQueue;
+    private readonly DispatcherQueue? _dispatcherQueue;
     private readonly List<ListeningPortItemViewModel> _allPorts = new();
     private System.Threading.Timer? _autoRefreshTimer;
+    private bool _isFirstSnapshot = true;
     private bool _disposed;
 
+    public Func<AppSettings?>? SettingsProvider { get; set; }
+    public Action<AppSettings>? SettingsSaver { get; set; }
+
     public ObservableCollection<ListeningPortItemViewModel> Ports { get; } = new();
+    public ObservableCollection<ListeningPortGroupViewModel> GroupedPorts { get; } = new();
 
     [ObservableProperty] private int _totalListeningCount;
     [ObservableProperty] private int _reachableCount;
@@ -29,12 +51,54 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _lastUpdatedText = "Never";
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _searchQuery = string.Empty;
-    [ObservableProperty] private string _selectedFilter = "All"; // All, Reachable, Localhost, TCP, UDP
+    [ObservableProperty] private string _selectedFilter = "All"; // All, Reachable, Localhost, Blocked, TCP, UDP, IPv4, IPv6
+    [ObservableProperty] private bool _groupByApp = true;
+    [ObservableProperty] private bool _showSystemServices = true;
+    [ObservableProperty] private bool _hideUdp = false;
+    [ObservableProperty] private ListeningPortSortOrder _sortBy = ListeningPortSortOrder.Port;
+    [ObservableProperty] private bool _hasItems;
 
-    public ListeningPortsViewModel(IListeningPortService portService, DispatcherQueue dispatcherQueue)
+    public event Action? VisibilityOrFilterUpdated;
+
+    public ListeningPortsViewModel(IListeningPortService portService, DispatcherQueue? dispatcherQueue = null)
     {
         _portService = portService;
         _dispatcherQueue = dispatcherQueue;
+    }
+
+    public void LoadSettings()
+    {
+        var s = SettingsProvider?.Invoke()?.ListeningPorts;
+        if (s != null)
+        {
+            GroupByApp = s.GroupByApp;
+            ShowSystemServices = s.ShowSystemServices;
+            HideUdp = s.HideUdp;
+        }
+    }
+
+    private void SaveSettings()
+    {
+        var s = SettingsProvider?.Invoke();
+        if (s != null)
+        {
+            s.ListeningPorts.GroupByApp = GroupByApp;
+            s.ListeningPorts.ShowSystemServices = ShowSystemServices;
+            s.ListeningPorts.HideUdp = HideUdp;
+            SettingsSaver?.Invoke(s);
+        }
+    }
+
+    private void RunOnDispatcher(Action action)
+    {
+        if (_dispatcherQueue != null)
+        {
+            _dispatcherQueue.TryEnqueue(() => action());
+        }
+        else
+        {
+            action();
+        }
     }
 
     public async Task LoadPortsAsync(bool isManualOrInitial = false, CancellationToken ct = default)
@@ -48,7 +112,7 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         {
             var rawList = await _portService.GetListeningPortsAsync(ct);
 
-            _dispatcherQueue.TryEnqueue(() =>
+            RunOnDispatcher(() =>
             {
                 ApplySnapshot(rawList);
             });
@@ -62,17 +126,16 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         {
             if (isManualOrInitial || IsLoading)
             {
-                _dispatcherQueue.TryEnqueue(() => IsLoading = false);
+                RunOnDispatcher(() => IsLoading = false);
             }
         }
     }
 
     /// <summary>
-    /// In-place diff update — same pattern as ActiveConnectionViewModel and NetworkScannerViewModel.
-    /// Mutates existing rows in place without clearing the collection.
-    /// Prevents UI flicker, maintains scroll position, and preserves user focus.
+    /// In-place diff update — preserves scroll position, expand/collapse state, and eliminates UI flicker.
+    /// Distinguishes brand new ports with a "New" badge for 60 seconds.
     /// </summary>
-    private void ApplySnapshot(IReadOnlyList<ListeningPort> rawList)
+    public void ApplySnapshot(IReadOnlyList<ListeningPort> rawList)
     {
         var freshByKey = rawList
             .GroupBy(p => $"{p.Protocol}:{p.LocalAddress}:{p.Port}:{p.Pid}")
@@ -88,6 +151,7 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             {
                 seenKeys.Add(existing.Key);
                 existing.UpdateFrom(fresh);
+                existing.RefreshIsNew();
             }
             else
             {
@@ -96,15 +160,18 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         }
 
         // 2. Append new items
+        bool markAsNew = !_isFirstSnapshot;
         foreach (var p in rawList.OrderBy(p => p.Port).ThenBy(p => p.Protocol))
         {
             var key = $"{p.Protocol}:{p.LocalAddress}:{p.Port}:{p.Pid}";
             if (!seenKeys.Contains(key))
             {
                 seenKeys.Add(key);
-                _allPorts.Add(new ListeningPortItemViewModel(p));
+                _allPorts.Add(new ListeningPortItemViewModel(p, isNewlyDiscovered: markAsNew));
             }
         }
+
+        _isFirstSnapshot = false;
 
         TotalListeningCount = _allPorts.Count;
         ReachableCount = _allPorts.Count(p => p.IsReachable);
@@ -121,15 +188,28 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         await LoadPortsAsync(isManualOrInitial: true);
     }
 
-    partial void OnSearchQueryChanged(string value)
+    partial void OnSearchQueryChanged(string value) => ApplyFilter();
+    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+
+    partial void OnGroupByAppChanged(bool value)
     {
+        SaveSettings();
+        VisibilityOrFilterUpdated?.Invoke();
+    }
+
+    partial void OnShowSystemServicesChanged(bool value)
+    {
+        SaveSettings();
         ApplyFilter();
     }
 
-    partial void OnSelectedFilterChanged(string value)
+    partial void OnHideUdpChanged(bool value)
     {
+        SaveSettings();
         ApplyFilter();
     }
+
+    partial void OnSortByChanged(ListeningPortSortOrder value) => ApplyFilter();
 
     public void ApplyFilter()
     {
@@ -147,6 +227,10 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         {
             filtered = filtered.Where(p => p.Scope == PortScope.LocalhostOnly);
         }
+        else if (filter.Equals("Blocked", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(p => p.IsBlocked);
+        }
         else if (filter.Equals("TCP", StringComparison.OrdinalIgnoreCase))
         {
             filtered = filtered.Where(p => p.Protocol.Equals("TCP", StringComparison.OrdinalIgnoreCase));
@@ -155,8 +239,27 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         {
             filtered = filtered.Where(p => p.Protocol.Equals("UDP", StringComparison.OrdinalIgnoreCase));
         }
+        else if (filter.Equals("IPv4", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(p => p.IsIPv4);
+        }
+        else if (filter.Equals("IPv6", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(p => p.IsIPv6);
+        }
 
-        // 2. Search Query
+        // 2. Options / Toggles
+        if (HideUdp)
+        {
+            filtered = filtered.Where(p => !p.Protocol.Equals("UDP", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!ShowSystemServices)
+        {
+            filtered = filtered.Where(p => !p.IsSystemOrService);
+        }
+
+        // 3. Search Query
         if (!string.IsNullOrEmpty(q))
         {
             filtered = filtered.Where(p =>
@@ -173,13 +276,19 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
                 p.ScopeText.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
-        var targetList = filtered
-            .OrderBy(p => p.Port)
-            .ThenBy(p => p.Protocol)
-            .ToList();
+        // 4. Stable Sorting
+        IOrderedEnumerable<ListeningPortItemViewModel> sorted = SortBy switch
+        {
+            ListeningPortSortOrder.App => filtered.OrderBy(p => p.DisplayAppName, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Port),
+            ListeningPortSortOrder.Scope => filtered.OrderByDescending(p => (int)p.Scope).ThenBy(p => p.Port),
+            ListeningPortSortOrder.Pid => filtered.OrderBy(p => p.Pid).ThenBy(p => p.Port),
+            _ => filtered.OrderBy(p => p.Port).ThenBy(p => p.Protocol)
+        };
 
-        // In-place diff update for Ports ObservableCollection (same as ActiveConnectionViewModel)
-        // 1. Remove items that no longer match the filter
+        var targetList = sorted.ToList();
+        HasItems = targetList.Count > 0;
+
+        // 5. In-place diff update for flat Ports list
         for (int i = Ports.Count - 1; i >= 0; i--)
         {
             var existing = Ports[i];
@@ -189,7 +298,6 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             }
         }
 
-        // 2. Add or reorder matching items
         for (int i = 0; i < targetList.Count; i++)
         {
             var targetItem = targetList[i];
@@ -213,15 +321,67 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             else
             {
                 if (i < Ports.Count)
-                {
                     Ports.Insert(i, targetItem);
-                }
                 else
-                {
                     Ports.Add(targetItem);
-                }
             }
         }
+
+        // 6. In-place diff update for GroupedPorts
+        string GetGroupKey(ListeningPortItemViewModel p)
+        {
+            if (!string.IsNullOrEmpty(p.AppPath))
+                return p.AppPath.ToLowerInvariant();
+            if (!string.IsNullOrEmpty(p.AppName))
+                return p.AppName.ToLowerInvariant();
+            return $"pid:{p.Pid}";
+        }
+
+        var groups = targetList.GroupBy(GetGroupKey).ToList();
+
+        IEnumerable<IGrouping<string, ListeningPortItemViewModel>> orderedGroups = SortBy switch
+        {
+            ListeningPortSortOrder.App => groups.OrderBy(g => g.First().DisplayAppName, StringComparer.OrdinalIgnoreCase),
+            ListeningPortSortOrder.Scope => groups.OrderByDescending(g => g.Max(p => (int)p.Scope)).ThenBy(g => g.Min(p => p.Port)),
+            ListeningPortSortOrder.Pid => groups.OrderBy(g => g.First().Pid),
+            _ => groups.OrderBy(g => g.Min(p => p.Port)).ThenBy(g => g.First().AppName)
+        };
+        var orderedGroupList = orderedGroups.ToList();
+
+        for (int i = GroupedPorts.Count - 1; i >= 0; i--)
+        {
+            var existing = GroupedPorts[i];
+            if (!orderedGroupList.Any(g => g.Key == existing.Key))
+            {
+                GroupedPorts.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < orderedGroupList.Count; i++)
+        {
+            var groupData = orderedGroupList[i];
+            var existingGroup = GroupedPorts.FirstOrDefault(g => g.Key == groupData.Key);
+            if (existingGroup != null)
+            {
+                existingGroup.UpdateGroup(groupData);
+                int curIdx = GroupedPorts.IndexOf(existingGroup);
+                if (curIdx != i)
+                {
+                    GroupedPorts.Move(curIdx, i);
+                }
+            }
+            else
+            {
+                var newGroup = new ListeningPortGroupViewModel(groupData.Key);
+                newGroup.UpdateGroup(groupData);
+                if (i < GroupedPorts.Count)
+                    GroupedPorts.Insert(i, newGroup);
+                else
+                    GroupedPorts.Add(newGroup);
+            }
+        }
+
+        VisibilityOrFilterUpdated?.Invoke();
     }
 
     public void StartAutoRefresh(int intervalSeconds = 5)
@@ -229,7 +389,7 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         StopAutoRefresh();
         _autoRefreshTimer = new System.Threading.Timer(_ =>
         {
-            _dispatcherQueue.TryEnqueue(() =>
+            RunOnDispatcher(() =>
             {
                 _ = LoadPortsAsync(isManualOrInitial: false);
             });
