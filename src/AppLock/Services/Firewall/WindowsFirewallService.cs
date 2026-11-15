@@ -476,19 +476,24 @@ public class WindowsFirewallService : IFirewallService
 
                 dynamic rules = policy.Rules;
                 string protoUpper = protocol.ToUpperInvariant();
-                string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
+                string ruleName = $"AppLock - Block port {port}/{protoUpper} (Inbound)";
+                string matchPortProto = $"Block port {port}/{protoUpper}";
 
                 // Remove existing rule if present
                 try
                 {
-                    dynamic? existing = FindRuleByName(rules, ruleName);
-                    if (existing != null)
+                    foreach (dynamic r in rules)
                     {
-                        string grouping = existing.Grouping ?? string.Empty;
-                        if (grouping == APPLOCK_GROUP)
+                        try
                         {
-                            rules.Remove(ruleName);
+                            string rName = r.Name ?? string.Empty;
+                            string rGroup = r.Grouping ?? string.Empty;
+                            if (rGroup == APPLOCK_GROUP && rName.Contains(matchPortProto, StringComparison.OrdinalIgnoreCase))
+                            {
+                                rules.Remove(rName);
+                            }
                         }
+                        catch { }
                     }
                 }
                 catch { }
@@ -528,27 +533,30 @@ public class WindowsFirewallService : IFirewallService
             try
             {
                 Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-                if (policyType == null) return false;
+                if (policyType == null) return true;
 
                 dynamic? policy = Activator.CreateInstance(policyType);
-                if (policy == null) return false;
+                if (policy == null) return true;
 
                 dynamic rules = policy.Rules;
                 string protoUpper = protocol.ToUpperInvariant();
-                string ruleName = $"AppLock – Block port {port}/{protoUpper} (Inbound)";
-
-                dynamic? existing = FindRuleByName(rules, ruleName);
-                if (existing != null)
+                string matchPortProto = $"Block port {port}/{protoUpper}";
+                foreach (dynamic rule in rules)
                 {
-                    string grouping = existing.Grouping ?? string.Empty;
-                    if (grouping == APPLOCK_GROUP)
+                    try
                     {
-                        rules.Remove(ruleName);
-                        LogService.LogFirewallAction("PORT_UNBLOCK", $"{port}/{protoUpper}", $"Rule removed: {ruleName}");
-                        return true;
+                        string rName = rule.Name ?? string.Empty;
+                        string grouping = rule.Grouping ?? string.Empty;
+                        if (grouping == APPLOCK_GROUP && rName.Contains(matchPortProto, StringComparison.OrdinalIgnoreCase))
+                        {
+                            rules.Remove(rName);
+                            LogService.LogFirewallAction("PORT_UNBLOCK", $"{port}/{protoUpper}", $"Rule removed: {rName}");
+                        }
                     }
+                    catch { }
                 }
-                return false;
+
+                return true;
             }
             catch (Exception ex)
             {

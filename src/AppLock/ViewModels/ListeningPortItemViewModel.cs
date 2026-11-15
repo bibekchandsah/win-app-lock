@@ -143,6 +143,24 @@ public partial class ListeningPortItemViewModel : ObservableObject
         }
     }
 
+    public void UpdateExposure(FirewallExposure exposure, string? ruleName, string activeProfile = "All Profiles")
+    {
+        Model = Model with
+        {
+            Exposure = exposure,
+            MatchingRuleName = ruleName,
+            ActiveProfileName = activeProfile
+        };
+        OnPropertyChanged(nameof(Exposure));
+        OnPropertyChanged(nameof(ExposureText));
+        OnPropertyChanged(nameof(ExposureTooltip));
+        OnPropertyChanged(nameof(MatchingRuleName));
+        OnPropertyChanged(nameof(ActiveProfileName));
+        OnPropertyChanged(nameof(IsBlockedByAppLock));
+        OnPropertyChanged(nameof(BlockButtonText));
+        OnPropertyChanged(nameof(IsBlocked));
+    }
+
     public string AddressAndPort => LocalAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
         ? $"[{LocalAddress}]:{Port}"
         : $"{LocalAddress}:{Port}";

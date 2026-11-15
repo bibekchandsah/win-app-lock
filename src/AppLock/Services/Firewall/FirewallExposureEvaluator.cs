@@ -44,6 +44,15 @@ public class FirewallExposureEvaluator
     private static DateTime _lastCacheTime = DateTime.MinValue;
     private static readonly object _syncLock = new();
 
+    public static void InvalidateCache()
+    {
+        lock (_syncLock)
+        {
+            _cachedPolicy = null;
+            _lastCacheTime = DateTime.MinValue;
+        }
+    }
+
     public static ExposureEvaluationResult Evaluate(
         PortScope scope,
         string protocol,

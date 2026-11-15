@@ -16,7 +16,10 @@ public class FirewallAuthService
     /// <summary>
     /// Check if authentication is required for unblock/remove operations
     /// </summary>
-    public bool RequiresAuthForUnblock => ServiceContainer.Settings.RequirePasswordForFirewallUnblock;
+    public bool RequiresAuthForUnblock => 
+        ServiceContainer.Settings.RequirePasswordForFirewallUnblock &&
+        ServiceContainer.Settings.PasswordHash != null &&
+        ServiceContainer.Settings.PasswordHash.Length > 0;
 
     /// <summary>
     /// Invalidate the cached authentication
@@ -62,9 +65,9 @@ public class FirewallAuthService
             XamlRoot = xamlRoot
         };
 
-        var result = await dialog.ShowAsync();
+        await dialog.ShowAsync();
         
-        if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && dialog.IsAuthenticated)
+        if (dialog.IsAuthenticated)
         {
             _lastAuthTime = DateTime.Now;
             return true;
@@ -87,9 +90,9 @@ public class FirewallAuthService
             XamlRoot = xamlRoot
         };
 
-        var result = await dialog.ShowAsync();
+        await dialog.ShowAsync();
         
-        if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary && dialog.IsAuthenticated)
+        if (dialog.IsAuthenticated)
         {
             _lastAuthTime = DateTime.Now;
             return true;

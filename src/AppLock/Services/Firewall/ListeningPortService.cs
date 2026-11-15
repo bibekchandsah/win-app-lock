@@ -614,6 +614,12 @@ public class ListeningPortService : IListeningPortService
     private static CachedFwRules? _cachedFw;
     private static DateTime _lastFwCheck = DateTime.MinValue;
 
+    public static void InvalidateCache()
+    {
+        _cachedFw = null;
+        _lastFwCheck = DateTime.MinValue;
+    }
+
     public static Func<AppSettings?>? SettingsProvider { get; set; }
 
     public static FirewallExposure EvaluateExposure(PortScope scope, string protocol, int port, string? appPath)

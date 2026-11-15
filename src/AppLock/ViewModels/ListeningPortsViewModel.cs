@@ -434,6 +434,14 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         settings.ListeningPorts.PortRules.Add(portRule);
         SettingsSaver?.Invoke(settings);
 
+        FirewallExposureEvaluator.InvalidateCache();
+        ListeningPortService.InvalidateCache();
+
+        portItem.UpdateExposure(
+            FirewallExposure.BlockedByAppLock,
+            $"AppLock - Block port {portItem.Port}/{protoUpper}",
+            "All Profiles");
+
         _ = LoadPortsAsync(isManualOrInitial: false);
         return (true, null);
     }
@@ -446,10 +454,36 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         string protoUpper = portItem.Protocol.ToUpperInvariant();
         bool removed = await firewall.RemovePortBlockRuleAsync(protoUpper, portItem.Port);
 
-        settings.ListeningPorts.PortRules.RemoveAll(r =>
+        int removedCount = settings.ListeningPorts.PortRules.RemoveAll(r =>
             string.Equals(r.Protocol, protoUpper, StringComparison.OrdinalIgnoreCase) &&
-            r.LocalPorts == portItem.Port.ToString());
+            (r.LocalPorts == portItem.Port.ToString() || r.LocalPorts == "*"));
+
+        // If this port was also or instead blocked by an inbound app rule, unblock it too
+        if (!string.IsNullOrEmpty(portItem.AppPath))
+        {
+            var appRule = settings.NetworkRules.FirstOrDefault(r =>
+                string.Equals(r.ExePath, portItem.AppPath, StringComparison.OrdinalIgnoreCase));
+            if (appRule != null && appRule.BlockInbound)
+            {
+                appRule.BlockInbound = false;
+                if (!appRule.BlockOutbound)
+                {
+                    appRule.Blocked = false;
+                }
+                string ruleName = appRule.CustomRuleName ?? $"AppLock - {appRule.DisplayName}";
+                await firewall.RemoveRuleAsync($"{ruleName} (Inbound)");
+            }
+        }
+
         SettingsSaver?.Invoke(settings);
+
+        FirewallExposureEvaluator.InvalidateCache();
+        ListeningPortService.InvalidateCache();
+
+        portItem.UpdateExposure(
+            portItem.Scope == PortScope.LocalhostOnly ? FirewallExposure.LocalhostUnfiltered : FirewallExposure.AllowedByRule,
+            null,
+            "All Profiles");
 
         _ = LoadPortsAsync(isManualOrInitial: false);
         return (true, null);
@@ -498,6 +532,14 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
         if (success)
         {
             SettingsSaver?.Invoke(settings);
+            FirewallExposureEvaluator.InvalidateCache();
+            ListeningPortService.InvalidateCache();
+
+            portItem.UpdateExposure(
+                FirewallExposure.BlockedByAppLock,
+                $"{ruleName} (Inbound)",
+                "All Profiles");
+
             _ = LoadPortsAsync(isManualOrInitial: false);
             return (true, null);
         }
@@ -524,6 +566,15 @@ public partial class ListeningPortsViewModel : ObservableObject, IDisposable
             string ruleName = existing.CustomRuleName ?? $"AppLock - {existing.DisplayName}";
             await firewall.RemoveRuleAsync($"{ruleName} (Inbound)");
             SettingsSaver?.Invoke(settings);
+
+            FirewallExposureEvaluator.InvalidateCache();
+            ListeningPortService.InvalidateCache();
+
+            portItem.UpdateExposure(
+                portItem.Scope == PortScope.LocalhostOnly ? FirewallExposure.LocalhostUnfiltered : FirewallExposure.AllowedByRule,
+                null,
+                "All Profiles");
+
             _ = LoadPortsAsync(isManualOrInitial: false);
             return (true, null);
         }
