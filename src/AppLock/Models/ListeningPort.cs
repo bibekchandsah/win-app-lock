@@ -17,6 +17,7 @@ public enum FirewallExposure
     BlockedByAppLock,
     AllowedByRule,
     BlockedByDefault,
+    LocalhostUnfiltered,
     Unknown
 }
 

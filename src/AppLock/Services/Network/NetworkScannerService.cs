@@ -69,6 +69,7 @@ public sealed class NetworkScannerService : IDisposable
 
     private readonly SettingsStore _settingsStore;
     private CancellationTokenSource? _cts;
+    private CancellationTokenSource? _delayCts;
     private bool _disposed;
 
     public NetworkScannerService(SettingsStore settingsStore)
@@ -90,10 +91,20 @@ public sealed class NetworkScannerService : IDisposable
 
     public void Stop()
     {
+        try { _delayCts?.Cancel(); } catch { }
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
         Debug.WriteLine("[NetworkScanner] Stopped");
+    }
+
+    public void UpdateInterval(int seconds)
+    {
+        try
+        {
+            _delayCts?.Cancel();
+        }
+        catch { }
     }
 
     /// <summary>
@@ -117,7 +128,7 @@ public sealed class NetworkScannerService : IDisposable
         {
             try
             {
-                await Task.Run(() => DoScanAndAlert(ct), ct);
+                await DoScanAndAlertAsync(ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -133,25 +144,30 @@ public sealed class NetworkScannerService : IDisposable
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(delay), ct);
+                _delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                await Task.Delay(TimeSpan.FromSeconds(delay), _delayCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                break;
+                if (ct.IsCancellationRequested) break;
+            }
+            finally
+            {
+                _delayCts?.Dispose();
+                _delayCts = null;
             }
         }
     }
 
-    private void DoScanAndAlert(CancellationToken ct)
+    private async Task DoScanAndAlertAsync(CancellationToken ct)
     {
         var gatewayIp = GetGatewayIp();
-        SweepSubnetAsync(gatewayIp, ct).GetAwaiter().GetResult();
+        await SweepSubnetAsync(gatewayIp, ct).ConfigureAwait(false);
 
         var snapshot = DoScan(ct);
         if (ct.IsCancellationRequested) return;
 
-        // Enrich synchronously on the background thread (DNS can block briefly)
-        EnrichAsync(snapshot, ct).GetAwaiter().GetResult();
+        await EnrichAsync(snapshot, ct).ConfigureAwait(false);
         if (ct.IsCancellationRequested) return;
 
         var settings = ServiceContainer.Settings;
@@ -291,7 +307,7 @@ public sealed class NetworkScannerService : IDisposable
         // Online MAC vendor lookups via MACVendors.com (uses API key if configured)
         var apiKey = ServiceContainer.Settings.NetworkDeviceScanner.MacVendorsApiKey;
         var vendorTasks = devices
-            .Where(d => !MacVendorDatabase.IsRandomMac(d.MacAddress))
+            .Where(d => !MacVendorDatabase.IsRandomMac(d.MacAddress) && MacVendorDatabase.GetVendor(d.MacAddress) == "Unknown")
             .Select(d => MacVendorDatabase.LookupOnlineAsync(d.MacAddress, apiKey, ct))
             .ToList();
 

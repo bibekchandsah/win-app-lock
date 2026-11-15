@@ -102,6 +102,7 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
         var s = ServiceContainer.Settings;
         s.NetworkDeviceScanner.ScanIntervalSeconds = clamped;
         _settingsStore.Save(s);
+        _scanner.UpdateInterval(clamped);
     }
 
     // ── Public commands ────────────────────────────────────────────────────────
@@ -327,28 +328,27 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
     public void ApplyFilter()
     {
         var q = SearchQuery?.Trim() ?? string.Empty;
-        FilteredDevices.Clear();
-
-        if (string.IsNullOrEmpty(q))
-        {
-            foreach (var d in Devices)
-                FilteredDevices.Add(d);
-            return;
-        }
+        var targetList = new System.Collections.Generic.List<NetworkDeviceViewModel>();
 
         bool matchOnline = q.Equals("online", StringComparison.OrdinalIgnoreCase) || q.Equals("on", StringComparison.OrdinalIgnoreCase);
         bool matchOffline = q.Equals("offline", StringComparison.OrdinalIgnoreCase) || q.Equals("off", StringComparison.OrdinalIgnoreCase);
 
         foreach (var d in Devices)
         {
+            if (string.IsNullOrEmpty(q))
+            {
+                targetList.Add(d);
+                continue;
+            }
+
             if (matchOnline && d.IsOnline)
             {
-                FilteredDevices.Add(d);
+                targetList.Add(d);
                 continue;
             }
             if (matchOffline && !d.IsOnline)
             {
-                FilteredDevices.Add(d);
+                targetList.Add(d);
                 continue;
             }
 
@@ -358,7 +358,49 @@ public partial class NetworkScannerViewModel : ObservableObject, IDisposable
                 (d.DisplayName != null && d.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
                 (d.Hostname != null && d.Hostname.Contains(q, StringComparison.OrdinalIgnoreCase)))
             {
-                FilteredDevices.Add(d);
+                targetList.Add(d);
+            }
+        }
+
+        // In-place diff update for FilteredDevices ObservableCollection
+        // Matches the non-flickering diff pattern used by ActiveConnectionViewModel and ListeningPortsViewModel
+        // 1. Remove items that no longer match the filter
+        for (int i = FilteredDevices.Count - 1; i >= 0; i--)
+        {
+            var existing = FilteredDevices[i];
+            if (!targetList.Any(t => string.Equals(t.MacAddress, existing.MacAddress, StringComparison.OrdinalIgnoreCase)))
+            {
+                FilteredDevices.RemoveAt(i);
+            }
+        }
+
+        // 2. Add or move existing items to preserve selection and scroll position
+        for (int i = 0; i < targetList.Count; i++)
+        {
+            var target = targetList[i];
+            int existingIdx = -1;
+            for (int j = 0; j < FilteredDevices.Count; j++)
+            {
+                if (string.Equals(FilteredDevices[j].MacAddress, target.MacAddress, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingIdx = j;
+                    break;
+                }
+            }
+
+            if (existingIdx >= 0)
+            {
+                if (existingIdx != i)
+                {
+                    FilteredDevices.Move(existingIdx, i);
+                }
+            }
+            else
+            {
+                if (i < FilteredDevices.Count)
+                    FilteredDevices.Insert(i, target);
+                else
+                    FilteredDevices.Add(target);
             }
         }
     }

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -159,7 +160,7 @@ public class ListeningPortService : IListeningPortService
                             Publisher: null,
                             Services: Array.Empty<string>(),
                             Scope: scope,
-                            Exposure: FirewallExposure.Unknown,
+                            Exposure: EvaluateExposure(scope, "TCP", localPort, procPath),
                             ServiceLabel: null,
                             Hint: null));
                     }
@@ -218,7 +219,7 @@ public class ListeningPortService : IListeningPortService
                             Publisher: null,
                             Services: Array.Empty<string>(),
                             Scope: scope,
-                            Exposure: FirewallExposure.Unknown,
+                            Exposure: EvaluateExposure(scope, "TCP", localPort, procPath),
                             ServiceLabel: null,
                             Hint: null));
                     }
@@ -275,7 +276,7 @@ public class ListeningPortService : IListeningPortService
                         Publisher: null,
                         Services: Array.Empty<string>(),
                         Scope: scope,
-                        Exposure: FirewallExposure.Unknown,
+                        Exposure: EvaluateExposure(scope, "UDP", localPort, procPath),
                         ServiceLabel: null,
                         Hint: null));
 
@@ -331,7 +332,7 @@ public class ListeningPortService : IListeningPortService
                         Publisher: null,
                         Services: Array.Empty<string>(),
                         Scope: scope,
-                        Exposure: FirewallExposure.Unknown,
+                        Exposure: EvaluateExposure(scope, "UDP", localPort, procPath),
                         ServiceLabel: null,
                         Hint: null));
 
@@ -395,4 +396,215 @@ public class ListeningPortService : IListeningPortService
         _processCache[pid] = entry;
         return entry;
     }
+
+    #region Firewall Exposure Estimation
+
+    private class CachedFwRules
+    {
+        public bool IsEnabled = true;
+        public HashSet<int> AllowedTcpPorts = new();
+        public HashSet<int> AllowedUdpPorts = new();
+        public HashSet<int> BlockedTcpPorts = new();
+        public HashSet<int> BlockedUdpPorts = new();
+        public HashSet<string> AllowedApps = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> BlockedApps = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static CachedFwRules? _cachedFw;
+    private static DateTime _lastFwCheck = DateTime.MinValue;
+
+    public static Func<AppSettings?>? SettingsProvider { get; set; }
+
+    public static FirewallExposure EvaluateExposure(PortScope scope, string protocol, int port, string? appPath)
+    {
+        // 1. Loopback addresses are not filtered by Windows Firewall
+        if (scope == PortScope.LocalhostOnly)
+            return FirewallExposure.LocalhostUnfiltered;
+
+        // 2. Check AppLock's rules
+        try
+        {
+            var settings = SettingsProvider?.Invoke();
+            if (settings != null)
+            {
+                // AppLock port rules
+                if (settings.ListeningPorts?.PortRules != null &&
+                    settings.ListeningPorts.PortRules.Any(r =>
+                        string.Equals(r.Protocol, protocol, StringComparison.OrdinalIgnoreCase) &&
+                        IsPortMatch(r.LocalPorts, port)))
+                {
+                    return FirewallExposure.BlockedByAppLock;
+                }
+
+                // AppLock app inbound rules
+                if (!string.IsNullOrEmpty(appPath))
+                {
+                    var appRule = settings.NetworkRules?.FirstOrDefault(r =>
+                        string.Equals(r.ExePath, appPath, StringComparison.OrdinalIgnoreCase));
+                    if (appRule != null && appRule.BlockInbound)
+                    {
+                        return FirewallExposure.BlockedByAppLock;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // 3. Check Windows Firewall state via cached rules
+        var fwStatus = GetCachedFirewallRules();
+        if (!fwStatus.IsEnabled)
+            return FirewallExposure.FirewallOff;
+
+        bool isTcp = protocol.Equals("TCP", StringComparison.OrdinalIgnoreCase);
+        bool isUdp = protocol.Equals("UDP", StringComparison.OrdinalIgnoreCase);
+
+        if (isTcp)
+        {
+            if (fwStatus.BlockedTcpPorts.Contains(port)) return FirewallExposure.BlockedByDefault;
+            if (fwStatus.AllowedTcpPorts.Contains(port)) return FirewallExposure.AllowedByRule;
+        }
+        else if (isUdp)
+        {
+            if (fwStatus.BlockedUdpPorts.Contains(port)) return FirewallExposure.BlockedByDefault;
+            if (fwStatus.AllowedUdpPorts.Contains(port)) return FirewallExposure.AllowedByRule;
+        }
+
+        if (!string.IsNullOrEmpty(appPath))
+        {
+            if (fwStatus.BlockedApps.Contains(appPath)) return FirewallExposure.BlockedByDefault;
+            if (fwStatus.AllowedApps.Contains(appPath)) return FirewallExposure.AllowedByRule;
+        }
+
+        // On Windows, the default inbound policy when no allow rule matches is Block
+        return FirewallExposure.BlockedByDefault;
+    }
+
+    private static CachedFwRules GetCachedFirewallRules()
+    {
+        if (_cachedFw != null && (DateTime.Now - _lastFwCheck).TotalSeconds < 30)
+            return _cachedFw;
+
+        var result = new CachedFwRules();
+        _lastFwCheck = DateTime.Now;
+
+        try
+        {
+            Type? policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+            if (policyType == null) return _cachedFw = result;
+
+            dynamic? policy = Activator.CreateInstance(policyType);
+            if (policy == null) return _cachedFw = result;
+
+            int activeProfiles = 7;
+            try { activeProfiles = policy.CurrentProfileTypes; } catch { }
+
+            bool enabled = false;
+            try
+            {
+                if ((activeProfiles & 1) != 0 && policy.FirewallEnabled(1)) enabled = true;
+                if ((activeProfiles & 2) != 0 && policy.FirewallEnabled(2)) enabled = true;
+                if ((activeProfiles & 4) != 0 && policy.FirewallEnabled(4)) enabled = true;
+            }
+            catch
+            {
+                enabled = true; // assume enabled on query failure
+            }
+
+            result.IsEnabled = enabled;
+            if (!enabled) return _cachedFw = result;
+
+            dynamic rules = policy.Rules;
+            foreach (dynamic rule in rules)
+            {
+                try
+                {
+                    if (!rule.Enabled) continue;
+                    if (rule.Direction != 1) continue; // 1 = Inbound
+
+                    int action = rule.Action; // 1 = Allow, 0 = Block
+                    int ruleProto = rule.Protocol; // 6 = TCP, 17 = UDP, 256 = Any
+                    string? localPorts = rule.LocalPorts;
+                    string? app = rule.ApplicationName;
+
+                    if (!string.IsNullOrEmpty(app))
+                    {
+                        if (action == 1) result.AllowedApps.Add(app);
+                        else result.BlockedApps.Add(app);
+                    }
+
+                    if (!string.IsNullOrEmpty(localPorts))
+                    {
+                        ParsePortRanges(localPorts, p =>
+                        {
+                            if (ruleProto == 6 || ruleProto == 256)
+                            {
+                                if (action == 1) result.AllowedTcpPorts.Add(p);
+                                else result.BlockedTcpPorts.Add(p);
+                            }
+                            if (ruleProto == 17 || ruleProto == 256)
+                            {
+                                if (action == 1) result.AllowedUdpPorts.Add(p);
+                                else result.BlockedUdpPorts.Add(p);
+                            }
+                        });
+                    }
+                }
+                catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ListeningPortService] GetCachedFirewallRules failed: {ex.Message}");
+        }
+
+        return _cachedFw = result;
+    }
+
+    private static void ParsePortRanges(string portsStr, Action<int> onPort)
+    {
+        if (string.IsNullOrWhiteSpace(portsStr) || portsStr == "*") return;
+        var parts = portsStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            var dash = part.IndexOf('-');
+            if (dash > 0)
+            {
+                if (int.TryParse(part[..dash], out int start) && int.TryParse(part[(dash + 1)..], out int end))
+                {
+                    int max = Math.Min(end, start + 1000); // cap range to prevent massive loops
+                    for (int p = start; p <= max; p++)
+                        onPort(p);
+                }
+            }
+            else if (int.TryParse(part, out int port))
+            {
+                onPort(port);
+            }
+        }
+    }
+
+    private static bool IsPortMatch(string? rulePorts, int targetPort)
+    {
+        if (string.IsNullOrWhiteSpace(rulePorts)) return false;
+        if (rulePorts == "*") return true;
+        var parts = rulePorts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            var dash = part.IndexOf('-');
+            if (dash > 0)
+            {
+                if (int.TryParse(part[..dash], out int start) && int.TryParse(part[(dash + 1)..], out int end))
+                {
+                    if (targetPort >= start && targetPort <= end) return true;
+                }
+            }
+            else if (int.TryParse(part, out int p) && p == targetPort)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    #endregion
 }

@@ -48,6 +48,7 @@ public sealed partial class InternetAccessPage : Page
         _viewModel = new InternetAccessViewModel(_firewallService, _settingsStore, _installedAppsService);
         _activeConnectionsViewModel = new ActiveConnectionViewModel();
         _networkScannerViewModel = new NetworkScannerViewModel(ServiceContainer.NetworkScannerService, _settingsStore);
+        ListeningPortService.SettingsProvider = () => ServiceContainer.Settings;
         _listeningPortsViewModel = new ListeningPortsViewModel(new ListeningPortService(), DispatcherQueue);
         DataContext = _viewModel;
         Loaded += InternetAccessPage_Loaded;

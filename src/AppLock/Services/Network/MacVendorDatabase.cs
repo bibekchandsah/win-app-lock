@@ -1590,6 +1590,7 @@ public static class MacVendorDatabase
             return resolved;
         }
 
+        _onlineCache[oui] = "Unknown";
         return "Unknown";
     }
 
