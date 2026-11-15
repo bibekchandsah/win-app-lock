@@ -494,6 +494,24 @@ public partial class NetworkDeviceViewModel : ObservableObject
     public string FirstSeen  => Entry.FirstSeen.ToString("yyyy-MM-dd HH:mm");
     public string Manufacturer => MacVendorDatabase.GetVendor(Entry.MacAddress);
 
+    public string FullDetailsTooltip =>
+        string.IsNullOrEmpty(SubtitleHostname)
+            ? $"{DisplayName}\nIP: {IpAddress}\nMAC: {MacAddress}"
+            : $"{DisplayName}\nHostname: {SubtitleHostname}\nIP: {IpAddress}\nMAC: {MacAddress}";
+
+    public string ManufacturerTooltip
+    {
+        get
+        {
+            var mfg = Manufacturer;
+            if (mfg.Contains("Private address", StringComparison.OrdinalIgnoreCase))
+                return $"{mfg}\nThis device uses MAC address randomization to protect privacy (typical of phones and tablets).";
+            return string.IsNullOrWhiteSpace(mfg) || mfg == "Unknown"
+                ? "Unknown manufacturer (vendor not identified from MAC prefix)"
+                : mfg;
+        }
+    }
+
     /// <summary>
     /// Device is "online" if last seen within 2× scan interval threshold.
     /// This machine ("This device") is running this code, so it is always online.
@@ -624,7 +642,9 @@ public partial class NetworkDeviceViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(Manufacturer));
+        OnPropertyChanged(nameof(ManufacturerTooltip));
         OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(FullDetailsTooltip));
     }
 
     partial void OnFriendlyNameChanged(string value)
@@ -755,8 +775,10 @@ public partial class NetworkDeviceViewModel : ObservableObject
 
         DeviceIcon = GlyphForType(Entry.DeviceType);
         OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(FullDetailsTooltip));
         OnPropertyChanged(nameof(SubtitleHostname));
         OnPropertyChanged(nameof(Manufacturer));
+        OnPropertyChanged(nameof(ManufacturerTooltip));
         OnPropertyChanged(nameof(DeviceIcon));
         OnPropertyChanged(nameof(IsOnline));
         OnPropertyChanged(nameof(StatusText));

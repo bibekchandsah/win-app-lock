@@ -1344,6 +1344,286 @@ public sealed partial class InternetAccessPage : Page
         MacApiKeyFlyout.Hide();
         _ = _networkScannerViewModel.SaveMacVendorsApiKeyAsync(string.Empty);
     }
+
+    private void PortMoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ListeningPortItemViewModel vm)
+        {
+            var flyout = new MenuFlyout();
+
+            var detailsItem = new MenuFlyoutItem
+            {
+                Text = "Show details",
+                Icon = new FontIcon { Glyph = "\uE946" }
+            };
+            detailsItem.Click += async (_, _) => await ShowPortDetailsDialogAsync(vm);
+            flyout.Items.Add(detailsItem);
+
+            var copyItem = new MenuFlyoutItem
+            {
+                Text = "Copy details",
+                Icon = new FontIcon { Glyph = "\uE8C8" }
+            };
+            copyItem.Click += (_, _) => CopyPortDetails(vm);
+            flyout.Items.Add(copyItem);
+
+            if (vm.HasAppPath)
+            {
+                var locItem = new MenuFlyoutItem
+                {
+                    Text = "Open file location",
+                    Icon = new FontIcon { Glyph = "\uED25" }
+                };
+                locItem.Click += (_, _) => OpenFileLocation(vm);
+                flyout.Items.Add(locItem);
+            }
+
+            if (vm.HasServices)
+            {
+                flyout.Items.Add(new MenuFlyoutSeparator());
+                var svcItem = new MenuFlyoutItem
+                {
+                    Text = "Open Services",
+                    Icon = new FontIcon { Glyph = "\uE71D" }
+                };
+                svcItem.Click += (_, _) => OpenServices();
+                flyout.Items.Add(svcItem);
+            }
+
+            flyout.ShowAt(btn);
+        }
+    }
+
+    private async void ShowPortDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.Tag is ListeningPortItemViewModel vm)
+        {
+            await ShowPortDetailsDialogAsync(vm);
+        }
+    }
+
+    private void OpenFileLocation(ListeningPortItemViewModel vm)
+    {
+        if (string.IsNullOrEmpty(vm.AppPath)) return;
+        try
+        {
+            if (System.IO.File.Exists(vm.AppPath))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{vm.AppPath}\"") { UseShellExecute = true });
+            }
+            else if (System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(vm.AppPath)))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{System.IO.Path.GetDirectoryName(vm.AppPath)}\"") { UseShellExecute = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] OpenFileLocation failed: {ex.Message}");
+        }
+    }
+
+    private void OpenFileLocation_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.Tag is ListeningPortItemViewModel vm)
+        {
+            OpenFileLocation(vm);
+        }
+    }
+
+    private void CopyPortDetails(ListeningPortItemViewModel vm)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Port: {vm.Port} ({vm.Protocol})");
+            sb.AppendLine($"Address: {vm.AddressAndPort}");
+            sb.AppendLine($"Reach Scope: {vm.ScopeText}");
+            sb.AppendLine($"Service: {vm.ServiceName ?? "Unknown"}");
+            sb.AppendLine($"App Name: {vm.DisplayAppName}");
+            sb.AppendLine($"Publisher: {vm.Publisher ?? "Unknown"}");
+            sb.AppendLine($"Executable: {vm.AppPath ?? "Not available / System"}");
+            sb.AppendLine($"PID: {vm.Pid}");
+            sb.AppendLine($"User: {vm.ProcessUser}");
+            sb.AppendLine($"Started: {vm.ProcessStartTimeText}");
+            sb.AppendLine($"Firewall Exposure: {vm.ExposureText}");
+            if (!string.IsNullOrEmpty(vm.MatchingRuleName))
+                sb.AppendLine($"Matching Rule: {vm.MatchingRuleName}");
+            sb.AppendLine($"Network Profile: {vm.ActiveProfileName}");
+
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(sb.ToString());
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] CopyPortDetails failed: {ex.Message}");
+        }
+    }
+
+    private void CopyPortDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.Tag is ListeningPortItemViewModel vm)
+        {
+            CopyPortDetails(vm);
+        }
+    }
+
+    private void OpenServices()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("services.msc") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] OpenServices failed: {ex.Message}");
+        }
+    }
+
+    private void OpenServices_Click(object sender, RoutedEventArgs e)
+    {
+        OpenServices();
+    }
+
+    private async Task ShowPortDetailsDialogAsync(ListeningPortItemViewModel port)
+    {
+        var panel = new StackPanel { Spacing = 12, MaxWidth = 520 };
+
+        Border CreateCard(string header, (string Label, string Value)[] rows)
+        {
+            var card = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(14, 12, 14, 12)
+            };
+
+            var stack = new StackPanel { Spacing = 8 };
+            stack.Children.Add(new TextBlock
+            {
+                Text = header,
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Resources["AccentTextFillColorPrimaryBrush"]
+            });
+
+            foreach (var (lbl, val) in rows)
+            {
+                var grid = new Grid { ColumnSpacing = 12 };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                var lblBlock = new TextBlock
+                {
+                    Text = lbl,
+                    FontSize = 12,
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Resources["TextFillColorSecondaryBrush"]
+                };
+                Grid.SetColumn(lblBlock, 0);
+                grid.Children.Add(lblBlock);
+
+                var valBlock = new TextBlock
+                {
+                    Text = val,
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                Grid.SetColumn(valBlock, 1);
+                grid.Children.Add(valBlock);
+
+                stack.Children.Add(grid);
+            }
+
+            card.Child = stack;
+            return card;
+        }
+
+        string appLockRulesSummary = "None";
+        try
+        {
+            var settings = ServiceContainer.Settings;
+            var matchedPort = settings.ListeningPorts?.PortRules?.FirstOrDefault(r =>
+                string.Equals(r.Protocol, port.Protocol, StringComparison.OrdinalIgnoreCase) &&
+                (r.LocalPorts == port.Port.ToString() || r.LocalPorts == "*"));
+            var matchedApp = !string.IsNullOrEmpty(port.AppPath)
+                ? settings.NetworkRules?.FirstOrDefault(r => string.Equals(r.ExePath, port.AppPath, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            var list = new List<string>();
+            if (matchedPort != null) list.Add($"Port rule: {matchedPort.LocalPorts}/{matchedPort.Protocol} (Block Inbound)");
+            if (matchedApp != null && matchedApp.BlockInbound) list.Add($"App rule: {System.IO.Path.GetFileName(port.AppPath)} (Block Inbound)");
+            if (list.Count > 0) appLockRulesSummary = string.Join("; ", list);
+        }
+        catch { }
+
+        // Process Card
+        panel.Children.Add(CreateCard("PROCESS", new[]
+        {
+            ("Application", port.DisplayAppName),
+            ("Publisher", port.Publisher ?? "Unknown"),
+            ("Executable Path", port.AppPath ?? "Not available / System protected"),
+            ("Process ID", $"PID {port.Pid}"),
+            ("Process User", port.ProcessUser),
+            ("Started Time", port.ProcessStartTimeText)
+        }));
+
+        // Socket & Reach Card
+        panel.Children.Add(CreateCard("SOCKET & REACHABILITY", new[]
+        {
+            ("Protocol & Port", $"{port.Protocol} · Port {port.Port}"),
+            ("Service Name", !string.IsNullOrEmpty(port.ServiceName) ? port.ServiceName : "Unknown"),
+            ("Bind Address", port.AddressAndPort),
+            ("Reach Scope", $"{port.ScopeText}\n{port.ScopeTooltip}")
+        }));
+
+        // Firewall Exposure Estimate Card
+        panel.Children.Add(CreateCard("FIREWALL EXPOSURE (ESTIMATE)", new[]
+        {
+            ("Exposure Estimate", port.ExposureText),
+            ("Matching Rule", !string.IsNullOrEmpty(port.MatchingRuleName) ? port.MatchingRuleName : "None"),
+            ("Network Profile", port.ActiveProfileName),
+            ("AppLock Rules", appLockRulesSummary),
+            ("Notice", "AppLock estimates this from your firewall rules. Complex rules, third-party firewalls or group policy can change the real result.")
+        }));
+
+        // Advice Card
+        var adviceCard = new Border
+        {
+            Background = (Microsoft.UI.Xaml.Media.Brush)Resources["ControlFillColorDefaultBrush"],
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 10, 14, 10)
+        };
+        var adviceStack = new StackPanel { Spacing = 3 };
+        adviceStack.Children.Add(new TextBlock
+        {
+            Text = "How to close this port",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontSize = 12
+        });
+        adviceStack.Children.Add(new TextBlock
+        {
+            Text = "To close a port permanently, stop the app or service that opens it, or change its settings to listen on localhost only.",
+            FontSize = 11,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Resources["TextFillColorSecondaryBrush"],
+            TextWrapping = TextWrapping.Wrap
+        });
+        adviceCard.Child = adviceStack;
+        panel.Children.Add(adviceCard);
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Port {port.Port} ({port.Protocol}) Details",
+            Content = new ScrollViewer { Content = panel, MaxHeight = 520 },
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ((FrameworkElement)XamlRoot.Content).ActualTheme
+        };
+
+        await dialog.ShowAsync();
+    }
 }
 
 // ── Converter: bool (IsTrusted) → dot colour ──────────────────────────────────

@@ -23,6 +23,13 @@ public partial class ListeningPortItemViewModel : ObservableObject
     public PortHint? Hint => Model.Hint;
     public PortScope Scope => Model.Scope;
     public FirewallExposure Exposure => Model.Exposure;
+    public string? MatchingRuleName => Model.MatchingRuleName;
+    public string ProcessUser => Model.ProcessUser ?? "Unknown";
+    public DateTime? ProcessStartTime => Model.ProcessStartTime;
+    public string ProcessStartTimeText => Model.ProcessStartTime.HasValue ? Model.ProcessStartTime.Value.ToString("yyyy-MM-dd HH:mm:ss") : "Unknown";
+    public string ActiveProfileName => Model.ActiveProfileName ?? "Standard";
+    public bool HasServices => Services != null && Services.Count > 0;
+    public bool HasAppPath => !string.IsNullOrEmpty(AppPath);
 
     public string DisplayAppName
     {
@@ -81,6 +88,7 @@ public partial class ListeningPortItemViewModel : ObservableObject
         bool serviceChanged = fresh.ServiceLabel != Model.ServiceLabel;
         bool hintChanged = fresh.Hint != Model.Hint;
         bool serviceNameChanged = fresh.ServiceName != Model.ServiceName;
+        bool ruleChanged = fresh.MatchingRuleName != Model.MatchingRuleName;
 
         Model = fresh;
 
@@ -93,11 +101,13 @@ public partial class ListeningPortItemViewModel : ObservableObject
             OnPropertyChanged(nameof(IsReachable));
         }
 
-        if (exposureChanged)
+        if (exposureChanged || ruleChanged)
         {
             OnPropertyChanged(nameof(Exposure));
             OnPropertyChanged(nameof(ExposureText));
             OnPropertyChanged(nameof(ExposureTooltip));
+            OnPropertyChanged(nameof(MatchingRuleName));
+            OnPropertyChanged(nameof(ActiveProfileName));
         }
 
         if (appNameChanged || serviceChanged)
@@ -145,9 +155,9 @@ public partial class ListeningPortItemViewModel : ObservableObject
 
     public string ScopeTooltip => Scope switch
     {
-        PortScope.LocalhostOnly => "Internal to this PC only (127.0.0.1 or ::1). Other devices on your Wi-Fi or local network cannot connect.",
-        PortScope.LocalNetwork  => "Reachable only by other devices on your local Wi-Fi or home network.",
-        PortScope.AllInterfaces => "Reachable from any device on your Wi-Fi, local network, or internet (bound to 0.0.0.0 or ::). Anyone on your network can attempt to connect.",
+        PortScope.LocalhostOnly => "Localhost only (127.0.0.1 / ::1):\nOnly programs running directly on this computer can connect. External devices on your Wi-Fi or network cannot reach this port.",
+        PortScope.LocalNetwork  => "Local network:\nAccessible to other devices connected to your local Wi-Fi or LAN, but not exposed to the broader internet.",
+        PortScope.AllInterfaces => "All interfaces (0.0.0.0 / ::):\nOpen to incoming network connections. Other devices on your Wi-Fi, local network, and potentially the internet can attempt to reach this port.",
         _                       => "Network reachability scope is unknown."
     };
 
@@ -172,15 +182,27 @@ public partial class ListeningPortItemViewModel : ObservableObject
         _                                    => "Unknown"
     };
 
-    public string ExposureTooltip => Exposure switch
+    public string ExposureTooltip
     {
-        FirewallExposure.LocalhostUnfiltered => "Loopback traffic is not filtered by Windows Firewall. Only apps running on this PC can access it.",
-        FirewallExposure.BlockedByAppLock    => "Incoming connections to this port or app are blocked by an AppLock firewall rule.",
-        FirewallExposure.AllowedByRule       => "An active Windows Firewall inbound rule explicitly permits network traffic to this port.",
-        FirewallExposure.BlockedByDefault    => "Windows Firewall blocks incoming traffic to this port by default because no allow rule permits it.",
-        FirewallExposure.FirewallOff         => "Windows Firewall is turned off for this network profile. Anyone on your network can connect.",
-        _                                    => "AppLock could not verify the firewall rule status for this port."
-    };
+        get
+        {
+            if (Exposure == FirewallExposure.LocalhostUnfiltered)
+                return "Loopback traffic is not filtered by Windows Firewall. Only apps running on this PC can access it.";
+            if (Exposure == FirewallExposure.FirewallOff)
+                return "Windows Firewall is turned off for this network profile. Anyone on your network can connect.";
+            if (Exposure == FirewallExposure.BlockedByAppLock)
+                return !string.IsNullOrEmpty(MatchingRuleName)
+                    ? $"Blocked by AppLock rule:\n{MatchingRuleName}"
+                    : "Incoming connections are blocked by an AppLock firewall rule.";
+            if (Exposure == FirewallExposure.AllowedByRule)
+                return !string.IsNullOrEmpty(MatchingRuleName)
+                    ? $"Allowed by Windows rule:\n\"{MatchingRuleName}\"\n\nEstimate based on your Windows Firewall rules."
+                    : "An active Windows Firewall inbound rule explicitly permits network traffic to this port.";
+            if (Exposure == FirewallExposure.BlockedByDefault)
+                return "Windows Firewall blocks incoming traffic to this port by default because no allow rule permits it.";
+            return "AppLock could not verify the firewall rule status for this port (third-party firewall or restricted permissions).";
+        }
+    }
 
     public bool IsReachable => Scope != PortScope.LocalhostOnly;
 

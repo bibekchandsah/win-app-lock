@@ -66,7 +66,7 @@ public sealed partial class MainWindow : Window
         // Set window size & wire closing event
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWndNative);
         _appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-        _appWindow.Resize(new Windows.Graphics.SizeInt32(1170, 760));
+        _appWindow.Resize(new Windows.Graphics.SizeInt32(1180, 760));
         _appWindow.Closing += AppWindow_Closing;
         
         // Configure custom title bar and window/taskbar icons

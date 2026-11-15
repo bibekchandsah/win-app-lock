@@ -704,14 +704,16 @@
 
                                         <!-- Name + hostname + badges row -->
                                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center"
-                                                    ToolTipService.ToolTip="{Binding DisplayName}">
+                                                    Background="Transparent"
+                                                    ToolTipService.ToolTip="{Binding FullDetailsTooltip}">
                                             <!-- Top row: display name + "This device" badge + trust dot -->
                                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding DisplayName}"
                                                            FontWeight="SemiBold"
                                                            FontSize="14"
                                                            VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis"/>
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTipService.ToolTip="{Binding FullDetailsTooltip}"/>
 
                                                 <!-- "This device" badge -->
                                                 <Border CornerRadius="4"
@@ -756,7 +758,7 @@
                                                    VerticalAlignment="Center"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    TextTrimming="CharacterEllipsis"
-                                                   ToolTipService.ToolTip="{Binding Manufacturer}"/>
+                                                   ToolTipService.ToolTip="{Binding ManufacturerTooltip}"/>
 
                                         <!-- MAC address -->
                                         <TextBlock Grid.Column="3"
@@ -1144,7 +1146,8 @@
                                                                 <ColumnDefinition Width="220"/>  <!-- Port & Service -->
                                                                 <ColumnDefinition Width="145"/>  <!-- Reach / Scope -->
                                                                 <ColumnDefinition Width="*"/>    <!-- Port hint -->
-                                                                <ColumnDefinition Width="160"/>  <!-- Exposure -->
+                                                                <ColumnDefinition Width="165"/>  <!-- Exposure -->
+                                                                <ColumnDefinition Width="Auto"/> <!-- Actions: More -->
                                                             </Grid.ColumnDefinitions>
 
                                                             <!-- Protocol pill -->
@@ -1227,7 +1230,7 @@
                                                                 </StackPanel>
                                                             </Border>
 
-                                                            <!-- Exposure chip -->
+                                                            <!-- Exposure chip with estimate indicator -->
                                                             <Border Grid.Column="4"
                                                                     CornerRadius="4"
                                                                     Padding="8,3"
@@ -1235,10 +1238,25 @@
                                                                     VerticalAlignment="Center"
                                                                     HorizontalAlignment="Left"
                                                                     ToolTipService.ToolTip="{x:Bind ExposureTooltip}">
-                                                                <TextBlock Text="{x:Bind ExposureText}"
-                                                                           FontSize="11"
-                                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{x:Bind ExposureText}"
+                                                                               FontSize="11"
+                                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                                    <TextBlock Text="(est.)"
+                                                                               FontSize="10"
+                                                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                                                </StackPanel>
                                                             </Border>
+
+                                                            <!-- More actions button -->
+                                                            <Button Grid.Column="5"
+                                                                    Padding="6,4"
+                                                                    VerticalAlignment="Center"
+                                                                    Click="PortMoreButton_Click"
+                                                                    Tag="{x:Bind}"
+                                                                    ToolTipService.ToolTip="More actions">
+                                                                <FontIcon Glyph="&#xE712;" FontSize="12"/>
+                                                            </Button>
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -1264,7 +1282,8 @@
                                             <ColumnDefinition Width="145"/>  <!-- Reach / Scope -->
                                             <ColumnDefinition Width="*"/>    <!-- Process info -->
                                             <ColumnDefinition Width="Auto"/> <!-- Port hint -->
-                                            <ColumnDefinition Width="160"/>  <!-- Exposure -->
+                                            <ColumnDefinition Width="165"/>  <!-- Exposure -->
+                                            <ColumnDefinition Width="Auto"/> <!-- Actions: More -->
                                         </Grid.ColumnDefinitions>
 
                                         <!-- Protocol pill -->
@@ -1383,7 +1402,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Exposure chip -->
+                                        <!-- Exposure chip with estimate indicator -->
                                         <Border Grid.Column="5"
                                                 CornerRadius="4"
                                                 Padding="8,3"
@@ -1391,10 +1410,25 @@
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Left"
                                                 ToolTipService.ToolTip="{x:Bind ExposureTooltip}">
-                                            <TextBlock Text="{x:Bind ExposureText}"
-                                                       FontSize="11"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind ExposureText}"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                <TextBlock Text="(est.)"
+                                                           FontSize="10"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            </StackPanel>
                                         </Border>
+
+                                        <!-- More actions button -->
+                                        <Button Grid.Column="6"
+                                                Padding="6,4"
+                                                VerticalAlignment="Center"
+                                                Click="PortMoreButton_Click"
+                                                Tag="{x:Bind}"
+                                                ToolTipService.ToolTip="More actions">
+                                            <FontIcon Glyph="&#xE712;" FontSize="12"/>
+                                        </Button>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>

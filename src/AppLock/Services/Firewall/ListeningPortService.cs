@@ -139,7 +139,7 @@ public class ListeningPortService : IListeningPortService
 
     #endregion
 
-    private readonly ConcurrentDictionary<int, (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel)> _processInfoCache = new();
+    private readonly ConcurrentDictionary<int, (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel, string? User, DateTime? StartTime)> _processInfoCache = new();
 
     public async Task<IReadOnlyList<ListeningPort>> GetListeningPortsAsync(CancellationToken ct = default)
     {
@@ -193,10 +193,10 @@ public class ListeningPortService : IListeningPortService
                         var localAddr = new IPAddress(row.dwLocalAddr);
                         int localPort = ConvertPort(row.dwLocalPort);
                         int pid = (int)row.dwOwningPid;
-                        var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
+                        var (procName, procPath, publisher, services, serviceLabel, procUser, procStartTime) = ResolveProcess(pid);
                         var scope = ClassifyScope(localAddr);
                         var classification = PortClassifier.Classify("TCP", localPort, scope);
-                        var exposure = EvaluateExposure(scope, "TCP", localPort, procPath);
+                        var eval = FirewallExposureEvaluator.Evaluate(scope, "TCP", localPort, procPath, services, SettingsProvider?.Invoke());
 
                         results.Add(new ListeningPort(
                             Protocol: "TCP",
@@ -208,10 +208,14 @@ public class ListeningPortService : IListeningPortService
                             Publisher: publisher,
                             Services: services,
                             Scope: scope,
-                            Exposure: exposure,
+                            Exposure: eval.Exposure,
                             ServiceLabel: serviceLabel,
                             Hint: classification.Hint,
-                            ServiceName: classification.ServiceName));
+                            ServiceName: classification.ServiceName,
+                            MatchingRuleName: eval.MatchingRuleName,
+                            ProcessUser: procUser,
+                            ProcessStartTime: procStartTime,
+                            ActiveProfileName: eval.ActiveProfileName));
                     }
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_TCPROW_OWNER_PID>());
@@ -255,10 +259,10 @@ public class ListeningPortService : IListeningPortService
                         var localAddr = new IPAddress(row.ucLocalAddr, row.dwLocalScopeId);
                         int localPort = ConvertPort(row.dwLocalPort);
                         int pid = (int)row.dwOwningPid;
-                        var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
+                        var (procName, procPath, publisher, services, serviceLabel, procUser, procStartTime) = ResolveProcess(pid);
                         var scope = ClassifyScope(localAddr);
                         var classification = PortClassifier.Classify("TCP", localPort, scope);
-                        var exposure = EvaluateExposure(scope, "TCP", localPort, procPath);
+                        var eval = FirewallExposureEvaluator.Evaluate(scope, "TCP", localPort, procPath, services, SettingsProvider?.Invoke());
 
                         results.Add(new ListeningPort(
                             Protocol: "TCP",
@@ -270,10 +274,14 @@ public class ListeningPortService : IListeningPortService
                             Publisher: publisher,
                             Services: services,
                             Scope: scope,
-                            Exposure: exposure,
+                            Exposure: eval.Exposure,
                             ServiceLabel: serviceLabel,
                             Hint: classification.Hint,
-                            ServiceName: classification.ServiceName));
+                            ServiceName: classification.ServiceName,
+                            MatchingRuleName: eval.MatchingRuleName,
+                            ProcessUser: procUser,
+                            ProcessStartTime: procStartTime,
+                            ActiveProfileName: eval.ActiveProfileName));
                     }
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_TCP6ROW_OWNER_PID>());
@@ -315,10 +323,10 @@ public class ListeningPortService : IListeningPortService
                     var localAddr = new IPAddress(row.dwLocalAddr);
                     int localPort = ConvertPort(row.dwLocalPort);
                     int pid = (int)row.dwOwningPid;
-                    var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
+                    var (procName, procPath, publisher, services, serviceLabel, procUser, procStartTime) = ResolveProcess(pid);
                     var scope = ClassifyScope(localAddr);
                     var classification = PortClassifier.Classify("UDP", localPort, scope);
-                    var exposure = EvaluateExposure(scope, "UDP", localPort, procPath);
+                    var eval = FirewallExposureEvaluator.Evaluate(scope, "UDP", localPort, procPath, services, SettingsProvider?.Invoke());
 
                     results.Add(new ListeningPort(
                         Protocol: "UDP",
@@ -330,10 +338,14 @@ public class ListeningPortService : IListeningPortService
                         Publisher: publisher,
                         Services: services,
                         Scope: scope,
-                        Exposure: exposure,
+                        Exposure: eval.Exposure,
                         ServiceLabel: serviceLabel,
                         Hint: classification.Hint,
-                        ServiceName: classification.ServiceName));
+                        ServiceName: classification.ServiceName,
+                        MatchingRuleName: eval.MatchingRuleName,
+                        ProcessUser: procUser,
+                        ProcessStartTime: procStartTime,
+                        ActiveProfileName: eval.ActiveProfileName));
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_UDPROW_OWNER_PID>());
                 }
@@ -374,10 +386,10 @@ public class ListeningPortService : IListeningPortService
                     var localAddr = new IPAddress(row.ucLocalAddr, row.dwLocalScopeId);
                     int localPort = ConvertPort(row.dwLocalPort);
                     int pid = (int)row.dwOwningPid;
-                    var (procName, procPath, publisher, services, serviceLabel) = ResolveProcess(pid);
+                    var (procName, procPath, publisher, services, serviceLabel, procUser, procStartTime) = ResolveProcess(pid);
                     var scope = ClassifyScope(localAddr);
                     var classification = PortClassifier.Classify("UDP", localPort, scope);
-                    var exposure = EvaluateExposure(scope, "UDP", localPort, procPath);
+                    var eval = FirewallExposureEvaluator.Evaluate(scope, "UDP", localPort, procPath, services, SettingsProvider?.Invoke());
 
                     results.Add(new ListeningPort(
                         Protocol: "UDP",
@@ -389,10 +401,14 @@ public class ListeningPortService : IListeningPortService
                         Publisher: publisher,
                         Services: services,
                         Scope: scope,
-                        Exposure: exposure,
+                        Exposure: eval.Exposure,
                         ServiceLabel: serviceLabel,
                         Hint: classification.Hint,
-                        ServiceName: classification.ServiceName));
+                        ServiceName: classification.ServiceName,
+                        MatchingRuleName: eval.MatchingRuleName,
+                        ProcessUser: procUser,
+                        ProcessStartTime: procStartTime,
+                        ActiveProfileName: eval.ActiveProfileName));
 
                     rowPtr = IntPtr.Add(rowPtr, Marshal.SizeOf<MIB_UDP6ROW_OWNER_PID>());
                 }
@@ -521,10 +537,10 @@ public class ListeningPortService : IListeningPortService
         return _cachedServiceMap = map;
     }
 
-    private (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel) ResolveProcess(int pid)
+    private (string Name, string? Path, string? Publisher, IReadOnlyList<string> Services, string? ServiceLabel, string? User, DateTime? StartTime) ResolveProcess(int pid)
     {
-        if (pid <= 0) return ("System Idle", null, null, Array.Empty<string>(), null);
-        if (pid == 4) return ("System", null, "Microsoft Corporation", Array.Empty<string>(), null);
+        if (pid <= 0) return ("System Idle", null, null, Array.Empty<string>(), null, "SYSTEM", null);
+        if (pid == 4) return ("System", null, "Microsoft Corporation", Array.Empty<string>(), null, "NT AUTHORITY\\SYSTEM", null);
 
         if (_processInfoCache.TryGetValue(pid, out var cached))
             return cached;
@@ -532,6 +548,8 @@ public class ListeningPortService : IListeningPortService
         string name = $"PID {pid}";
         string? path = null;
         string? publisher = null;
+        string? user = null;
+        DateTime? startTime = null;
         var services = new List<string>();
         string? serviceLabel = null;
 
@@ -539,15 +557,21 @@ public class ListeningPortService : IListeningPortService
         {
             using var proc = Process.GetProcessById(pid);
             name = proc.ProcessName;
-            try
-            {
-                path = proc.MainModule?.FileName;
-            }
-            catch { }
+            try { path = proc.MainModule?.FileName; } catch { }
+            try { startTime = proc.StartTime; } catch { }
         }
         catch
         {
             name = "System / protected process";
+        }
+
+        if (name == "System" || pid == 4)
+        {
+            user = "NT AUTHORITY\\SYSTEM";
+        }
+        else if (!string.IsNullOrEmpty(name))
+        {
+            user = Environment.UserName;
         }
 
         // Get Publisher from FileVersionInfo if path is accessible
@@ -569,7 +593,7 @@ public class ListeningPortService : IListeningPortService
             serviceLabel = string.Join(", ", matchedServices);
         }
 
-        var entry = (name, path, publisher, (IReadOnlyList<string>)services, serviceLabel);
+        var entry = (name, path, publisher, (IReadOnlyList<string>)services, serviceLabel, user, startTime);
         _processInfoCache[pid] = entry;
         return entry;
     }

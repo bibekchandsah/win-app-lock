@@ -44,7 +44,11 @@ public record ListeningPort(
     FirewallExposure Exposure,
     string? ServiceLabel,
     PortHint? Hint,
-    string? ServiceName = null
+    string? ServiceName = null,
+    string? MatchingRuleName = null,
+    string? ProcessUser = null,
+    DateTime? ProcessStartTime = null,
+    string? ActiveProfileName = null
 );
 
 public class KnownPort

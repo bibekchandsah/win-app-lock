@@ -209,6 +209,55 @@ public class ListeningPortTests
         Assert.False(oldItem.IsNew);
     }
 
+    [Fact]
+    public void FirewallExposureEvaluator_Loopback_IsAlwaysLocalhostUnfiltered()
+    {
+        var result = FirewallExposureEvaluator.Evaluate(
+            PortScope.LocalhostOnly, "TCP", 8080, @"C:\test\app.exe", null, null);
+
+        Assert.Equal(FirewallExposure.LocalhostUnfiltered, result.Exposure);
+        Assert.Contains("not filtered", result.MatchingRuleDetails);
+    }
+
+    [Fact]
+    public void FirewallExposureEvaluator_AppLockPortRule_TakesPrecedenceAndBlocks()
+    {
+        var settings = new AppSettings
+        {
+            ListeningPorts = new ListeningPortsSettings
+            {
+                PortRules = new List<PortRuleEntry>
+                {
+                    new() { Protocol = "TCP", LocalPorts = "8080", Note = "Test rule" }
+                }
+            }
+        };
+
+        var result = FirewallExposureEvaluator.Evaluate(
+            PortScope.AllInterfaces, "TCP", 8080, @"C:\test\app.exe", null, settings);
+
+        Assert.Equal(FirewallExposure.BlockedByAppLock, result.Exposure);
+        Assert.Contains("8080", result.MatchingRuleName);
+    }
+
+    [Fact]
+    public void FirewallExposureEvaluator_AppLockNetworkRule_BlocksInbound()
+    {
+        var settings = new AppSettings
+        {
+            NetworkRules = new List<NetworkRuleEntry>
+            {
+                new() { ExePath = @"C:\test\app.exe", BlockInbound = true }
+            }
+        };
+
+        var result = FirewallExposureEvaluator.Evaluate(
+            PortScope.AllInterfaces, "TCP", 9000, @"C:\test\app.exe", null, settings);
+
+        Assert.Equal(FirewallExposure.BlockedByAppLock, result.Exposure);
+        Assert.Contains("app.exe", result.MatchingRuleName);
+    }
+
     private class FakeListeningPortService : IListeningPortService
     {
         private readonly IReadOnlyList<ListeningPort> _ports;
