@@ -188,7 +188,7 @@ public sealed partial class InternetAccessPage : Page
         NetworkDevicesTabButton.Style = null;
 
         _activeConnectionsViewModel.StopAutoRefresh();
-        _ = _listeningPortsViewModel.LoadPortsAsync();
+        _ = _listeningPortsViewModel.LoadPortsAsync(isManualOrInitial: true);
         _listeningPortsViewModel.StartAutoRefresh(5);
     }
 
@@ -1147,7 +1147,7 @@ public sealed partial class InternetAccessPage : Page
 
     private void RefreshListeningPorts_Click(object sender, RoutedEventArgs e)
     {
-        _ = _listeningPortsViewModel.LoadPortsAsync();
+        _ = _listeningPortsViewModel.LoadPortsAsync(isManualOrInitial: true);
     }
 
     private void ListeningPortSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
