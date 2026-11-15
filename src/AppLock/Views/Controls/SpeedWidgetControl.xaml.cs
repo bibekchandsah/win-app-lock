@@ -46,22 +46,15 @@ public sealed partial class SpeedWidgetControl : UserControl
     private double _downBytesPerSec;
     private double _upBytesPerSec;
 
-    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _ticker;
-    private List<string> _tickerLines = new();
-    private int _tickerIndex;
-
     private Brush _downBrush = new SolidColorBrush(DefaultDown);
     private Brush _upBrush = new SolidColorBrush(DefaultUp);
+    private Brush _textBrush = new SolidColorBrush(Colors.White);
+    private FontFamily _fontFamily = new("Segoe UI Variable");
+    private double _scale = 1.0;
 
     public SpeedWidgetControl()
     {
         InitializeComponent();
-
-        // The top-app line cycles instead of scrolling pixel by pixel: one clean line at a time.
-        _ticker = DispatcherQueue.CreateTimer();
-        _ticker.Interval = TimeSpan.FromSeconds(3.5);
-        _ticker.IsRepeating = true;
-        _ticker.Tick += (_, _) => AdvanceTicker();
 
         SparkCanvas.SizeChanged += (_, _) => DrawSpark();
 
@@ -109,7 +102,7 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         _downBrush = downBrush;
         _upBrush = upBrush;
-        TopAppsText.Foreground = textBrush;
+        _textBrush = textBrush;
 
         // Border follows the appearance toggle, tinted from the text color so it stays visible.
         var showBorder = settings.ShowBorder && !transparent;
@@ -181,8 +174,8 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
 
-        TopAppsText.FontFamily = font;
-        TopAppsText.FontSize = 10 * scale;
+        _fontFamily = font;
+        _scale = scale;
         UpdateTicker();
 
         BuildRows(settings, textBrush, 11 * scale, font, textBrush);
@@ -380,44 +373,34 @@ public sealed partial class SpeedWidgetControl : UserControl
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
 
+        TopAppsPanel.Children.Clear();
+
         if (!settings.ShowTopApps || _topApps is null)
         {
-            _ticker?.Stop();
-            TopAppsText.Visibility = Visibility.Collapsed;
-            _tickerLines = new List<string>();
+            TopAppsPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
+        // Every enabled metric gets its own line, so all four top apps are readable at once.
         var lines = new List<string>();
         if (settings.TopAppsCpu && _topApps.Cpu is { } cpu) lines.Add($"CPU · {cpu.Text}");
         if (settings.TopAppsRam && _topApps.Ram is { } ram) lines.Add($"RAM · {ram.Text}");
         if (settings.TopAppsDisk && _topApps.Disk is { } disk) lines.Add($"Disk · {disk.Text}");
         if (settings.TopAppsGpu && _topApps.Gpu is { } gpu) lines.Add($"GPU · {gpu.Text}");
 
-        _tickerLines = lines;
-
-        if (lines.Count == 0)
+        foreach (var line in lines)
         {
-            _ticker?.Stop();
-            TopAppsText.Visibility = Visibility.Collapsed;
-            return;
+            TopAppsPanel.Children.Add(new TextBlock
+            {
+                Text = line,
+                FontSize = 10 * _scale,
+                FontFamily = _fontFamily,
+                Foreground = _textBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
         }
 
-        if (_tickerIndex >= lines.Count) _tickerIndex = 0;
-
-        TopAppsText.Text = lines[_tickerIndex];
-        TopAppsText.Visibility = Visibility.Visible;
-
-        if (lines.Count > 1) _ticker?.Start();
-        else _ticker?.Stop();
-    }
-
-    private void AdvanceTicker()
-    {
-        if (_tickerLines.Count == 0) return;
-
-        _tickerIndex = (_tickerIndex + 1) % _tickerLines.Count;
-        TopAppsText.Text = _tickerLines[_tickerIndex];
+        TopAppsPanel.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Adds one sample to the mini graph and redraws it.</summary>

@@ -106,6 +106,9 @@ public sealed partial class SpeedWidgetWindow : Window
 
         Widget.Loaded += OnWidgetLoaded;
 
+        // Rows and top-app lines change at runtime; the window has to follow the content.
+        Widget.SizeChanged += (_, _) => ResizeToContent();
+
         Widget.PointerPressed += OnPointerPressed;
         Widget.PointerMoved += OnPointerMoved;
         Widget.PointerReleased += OnPointerReleased;
@@ -248,8 +251,17 @@ public sealed partial class SpeedWidgetWindow : Window
     {
         try
         {
+            // The control is already in the live tree, so its desired size is cached for the
+            // window's current constraints; invalidating gives the intrinsic (unconstrained) size.
+            Widget.InvalidateMeasure();
             Widget.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
             var size = Widget.DesiredSize;
+
+            // The window's current size constrains the control, so the intrinsic size wins: that
+            // is what keeps a newly enabled top-app line or a longer process name from clipping.
+            size = new Windows.Foundation.Size(
+                Math.Max(size.Width, Widget.ActualWidth),
+                Math.Max(size.Height, Widget.ActualHeight));
 
             // AppWindow sizes are physical pixels, DesiredSize is DIPs.
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
@@ -264,7 +276,17 @@ public sealed partial class SpeedWidgetWindow : Window
             var width = Math.Max(1, (int)Math.Ceiling(size.Width * scale));
             var height = Math.Max(1, (int)Math.Ceiling(size.Height * scale));
 
-            AppWindow?.Resize(new SizeInt32(width, height));
+            // "CPU · process 12%" needs more room than the plain speed row; without this the
+            // top-app lines were cut at the window edge.
+            if (ServiceContainer.Settings.SpeedMeter.ShowTopApps)
+            {
+                width = Math.Max(width, (int)Math.Ceiling(210 * scale));
+            }
+
+            if (AppWindow is not { } appWindow) return;
+            if (appWindow.Size.Width == width && appWindow.Size.Height == height) return;
+
+            appWindow.Resize(new SizeInt32(width, height));
         }
         catch (Exception ex)
         {
@@ -315,10 +337,10 @@ public sealed partial class SpeedWidgetWindow : Window
             var position = WidgetPositioner.FromPercent(settings, area.WorkArea, size);
             position = WidgetPositioner.Clamp(position, size, area.WorkArea);
 
+            // No SavePercent here: this also runs while the window is still being created, when
+            // its size and monitor are not final yet, and it used to overwrite the remembered
+            // spot with the default one. Only a drag or "Reset position" stores the position.
             appWindow.Move(position);
-
-            WidgetPositioner.SavePercent(settings, position, size, area.WorkArea);
-            settings.MonitorId = DescribeArea(area.WorkArea);
         }
         catch (Exception ex)
         {
@@ -339,6 +361,13 @@ public sealed partial class SpeedWidgetWindow : Window
         settings.MonitorId = null;
 
         PositionOnScreen();
+
+        if (AppWindow is { } appWindow)
+        {
+            var area = ResolveArea();
+            WidgetPositioner.SavePercent(settings, appWindow.Position, appWindow.Size, area.WorkArea);
+            settings.MonitorId = DescribeArea(area.WorkArea);
+        }
     }
 
     /// <summary>Re-applies appearance, chrome flags and geometry after a settings change.</summary>

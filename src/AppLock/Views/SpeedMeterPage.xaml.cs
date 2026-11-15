@@ -205,6 +205,8 @@ public sealed partial class SpeedMeterPage : Page
         WarnUpBox.Value = Math.Clamp(Settings.WarnUpMbps, 0, 100_000);
         WarnToastsToggle.IsOn = Settings.WarnNotifications;
         BatteryAlertsToggle.IsOn = Settings.BatteryAlerts;
+        BatteryLowBox.Value = Math.Clamp(Settings.BatteryLowPercent, 1, 99);
+        BatteryHighBox.Value = Math.Clamp(Settings.BatteryHighPercent, 2, 100);
         ShowTopAppsToggle.IsOn = Settings.ShowTopApps;
         TopCpuToggle.IsOn = Settings.TopAppsCpu;
         TopRamToggle.IsOn = Settings.TopAppsRam;
@@ -744,6 +746,23 @@ public sealed partial class SpeedMeterPage : Page
         if (!double.IsNaN(WarnDiskBox.Value)) Settings.WarnDiskPercent = (int)Math.Clamp(WarnDiskBox.Value, 0, 100);
         if (!double.IsNaN(WarnDownBox.Value)) Settings.WarnDownMbps = (int)Math.Clamp(WarnDownBox.Value, 0, 100_000);
         if (!double.IsNaN(WarnUpBox.Value)) Settings.WarnUpMbps = (int)Math.Clamp(WarnUpBox.Value, 0, 100_000);
+
+        SaveExtraStats();
+    }
+
+    private void BatteryBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loading) return;
+
+        if (!double.IsNaN(BatteryLowBox.Value))
+        {
+            Settings.BatteryLowPercent = (int)Math.Clamp(BatteryLowBox.Value, 1, 99);
+        }
+
+        if (!double.IsNaN(BatteryHighBox.Value))
+        {
+            Settings.BatteryHighPercent = (int)Math.Clamp(BatteryHighBox.Value, 2, 100);
+        }
 
         SaveExtraStats();
     }

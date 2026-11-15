@@ -49,6 +49,12 @@ public class SpeedMeterSettings
     public bool WarnNotifications { get; set; } = true;
     public bool BatteryAlerts { get; set; } = true;
 
+    /// <summary>Toast when the battery drops to this percentage while discharging.</summary>
+    public int BatteryLowPercent { get; set; } = 20;
+
+    /// <summary>Toast when the battery reaches this percentage while charging.</summary>
+    public int BatteryHighPercent { get; set; } = 80;
+
     // Scrolling "top app" ticker inside the widget.
     public bool ShowTopApps { get; set; }
     public bool TopAppsCpu { get; set; } = true;

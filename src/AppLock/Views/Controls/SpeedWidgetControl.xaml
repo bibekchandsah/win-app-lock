@@ -65,14 +65,12 @@
                     <Polyline x:Name="UpSpark" StrokeThickness="1.5"/>
                 </Canvas>
 
-                <!-- Scrolling "top app" line (off by default) -->
-                <TextBlock x:Name="TopAppsText"
-                           AutomationProperties.Name="Top apps"
-                           Text=""
-                           FontSize="10"
-                           Opacity="0.85"
-                           TextTrimming="CharacterEllipsis"
-                           Visibility="Collapsed"/>
+                <!-- Top app lines: one line per enabled metric (off by default) -->
+                <StackPanel x:Name="TopAppsPanel"
+                            AutomationProperties.Name="Top apps"
+                            Spacing="1"
+                            Opacity="0.85"
+                            Visibility="Collapsed"/>
 
                 <!-- Status badges: metered connection and VPN adapter -->
                 <StackPanel Orientation="Horizontal" Spacing="8">

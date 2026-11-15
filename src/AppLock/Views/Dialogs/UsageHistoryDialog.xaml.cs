@@ -30,8 +30,17 @@ public sealed partial class UsageHistoryDialog : ContentDialog
     {
         InitializeComponent();
 
-        // Follow the app's light/dark choice instead of the system default.
+        // Follow the app's light/dark choice instead of the system default. The XamlRoot only
+        // exists once the dialog is shown, so the final value is taken from the page it opens over.
         RequestedTheme = ServiceContainer.CurrentTheme;
+
+        Loaded += (_, _) =>
+        {
+            if (XamlRoot?.Content is FrameworkElement root)
+            {
+                RequestedTheme = root.ActualTheme;
+            }
+        };
 
         _store = store;
 
@@ -152,6 +161,23 @@ public sealed partial class UsageHistoryDialog : ContentDialog
             Canvas.SetLeft(upBar, x);
             Canvas.SetTop(upBar, plotHeight - downHeight - upHeight);
             ChartCanvas.Children.Add(upBar);
+
+            // A transparent hit area per column: hovering (or tapping) a bar shows its own values.
+            var hit = new Rectangle
+            {
+                Width = slot,
+                Height = height,
+                Fill = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0))
+            };
+            Canvas.SetLeft(hit, leftPad + slot * index);
+            Canvas.SetTop(hit, 0);
+
+            ToolTipService.SetToolTip(hit, new ToolTip
+            {
+                Content = $"{point.Label}\n↓ {FormatBytes(point.BytesDown)}   ↑ {FormatBytes(point.BytesUp)}"
+            });
+
+            ChartCanvas.Children.Add(hit);
 
             if (index % labelEvery != 0) continue;
 

@@ -199,6 +199,7 @@
                                     AutomationProperties.Name="Pick background color"
                                     ToolTipService.ToolTip="Pick the background color">
                                 <Border x:Name="BackgroundSwatch" CornerRadius="3" Margin="2"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#202020"/>
@@ -229,6 +230,7 @@
                                     AutomationProperties.Name="Pick text color"
                                     ToolTipService.ToolTip="Pick the text color">
                                 <Border x:Name="TextSwatch" CornerRadius="3" Margin="2"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#FFFFFF"/>
@@ -259,6 +261,7 @@
                                     AutomationProperties.Name="Pick download color"
                                     ToolTipService.ToolTip="Pick the download color">
                                 <Border x:Name="DownSwatch" CornerRadius="3" Margin="2"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#4ADE80"/>
@@ -289,6 +292,7 @@
                                     AutomationProperties.Name="Pick upload color"
                                     ToolTipService.ToolTip="Pick the upload color">
                                 <Border x:Name="UpSwatch" CornerRadius="3" Margin="2"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#60A5FA"/>
@@ -391,12 +395,14 @@
                                       Grid.Row="1" Grid.Column="1"
                                       HorizontalAlignment="Stretch"
                                       SelectionChanged="WeightCombo_SelectionChanged"/>
-                            <ToggleSwitch x:Name="ShowIconsToggle"
-                                          Grid.Row="1" Grid.Column="2"
-                                          Header="Show arrows"
-                                          OnContent="Arrows"
-                                          OffContent="DL / UL"
-                                          Toggled="ShowIconsToggle_Toggled"/>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal"
+                                        Margin="8,0,0,0" VerticalAlignment="Bottom">
+                                <TextBlock Text="Show arrows" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowIconsToggle" Margin="10,0,0,0"
+                                              MinWidth="0" OffContent="" OnContent=""
+                                              Toggled="ShowIconsToggle_Toggled"/>
+                            </StackPanel>
                         </Grid>
 
                         <!-- Corners / border -->
@@ -422,13 +428,14 @@
                                        VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
-                            <ToggleSwitch x:Name="BorderToggle"
-                                          Grid.Column="3"
-                                          Header="Border"
-                                          Margin="16,0,0,0"
-                                          OffContent=""
-                                          OnContent=""
-                                          Toggled="BorderToggle_Toggled"/>
+                            <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                        Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Border" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="BorderToggle" Margin="10,0,0,0"
+                                              MinWidth="0" OffContent="" OnContent=""
+                                              Toggled="BorderToggle_Toggled"/>
+                            </StackPanel>
                         </Grid>
 
                         <!-- Layout -->
@@ -448,13 +455,14 @@
                                       HorizontalAlignment="Stretch"
                                       SelectionChanged="LayoutCombo_SelectionChanged"/>
 
-                            <ToggleSwitch x:Name="CompactToggle"
-                                          Grid.Column="2"
-                                          Header="Compact"
-                                          Margin="16,0,0,0"
-                                          OffContent=""
-                                          OnContent=""
-                                          Toggled="CompactToggle_Toggled"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                        Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Compact" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="CompactToggle" Margin="10,0,0,0"
+                                              MinWidth="0" OffContent="" OnContent=""
+                                              Toggled="CompactToggle_Toggled"/>
+                            </StackPanel>
                         </Grid>
 
                         <!-- Units / decimals / interval -->
@@ -775,15 +783,25 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <NumberBox x:Name="WarnDiskBox" Grid.Row="0" Grid.Column="0"
+                                <NumberBox x:Name="WarnCpuBox" Grid.Row="0" Grid.Column="0"
+                                           Header="Warn CPU above %" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="WarnBox_ValueChanged"/>
+                                <NumberBox x:Name="WarnRamBox" Grid.Row="0" Grid.Column="1"
+                                           Header="Warn RAM above %" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="WarnBox_ValueChanged"/>
+                                <NumberBox x:Name="WarnDiskBox" Grid.Row="0" Grid.Column="2"
                                            Header="Warn disk above %" SpinButtonPlacementMode="Inline"
                                            ValueChanged="WarnBox_ValueChanged"/>
-                                <NumberBox x:Name="WarnDownBox" Grid.Row="0" Grid.Column="1"
+                                <NumberBox x:Name="WarnDownBox" Grid.Row="1" Grid.Column="0"
                                            Header="Warn download above Mbps" SpinButtonPlacementMode="Inline"
                                            ValueChanged="WarnBox_ValueChanged"/>
-                                <NumberBox x:Name="WarnUpBox" Grid.Row="0" Grid.Column="2"
+                                <NumberBox x:Name="WarnUpBox" Grid.Row="1" Grid.Column="1"
                                            Header="Warn upload above Mbps" SpinButtonPlacementMode="Inline"
                                            ValueChanged="WarnBox_ValueChanged"/>
+                                <ComboBox x:Name="RamFormatCombo" Grid.Row="1" Grid.Column="2"
+                                          Header="RAM format"
+                                          HorizontalAlignment="Stretch"
+                                          SelectionChanged="RamFormatCombo_SelectionChanged"/>
                             </Grid>
 
                             <Grid ColumnSpacing="16">
@@ -809,15 +827,29 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Battery alerts at 80% and 20%" FontSize="13"
+                                    <TextBlock Text="Battery alerts" FontSize="13"
                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="Uses the same toast style as the speed meter alerts"
+                                    <TextBlock Text="Charging, discharging and plug in / unplug toasts, in the speed meter toast style"
                                                FontSize="11"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <ToggleSwitch x:Name="BatteryAlertsToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
+                            </Grid>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <NumberBox x:Name="BatteryLowBox" Grid.Column="0"
+                                           Header="Notify below % (on battery)" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="BatteryBox_ValueChanged"/>
+                                <NumberBox x:Name="BatteryHighBox" Grid.Column="1"
+                                           Header="Notify above % (charging)" SpinButtonPlacementMode="Inline"
+                                           ValueChanged="BatteryBox_ValueChanged"/>
                             </Grid>
                         </StackPanel>
 
@@ -896,32 +928,6 @@
                                 </Grid>
                             </Grid>
                         </StackPanel>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <ComboBox x:Name="RamFormatCombo"
-                                      Grid.Column="0"
-                                      Header="RAM format"
-                                      HorizontalAlignment="Stretch"
-                                      SelectionChanged="RamFormatCombo_SelectionChanged"/>
-
-                            <NumberBox x:Name="WarnCpuBox"
-                                       Grid.Column="1"
-                                       Header="Warn CPU above %"
-                                       SpinButtonPlacementMode="Inline"
-                                       ValueChanged="WarnBox_ValueChanged"/>
-
-                            <NumberBox x:Name="WarnRamBox"
-                                       Grid.Column="2"
-                                       Header="Warn RAM above %"
-                                       SpinButtonPlacementMode="Inline"
-                                       ValueChanged="WarnBox_ValueChanged"/>
-                        </Grid>
 
                         <StackPanel Spacing="6">
                             <TextBlock Text="Row order"

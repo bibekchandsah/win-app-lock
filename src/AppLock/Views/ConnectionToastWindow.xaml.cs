@@ -19,11 +19,37 @@ public sealed partial class ConnectionToastWindow : Window
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_NOACTIVATE = 0x08000000;
 
+    private const uint DWMWA_NCRENDERING_POLICY = 2;
+    private const uint DWMNCRP_DISABLED = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MARGINS
+    {
+        public int cxLeftWidth;
+        public int cxRightWidth;
+        public int cyTopHeight;
+        public int cyBottomHeight;
+
+        public MARGINS(int all)
+        {
+            cxLeftWidth = all;
+            cxRightWidth = all;
+            cyTopHeight = all;
+            cyBottomHeight = all;
+        }
+    }
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     private static extern nint GetWindowLongPtr(nint hWnd, int nIndex);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
     private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, uint cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmExtendFrameIntoClientArea(nint hWnd, ref MARGINS pMarInset);
 
     private readonly ConnectionAlertSettings _alerts;
     private readonly int _stackIndex;
@@ -47,6 +73,12 @@ public sealed partial class ConnectionToastWindow : Window
 
         ApplyTheme();
         SetupWindow();
+
+        // Build the window's first frame before it is shown: an empty black rectangle used to
+        // flash every time a toast appeared (for example while a colour picker was open).
+        ApplyNoActivate();
+        ApplyWindowChrome();
+        PrimeFirstFrame();
 
         Card.Loaded += OnLoaded;
         Card.PointerEntered += (_, _) => _dismissTimer?.Stop();
@@ -88,9 +120,55 @@ public sealed partial class ConnectionToastWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         MeasureAndPosition();
-        ApplyNoActivate();
         AnimateIn();
         StartDismissTimer();
+    }
+
+    /// <summary>Sizes and places the toast from an estimate, before the card has been measured.</summary>
+    private void PrimeFirstFrame()
+    {
+        try
+        {
+            const int estimatedWidth = 380;
+            const int estimatedHeight = 84;
+
+            if (AppWindow is not { } appWindow) return;
+
+            appWindow.Resize(new SizeInt32(estimatedWidth, estimatedHeight));
+            MoveToAnchor(estimatedWidth, estimatedHeight);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Toast first frame error: {ex.Message}");
+        }
+    }
+
+    private void MoveToAnchor(int width, int height)
+    {
+        if (AppWindow is not { } appWindow) return;
+
+        var area = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary);
+        var work = area.WorkArea;
+        var margin = Math.Clamp(_alerts.MarginPx, 0, 200);
+
+        // Stack successive toasts away from their anchor edge.
+        var offset = _stackIndex * (height + 8);
+
+        int x = _alerts.Anchor switch
+        {
+            "TopLeft" or "MiddleLeft" or "BottomLeft" => work.X + margin,
+            "TopRight" or "MiddleRight" or "BottomRight" => work.X + work.Width - width - margin,
+            _ => work.X + (work.Width - width) / 2
+        };
+
+        int y = _alerts.Anchor switch
+        {
+            "TopLeft" or "TopCenter" or "TopRight" => work.Y + margin + offset,
+            "BottomLeft" or "BottomCenter" or "BottomRight" => work.Y + work.Height - height - margin - offset,
+            _ => work.Y + (work.Height - height) / 2 + offset
+        };
+
+        appWindow.Move(new PointInt32(x, y));
     }
 
     private void MeasureAndPosition()
@@ -106,33 +184,34 @@ public sealed partial class ConnectionToastWindow : Window
             if (AppWindow is not { } appWindow) return;
 
             appWindow.Resize(new SizeInt32(width, height));
-
-            var area = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary);
-            var work = area.WorkArea;
-            var margin = Math.Clamp(_alerts.MarginPx, 0, 200);
-
-            // Stack successive toasts away from their anchor edge.
-            var offset = _stackIndex * (height + 8);
-
-            int x = _alerts.Anchor switch
-            {
-                "TopLeft" or "MiddleLeft" or "BottomLeft" => work.X + margin,
-                "TopRight" or "MiddleRight" or "BottomRight" => work.X + work.Width - width - margin,
-                _ => work.X + (work.Width - width) / 2
-            };
-
-            int y = _alerts.Anchor switch
-            {
-                "TopLeft" or "TopCenter" or "TopRight" => work.Y + margin + offset,
-                "BottomLeft" or "BottomCenter" or "BottomRight" => work.Y + work.Height - height - margin - offset,
-                _ => work.Y + (work.Height - height) / 2 + offset
-            };
-
-            appWindow.Move(new PointInt32(x, y));
+            MoveToAnchor(width, height);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Toast layout error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Per-pixel transparency, so the rounded card's corners are not black rectangles, and no
+    /// activation, so showing a toast never steals focus from an open flyout or dialog.
+    /// </summary>
+    private void ApplyWindowChrome()
+    {
+        try
+        {
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            uint ncPolicy = DWMNCRP_DISABLED;
+            DwmSetWindowAttribute(hWnd, DWMWA_NCRENDERING_POLICY, ref ncPolicy, sizeof(uint));
+
+            var margins = new MARGINS(-1);
+            DwmExtendFrameIntoClientArea(hWnd, ref margins);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Toast chrome error: {ex.Message}");
         }
     }
 

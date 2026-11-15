@@ -28,6 +28,7 @@ public sealed class SpeedMeterService : IDisposable
     private int _topTick;
     private TopAppsStats _lastTopApps = TopAppsStats.Empty;
     private int? _lastBatteryPercent;
+    private bool? _lastBatteryOnAc;
 
     private DateTime? _idleSince;
     private bool _idleHidden;
@@ -663,17 +664,30 @@ public sealed class SpeedMeterService : IDisposable
         if (!settings.BatteryAlerts || stats.BatteryPercent is not { } percent) return;
 
         var previous = _lastBatteryPercent;
+        var previousAc = _lastBatteryOnAc;
         var onAc = stats.BatteryOnAc;
 
+        // The thresholds are user values (10, 20, 50, 70, 100 and anything in between).
+        var low = Math.Clamp(settings.BatteryLowPercent, 1, 99);
+        var high = Math.Clamp(settings.BatteryHighPercent, 2, 100);
+
         _lastBatteryPercent = percent;
+        _lastBatteryOnAc = onAc;
+
+        // Plug in / unplug is always worth a toast, whatever the thresholds are.
+        if (previousAc is { } wasOnAc && wasOnAc != onAc)
+        {
+            ShowWarning(onAc ? "Charger connected" : "Running on battery",
+                onAc ? $"Charging · {percent}%" : $"{percent}% remaining");
+        }
 
         if (previous is not { } before) return;
 
-        if (onAc && before < 80 && percent >= 80)
+        if (onAc && before < high && percent >= high)
         {
-            ShowWarning("Battery at 80%", "Charged enough — you can unplug the charger");
+            ShowWarning($"Battery at {high}%", "Charged enough — you can unplug the charger");
         }
-        else if (!onAc && before > 20 && percent <= 20)
+        else if (!onAc && before > low && percent <= low)
         {
             ShowWarning("Battery low", $"{percent}% remaining — plug in the charger");
         }

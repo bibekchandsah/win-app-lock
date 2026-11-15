@@ -492,3 +492,23 @@ now index the list.
 `HandleCloseRequestAsync` cleaned up and called `Environment.Exit(0)` from inside the awaited auth
 dialog's continuation. The cleanup is now queued on a fresh dispatcher turn, and `SpeedMeterService.Stop`
 waits (max 2 s) for an in-flight WMI sample before the widget and timers are torn down.
+
+### Speed meter follow-up: ideas 352-362
+
+- Batteries: `BatteryLowPercent` (default 20) and `BatteryHighPercent` (default 80) are editable
+  NumberBoxes, so 10/20/50/70/100 and anything in between work. Charging past the high value,
+  discharging to the low value, and every plug in / unplug now raises the speed meter toast.
+- The colour swatches were invisible because a `Border` inside a `Button` is centred, not stretched;
+  they now fill the button, so the swatch in front of each hex value shows the chosen colour.
+- The arrows / border / compact switches sit next to their labels instead of above them.
+- In the extra stats card the RAM format and CPU/RAM warning boxes moved up next to the disk,
+  download and upload warnings.
+- The top-apps line is no longer a single cycling row: every enabled metric (CPU, RAM, disk, GPU)
+  gets its own line, and the widget window grows so the process names are not clipped.
+- The usage chart gives every column a transparent hit area with a tooltip (date, download, upload).
+- `PositionOnScreen` no longer writes the position back while the window is still being created, so
+  the remembered spot survives a restart; only dragging or "Reset position" stores it.
+- Toasts are built before they are shown, use per-pixel transparency (no black rectangle behind the
+  rounded card) and never activate, so a toast no longer steals focus and closes an open colour picker.
+- Per-app **network** usage is still not available: attributing packets to a PID needs an ETW kernel
+  session, so the top-apps block covers CPU, RAM, disk and GPU.
