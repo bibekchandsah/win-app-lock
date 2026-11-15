@@ -5,7 +5,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Management.Deployment;
+#if !APPLOCK_TESTS
 using Microsoft.UI.Xaml.Media.Imaging;
+#endif
 
 namespace AppLock.Services.Firewall;
 
@@ -15,7 +17,11 @@ public class InstalledApp
     public string? ExecutablePath { get; set; }
     public string? PackageFamilyName { get; set; }
     public string? Publisher { get; set; }
+#if !APPLOCK_TESTS
     public BitmapImage? Icon { get; set; }
+#else
+    public object? Icon { get; set; }
+#endif
     public bool IsUwp => !string.IsNullOrEmpty(PackageFamilyName);
 }
 

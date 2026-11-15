@@ -88,6 +88,8 @@ public sealed partial class InternetAccessPage : Page
         // Resume the scan loop if it was left enabled
         if (ServiceContainer.Settings.NetworkDeviceScanner.ScannerEnabled)
             ServiceContainer.NetworkScannerService.Start();
+
+        UpdateConnScopeButtons();
     }
 
     private bool IsElevated()
@@ -170,6 +172,8 @@ public sealed partial class InternetAccessPage : Page
         NetworkDevicesTabButton.Style = null;
         ListeningPortsTabButton.Style = null;
         
+        UpdateConnScopeButtons();
+
         _listeningPortsViewModel.StopAutoRefresh();
         // Start auto-refresh when tab becomes visible
         _ = _activeConnectionsViewModel.LoadConnectionsAsync();
@@ -864,46 +868,81 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    private async Task BlockProcessAsync(string processPath, string processName, bool isSystemProcess)
+    {
+        // Verify not a system process
+        if (isSystemProcess)
+        {
+            await ShowMessageAsync("Cannot Block", 
+                $"{processName} is a system-critical process and cannot be blocked from this view.\n\n" +
+                "Use the Apps tab to add it with an explicit warning.");
+            return;
+        }
+
+        // Check for system critical executable
+        if (InstalledAppsService.IsSystemCritical(processPath))
+        {
+            bool confirmed = await ShowSystemCriticalWarningAsync(processName);
+            if (!confirmed)
+                return;
+        }
+
+        // Add to Apps list and block
+        string displayName = processName;
+        await _viewModel.AddAppAsync(
+            processPath, 
+            displayName, 
+            blockImmediately: true, 
+            direction: "Outgoing", 
+            packageFamilyName: null, 
+            icon: null);
+        UpdateAppsVisibility();
+
+        await ShowMessageAsync("Blocked", $"{displayName} has been added to the blocked apps list.");
+    }
+
     private async void BlockConnection_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button button && button.Tag is ActiveConnection connection)
         {
-            // Verify not a system process
-            if (connection.IsSystemProcess)
-            {
-                await ShowMessageAsync("Cannot Block", 
-                    $"{connection.ProcessName} is a system-critical process and cannot be blocked from this view.\n\n" +
-                    "Use the Apps tab to add it with an explicit warning.");
-                return;
-            }
-
-            // Check for system critical executable
-            if (InstalledAppsService.IsSystemCritical(connection.ProcessPath))
-            {
-                bool confirmed = await ShowSystemCriticalWarningAsync(connection.ProcessName);
-                if (!confirmed)
-                    return;
-            }
-
-            // Add to Apps list and block
-            string displayName = connection.ProcessName;
-            await _viewModel.AddAppAsync(
-                connection.ProcessPath, 
-                displayName, 
-                blockImmediately: true, 
-                direction: "Outgoing", 
-                packageFamilyName: null, 
-                icon: null);
-            UpdateAppsVisibility();
-
-            await ShowMessageAsync("Blocked", $"{displayName} has been added to the blocked apps list.");
+            await BlockProcessAsync(connection.ProcessPath, connection.ProcessName, connection.IsSystemProcess);
         }
     }
 
-    private void FilterToggleGrid_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    private async void BlockConnectionGroup_Click(object sender, RoutedEventArgs e)
     {
-        // Toggle the switch when the grid (including label) is tapped
-        FilterToggle.IsOn = !FilterToggle.IsOn;
+        if (sender is Button button && button.Tag is ActiveConnectionGroupViewModel group)
+        {
+            await BlockProcessAsync(group.ProcessPath, group.ProcessName, group.IsSystemProcess);
+        }
+    }
+
+    private void ConnectionGroupChevron_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ActiveConnectionGroupViewModel group)
+        {
+            group.IsExpanded = !group.IsExpanded;
+        }
+    }
+
+    private void ConnScopeChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string scope)
+        {
+            _activeConnectionsViewModel.SetScopeFilter(scope);
+            UpdateConnScopeButtons();
+        }
+    }
+
+    private void UpdateConnScopeButtons()
+    {
+        var accentStyle = (Style)Resources["AccentButtonStyle"];
+        if (ConnScopeAllBtn != null)
+            ConnScopeAllBtn.Style = _activeConnectionsViewModel.IsScopeAll ? accentStyle : null;
+        if (ConnScopeInternetBtn != null)
+            ConnScopeInternetBtn.Style = _activeConnectionsViewModel.IsScopeInternetOnly ? accentStyle : null;
+        if (ConnScopeLanBtn != null)
+            ConnScopeLanBtn.Style = _activeConnectionsViewModel.IsScopeLocalNetworkOnly ? accentStyle : null;
     }
 
     private async void DirectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1911,7 +1950,6 @@ public class BoolToTrustColorConverter : IValueConverter
         => throw new NotImplementedException();
 }
 
-// ── Converter: bool (IsOnline) → status pill color ────────────────────────────
 public class BoolToStatusColorConverter : IValueConverter
 {
     // Online → green, Offline → gray
@@ -1920,6 +1958,17 @@ public class BoolToStatusColorConverter : IValueConverter
 
     public object Convert(object value, Type targetType, object parameter, string language)
         => value is bool b && b ? OnlineColor : OfflineColor;
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+        => throw new NotImplementedException();
+}
+
+// ── Converter: bool (IsExpanded) → chevron glyph ──────────────────────────────
+public class BoolToChevronConverter : IValueConverter
+{
+    // Expanded → ChevronDown (\uE70D), Collapsed → ChevronRight (\uE76C)
+    public object Convert(object value, Type targetType, object parameter, string language)
+        => value is bool b && b ? "\uE70D" : "\uE76C";
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
         => throw new NotImplementedException();

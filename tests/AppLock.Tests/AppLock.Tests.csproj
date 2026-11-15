@@ -59,6 +59,7 @@
     <Compile Include="..\..\src\AppLock\Models\KeyboardSettings.cs" Link="Models\KeyboardSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockKeyIndicatorSettings.cs" Link="Models\LockKeyIndicatorSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
+    <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Services\SpeedMeter\NetworkStatsProvider.cs" Link="Services\SpeedMeter\NetworkStatsProvider.cs" />
     <Compile Include="..\..\src\AppLock\Services\SpeedMeter\UsageStore.cs" Link="Services\SpeedMeter\UsageStore.cs" />
@@ -77,9 +78,13 @@
     <Compile Include="..\..\src\AppLock\Services\Firewall\IFirewallService.cs" Link="Services\Firewall\IFirewallService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\FakeFirewallService.cs" Link="Services\Firewall\FakeFirewallService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\RuleSyncService.cs" Link="Services\Firewall\RuleSyncService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Firewall\InstalledAppsService.cs" Link="Services\Firewall\InstalledAppsService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\PortClassifier.cs" Link="Services\Firewall\PortClassifier.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\FirewallExposureEvaluator.cs" Link="Services\Firewall\FirewallExposureEvaluator.cs" />
     <Compile Include="..\..\src\AppLock\Services\Firewall\ListeningPortService.cs" Link="Services\Firewall\ListeningPortService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Firewall\ActiveConnectionService.cs" Link="Services\Firewall\ActiveConnectionService.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\ActiveConnectionGroupViewModel.cs" Link="ViewModels\ActiveConnectionGroupViewModel.cs" />
+    <Compile Include="..\..\src\AppLock\ViewModels\ActiveConnectionViewModel.cs" Link="ViewModels\ActiveConnectionViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortItemViewModel.cs" Link="ViewModels\ListeningPortItemViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortGroupViewModel.cs" Link="ViewModels\ListeningPortGroupViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\ListeningPortsViewModel.cs" Link="ViewModels\ListeningPortsViewModel.cs" />

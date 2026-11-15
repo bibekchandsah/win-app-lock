@@ -16,6 +16,7 @@
         <local:BoolToTrustColorConverter x:Key="BoolToColorConverter"/>
         <local:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
         <local:BoolToStatusColorConverter x:Key="BoolToStatusColorConverter"/>
+        <local:BoolToChevronConverter x:Key="BoolToChevronConverter"/>
         
         <!-- Color converter for status chips -->
         <SolidColorBrush x:Key="BlockedColor" Color="#DC3545"/>
@@ -353,45 +354,253 @@
                 <!-- Active Connections Tab -->
                 <Grid x:Name="ActiveConnectionsTabContent" Visibility="Collapsed" RowSpacing="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/> <!-- 0: Search, Scope Chips & Toggles -->
+                        <RowDefinition Height="*"/>    <!-- 1: Grouped / Flat ListView -->
+                        <RowDefinition Height="Auto"/> <!-- 2: Status bar -->
                     </Grid.RowDefinitions>
 
-                    <!-- Filter and options -->
-                    <Grid Grid.Row="0" Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                    <!-- Filter and options toolbar -->
+                    <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,4">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Search Box -->
-                        <TextBox
-                            Grid.Column="0"
-                            PlaceholderText="Filter by process, address, or protocol..."
-                            Text="{x:Bind ActiveConnectionsViewModel.FilterQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            VerticalAlignment="Center"
-                            Height="32"
-                            Margin="0,0,12,0"/>
+                            <!-- Search Box -->
+                            <TextBox
+                                Grid.Column="0"
+                                PlaceholderText="Filter by process, address, port, protocol, or state..."
+                                Text="{x:Bind ActiveConnectionsViewModel.FilterQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                VerticalAlignment="Center"
+                                Height="32"/>
 
-                        <!-- Filter Toggle -->
-                        <Grid Grid.Column="1" 
-                              VerticalAlignment="Center"
-                              Tapped="FilterToggleGrid_Tapped">
-                            <ToggleSwitch
-                                x:Name="FilterToggle"
-                                IsOn="{x:Bind ActiveConnectionsViewModel.ShowOnlyWithConnections, Mode=TwoWay}"
-                                OffContent="Showing all"
-                                OnContent="Connected only"
-                                MinWidth="0"/>
+                            <!-- Scope filter chips -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Button x:Name="ConnScopeAllBtn"
+                                        Content="All"
+                                        Click="ConnScopeChip_Click"
+                                        Tag="All"
+                                        Padding="10,5"/>
+                                <Button x:Name="ConnScopeInternetBtn"
+                                        Content="Internet only"
+                                        Click="ConnScopeChip_Click"
+                                        Tag="Internet"
+                                        Padding="10,5"/>
+                                <Button x:Name="ConnScopeLanBtn"
+                                        Content="Local network"
+                                        Click="ConnScopeChip_Click"
+                                        Tag="LocalNetwork"
+                                        Padding="10,5"/>
+                            </StackPanel>
                         </Grid>
-                    </Grid>
 
-                    <!-- Connections list -->
+                        <!-- Secondary toggles bar -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                                <!-- Established only Toggle -->
+                                <ToggleSwitch
+                                    x:Name="EstablishedOnlyToggle"
+                                    IsOn="{x:Bind ActiveConnectionsViewModel.ShowOnlyEstablished, Mode=TwoWay}"
+                                    OffContent="All states"
+                                    OnContent="Established only"
+                                    ToolTipService.ToolTip="Hide listening, closing and waiting connections"
+                                    MinWidth="0"/>
+
+                                <!-- Hide local Toggle -->
+                                <ToggleSwitch
+                                    x:Name="HideLocalToggle"
+                                    IsOn="{x:Bind ActiveConnectionsViewModel.HideLocalConnections, Mode=TwoWay}"
+                                    OffContent="Show local"
+                                    OnContent="Hide local"
+                                    ToolTipService.ToolTip="Hide loopback connections (127.0.0.1, ::1, or local-to-local)"
+                                    MinWidth="0"/>
+                            </StackPanel>
+
+                            <!-- Group by app Toggle -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <ToggleSwitch
+                                    x:Name="GroupByAppToggle"
+                                    IsOn="{x:Bind ActiveConnectionsViewModel.GroupByApp, Mode=TwoWay}"
+                                    OffContent="Flat list"
+                                    OnContent="Group by app"
+                                    ToolTipService.ToolTip="Group connections by application"
+                                    MinWidth="0"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Grouped connections list (Default ON) -->
+                    <ListView
+                        x:Name="GroupedConnectionsListView"
+                        Grid.Row="1"
+                        ItemsSource="{x:Bind ActiveConnectionsViewModel.GroupedConnections, Mode=OneWay}"
+                        Visibility="{x:Bind ActiveConnectionsViewModel.GroupByApp, Mode=OneWay, Converter={StaticResource BoolToVisConverter}}"
+                        SelectionMode="None">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ActiveConnectionGroupViewModel">
+                                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Margin="0,0,0,8"
+                                        Padding="12,10">
+                                    <StackPanel Spacing="8">
+                                        <!-- Group Header Row -->
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/> <!-- Expander chevron -->
+                                                <ColumnDefinition Width="Auto"/> <!-- App glyph -->
+                                                <ColumnDefinition Width="*"/>    <!-- Process Name & Path -->
+                                                <ColumnDefinition Width="Auto"/> <!-- PID badge -->
+                                                <ColumnDefinition Width="Auto"/> <!-- Count badge -->
+                                                <ColumnDefinition Width="Auto"/> <!-- System badge -->
+                                                <ColumnDefinition Width="Auto"/> <!-- Block button -->
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Chevron expander button -->
+                                            <Button Grid.Column="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="4"
+                                                    Click="ConnectionGroupChevron_Click"
+                                                    Tag="{x:Bind}"
+                                                    VerticalAlignment="Center">
+                                                <FontIcon Glyph="{x:Bind IsExpanded, Mode=OneWay, Converter={StaticResource BoolToChevronConverter}}"
+                                                          FontSize="12"/>
+                                            </Button>
+
+                                            <!-- Glyph -->
+                                            <Border Grid.Column="1"
+                                                    Width="32" Height="32"
+                                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    CornerRadius="6"
+                                                    VerticalAlignment="Center">
+                                                <FontIcon Glyph="{x:Bind DefaultProcessGlyph}" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+
+                                            <!-- Process Name & Path -->
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind ProcessName}" FontWeight="SemiBold" FontSize="14"/>
+                                                <TextBlock Text="{x:Bind ProcessPath}"
+                                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+
+                                            <!-- PID -->
+                                            <Border Grid.Column="3"
+                                                    Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind PidText}"
+                                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+
+                                            <!-- Count badge -->
+                                            <Border Grid.Column="4"
+                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                    CornerRadius="10"
+                                                    Padding="8,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind ConnectionCountText, Mode=OneWay}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                                            </Border>
+
+                                            <!-- System badge -->
+                                            <TextBlock Grid.Column="5"
+                                                       Text="System Process"
+                                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                       Padding="6,2"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{x:Bind IsSystemProcess, Mode=OneWay, Converter={StaticResource BoolToVisConverter}}"/>
+
+                                            <!-- Single Block button for the whole process -->
+                                            <Button Grid.Column="6"
+                                                    Content="Block"
+                                                    Click="BlockConnectionGroup_Click"
+                                                    Tag="{x:Bind}"
+                                                    IsEnabled="{x:Bind CanBlock}"
+                                                    VerticalAlignment="Center"/>
+                                        </Grid>
+
+                                        <!-- Expanded child connections list -->
+                                        <ListView ItemsSource="{x:Bind Connections, Mode=OneWay}"
+                                                  Visibility="{x:Bind IsExpanded, Mode=OneWay, Converter={StaticResource BoolToVisConverter}}"
+                                                  SelectionMode="None"
+                                                  Padding="28,4,0,0">
+                                            <ListView.ItemTemplate>
+                                                <DataTemplate x:DataType="models:ActiveConnection">
+                                                    <Grid ColumnSpacing="12" Padding="4,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="60"/>  <!-- Protocol -->
+                                                            <ColumnDefinition Width="*"/>   <!-- Endpoint -->
+                                                            <ColumnDefinition Width="110"/> <!-- State -->
+                                                            <ColumnDefinition Width="90"/>  <!-- Scope -->
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Protocol -->
+                                                        <Border Grid.Column="0"
+                                                                Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                                                CornerRadius="4"
+                                                                Padding="6,2"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{x:Bind Protocol}"
+                                                                       Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                                        </Border>
+
+                                                        <!-- Connection Endpoint -->
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{x:Bind Connection}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <!-- State -->
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{x:Bind State}"
+                                                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <!-- Scope chip -->
+                                                        <Border Grid.Column="3"
+                                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                                CornerRadius="4"
+                                                                Padding="6,2"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{x:Bind ScopeText}"
+                                                                       FontSize="11"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListView.ItemTemplate>
+                                        </ListView>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Flat Connections list (Toggleable) -->
                     <ListView
                         x:Name="ConnectionsListView"
                         Grid.Row="1"
                         ItemsSource="{x:Bind ActiveConnectionsViewModel.FilteredConnections, Mode=OneWay}"
+                        Visibility="{x:Bind ActiveConnectionsViewModel.GroupByApp, Mode=OneWay, Converter={StaticResource BoolToVisConverter}, ConverterParameter=Invert}"
                         SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:ActiveConnection">
@@ -452,7 +661,7 @@
                                         Foreground="{ThemeResource SystemFillColorCautionBrush}"
                                         Padding="8,4"
                                         VerticalAlignment="Center"
-                                        Visibility="{x:Bind SystemBadgeVisibility, Mode=OneWay}"/>
+                                        Visibility="{x:Bind IsSystemProcess, Mode=OneWay, Converter={StaticResource BoolToVisConverter}}"/>
 
                                     <!-- Block button -->
                                     <Button

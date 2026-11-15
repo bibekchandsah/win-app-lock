@@ -1,9 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using AppLock.Models;
 using AppLock.Services.Firewall;
@@ -23,10 +23,28 @@ public partial class ActiveConnectionViewModel : ObservableObject
     private ObservableCollection<ActiveConnection> _filteredConnections = new();
 
     [ObservableProperty]
+    private ObservableCollection<ActiveConnectionGroupViewModel> _groupedConnections = new();
+
+    [ObservableProperty]
     private string _filterQuery = "";
 
     [ObservableProperty]
-    private bool _showOnlyWithConnections = true;
+    private bool _showOnlyEstablished = true;
+
+    [ObservableProperty]
+    private bool _hideLocalConnections = true;
+
+    [ObservableProperty]
+    private int _localConnectionsHiddenCount = 0;
+
+    [ObservableProperty]
+    private bool _showInternet = true;
+
+    [ObservableProperty]
+    private bool _showLocalNetwork = true;
+
+    [ObservableProperty]
+    private bool _groupByApp = true;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -34,28 +52,82 @@ public partial class ActiveConnectionViewModel : ObservableObject
     [ObservableProperty]
     private string _statusText = "";
 
-    public string FilterButtonText => ShowOnlyWithConnections ? "Connected only" : "Show all";
+    // Backwards-compatible alias for existing code
+    public bool ShowOnlyWithConnections
+    {
+        get => ShowOnlyEstablished;
+        set => ShowOnlyEstablished = value;
+    }
+
+    public string FilterButtonText => ShowOnlyEstablished ? "Established only" : "All states";
+
+    public bool IsScopeAll => ShowInternet && ShowLocalNetwork;
+    public bool IsScopeInternetOnly => ShowInternet && !ShowLocalNetwork;
+    public bool IsScopeLocalNetworkOnly => !ShowInternet && ShowLocalNetwork;
 
     public ActiveConnectionViewModel()
     {
         _connectionService = new ActiveConnectionService();
     }
 
-    partial void OnFilterQueryChanged(string value)
+    partial void OnFilterQueryChanged(string value) => FilterConnections();
+
+    partial void OnShowOnlyEstablishedChanged(bool value)
     {
+        OnPropertyChanged(nameof(ShowOnlyWithConnections));
+        OnPropertyChanged(nameof(FilterButtonText));
         FilterConnections();
     }
 
-    partial void OnShowOnlyWithConnectionsChanged(bool value)
+    partial void OnHideLocalConnectionsChanged(bool value) => FilterConnections();
+
+    partial void OnShowInternetChanged(bool value)
     {
-        OnPropertyChanged(nameof(FilterButtonText));
+        NotifyScopeProperties();
         FilterConnections();
+    }
+
+    partial void OnShowLocalNetworkChanged(bool value)
+    {
+        NotifyScopeProperties();
+        FilterConnections();
+    }
+
+    partial void OnGroupByAppChanged(bool value) => FilterConnections();
+
+    private void NotifyScopeProperties()
+    {
+        OnPropertyChanged(nameof(IsScopeAll));
+        OnPropertyChanged(nameof(IsScopeInternetOnly));
+        OnPropertyChanged(nameof(IsScopeLocalNetworkOnly));
+    }
+
+    public void SetScopeFilter(string scope)
+    {
+        switch (scope.ToLowerInvariant())
+        {
+            case "internet":
+                ShowInternet = true;
+                ShowLocalNetwork = false;
+                break;
+            case "localnetwork":
+            case "lan":
+                ShowInternet = false;
+                ShowLocalNetwork = true;
+                break;
+            case "all":
+            default:
+                ShowInternet = true;
+                ShowLocalNetwork = true;
+                break;
+        }
     }
 
     public async Task LoadConnectionsAsync(CancellationToken ct = default)
     {
         IsLoading = true;
-        StatusText = "Loading connections...";
+        if (string.IsNullOrEmpty(StatusText))
+            StatusText = "Loading connections...";
 
         try
         {
@@ -76,43 +148,33 @@ public partial class ActiveConnectionViewModel : ObservableObject
                 
                 if (currentByKey.TryGetValue(existingKey, out var current))
                 {
-                    // Connection still exists - update its properties in-place
                     seenKeys.Add(existingKey);
                     
-                    // Update only mutable properties (Connection is computed, don't update it)
                     existing.State = current.State;
                     existing.LocalAddress = current.LocalAddress;
                     existing.LocalPort = current.LocalPort;
                     existing.RemoteAddress = current.RemoteAddress;
                     existing.RemotePort = current.RemotePort;
+                    existing.IsSystemProcess = current.IsSystemProcess;
+                    existing.CanBlock = current.CanBlock;
                 }
                 else
                 {
-                    // Connection no longer exists - remove it
                     Connections.RemoveAt(i);
                 }
             }
 
-            // 2. Add new connections that we haven't seen
+            // 2. Add new connections
             foreach (var group in allConnections.GroupBy(c => GetConnectionKey(c)))
             {
                 var key = group.Key;
                 if (!seenKeys.Contains(key))
                 {
-                    // Add only the first connection with this key
                     Connections.Add(group.First());
                 }
             }
 
             FilterConnections();
-            
-            // Group by process to show unique processes
-            var grouped = allConnections
-                .GroupBy(c => c.ProcessId)
-                .Select(g => g.First())
-                .ToList();
-            
-            StatusText = $"{grouped.Count} processes with connections ({allConnections.Count} total)";
         }
         catch (Exception ex)
         {
@@ -125,14 +187,9 @@ public partial class ActiveConnectionViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// Creates a unique key for a connection to track it across refreshes.
-    /// Uses all connection properties to ensure uniqueness.
-    /// </summary>
-    private string GetConnectionKey(ActiveConnection conn)
+    private static string GetConnectionKey(ActiveConnection conn)
     {
-        // Include State to differentiate connections in different states
-        return $"{conn.ProcessId}|{conn.Protocol}|{conn.LocalAddress}|{conn.LocalPort}|{conn.RemoteAddress}|{conn.RemotePort}|{conn.State}";
+        return $"{conn.ProcessId}|{conn.Protocol}|{conn.LocalAddress}|{conn.LocalPort}|{conn.RemoteAddress}|{conn.RemotePort}";
     }
 
     public void StartAutoRefresh(int intervalSeconds = 3)
@@ -175,52 +232,80 @@ public partial class ActiveConnectionViewModel : ObservableObject
         }
     }
 
-    private void FilterConnections()
+    public void FilterConnections()
     {
-        var filtered = Connections.AsEnumerable();
+        var rawList = Connections.ToList();
+        LocalConnectionsHiddenCount = rawList.Count(c => c.IsLocal);
 
-        // Filter by search query
+        var filtered = rawList.AsEnumerable();
+
+        // 1. Established only filter
+        if (ShowOnlyEstablished)
+        {
+            filtered = filtered.Where(c => c.State.Equals("ESTABLISHED", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 2. Hide local (loopback) filter
+        if (HideLocalConnections)
+        {
+            filtered = filtered.Where(c => !c.IsLocal);
+        }
+
+        // 3. Scope filter chips: Internet only · Local network · All
+        if (ShowInternet && !ShowLocalNetwork)
+        {
+            filtered = filtered.Where(c => c.IsInternet);
+        }
+        else if (!ShowInternet && ShowLocalNetwork)
+        {
+            filtered = filtered.Where(c => c.IsPrivateNetwork);
+        }
+        else if (ShowInternet && ShowLocalNetwork)
+        {
+            filtered = filtered.Where(c => c.IsInternet || c.IsPrivateNetwork || (!HideLocalConnections && c.IsLocal));
+        }
+
+        // 4. Search query filter
         if (!string.IsNullOrWhiteSpace(FilterQuery))
         {
-            var query = FilterQuery.ToLowerInvariant();
+            var query = FilterQuery.Trim().ToLowerInvariant();
             filtered = filtered.Where(c =>
                 c.ProcessName.ToLowerInvariant().Contains(query) ||
                 c.ProcessPath.ToLowerInvariant().Contains(query) ||
                 c.LocalAddress.Contains(query) ||
+                c.LocalPort.ToString().Contains(query) ||
                 c.RemoteAddress.Contains(query) ||
-                c.Protocol.ToLowerInvariant().Contains(query));
+                c.RemotePort.ToString().Contains(query) ||
+                c.Protocol.ToLowerInvariant().Contains(query) ||
+                c.State.ToLowerInvariant().Contains(query));
         }
 
-        // Filter: show only with remote connections
-        if (ShowOnlyWithConnections)
-        {
-            filtered = filtered.Where(c => 
-                !string.IsNullOrEmpty(c.RemoteAddress) && 
-                c.RemoteAddress != "0.0.0.0" &&
-                c.State == "ESTABLISHED");
-        }
+        // Stable sort for flat list
+        var newFlatItems = filtered
+            .OrderBy(c => c.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(c => c.ProcessId)
+            .ThenBy(c => c.Protocol)
+            .ThenBy(c => c.LocalPort)
+            .ThenBy(c => c.RemoteAddress)
+            .ThenBy(c => c.RemotePort)
+            .ToList();
 
-        var newItems = filtered.OrderBy(c => c.ProcessName).ToList();
-
-        // Update FilteredConnections in-place to minimize UI flickering
-        // Remove items that are no longer in the new list
+        // In-place diff update for FilteredConnections
         for (int i = FilteredConnections.Count - 1; i >= 0; i--)
         {
             var existing = FilteredConnections[i];
             var existingKey = GetConnectionKey(existing);
-            if (!newItems.Any(n => GetConnectionKey(n) == existingKey))
+            if (!newFlatItems.Any(n => GetConnectionKey(n) == existingKey))
             {
                 FilteredConnections.RemoveAt(i);
             }
         }
 
-        // Add new items or move existing ones to maintain order
-        for (int i = 0; i < newItems.Count; i++)
+        for (int i = 0; i < newFlatItems.Count; i++)
         {
-            var newItem = newItems[i];
+            var newItem = newFlatItems[i];
             var newKey = GetConnectionKey(newItem);
-            
-            // Find existing item in FilteredConnections
+
             int existingIndex = -1;
             for (int j = 0; j < FilteredConnections.Count; j++)
             {
@@ -233,25 +318,78 @@ public partial class ActiveConnectionViewModel : ObservableObject
 
             if (existingIndex >= 0)
             {
-                // Item exists - move to correct position if needed
                 if (existingIndex != i)
                 {
                     FilteredConnections.Move(existingIndex, i);
                 }
-                // Properties already updated in-place in the Connections list
             }
             else
             {
-                // New item - insert at correct position
                 if (i < FilteredConnections.Count)
-                {
                     FilteredConnections.Insert(i, newItem);
-                }
                 else
-                {
                     FilteredConnections.Add(newItem);
+            }
+        }
+
+        // In-place diff update for GroupedConnections
+        var groupedGroups = newFlatItems
+            .GroupBy(c => $"{c.ProcessName.ToLowerInvariant()}|{c.ProcessPath.ToLowerInvariant()}")
+            .Select(g => new
+            {
+                Key = g.Key,
+                Items = g.ToList()
+            })
+            .OrderBy(g => g.Items.First().ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(g => g.Items.Count)
+            .ToList();
+
+        for (int i = GroupedConnections.Count - 1; i >= 0; i--)
+        {
+            var existingGroup = GroupedConnections[i];
+            if (!groupedGroups.Any(g => g.Key == existingGroup.Key))
+            {
+                GroupedConnections.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < groupedGroups.Count; i++)
+        {
+            var targetGroup = groupedGroups[i];
+            var existingGroup = GroupedConnections.FirstOrDefault(g => g.Key == targetGroup.Key);
+
+            if (existingGroup != null)
+            {
+                existingGroup.UpdateGroup(targetGroup.Items);
+                int currentIndex = GroupedConnections.IndexOf(existingGroup);
+                if (currentIndex != i)
+                {
+                    GroupedConnections.Move(currentIndex, i);
                 }
             }
+            else
+            {
+                var newGroup = new ActiveConnectionGroupViewModel(targetGroup.Key);
+                newGroup.UpdateGroup(targetGroup.Items);
+                if (i < GroupedConnections.Count)
+                    GroupedConnections.Insert(i, newGroup);
+                else
+                    GroupedConnections.Add(newGroup);
+            }
+        }
+
+        // Accurate summary line: "33 apps with connections · 162 total · 86 local hidden"
+        int visibleApps = GroupedConnections.Count;
+        int total = rawList.Count;
+        int localHidden = HideLocalConnections ? LocalConnectionsHiddenCount : 0;
+
+        if (localHidden > 0 && HideLocalConnections)
+        {
+            StatusText = $"{visibleApps} apps with connections · {total} total · {localHidden} local hidden";
+        }
+        else
+        {
+            StatusText = $"{visibleApps} apps with connections · {total} total";
         }
     }
 }
