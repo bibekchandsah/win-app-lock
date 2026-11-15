@@ -527,3 +527,20 @@ waits (max 2 s) for an in-flight WMI sample before the widget and timers are tor
   seconds.
 - "Font weight" now applies to every text in the widget: rate numbers, labels, stat rows, top-app
   lines, the metered badge and the VPN badge.
+
+### Keyboard and Wi-Fi pages: layout, keyboard navigation, toggle sync
+
+- Both pages now use the Brightness page's structure: a fixed breadcrumb + title block and a
+  `ScrollViewer` that holds only the cards. Scrolling no longer drags the header with it, and the
+  administrator / elevation card that sits above "Enable Keyboard" (and above the saved-network card
+  on the Wi-Fi page) scrolls normally instead of sliding under the title.
+- Tab order is explicit (`BackButton` 0, `KeyboardToggle` 1, `LockKeyIndicatorToggle` 2,
+  `RefreshButton` 3, `Restart as administrator` 4; Wi-Fi: back 0, refresh 1, list 2), and the
+  controls carry automation names.
+- The Wi-Fi list is keyboard navigable: `SelectionMode="Single"` with
+  `SingleSelectionFollowsFocus="True"`, arrow keys walk the rows, Enter/Space reveals the selected
+  password, Ctrl+C copies it, and clicking a row does the same as the eye button.
+- `ServiceContainer.SetKeyboardEnabled` is now the single entry point for the keyboard/mouse input
+  state: it applies the state, saves the setting and raises `KeyboardEnabledChanged`. The quick
+  settings switch on the Others card (and its Quick Settings flyout) and the Keyboard page toggle
+  subscribe to that event, so changing either one updates the other without navigating.

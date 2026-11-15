@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace AppLock.Views;
@@ -82,6 +83,42 @@ public sealed partial class WifiPasswordsPage : Page
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await LoadAsync();
 
+    /// <summary>Keyboard/mouse users get the same action as the eye button by clicking the row.</summary>
+    private void NetworksList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is WifiProfileViewModel network && network.ActionsVisibility == Visibility.Visible)
+        {
+            network.IsRevealed = !network.IsRevealed;
+        }
+    }
+
+    /// <summary>
+    /// Arrow keys already move the selection between rows; Enter/Space toggles the password and
+    /// Ctrl+C copies it, matching the buttons at the end of each row.
+    /// </summary>
+    private void NetworksList_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (NetworksList.SelectedItem is not WifiProfileViewModel network) return;
+        if (network.ActionsVisibility != Visibility.Visible) return;
+
+        if (e.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space)
+        {
+            network.IsRevealed = !network.IsRevealed;
+            e.Handled = true;
+            return;
+        }
+
+        var control = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+            Windows.System.VirtualKey.Control);
+
+        if (e.Key == Windows.System.VirtualKey.C &&
+            control.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+        {
+            CopyPassword(network);
+            e.Handled = true;
+        }
+    }
+
     private async Task LoadAsync()
     {
         LoadingRing.IsActive = true;
@@ -139,6 +176,11 @@ public sealed partial class WifiPasswordsPage : Page
     {
         if (sender is not Button button || button.DataContext is not WifiProfileViewModel network) return;
 
+        CopyPassword(network);
+    }
+
+    private void CopyPassword(WifiProfileViewModel network)
+    {
         try
         {
             var package = new DataPackage();

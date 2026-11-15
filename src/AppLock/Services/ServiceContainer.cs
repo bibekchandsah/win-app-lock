@@ -826,6 +826,23 @@ public static class ServiceContainer
 
     public static event EventHandler<bool>? LockKeyIndicatorEnabledChanged;
 
+    public static event EventHandler<bool>? KeyboardEnabledChanged;
+
+    /// <summary>
+    /// Applies the keyboard/mouse input state once and tells every listening surface about it, so
+    /// the quick-settings switch on the Others page and the Keyboard page never disagree.
+    /// </summary>
+    public static bool SetKeyboardEnabled(bool enabled)
+    {
+        if (!KeyboardViewModel.SetEnabled(enabled)) return false;
+
+        Settings.Keyboard.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        KeyboardEnabledChanged?.Invoke(null, enabled);
+        return true;
+    }
+
     public static void SetLockKeyIndicatorEnabled(bool enabled)
     {
         Settings.LockKeyIndicator.Enabled = enabled;

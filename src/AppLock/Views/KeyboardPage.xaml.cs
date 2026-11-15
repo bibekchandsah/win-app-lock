@@ -16,8 +16,35 @@ namespace AppLock.Views
             this.InitializeComponent();
             _keyboardService = ServiceContainer.KeyboardService;
             _viewModel = ServiceContainer.KeyboardViewModel;
-            
+
+            Loaded += KeyboardPage_Loaded;
+            Unloaded += KeyboardPage_Unloaded;
+
             LoadSettings();
+        }
+
+        private void KeyboardPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
+            ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
+
+            LoadSettings();
+        }
+
+        private void KeyboardPage_Unloaded(object sender, RoutedEventArgs e)
+            => ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
+
+        /// <summary>Mirrors a change made from the quick-settings switch on the Others page.</summary>
+        private void OnKeyboardEnabledChanged(object? sender, bool enabled)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+                KeyboardToggle.IsOn = enabled;
+                KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+
+                UpdateStatus();
+            });
         }
 
         private void LoadSettings()
@@ -100,22 +127,14 @@ namespace AppLock.Views
             {
                 try
                 {
-                    bool success = _viewModel.SetEnabled(newState);
-                    
-                    if (success)
-                    {
-                        _viewModel.Enabled = newState;
-                        
-                        // Save to settings
-                        ServiceContainer.Settings.Keyboard.Enabled = newState;
-                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-                        
-                        UpdateStatus();
-                    }
-                    else
+                    // The shared entry point applies the state, saves it and notifies the quick
+                    // switch on the Others page.
+                    if (!ServiceContainer.SetKeyboardEnabled(newState))
                     {
                         throw new Exception("BlockInput API call failed");
                     }
+
+                    UpdateStatus();
                 }
                 catch (System.Exception ex)
                 {

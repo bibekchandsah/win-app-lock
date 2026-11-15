@@ -133,6 +133,11 @@ public sealed partial class OthersPage : Page
         ServiceContainer.NotificationCustomizerEnabledChanged += OnNotificationCustomizerEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged += OnSpeedMeterEnabledChanged;
+        ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
+        ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
+
+        // Show what the input state really is, not what was written to the settings last.
+        SyncKeyboardCard(ServiceContainer.KeyboardViewModel.Enabled);
         if (ServiceContainer.SpeedMeterService is { } speedMeter)
         {
             speedMeter.SampleUpdated -= OnSpeedMeterSample;
@@ -148,6 +153,7 @@ public sealed partial class OthersPage : Page
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
     {
+        ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
         ServiceContainer.ClipboardEnabledChanged -= OnClipboardEnabledChanged;
         ServiceContainer.ClipboardMonitor.PauseStateChanged -= OnClipboardPauseStateChanged;
         ServiceContainer.EyeCareEnabledChanged -= OnEyeCareEnabledChanged;
@@ -538,11 +544,9 @@ public sealed partial class OthersPage : Page
         {
             bool enable = toggle.IsOn;
 
-            // This switch used to only write a setting; the input state was never applied, so it
-            // disagreed with the Keyboard page. Go through the same view model the page uses.
-            bool applied = ServiceContainer.KeyboardViewModel.SetEnabled(enable);
-
-            if (!applied)
+            // One entry point applies the input state, saves the setting and notifies the Keyboard
+            // page, so the quick switch and the page toggle always show the same value.
+            if (!ServiceContainer.SetKeyboardEnabled(enable))
             {
                 // No admin rights / the API refused: put the switch back where it was.
                 _syncingKeyboardToggle = true;
@@ -553,10 +557,22 @@ public sealed partial class OthersPage : Page
             }
 
             card.KeyboardEnabled = enable;
-            ServiceContainer.Settings.Keyboard.Enabled = enable;
-            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
     }
+
+    /// <summary>Keeps the keyboard card's switch in step with changes made on the Keyboard page.</summary>
+    private void SyncKeyboardCard(bool enabled)
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "keyboard");
+        if (card is null || card.KeyboardEnabled == enabled) return;
+
+        _syncingKeyboardToggle = true;
+        card.KeyboardEnabled = enabled;
+        _syncingKeyboardToggle = false;
+    }
+
+    private void OnKeyboardEnabledChanged(object? sender, bool enabled)
+        => DispatcherQueue.TryEnqueue(() => SyncKeyboardCard(enabled));
 }
 
 public class UtilityCard : INotifyPropertyChanged
