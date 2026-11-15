@@ -50,6 +50,7 @@ public sealed partial class SpeedWidgetControl : UserControl
     private Brush _upBrush = new SolidColorBrush(DefaultUp);
     private Brush _textBrush = new SolidColorBrush(Colors.White);
     private FontFamily _fontFamily = new("Segoe UI Variable");
+    private Windows.UI.Text.FontWeight _fontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
     private double _scale = 1.0;
 
     public SpeedWidgetControl()
@@ -169,12 +170,28 @@ public sealed partial class SpeedWidgetControl : UserControl
         UpSpark.Stroke = new SolidColorBrush(ParseColor(settings.UploadColor, DefaultUp));
 
         MeteredBadge.FontFamily = font;
+        MeteredBadge.FontWeight = weight;
         MeteredBadge.FontSize = 9 * scale;
         MeteredBadge.Foreground = textBrush;
 
         VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
 
+        // The badge's icon and caption are plain children, so the weight is set on each of them.
+        foreach (var child in VpnBadge.Children)
+        {
+            switch (child)
+            {
+                case TextBlock text:
+                    text.FontWeight = weight;
+                    break;
+                case FontIcon icon:
+                    icon.FontWeight = weight;
+                    break;
+            }
+        }
+
         _fontFamily = font;
+        _fontWeight = weight;
         _scale = scale;
         UpdateTicker();
 
@@ -215,6 +232,7 @@ public sealed partial class SpeedWidgetControl : UserControl
                 Text = RowLabel(id),
                 FontSize = fontSize,
                 FontFamily = font,
+                FontWeight = _fontWeight,
                 Foreground = textBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -225,6 +243,7 @@ public sealed partial class SpeedWidgetControl : UserControl
                 Text = "--",
                 FontSize = fontSize,
                 FontFamily = font,
+                FontWeight = _fontWeight,
                 Foreground = valueBrush,
                 TextAlignment = TextAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center
@@ -395,6 +414,7 @@ public sealed partial class SpeedWidgetControl : UserControl
                 Text = line,
                 FontSize = 10 * _scale,
                 FontFamily = _fontFamily,
+                FontWeight = _fontWeight,
                 Foreground = _textBrush,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });

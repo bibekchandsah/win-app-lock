@@ -512,3 +512,18 @@ waits (max 2 s) for an in-flight WMI sample before the widget and timers are tor
   rounded card) and never activate, so a toast no longer steals focus and closes an open colour picker.
 - Per-app **network** usage is still not available: attributing packets to a PID needs an ETW kernel
   session, so the top-apps block covers CPU, RAM, disk and GPU.
+
+### Speed meter follow-up 2: swatches, dynamic size, font weight
+
+- The colour swatches stayed blank because a `Button` centres its content: the `Border` had no size
+  and collapsed to nothing. Each swatch now gets an explicit size plus `Horizontal/VerticalContentAlignment="Stretch"`,
+  so the preview shows the chosen colour in front of the hex value.
+- The widget window is now re-measured after every update (`Update`, `SetStats`, `SetTopApps`,
+  `SetUsage`) and clamped back onto the monitor, so it grows to fit a newly enabled row or a fourth
+  top-app line instead of clipping, and never slides off the bottom of the screen.
+- `OnWidgetLoaded` rebuilds the appearance from the saved settings, so all enabled rows exist on the
+  first show rather than only after the settings page is opened.
+- The GPU list is read on the first top-apps tick, so the GPU line is not missing for the first
+  seconds.
+- "Font weight" now applies to every text in the widget: rate numbers, labels, stat rows, top-app
+  lines, the metered badge and the VPN badge.

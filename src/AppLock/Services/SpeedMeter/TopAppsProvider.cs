@@ -91,7 +91,9 @@ public sealed class TopAppsProvider
             }
         }
 
-        if (++_tick % GpuRefreshTicks == 0)
+        // Read the GPU once on the very first tick as well, so the GPU line is not missing from
+        // the widget for the first few seconds after launch.
+        if (++_tick == 1 || _tick % GpuRefreshTicks == 0)
         {
             _gpuByPid = ReadGpuByPid();
         }

@@ -166,10 +166,15 @@ public sealed partial class SpeedWidgetWindow : Window
     {
         ApplyBackdrop();
         ApplyWindowChrome();
+
+        // Rebuild once more from the saved settings: the constructor runs before every service has
+        // finished coming up, and this is what guarantees all enabled rows exist on first show.
+        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
         ResizeToContent();
         PositionOnScreen();
 
         Update(new NetworkSpeedSample());
+        SetStats(SystemStats.Empty);
         ApplyClickThrough();
     }
 
@@ -287,6 +292,15 @@ public sealed partial class SpeedWidgetWindow : Window
             if (appWindow.Size.Width == width && appWindow.Size.Height == height) return;
 
             appWindow.Resize(new SizeInt32(width, height));
+
+            // Growing downwards must not push the widget off the bottom of the screen.
+            var area = ResolveArea();
+            var clamped = WidgetPositioner.Clamp(appWindow.Position, new SizeInt32(width, height), area.WorkArea);
+
+            if (clamped.X != appWindow.Position.X || clamped.Y != appWindow.Position.Y)
+            {
+                appWindow.Move(clamped);
+            }
         }
         catch (Exception ex)
         {
@@ -395,17 +409,31 @@ public sealed partial class SpeedWidgetWindow : Window
             sample.BytesUpPerSec);
 
         Widget.AddSparkSample(sample.BytesDownPerSec, sample.BytesUpPerSec);
+
+        // The widget is sized to its content; the content grows when a reading arrives.
+        ResizeToContent();
     }
 
-    /// <summary>Feeds the top CPU / RAM / disk / GPU process line.</summary>
-    public void SetTopApps(TopAppsStats stats) => Widget.SetTopApps(stats);
+    /// <summary>Feeds the top CPU / RAM / disk / GPU process lines.</summary>
+    public void SetTopApps(TopAppsStats stats)
+    {
+        Widget.SetTopApps(stats);
+        ResizeToContent();
+    }
 
     /// <summary>Updates the optional CPU / RAM / disk / GPU / battery rows.</summary>
-    public void SetStats(SystemStats stats) => Widget.SetStats(stats);
+    public void SetStats(SystemStats stats)
+    {
+        Widget.SetStats(stats);
+        ResizeToContent();
+    }
 
     /// <summary>Today's totals row plus the metered and VPN badges.</summary>
     public void SetUsage(long todayDown, long todayUp, bool metered, bool vpn)
-        => Widget.SetUsage(todayDown, todayUp, metered, vpn);
+    {
+        Widget.SetUsage(todayDown, todayUp, metered, vpn);
+        ResizeToContent();
+    }
 
     /// <summary>Hides for full-screen apps / unhides afterwards without closing the window.</summary>
     public void SetFullscreenHidden(bool hidden)

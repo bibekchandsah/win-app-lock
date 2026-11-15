@@ -195,11 +195,11 @@
                                        FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             <Button x:Name="BackgroundColorButton" Grid.Row="0" Grid.Column="1"
-                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    Width="64" Height="30" Padding="2" CornerRadius="4"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     AutomationProperties.Name="Pick background color"
                                     ToolTipService.ToolTip="Pick the background color">
-                                <Border x:Name="BackgroundSwatch" CornerRadius="3" Margin="2"
-                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                <Border x:Name="BackgroundSwatch" CornerRadius="3" Width="56" Height="22"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#202020"/>
@@ -226,11 +226,11 @@
                                        FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             <Button x:Name="TextColorButton" Grid.Row="1" Grid.Column="1"
-                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    Width="64" Height="30" Padding="2" CornerRadius="4"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     AutomationProperties.Name="Pick text color"
                                     ToolTipService.ToolTip="Pick the text color">
-                                <Border x:Name="TextSwatch" CornerRadius="3" Margin="2"
-                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                <Border x:Name="TextSwatch" CornerRadius="3" Width="56" Height="22"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#FFFFFF"/>
@@ -257,11 +257,11 @@
                                        FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             <Button x:Name="DownColorButton" Grid.Row="2" Grid.Column="1"
-                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    Width="64" Height="30" Padding="2" CornerRadius="4"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     AutomationProperties.Name="Pick download color"
                                     ToolTipService.ToolTip="Pick the download color">
-                                <Border x:Name="DownSwatch" CornerRadius="3" Margin="2"
-                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                <Border x:Name="DownSwatch" CornerRadius="3" Width="56" Height="22"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#4ADE80"/>
@@ -288,11 +288,11 @@
                                        FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             <Button x:Name="UpColorButton" Grid.Row="3" Grid.Column="1"
-                                    Width="64" Height="30" Padding="0" CornerRadius="4"
+                                    Width="64" Height="30" Padding="2" CornerRadius="4"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     AutomationProperties.Name="Pick upload color"
                                     ToolTipService.ToolTip="Pick the upload color">
-                                <Border x:Name="UpSwatch" CornerRadius="3" Margin="2"
-                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                <Border x:Name="UpSwatch" CornerRadius="3" Width="56" Height="22"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         Background="#60A5FA"/>
