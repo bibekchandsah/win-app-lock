@@ -49,10 +49,21 @@ public class SpeedMeterSettings
     public bool WarnNotifications { get; set; } = true;
     public bool BatteryAlerts { get; set; } = true;
 
-    /// <summary>Toast when the battery drops to this percentage while discharging.</summary>
+    /// <summary>
+    /// Toast at each of these percentages while discharging (for example 30, 20, 10). Any whole
+    /// number from 1 to 99; <see cref="NormalizeBatteryThresholds"/> sorts and de-duplicates them.
+    /// </summary>
+    public List<int> BatteryLowPercents { get; set; } = new() { 20 };
+
+    /// <summary>
+    /// Toast at each of these percentages while charging (for example 50, 70, 100), 1 to 100.
+    /// </summary>
+    public List<int> BatteryHighPercents { get; set; } = new() { 80 };
+
+    /// <summary>Single on-battery threshold from before multiple levels existed; migrated on load.</summary>
     public int BatteryLowPercent { get; set; } = 20;
 
-    /// <summary>Toast when the battery reaches this percentage while charging.</summary>
+    /// <summary>Single charging threshold from before multiple levels existed; migrated on load.</summary>
     public int BatteryHighPercent { get; set; } = 80;
 
     // Scrolling "top app" ticker inside the widget.
@@ -100,6 +111,30 @@ public class SpeedMeterSettings
     public string? CapAdapterId { get; set; }
 
     public List<SpeedMeterPreset> CustomPresets { get; set; } = new();
+
+    /// <summary>
+    /// Clamps both level lists to valid percentages, drops duplicates and orders them ascending.
+    /// Returns true when anything had to change.
+    /// </summary>
+    public bool NormalizeBatteryThresholds()
+    {
+        var low = CleanLevels(BatteryLowPercents, 99);
+        var high = CleanLevels(BatteryHighPercents, 100);
+
+        var changed = !low.SequenceEqual(BatteryLowPercents) || !high.SequenceEqual(BatteryHighPercents);
+
+        BatteryLowPercents = low;
+        BatteryHighPercents = high;
+
+        return changed;
+    }
+
+    private static List<int> CleanLevels(List<int>? levels, int max)
+        => (levels ?? new List<int>())
+            .Select(level => Math.Clamp(level, 1, max))
+            .Distinct()
+            .OrderBy(level => level)
+            .ToList();
 }
 
 /// <summary>Connection lost / restored notifications shown by the speed meter.</summary>

@@ -838,19 +838,26 @@
                                               OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
                             </Grid>
 
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <NumberBox x:Name="BatteryLowBox" Grid.Column="0"
-                                           Header="Notify below % (on battery)" SpinButtonPlacementMode="Inline"
-                                           ValueChanged="BatteryBox_ValueChanged"/>
-                                <NumberBox x:Name="BatteryHighBox" Grid.Column="1"
-                                           Header="Notify above % (charging)" SpinButtonPlacementMode="Inline"
-                                           ValueChanged="BatteryBox_ValueChanged"/>
-                            </Grid>
+                            <StackPanel Spacing="6">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="BatteryLowBox" Grid.Column="0"
+                                             Header="Notify at these % (on battery)"
+                                             PlaceholderText="30, 20, 10"
+                                             TextChanged="BatteryBox_TextChanged"/>
+                                    <TextBox x:Name="BatteryHighBox" Grid.Column="1"
+                                             Header="Notify at these % (charging)"
+                                             PlaceholderText="50, 70, 100"
+                                             TextChanged="BatteryBox_TextChanged"/>
+                                </Grid>
+                                <TextBlock Text="Comma separated percentages. Each one toasts once when the battery crosses it, for example &quot;Battery charged 70%&quot; or &quot;Battery discharged to 20%&quot;."
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Top apps -->

@@ -40,7 +40,9 @@ public class SettingsStore
             if (settings != null)
             {
                 bool hadSelfDisciplineInJson = json.Contains("\"SelfDiscipline\"");
-                MigrateSettings(settings, !hadSelfDisciplineInJson);
+                bool hadBatteryLevelsInJson = json.Contains("\"BatteryLowPercents\"")
+                    || json.Contains("\"BatteryHighPercents\"");
+                MigrateSettings(settings, !hadSelfDisciplineInJson, hadBatteryLevelsInJson);
                 return settings;
             }
 
@@ -53,9 +55,26 @@ public class SettingsStore
         }
     }
 
-    private void MigrateSettings(AppSettings settings, bool forceSave = false)
+    private void MigrateSettings(AppSettings settings, bool forceSave = false, bool hadBatteryLevels = true)
     {
         bool modified = forceSave;
+
+        if (settings.SpeedMeter != null)
+        {
+            // Older settings carried one on-battery and one charging percentage; those become the
+            // first entry of the new multi-level lists so no alert is lost.
+            if (!hadBatteryLevels)
+            {
+                settings.SpeedMeter.BatteryLowPercents = new List<int> { settings.SpeedMeter.BatteryLowPercent };
+                settings.SpeedMeter.BatteryHighPercents = new List<int> { settings.SpeedMeter.BatteryHighPercent };
+                modified = true;
+            }
+
+            if (settings.SpeedMeter.NormalizeBatteryThresholds())
+            {
+                modified = true;
+            }
+        }
 
         if (settings.LockRules == null)
         {

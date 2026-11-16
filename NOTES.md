@@ -584,3 +584,19 @@ Supporting changes:
 - Verified with the window minimised (`ShowWindowAsync(SW_MINIMIZE)`, `IsIconic = True`) and a
   1-minute threshold: `idle.log` shows "AppLock window idle 1.0 min (threshold 1) - minimizing to
   tray and locking", and the window left the desktop.
+
+### Battery alerts take any number of custom percentages
+
+- The single "notify below / above" pair is replaced by two comma separated lists,
+  `SpeedMeterSettings.BatteryLowPercents` (on battery) and `BatteryHighPercents` (charging), so the
+  widget can toast at 10, 20, 50, 70, 100 or whatever the user types.
+- Lists are clamped to 1-99 / 1-100, de-duplicated and sorted both when typing and on load
+  (`NormalizeBatteryThresholds`). Settings saved before this change keep their one value per
+  direction: `SettingsStore` migrates the old `BatteryLowPercent` / `BatteryHighPercent` into the
+  new lists when the JSON has no lists yet.
+- `CheckBattery` toasts once per crossing and names the level in the message: "Battery charged 70%"
+  with "68% and charging - unplug whenever you like", and "Battery discharged to 20%" with
+  "18% remaining - plug in the charger". A reading that jumps over several levels (wake from sleep)
+  announces only the level nearest the current reading, so one event never produces a burst.
+- The page shows two text boxes ("Notify at these % (on battery)" / "(charging)") with a hint line;
+  plug / unplug toasts are unchanged.

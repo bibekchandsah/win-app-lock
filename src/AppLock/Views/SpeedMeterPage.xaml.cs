@@ -205,8 +205,8 @@ public sealed partial class SpeedMeterPage : Page
         WarnUpBox.Value = Math.Clamp(Settings.WarnUpMbps, 0, 100_000);
         WarnToastsToggle.IsOn = Settings.WarnNotifications;
         BatteryAlertsToggle.IsOn = Settings.BatteryAlerts;
-        BatteryLowBox.Value = Math.Clamp(Settings.BatteryLowPercent, 1, 99);
-        BatteryHighBox.Value = Math.Clamp(Settings.BatteryHighPercent, 2, 100);
+        BatteryLowBox.Text = FormatBatteryLevels(Settings.BatteryLowPercents);
+        BatteryHighBox.Text = FormatBatteryLevels(Settings.BatteryHighPercents);
         ShowTopAppsToggle.IsOn = Settings.ShowTopApps;
         TopCpuToggle.IsOn = Settings.TopAppsCpu;
         TopRamToggle.IsOn = Settings.TopAppsRam;
@@ -750,21 +750,39 @@ public sealed partial class SpeedMeterPage : Page
         SaveExtraStats();
     }
 
-    private void BatteryBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    private void BatteryBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_loading) return;
 
-        if (!double.IsNaN(BatteryLowBox.Value))
-        {
-            Settings.BatteryLowPercent = (int)Math.Clamp(BatteryLowBox.Value, 1, 99);
-        }
-
-        if (!double.IsNaN(BatteryHighBox.Value))
-        {
-            Settings.BatteryHighPercent = (int)Math.Clamp(BatteryHighBox.Value, 2, 100);
-        }
+        Settings.BatteryLowPercents = ParseBatteryLevels(BatteryLowBox.Text, 99);
+        Settings.BatteryHighPercents = ParseBatteryLevels(BatteryHighBox.Text, 100);
 
         SaveExtraStats();
+    }
+
+    private static string FormatBatteryLevels(List<int>? levels)
+        => levels is { Count: > 0 } ? string.Join(", ", levels) : string.Empty;
+
+    /// <summary>
+    /// Reads a comma/space separated list of percentages, e.g. "10, 20%, 50 70". Values outside
+    /// 1-<paramref name="max"/> are dropped, duplicates collapse and the result is sorted.
+    /// </summary>
+    private static List<int> ParseBatteryLevels(string? text, int max)
+    {
+        var levels = new SortedSet<int>();
+
+        foreach (var part in (text ?? string.Empty).Split(
+            new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var token = part.Trim().TrimEnd('%');
+            if (int.TryParse(token, NumberStyles.Integer, CultureInfo.CurrentCulture, out var level)
+                && level >= 1 && level <= max)
+            {
+                levels.Add(level);
+            }
+        }
+
+        return levels.ToList();
     }
 
     private void WarnOption_Toggled(object sender, RoutedEventArgs e)

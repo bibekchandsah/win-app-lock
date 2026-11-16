@@ -657,7 +657,12 @@ public sealed class SpeedMeterService : IDisposable
         ShowWarning($"High {label} usage", $"{mbps:F1} Mbps · warning above {limitMbps} Mbps");
     }
 
-    /// <summary>80% while charging and 20% while on battery, once per crossing.</summary>
+    /// <summary>
+    /// One toast per configured battery level. Every level the reading crossed fires, but only the
+    /// level nearest the current reading actually toasts, so a jump (wake from sleep at 45%) still
+    /// produces a single message instead of one per level. Discharging levels are user values such
+    /// as 50, 20, 10; charging levels are like 50, 70, 100.
+    /// </summary>
     private void CheckBattery(SystemStats stats)
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
@@ -667,14 +672,10 @@ public sealed class SpeedMeterService : IDisposable
         var previousAc = _lastBatteryOnAc;
         var onAc = stats.BatteryOnAc;
 
-        // The thresholds are user values (10, 20, 50, 70, 100 and anything in between).
-        var low = Math.Clamp(settings.BatteryLowPercent, 1, 99);
-        var high = Math.Clamp(settings.BatteryHighPercent, 2, 100);
-
         _lastBatteryPercent = percent;
         _lastBatteryOnAc = onAc;
 
-        // Plug in / unplug is always worth a toast, whatever the thresholds are.
+        // Plug in / unplug is always worth a toast, whatever the levels are.
         if (previousAc is { } wasOnAc && wasOnAc != onAc)
         {
             ShowWarning(onAc ? "Charger connected" : "Running on battery",
@@ -683,13 +684,35 @@ public sealed class SpeedMeterService : IDisposable
 
         if (previous is not { } before) return;
 
-        if (onAc && before < high && percent >= high)
+        if (onAc)
         {
-            ShowWarning($"Battery at {high}%", "Charged enough — you can unplug the charger");
+            // Highest level crossed on the way up: 45% -> 75% with 50 and 70 set announces 70%.
+            var reached = settings.BatteryHighPercents
+                .Select(level => Math.Clamp(level, 1, 100))
+                .Where(level => before < level && percent >= level)
+                .DefaultIfEmpty(int.MinValue)
+                .Max();
+
+            if (reached != int.MinValue)
+            {
+                ShowWarning($"Battery charged {reached}%",
+                    $"{percent}% and charging — unplug whenever you like");
+            }
         }
-        else if (!onAc && before > low && percent <= low)
+        else
         {
-            ShowWarning("Battery low", $"{percent}% remaining — plug in the charger");
+            // Lowest level crossed on the way down: 85% -> 45% with 80 and 50 set announces 50%.
+            var reached = settings.BatteryLowPercents
+                .Select(level => Math.Clamp(level, 1, 99))
+                .Where(level => before > level && percent <= level)
+                .DefaultIfEmpty(int.MaxValue)
+                .Min();
+
+            if (reached != int.MaxValue)
+            {
+                ShowWarning($"Battery discharged to {reached}%",
+                    $"{percent}% remaining — plug in the charger");
+            }
         }
     }
 
