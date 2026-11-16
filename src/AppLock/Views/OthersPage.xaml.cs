@@ -138,11 +138,6 @@ public sealed partial class OthersPage : Page
 
         // Show what the input state really is, not what was written to the settings last.
         SyncKeyboardCard(ServiceContainer.KeyboardViewModel.Enabled);
-        if (ServiceContainer.SpeedMeterService is { } speedMeter)
-        {
-            speedMeter.SampleUpdated -= OnSpeedMeterSample;
-            speedMeter.SampleUpdated += OnSpeedMeterSample;
-        }
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
         UpdateRingLightCardState();
@@ -162,10 +157,6 @@ public sealed partial class OthersPage : Page
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
-        if (ServiceContainer.SpeedMeterService is { } speedMeter)
-        {
-            speedMeter.SampleUpdated -= OnSpeedMeterSample;
-        }
     }
 
     private void OnSpeedMeterEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateSpeedMeterCardState);
@@ -350,8 +341,9 @@ public sealed partial class OthersPage : Page
                 Icon = "\uEC4A", // SpeedHigh (speedometer)
                 Title = "Speed Meter",
                 Description = "Live download and upload speed in a floating widget",
-                Status = ServiceContainer.Settings.SpeedMeter.Enabled ? "On" : "Off",
-                StatusVisibility = Visibility.Visible,
+                // No status line: the live speed ticker made this card taller than its neighbours.
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
                 SpeedMeterEnabled = ServiceContainer.Settings.SpeedMeter.Enabled
             }
         };
@@ -430,25 +422,12 @@ public sealed partial class OthersPage : Page
     }
 
     /// <summary>Card subtitle with the live rates; the service already ticks at most once a second.</summary>
-    private void OnSpeedMeterSample(object? sender, AppLock.Services.SpeedMeter.NetworkSpeedSample sample)
-    {
-        var card = Cards.FirstOrDefault(c => c.Id == "speedmeter");
-        if (card is null) return;
-
-        var settings = ServiceContainer.Settings.SpeedMeter;
-        var down = AppLock.Services.SpeedMeter.SpeedFormatter.Format(sample.BytesDownPerSec, settings.Units, settings.Decimals);
-        var up = AppLock.Services.SpeedMeter.SpeedFormatter.Format(sample.BytesUpPerSec, settings.Units, settings.Decimals);
-
-        card.Status = $"On · ↓ {down} ↑ {up}";
-    }
-
     private void UpdateSpeedMeterCardState()
     {
         var card = Cards.FirstOrDefault(c => c.Id == "speedmeter");
         if (card == null) return;
 
         card.SpeedMeterEnabled = ServiceContainer.Settings.SpeedMeter.Enabled;
-        card.Status = ServiceContainer.Settings.SpeedMeter.Enabled ? "On" : "Off";
     }
 
     private void BrightnessHotkeysToggle_Toggled(object sender, RoutedEventArgs e)
