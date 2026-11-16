@@ -544,3 +544,29 @@ waits (max 2 s) for an in-flight WMI sample before the widget and timers are tor
   state: it applies the state, saves the setting and raises `KeyboardEnabledChanged`. The quick
   settings switch on the Others card (and its Quick Settings flyout) and the Keyboard page toggle
   subscribe to that event, so changing either one updates the other without navigating.
+
+### Notifications: a toast can no longer play its sound and stay invisible
+
+The banner for every notification is ONE window owned by ShellExperienceHost that the shell
+reuses, and three separate bugs were making that window disappear or go see-through:
+
+- **Movement was treated as a dismissal.** `OnToastMoved` compared the window against its rest
+  rectangle and called `OnToastHidden` on any offset, so the shell's own entry slide (or a late
+  LOCATIONCHANGE from our own animation frames) hid the banner a moment after it appeared. Only
+  HIDE / CLOAKED / DESTROY end a toast now, and a CLOAKED event is confirmed 250 ms later so a
+  transient cloak cannot erase a banner the user is still reading.
+- **A finished exit animation could hide the next toast.** Every toast now gets a generation
+  (`_toastEpoch`); the window is only handed back while the animation still owns it.
+- **The animations left the shared window layered with alpha 0.** After AppLock exited that
+  stranded transparency made every later notification invisible. Handing the window back now
+  restores its native position *and* full opacity, and `ShutdownNotificationCustomizer` releases
+  every tracked toast on window close and on `ProcessExit` (logged as "Released N toast window(s)").
+
+Supporting changes:
+
+- The window is muted for ~1 s after we hand it back, so Windows' own dismissal re-show is not
+  managed as a brand-new toast (it used to appear and "hide" itself a second later).
+- A 500 ms poller picks up toasts whose WinEvent never arrived; it skips windows already managed
+  before validating them, and the SHOW/CREATE retry tries 80 / 180 / 400 ms instead of once.
+- The hold loop only re-asserts the position when the window actually drifted (50 ms ticks), and
+  candidate logging is throttled per window so an animation cannot spam the log every frame.

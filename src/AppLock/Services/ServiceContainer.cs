@@ -777,6 +777,24 @@ public static class ServiceContainer
         NotificationAnchorChanged?.Invoke(null, "Custom");
     }
 
+    /// <summary>
+    /// Stops the notification customizer and hands the shell's toast windows back in their native
+    /// state. Called on shutdown so a toast that was mid-animation cannot leave a hidden or
+    /// transparent banner window behind after AppLock is gone.
+    /// </summary>
+    public static void ShutdownNotificationCustomizer()
+    {
+        try
+        {
+            _notificationCustomizerService?.Dispose();
+        }
+        catch { }
+        finally
+        {
+            _notificationCustomizerService = null;
+        }
+    }
+
     public static void InitializeNotificationCustomizer()
     {
         if (_notificationCustomizerService == null)

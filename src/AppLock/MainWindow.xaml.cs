@@ -1272,6 +1272,7 @@ public sealed partial class MainWindow : Window
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {
             try { ServiceContainer.ThumbnailService.Dispose(); } catch { }
+            try { ServiceContainer.ShutdownNotificationCustomizer(); } catch { }
         };
     }
 
@@ -2022,6 +2023,10 @@ public sealed partial class MainWindow : Window
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Shutdown error: {ex.Message}");
         }
+
+        // Hand the shell's toast banner windows back untouched, otherwise a toast that was mid
+        // animation keeps the shared window hidden/transparent after we exit.
+        ServiceContainer.ShutdownNotificationCustomizer();
 
         ServiceContainer.TrayService.Dispose();
         _windowIcon?.Dispose();

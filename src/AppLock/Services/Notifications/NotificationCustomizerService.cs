@@ -36,15 +36,27 @@ public class NotificationCustomizerService : IDisposable
     // Remembers where Windows had the banner window before we moved it, so it can be handed
     // back in a usable state (the shell reuses this window for other popups).
     private readonly Dictionary<nint, System.Drawing.Rectangle> _originalRects = new();
-    // Remembers the captured snapshot bitmap per HWND for ghost exit animation
+        // Remembers the captured snapshot bitmap per HWND for ghost exit animation
     private readonly Dictionary<nint, nint> _snapshots = new();
 
+    // Generation per banner window. The shell reuses ONE banner window for every toast, so a
+    // finishing exit animation must never hide a newer toast that took over the same HWND.
+    private readonly Dictionary<nint, long> _toastEpoch = new();
+    private long _epochCounter;
+
+    // Safety net: SetWinEventHook occasionally misses the SHOW of a reused banner window (it can
+    // arrive as a bare LOCATIONCHANGE), which left the toast where Windows put it. A light poll
+    // picks those up so every toast is positioned.
+    private Timer? _pollTimer;
+
     private readonly object _lock = new();
+
     private bool _disposed;
 
     // Duration in ms to keep asserting position after enter animation completes.
     private const int HoldLoopMs    = 800;
-    private const int HoldIntervalMs = 16;  // ~60 fps
+    private const int HoldIntervalMs = 50;  // position guard only - the animations pace themselves
+    private const int PollIntervalMs = 500;
 
     public bool IsRunning => _hook != null;
 
@@ -69,6 +81,7 @@ public class NotificationCustomizerService : IDisposable
             _hook.ToastMoved  += OnToastMoved;
             _hook.ToastHidden += OnToastHidden;
             _hook.Start();
+            StartPoller();
 
             LogService.LogAction("notifications",
                 $"NotificationCustomizerService started. Anchor: {_settings.Anchor}");
@@ -94,7 +107,8 @@ public class NotificationCustomizerService : IDisposable
             _hook.Dispose();
             _hook = null;
 
-            CancelAll();
+            StopPoller();
+            ReleaseAllToasts();
 
             LogService.LogAction("notifications", "NotificationCustomizerService stopped");
         }
@@ -107,18 +121,30 @@ public class NotificationCustomizerService : IDisposable
 
     // ── Event handlers ────────────────────────────────────────────────────────
 
-    private void OnToastShown(object? sender, HWND hwnd)
+    private void OnToastShown(object? sender, HWND hwnd) => AttachToToast(hwnd, "hook");
+
+    /// <summary>
+    /// Starts managing a banner window. The WinEvent hook and the poller safety net both call
+    /// this; the lock plus the tracked-HWND check make sure a toast is only managed once, and the
+    /// newest toast wins the window.
+    /// </summary>
+    private void AttachToToast(HWND hwnd, string source)
     {
         try
         {
             CancellationTokenSource cts;
+            long epoch;
             lock (_lock)
             {
                 // Cancel any existing hold loop for this HWND (recycled window)
                 if (_managedToasts.TryGetValue(hwnd.Value, out var old))
                 {
+                    if (source == "poll")
+                        return;   // already handled by the hook
+
                     old.Cancel();
                     old.Dispose();
+                    _managedToasts.Remove(hwnd.Value);
                 }
                 // Also cancel any stale exit animation for this HWND
                 if (_exitAnimations.TryGetValue(hwnd.Value, out var oldExit))
@@ -134,11 +160,13 @@ public class NotificationCustomizerService : IDisposable
                 }
 
                 cts = new CancellationTokenSource();
+                epoch = ++_epochCounter;
                 _managedToasts[hwnd.Value] = cts;
+                _toastEpoch[hwnd.Value] = epoch;
             }
 
             LogService.LogAction("notifications",
-                $"Toast shown: 0x{hwnd.Value:X}, Anchor: {_settings.Anchor}");
+                $"Toast shown ({source}): 0x{hwnd.Value:X}, Anchor: {_settings.Anchor}");
 
             var currentSettings = ServiceContainer.Settings.NotificationCustom;
 
@@ -153,9 +181,14 @@ public class NotificationCustomizerService : IDisposable
             {
                 lock (_lock)
                 {
-                    _originalRects[hwnd.Value] = new System.Drawing.Rectangle(
-                        nativeRect.left, nativeRect.top,
-                        nativeRect.right - nativeRect.left, nativeRect.bottom - nativeRect.top);
+                    // Keep the first position we saw for this window: a leftover entry means the
+                    // previous toast was never handed back, so that rect is the native one.
+                    if (!_originalRects.ContainsKey(hwnd.Value))
+                    {
+                        _originalRects[hwnd.Value] = new System.Drawing.Rectangle(
+                            nativeRect.left, nativeRect.top,
+                            nativeRect.right - nativeRect.left, nativeRect.bottom - nativeRect.top);
+                    }
                 }
             }
 
@@ -168,7 +201,8 @@ public class NotificationCustomizerService : IDisposable
             // Remember rest rect for exit animation
             lock (_lock) { _restRects[hwnd.Value] = restRect; }
 
-            StartToastLifecycle(hwnd, restRect, monitorBounds, currentSettings, cts.Token);
+            StartToastLifecycle(hwnd, restRect, monitorBounds, currentSettings, cts, epoch,
+                animateEnter: source == "hook");
 
             _clickThroughManager.ApplyClickThrough(hwnd, currentSettings, cts.Token);
         }
@@ -203,22 +237,47 @@ public class NotificationCustomizerService : IDisposable
         if (!isManaged)
             return;
 
-        // Check if the shell is attempting to dismiss the toast by moving it away from restRect
+        // A LOCATIONCHANGE is NOT a dismissal, and it cannot be used to guess one: the shell's own
+        // entry slide, our animation frames and a real dismissal all look like "the window moved".
+        // Treating movement as dismissal hid every toast a moment after it appeared - the user
+        // heard the sound and never saw the banner. Only HIDE/CLOAKED/DESTROY (reported by the
+        // hook as ToastHidden) end a toast; until one arrives the window is put back in place.
         if (restRect != default && Windows.Win32.PInvoke.GetWindowRect(hwnd, out var wr))
         {
             int dx = Math.Abs(wr.left - restRect.X);
             int dy = Math.Abs(wr.top - restRect.Y);
-            if (dx > 10 || dy > 10)
-            {
-                // Shell is moving the window away -> this is a dismissal gesture or animation!
-                LogService.LogAction("notifications",
-                    $"Shell dismissal detected via movement (dx={dx}, dy={dy}) for 0x{hwnd.Value:X}");
-                OnToastHidden(sender, hwnd);
+
+            // A banner that is clear of its rest spot by more than a quarter of its own size is
+            // mid-flight (the shell's entry slide or its dismissal). Correcting that would make
+            // the two animations fight, so it is left alone; the HIDE event ends the toast if the
+            // shell is dismissing it.
+            if (dx > restRect.Width / 4 || dy > restRect.Height / 4)
                 return;
+
+            if (dx > 4 || dy > 4)
+            {
+                LogMove(hwnd, dx, dy);
             }
         }
 
         ApplyPosition(hwnd);
+    }
+
+    /// <summary>Movement diagnostics, throttled: the shell reports many LOCATIONCHANGE events.</summary>
+    private static readonly System.Collections.Generic.Dictionary<nint, long> _lastMoveLog = new();
+
+    private static void LogMove(HWND hwnd, int dx, int dy)
+    {
+        var now = Environment.TickCount64;
+        lock (_lastMoveLog)
+        {
+            if (_lastMoveLog.TryGetValue(hwnd.Value, out var last) && now - last < 2000) return;
+            if (_lastMoveLog.Count > 64) _lastMoveLog.Clear();
+            _lastMoveLog[hwnd.Value] = now;
+        }
+
+        LogService.LogAction("notifications",
+            $"Toast moved by shell (dx={dx}, dy={dy}), re-applying position: 0x{hwnd.Value:X}");
     }
 
     private void OnToastHidden(object? sender, HWND hwnd)
@@ -261,6 +320,10 @@ public class NotificationCustomizerService : IDisposable
             // Remove click-through
             _clickThroughManager.RemoveClickThrough(hwnd);
 
+            // Windows may re-show this window to animate the dismissal; do not manage that as a
+            // fresh toast.
+            _hook?.MuteToast(hwnd, 900);
+
             LogService.LogAction("notifications", $"Toast hidden: 0x{hwnd.Value:X}");
         }
         catch (Exception ex)
@@ -277,16 +340,28 @@ public class NotificationCustomizerService : IDisposable
         System.Drawing.Rectangle restRect,
         System.Drawing.Rectangle monitorBounds,
         NotificationCustomSettings settings,
-        CancellationToken ct)
+        CancellationTokenSource cts,
+        long epoch,
+        bool animateEnter)
     {
+        var ct = cts.Token;
+
         Task.Run(async () =>
         {
             var animator = new ToastAnimator();
             lock (_lock) { _animatingToasts.Add(hwnd.Value); }
             try
             {
-                // 1. Enter animation (Strategy A: drive the real window)
-                await animator.AnimateEnterAsync(hwnd, restRect, monitorBounds, settings, ct);
+                // 1. Enter animation (Strategy A: drive the real window). A toast picked up late
+                //    by the poller is already on screen, so it is only placed and faded in -
+                //    replaying the slide would yank it back to its start pose under the user.
+                if (animateEnter)
+                    await animator.AnimateEnterAsync(hwnd, restRect, monitorBounds, settings, ct);
+                else
+                {
+                    ToastPositioner.PositionToast(hwnd, settings);
+                    ToastOpacityApplier.ApplyOpacity(hwnd, settings);
+                }
 
                 lock (_lock) { _animatingToasts.Remove(hwnd.Value); }
 
@@ -313,11 +388,20 @@ public class NotificationCustomizerService : IDisposable
                         }
                     }
 
-                    // Re-assert rest position during hold
-                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, restRect.X, restRect.Y, 0, 0,
-                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
-                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
-                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                    // Re-assert the rest position, but only when the shell actually moved the
+                    // banner: calling SetWindowPos every tick would just spam the window manager.
+                    if (Windows.Win32.PInvoke.GetWindowRect(hwnd, out var holdRect))
+                    {
+                        int dx = Math.Abs(holdRect.left - restRect.X);
+                        int dy = Math.Abs(holdRect.top  - restRect.Y);
+                        if (dx > 1 || dy > 1)
+                        {
+                            Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, restRect.X, restRect.Y, 0, 0,
+                                SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                                SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                                SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                        }
+                    }
                 }
 
                 if (ct.IsCancellationRequested) return;
@@ -330,7 +414,16 @@ public class NotificationCustomizerService : IDisposable
                 await animator.AnimateExitRealWindowAsync(hwnd, restRect, monitorBounds, settings, ct);
 
                 // 4. Give the window back to the shell at its native spot and hide it so Windows
-                //    dismisses it without a second slide-out.
+                //    dismisses it without a second slide-out. Only do this while the window still
+                //    belongs to this toast: the shell reuses one banner window, and hiding it after
+                //    the next toast took over would leave that toast silent-but-invisible.
+                if (!StillOwns(hwnd, epoch, cts))
+                {
+                    LogService.LogAction("notifications",
+                        $"Skipped hide for 0x{hwnd.Value:X}: a newer toast owns the window now");
+                    return;
+                }
+
                 RestoreAndHideToastWindow(hwnd);
 
                 LogService.LogAction("notifications", $"Real-window exit animation finished for 0x{hwnd.Value:X}");
@@ -343,6 +436,8 @@ public class NotificationCustomizerService : IDisposable
                         ToastAnimator.DeleteObjectPublic(s);
                     _restRects.Remove(hwnd.Value);
                     _originalRects.Remove(hwnd.Value);
+                    if (_toastEpoch.TryGetValue(hwnd.Value, out var currentEpoch) && currentEpoch == epoch)
+                        _toastEpoch.Remove(hwnd.Value);
                 }
             }
             catch (OperationCanceledException) { /* expected when dismissed early by user */ }
@@ -501,6 +596,15 @@ public class NotificationCustomizerService : IDisposable
             }
 
             Windows.Win32.PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_HIDE);
+
+            // Hide FIRST, then clear the transparency the animations put on this window: it is
+            // shared with every later toast and shell popup, and a stranded alpha of 0 is exactly
+            // what makes a notification play its sound but never appear.
+            ToastOpacityApplier.RemoveOpacity(hwnd);
+
+            // The shell re-shows this window for its own dismissal; keep the hook from treating
+            // that re-show as a brand-new toast.
+            _hook?.MuteToast(hwnd, 1200);
         }
         catch (Exception ex)
         {
@@ -508,10 +612,82 @@ public class NotificationCustomizerService : IDisposable
         }
     }
 
-    private void CancelAll()
+    /// <summary>
+    /// True while <paramref name="hwnd"/> still belongs to the toast identified by
+    /// <paramref name="epoch"/>; used to keep stale exit animations from touching a newer toast.
+    /// </summary>
+    private bool StillOwns(HWND hwnd, long epoch, CancellationTokenSource cts)
     {
         lock (_lock)
         {
+            return _toastEpoch.TryGetValue(hwnd.Value, out var current) && current == epoch
+                && _managedToasts.TryGetValue(hwnd.Value, out var owner) && ReferenceEquals(owner, cts);
+        }
+    }
+
+    // ── Poller safety net ─────────────────────────────────────────────────────
+
+    private void StartPoller()
+    {
+        if (_pollTimer != null) return;
+        _pollTimer = new Timer(_ => PollForUntrackedToasts(), null, PollIntervalMs, PollIntervalMs);
+        LogService.LogAction("notifications", $"Toast poller started ({PollIntervalMs}ms)");
+    }
+
+    private void StopPoller()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+    }
+
+    /// <summary>
+    /// Catches toasts the WinEvent hook did not report. Cheap by design: one EnumWindows pass whose
+    /// per-window work bails out on the class name, and anything already tracked is skipped.
+    /// </summary>
+    private void PollForUntrackedToasts()
+    {
+        if (_disposed || _hook == null) return;
+
+        List<HWND> candidates;
+        try
+        {
+            // Skip windows we already manage before they are validated at all: a toast that is on
+            // screen must not be re-inspected twice a second while it is animating.
+            candidates = ToastWindowFinder.FindToastWindows(value =>
+            {
+                lock (_lock) { return _managedToasts.ContainsKey(value); }
+            });
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var hwnd in candidates)
+        {
+            LogService.LogAction("notifications",
+                $"Toast caught by poller: 0x{hwnd.Value:X}");
+            AttachToToast(hwnd, "poll");
+        }
+    }
+
+    // ── Shutdown ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stops managing every toast and leaves the shell's shared banner window in the state Windows
+    /// expects: native position, fully opaque, still shown. The toasts themselves keep going - we
+    /// just stop moving them. Without the opacity reset a window left at alpha 0 keeps swallowing
+    /// later toasts after AppLock exits (sound but no banner).
+    /// </summary>
+    private void ReleaseAllToasts()
+    {
+        List<nint> windows;
+        List<KeyValuePair<nint, System.Drawing.Rectangle>> originals;
+        lock (_lock)
+        {
+            windows = new List<nint>(_managedToasts.Keys);
+            originals = new List<KeyValuePair<nint, System.Drawing.Rectangle>>(_originalRects);
+
             foreach (var cts in _managedToasts.Values)
             {
                 try { cts.Cancel(); cts.Dispose(); } catch { }
@@ -526,6 +702,7 @@ public class NotificationCustomizerService : IDisposable
             _exitAnimations.Clear();
             _restRects.Clear();
             _originalRects.Clear();
+            _toastEpoch.Clear();
 
             foreach (var snap in _snapshots.Values)
             {
@@ -533,6 +710,32 @@ public class NotificationCustomizerService : IDisposable
             }
             _snapshots.Clear();
         }
+
+        foreach (var value in windows)
+        {
+            try
+            {
+                var hwnd = new HWND(value);
+                if (!Windows.Win32.PInvoke.IsWindow(hwnd)) continue;
+
+                foreach (var pair in originals)
+                {
+                    if (pair.Key != value) continue;
+                    Windows.Win32.PInvoke.SetWindowPos(hwnd, HWND.Null, pair.Value.X, pair.Value.Y, 0, 0,
+                        SET_WINDOW_POS_FLAGS.SWP_NOSIZE |
+                        SET_WINDOW_POS_FLAGS.SWP_NOZORDER |
+                        SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+                    break;
+                }
+
+                ToastOpacityApplier.RemoveOpacity(hwnd);
+                _clickThroughManager.RemoveClickThrough(hwnd);
+            }
+            catch { }
+        }
+
+        LogService.LogAction("notifications",
+            $"Released {windows.Count} toast window(s) back to Windows untouched");
     }
 
     private static Windows.Win32.Graphics.Gdi.MONITORINFO GetMonitorInfo(

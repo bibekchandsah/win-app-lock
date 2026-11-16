@@ -16,8 +16,12 @@ public class ToastWinEventHook : IDisposable
     private WINEVENTPROC? _eventDelegate;
     private bool _disposed;
 
-    // Tracks toasts that have been shown (and not yet hidden)
+    // Tracks toasts that have been shown (and not yet hidden). The delayed retries below run on
+    // thread-pool threads, so every access goes through _seenLock.
     private readonly HashSet<nint> _seenToasts = new();
+    // Windows that must not be treated as a new toast for a while (see MuteToast).
+    private readonly System.Collections.Generic.Dictionary<nint, long> _mutedUntil = new();
+    private readonly object _seenLock = new();
 
     public event EventHandler<HWND>? ToastShown;
     public event EventHandler<HWND>? ToastMoved;
@@ -70,7 +74,11 @@ public class ToastWinEventHook : IDisposable
             _eventHook = default;
         }
 
-        _seenToasts.Clear();
+        lock (_seenLock)
+        {
+            _seenToasts.Clear();
+            _mutedUntil.Clear();
+        }
         LogService.LogAction("notifications", "WinEventHook stopped");
     }
 
@@ -78,7 +86,36 @@ public class ToastWinEventHook : IDisposable
     /// Called by the positioner to clear a toast from the seen-set when it
     /// is hidden, so a re-used HWND is treated as a fresh toast next time.
     /// </summary>
-    public void ForgetToast(HWND hwnd) => _seenToasts.Remove(hwnd.Value);
+    public void ForgetToast(HWND hwnd)
+    {
+        lock (_seenLock) { _seenToasts.Remove(hwnd.Value); }
+    }
+
+    /// <summary>
+    /// Ignores this banner window for a short while. When we hand a toast back, Windows re-shows
+    /// the same window for its own dismissal animation; without the mute that SHOW/LOCATIONCHANGE
+    /// is managed as a brand-new toast, which then reports itself hidden a second later.
+    /// </summary>
+    public void MuteToast(HWND hwnd, int durationMs)
+    {
+        lock (_seenLock) { _mutedUntil[hwnd.Value] = Environment.TickCount64 + durationMs; }
+    }
+
+    private bool IsMuted(nint value)
+    {
+        lock (_seenLock) { return IsMutedNoLock(value); }
+    }
+
+    private bool IsMutedNoLock(nint value)
+    {
+        if (!_mutedUntil.TryGetValue(value, out var until)) return false;
+        if (Environment.TickCount64 >= until)
+        {
+            _mutedUntil.Remove(value);
+            return false;
+        }
+        return true;
+    }
 
     private void OnWinEvent(
         HWINEVENTHOOK hWinEventHook,
@@ -119,6 +156,8 @@ public class ToastWinEventHook : IDisposable
                 case EVENT_OBJECT_NAMECHANGE:
                 case EVENT_OBJECT_LOCATIONCHANGE:
                 {
+                    if (IsMuted(hwnd.Value)) break;
+
                     // For SHOW/CREATE: the window may not yet have its final size
                     // (shell sizes it asynchronously). If IsToastWindow fails due to
                     // bad size, schedule a single retry after 80ms.
@@ -127,21 +166,30 @@ public class ToastWinEventHook : IDisposable
                     if (!isToast &&
                         (eventType == EVENT_OBJECT_SHOW || eventType == EVENT_OBJECT_CREATE || eventType == EVENT_OBJECT_UNCLOAKED))
                     {
-                        // Check class + process quickly (cheap); if likely a toast host,
-                        // retry once after the shell has had time to resize the window.
+                        // Check class + process quickly (cheap); if likely a toast host, retry a
+                        // few times while the shell sizes and shows the reused banner window.
                         if (ToastWindowFinder.IsLikelyToastHost(hwnd))
                         {
                             var capturedHwnd = hwnd;
                             var capturedEvent = eventType;
                             System.Threading.ThreadPool.QueueUserWorkItem(_ =>
                             {
-                                System.Threading.Thread.Sleep(100);
-                                if (!ToastWindowFinder.IsToastWindow(capturedHwnd)) return;
-                                if (_seenToasts.Contains(capturedHwnd.Value)) return;
-                                _seenToasts.Add(capturedHwnd.Value);
-                                LogService.LogAction("notifications",
-                                    $"✓ Toast appeared (delayed) via {GetEventName(capturedEvent)}: 0x{capturedHwnd.Value:X}");
-                                ToastShown?.Invoke(this, capturedHwnd);
+                                foreach (var delay in RetryDelaysMs)
+                                {
+                                    System.Threading.Thread.Sleep(delay);
+                                    if (!ToastWindowFinder.IsToastWindow(capturedHwnd)) continue;
+
+                                    lock (_seenLock)
+                                    {
+                                        if (_seenToasts.Contains(capturedHwnd.Value)) return;
+                                        _seenToasts.Add(capturedHwnd.Value);
+                                    }
+
+                                    LogService.LogAction("notifications",
+                                        $"✓ Toast appeared (delayed) via {GetEventName(capturedEvent)}: 0x{capturedHwnd.Value:X}");
+                                    ToastShown?.Invoke(this, capturedHwnd);
+                                    return;
+                                }
                             });
                         }
                         break;
@@ -149,10 +197,15 @@ public class ToastWinEventHook : IDisposable
 
                     if (!isToast) break;
 
-                    if (!_seenToasts.Contains(hwnd.Value))
+                    bool firstSighting;
+                    lock (_seenLock)
+                    {
+                        firstSighting = _seenToasts.Add(hwnd.Value);
+                    }
+
+                    if (firstSighting)
                     {
                         // First time we see this toast window (or freshly uncloaked toast)
-                        _seenToasts.Add(hwnd.Value);
                         LogService.LogAction("notifications",
                             $"✓ Toast appeared via {GetEventName(eventType)}: 0x{hwnd.Value:X}");
                         ToastShown?.Invoke(this, hwnd);
@@ -172,10 +225,38 @@ public class ToastWinEventHook : IDisposable
                     break;
                 }
 
+                case EVENT_OBJECT_CLOAKED:
+                {
+                    // A cloak can be a transient step of the shell's own show/hide transition, so
+                    // confirm it before dropping the toast: a false positive erases a banner the
+                    // user is still reading.
+                    var captured = hwnd;
+                    System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        System.Threading.Thread.Sleep(250);
+                        if (ToastWindowFinder.IsToastWindow(captured)) return;
+
+                        bool muted;
+                        bool wasTracked;
+                        lock (_seenLock)
+                        {
+                            muted = IsMutedNoLock(captured.Value);
+                            wasTracked = _seenToasts.Remove(captured.Value);
+                        }
+                        if (muted || !wasTracked) return;
+
+                        LogService.LogAction("notifications",
+                            $"Toast hidden/closed via CLOAKED (confirmed): 0x{captured.Value:X}");
+                        ToastHidden?.Invoke(this, captured);
+                    });
+                    break;
+                }
+
                 case EVENT_OBJECT_HIDE:
                 case EVENT_OBJECT_DESTROY:
-                case EVENT_OBJECT_CLOAKED:
-                    if (_seenToasts.Remove(hwnd.Value))
+                    bool wasTracked;
+                    lock (_seenLock) { wasTracked = _seenToasts.Remove(hwnd.Value); }
+                    if (wasTracked)
                     {
                         LogService.LogAction("notifications",
                             $"Toast hidden/closed via {GetEventName(eventType)}: 0x{hwnd.Value:X}");
@@ -189,6 +270,9 @@ public class ToastWinEventHook : IDisposable
             LogService.LogAction("notifications", $"Error in OnWinEvent: {ex.Message}");
         }
     }
+
+    /// <summary>Delays tried after SHOW/CREATE when the window is not yet valid as a toast.</summary>
+    private static readonly int[] RetryDelaysMs = { 80, 180, 400 };
 
     private static string GetEventName(uint eventType) => eventType switch
     {

@@ -110,10 +110,7 @@ public class ToastWindowFinder
                 return false;
             }
 
-            LogService.LogAction("notifications",
-                $"  ✓ Toast candidate: 0x{hwnd.Value:X} {width}×{height} class='{className}' proc='{processName}'" +
-                $" rect={rect.left},{rect.top} title='{GetTitle(hwnd)}' owner='{GetOwnerClass(hwnd)}'" +
-                $" dpi={PInvoke.GetDpiForWindow(hwnd)} style=0x{GetStyle(hwnd):X}");
+            LogCandidate(hwnd, width, height, className, processName, rect);
             return true;
         }
         catch (Exception ex)
@@ -151,11 +148,18 @@ public class ToastWindowFinder
         catch { return false; }
     }
 
-    public static List<HWND> FindToastWindows()
+    /// <param name="skip">
+    /// Optional filter called with each top-level HWND before it is validated. The service uses it
+    /// to skip windows it already manages, so polling never re-inspects a live toast.
+    /// </param>
+    public static List<HWND> FindToastWindows(Func<nint, bool>? skip = null)
     {
         var toasts = new List<HWND>();
         PInvoke.EnumWindows((hwnd, _) =>
         {
+            if (skip != null && skip(hwnd.Value))
+                return true;
+
             if (IsToastWindow(hwnd))
                 toasts.Add(hwnd);
             return true;
@@ -173,6 +177,33 @@ public class ToastWindowFinder
     private static extern nint GetWindowLongPtr(nint hWnd, int index);
 
     private static readonly System.Collections.Generic.Dictionary<nint, (string Text, long At)> _rejects = new();
+    private static readonly System.Collections.Generic.Dictionary<nint, (string Text, long At)> _candidates = new();
+
+    /// <summary>
+    /// Logs a confirmed toast candidate, but only when its geometry changed or every few seconds:
+    /// the service polls for untracked toasts, and repeating the same line twice a second is noise.
+    /// </summary>
+    private static void LogCandidate(
+        HWND hwnd, int width, int height, string className, string processName, RECT rect)
+    {
+        var text = $"{width}×{height} {rect.left},{rect.top}";
+        var now = Environment.TickCount64;
+        lock (_candidates)
+        {
+            // Time-throttled per window: during an animation the rect changes every frame, so
+            // keying on the text alone would log each frame.
+            if (_candidates.TryGetValue(hwnd.Value, out var prev) && now - prev.At < 5000)
+                return;
+            if (_candidates.Count > 64)
+                _candidates.Clear();
+            _candidates[hwnd.Value] = (text, now);
+        }
+
+        LogService.LogAction("notifications",
+            $"  ✓ Toast candidate: 0x{hwnd.Value:X} {width}×{height} class='{className}' proc='{processName}'" +
+            $" rect={rect.left},{rect.top} title='{GetTitle(hwnd)}' owner='{GetOwnerClass(hwnd)}'" +
+            $" dpi={PInvoke.GetDpiForWindow(hwnd)} style=0x{GetStyle(hwnd):X}");
+    }
 
     private static void LogIgnoredShellPopup(HWND hwnd, int width, int height, string className, string processName)
     {
