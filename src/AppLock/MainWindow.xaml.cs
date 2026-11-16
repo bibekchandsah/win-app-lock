@@ -572,6 +572,8 @@ public sealed partial class MainWindow : Window
     {
         _isMainAuthenticated = true;
 
+        StartIdleMonitoring();
+
         // Restore navigation rail
         Grid.SetColumn(ContentFrame, 1);
         ContentFrame.ClearValue(Grid.ColumnSpanProperty);
@@ -671,6 +673,10 @@ public sealed partial class MainWindow : Window
                     }
 
                     NoteWindowActivity();
+
+                    // The system-idle monitor stops itself when it fires, so start it again now
+                    // that this session is unlocked and can be locked by it.
+                    StartIdleMonitoring();
                     break;
                 }
                 else
@@ -1758,11 +1764,15 @@ public sealed partial class MainWindow : Window
     {
         var settings = ServiceContainer.Settings;
         
-        if (settings.AutoLockIdleMinutes > 0)
-        {
-            ServiceContainer.IdleService.StartMonitoring(settings.AutoLockIdleMinutes);
-            System.Diagnostics.Debug.WriteLine($"Idle monitoring started: {settings.AutoLockIdleMinutes} minutes");
-        }
+                    if (settings.AutoLockIdleMinutes > 0)
+            {
+                ServiceContainer.IdleService.StartMonitoring(settings.AutoLockIdleMinutes);
+                IdleService.Log($"System idle monitor started: {settings.AutoLockIdleMinutes} minutes threshold");
+            }
+            else
+            {
+                ServiceContainer.IdleService.StopMonitoring();
+            }
     }
 
     /// <summary>
@@ -1802,20 +1812,6 @@ public sealed partial class MainWindow : Window
 
     private void NoteWindowActivity() => _lastWindowActivity = DateTime.UtcNow;
 
-    /// <summary>True when the AppLock window is actually on screen and can be locked.</summary>
-    private bool IsWindowActivelyVisible()
-    {
-        if (_appWindow == null || !_appWindow.IsVisible) return false;
-
-        if (_appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter &&
-            presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     private void CheckIdleLock()
     {
         try
@@ -1823,8 +1819,11 @@ public sealed partial class MainWindow : Window
             var minutes = ServiceContainer.Settings.AutoLockIdleMinutes;
             if (minutes <= 0) return;
 
-            // Already asking for the password, or nothing visible to lock.
-            if (!_isMainAuthenticated || _isAuthDialogOpen || !IsWindowActivelyVisible())
+            // Nothing to lock while already locked or while the password prompt is up. Window
+            // state is deliberately NOT part of this test: minimising or sending AppLock to the
+            // tray is exactly when the idle lock has to keep working, and treating "not visible"
+            // as "skip and restart the clock" meant a minimised AppLock never locked at all.
+            if (!_isMainAuthenticated || _isAuthDialogOpen)
             {
                 NoteWindowActivity();
                 return;

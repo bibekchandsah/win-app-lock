@@ -570,3 +570,17 @@ Supporting changes:
   before validating them, and the SHOW/CREATE retry tries 80 / 180 / 400 ms instead of once.
 - The hold loop only re-asserts the position when the window actually drifted (50 ms ticks), and
   candidate logging is throttled per window so an animation cannot spam the log every frame.
+
+### Auto-lock on idle now works while AppLock is minimised
+
+- `CheckIdleLock` (the 5 s watchdog) skipped *and restarted* its own clock whenever the window was
+  not "actively visible", so minimising the window - or hiding it with "Minimize to Tray" while
+  still unlocked - disabled the idle lock completely. Only a locked session or an open password
+  prompt skip now; a minimised or hidden window keeps counting and locks as configured.
+- The system-idle monitor (`IdleService`) stops itself when it fires and was only started at launch
+  or from the settings box, so it worked at most once per run. It is started again after a
+  successful unlock and after first-run setup, and `StartIdleMonitoring` stops it when the
+  threshold is 0.
+- Verified with the window minimised (`ShowWindowAsync(SW_MINIMIZE)`, `IsIconic = True`) and a
+  1-minute threshold: `idle.log` shows "AppLock window idle 1.0 min (threshold 1) - minimizing to
+  tray and locking", and the window left the desktop.
