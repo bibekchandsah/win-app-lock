@@ -334,6 +334,7 @@ public sealed partial class MainWindow : Window
                         pageType == typeof(NotificationsPage) ||
                         pageType == typeof(KeyboardPage) ||
                         pageType == typeof(SpeedMeterPage) ||
+                        pageType == typeof(PcCheckerPage) ||
                         pageType == typeof(RingLightPage);
 
         bool isDark = IsDarkMode;

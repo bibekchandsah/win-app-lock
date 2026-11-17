@@ -95,6 +95,9 @@ public class AppSettings
     // Speed Meter
     public SpeedMeterSettings SpeedMeter { get; set; } = new();
 
+    // PC Checker
+    public PcChecker.PcCheckerSettings PcChecker { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

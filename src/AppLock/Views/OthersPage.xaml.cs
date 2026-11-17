@@ -20,6 +20,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? KeyboardTemplate { get; set; }
     public DataTemplate? WifiTemplate { get; set; }
     public DataTemplate? SpeedMeterTemplate { get; set; }
+    public DataTemplate? PcCheckerTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -36,6 +37,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "keyboard" => KeyboardTemplate,
                 "wifi" => WifiTemplate,
                 "speedmeter" => SpeedMeterTemplate,
+                "pcchecker" => PcCheckerTemplate,
                 _ => null
             };
         }
@@ -308,7 +310,8 @@ public sealed partial class OthersPage : Page
             new UtilityCard
             {
                 Id = "keyboard",
-                Order = 80,
+                // PC Checker takes the order-80 slot; the keyboard keeps its place before Wi-Fi.
+                Order = 84,
                 Icon = "\uE92E", // Keyboard icon
                 Title = "Keyboard",
                 Description = "Enable or disable the integrated laptop keyboard",
@@ -330,6 +333,16 @@ public sealed partial class OthersPage : Page
                 Icon = "\uE701", // Wi-Fi icon
                 Title = "Wi-Fi Passwords",
                 Description = "View and copy the passwords of the wireless networks saved on this PC",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed
+            },
+            new UtilityCard
+            {
+                Id = "pcchecker",
+                Order = 80,
+                Icon = "\uE977", // PC monitor
+                Title = "PC Checker",
+                Description = "Every detail about your hardware and software, with a health check",
                 Status = "",
                 StatusVisibility = Visibility.Collapsed
             },
@@ -398,6 +411,10 @@ public sealed partial class OthersPage : Page
             {
                 Frame.Navigate(typeof(SpeedMeterPage));
             }
+            else if (card.Id == "pcchecker")
+            {
+                Frame.Navigate(typeof(PcCheckerPage));
+            }
         }
     }
 
@@ -409,6 +426,11 @@ public sealed partial class OthersPage : Page
     private void OpenSpeedMeter_Click(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(SpeedMeterPage));
+    }
+
+    private void OpenPcChecker_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(PcCheckerPage));
     }
 
     /// <summary>The card switch and the settings page share one setting, so both stay in sync.</summary>

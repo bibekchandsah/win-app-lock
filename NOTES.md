@@ -600,3 +600,60 @@ Supporting changes:
   announces only the level nearest the current reading, so one event never produces a burst.
 - The page shows two text boxes ("Notify at these % (on battery)" / "(charging)") with a hint line;
   plug / unplug toasts are unchanged.
+
+## PC Checker (Others → PC Checker)
+
+Milestone 1 of `pc-checker.md`: framework and shell.
+
+### What is in place
+
+- **Others card registry.** New `pcchecker` card (`Order = 80`) with the monitor glyph `E977`,
+  title "PC Checker" and the spec description. The **Keyboard** card moved from order 80 to 84 so
+  the 80 slot is free and free of ties (`List.Sort` is unstable, so two cards sharing an order would
+  shuffle). Note that this repo's registry puts Speed Meter at 86, so PC Checker lands before
+  Keyboard, Wi-Fi and Speed Meter rather than directly after Speed Meter as the spec's example
+  ordering suggested. Moving Speed Meter up is a one-line change if the spec ordering is preferred.
+- **Page shell** (`Views/PcCheckerPage.xaml`): breadcrumb "Others / PC Checker" with back button,
+  the full 21-entry category rail in the spec order (collapses to a plain list on narrow windows),
+  a global search box, the *Basic / Detailed / Everything* selector, the *Hide identifiers* toggle
+  (default off, remembered in `AppSettings.PcChecker`), Refresh plus `F5` and `Ctrl+F`.
+- **Provider framework** (`Services/PcChecker`): `IInfoProvider`, `SystemContext`, `CollectOptions`,
+  `InfoCollector` (per-provider timeout, four-way concurrency limit, in-memory cache for static
+  data, progress, and a failure that becomes "Not available (reason)" instead of an exception),
+  `PcFormat` size/uptime helpers, defensive WMI and registry wrappers, and the shared
+  `ElevationHelper` (`IsElevated`, `TryRestartElevated`) used by later categories.
+- **Providers shipped:** operating system (edition, version, build + UBR, architecture, install date,
+  last boot, uptime, computer/user, elevation), processor (name, vendor, cores, threads, clocks,
+  L2/L3, socket), memory (installed, usable, in use, available, hardware reserved, module count),
+  graphics (adapter, driver version/date, reported VRAM, display mode) and storage (disk count,
+  total capacity, every physical disk, every mounted volume with used/free).
+- **Overview** shows five tiles (OS, processor, memory, graphics, storage) built from those
+  providers, each clickable to jump to its category, with a status line (scan age, source count,
+  identifier state, elevation state).
+- **Common renderer:** every `InfoItem` renders through one template — label, value, copy button,
+  status icon (icon + tooltip, never colour alone), a "?" explanation tooltip and, at the *Everything*
+  level, the source string. Identifiers are masked with `••••••••` behind an eye button when
+  *Hide identifiers* is on. Search runs across every collected field and value (and labels each hit
+  with its category).
+
+### Known limits of this milestone
+
+- Categories whose providers land in later milestones (firmware, displays, audio, network, battery,
+  devices, sensors, software, security, performance, stability, health, tools, compatibility,
+  reports) show an explicit "arrives in a later milestone" line instead of a blank panel.
+- Health summary, findings, snapshots, exports, `Copy section` / `Export section`, the live charts and
+  the two-column card grid are later milestones; the `InfoTable` / `Finding` types already exist so
+  those milestones do not need a model change.
+- Data comes from WMI + the registry only; nothing needs administrator rights yet, and nothing is
+  cached to disk. Nothing runs while the page is closed and no network request is ever made.
+- **Warnings:** the Release build is clean for all new code. Twelve pre-existing warnings in
+  unrelated features (nullable annotations in `App.xaml.cs`, the NAudio microphone/speaker devices,
+  `VolumeOverlayWindow`, `VolumeMixerSettingsPage`, `ClipboardPasteService`, three `async` methods
+  without `await`, and one useless constant comparison in `StartupManager`) were left untouched to
+  keep this milestone's change set focused; `dotnet build -c Release` still reports them.
+
+### Verification
+
+- `dotnet build -c Release` → build succeeded, 0 errors; no warnings in any PC Checker file.
+- App launched from the Release output; manual checks (card order, rail, tiles, search, masking,
+  theme switching) are on the section 15 checklist and are re-run at each milestone.

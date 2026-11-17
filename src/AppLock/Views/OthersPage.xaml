@@ -249,6 +249,19 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- PC Checker Card Template -->
+        <DataTemplate x:Key="PcCheckerTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="10" Margin="0,8,0,0">
+                <TextBlock Text="Read-only look at every hardware and software detail Windows reports, with a health check. Nothing is uploaded and no setting is changed."
+                           FontSize="11"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+                <Button Content="Open PC Checker"
+                        Click="OpenPcChecker_Click"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
@@ -259,7 +272,8 @@
                                            NotificationsTemplate="{StaticResource NotificationsTemplate}"
                                            KeyboardTemplate="{StaticResource KeyboardTemplate}"
                                            WifiTemplate="{StaticResource WifiTemplate}"
-                                           SpeedMeterTemplate="{StaticResource SpeedMeterTemplate}"/>
+                                           SpeedMeterTemplate="{StaticResource SpeedMeterTemplate}"
+                                           PcCheckerTemplate="{StaticResource PcCheckerTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">
