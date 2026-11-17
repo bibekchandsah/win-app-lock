@@ -10,6 +10,8 @@ namespace AppLock.Views
     {
         private readonly KeyboardViewModel _viewModel;
         private readonly KeyboardService _keyboardService;
+        private Microsoft.UI.Xaml.DispatcherTimer? _stateTimer;
+        private bool _confirmingToggle;
 
         public KeyboardPage()
         {
@@ -29,10 +31,48 @@ namespace AppLock.Views
             ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
 
             LoadSettings();
+
+            // The input state can also change without an event (another surface, a failed API call).
+            // A light poll keeps the switch and the status line honest while the page is visible.
+            _stateTimer ??= new Microsoft.UI.Xaml.DispatcherTimer { Interval = System.TimeSpan.FromSeconds(1.5) };
+            _stateTimer.Tick -= OnStateTimerTick;
+            _stateTimer.Tick += OnStateTimerTick;
+            _stateTimer.Start();
+        }
+
+        private void OnStateTimerTick(object? sender, object e) => SyncFromHardware();
+
+        /// <summary>Re-reads the real input state and updates the switch only when it actually differs.</summary>
+        private void SyncFromHardware()
+        {
+            if (_confirmingToggle) return;
+
+            var actual = _keyboardService.IsKeyboardEnabled();
+            if (KeyboardToggle.IsOn == actual)
+            {
+                // Status text can still be stale after a failed API call; refresh it cheaply.
+                if (_viewModel.IsAdmin && _viewModel.StatusText != $"Input is currently: {(actual ? "Enabled" : "Disabled")}")
+                {
+                    _viewModel.RefreshStatus();
+                    UpdateStatus();
+                }
+
+                return;
+            }
+
+            KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
+            KeyboardToggle.IsOn = actual;
+            KeyboardToggle.Toggled += KeyboardToggle_Toggled;
+
+            _viewModel.RefreshStatus();
+            UpdateStatus();
         }
 
         private void KeyboardPage_Unloaded(object sender, RoutedEventArgs e)
-            => ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
+        {
+            ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
+            _stateTimer?.Stop();
+        }
 
         /// <summary>Mirrors a change made from the quick-settings switch on the Others page.</summary>
         private void OnKeyboardEnabledChanged(object? sender, bool enabled)
@@ -106,6 +146,7 @@ namespace AppLock.Views
             }
 
             var newState = KeyboardToggle.IsOn;
+            _confirmingToggle = true;
 
             // Confirm with user
             var dialog = new ContentDialog
@@ -122,6 +163,7 @@ namespace AppLock.Views
             };
 
             var result = await dialog.ShowAsync();
+            _confirmingToggle = false;
 
             if (result == ContentDialogResult.Primary)
             {

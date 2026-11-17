@@ -68,6 +68,7 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _networkDetailsMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
     private MenuFlyoutItem? _restartMenuItem;
+    private MenuFlyoutItem? _restartAsAdminMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
     private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
@@ -83,6 +84,9 @@ public sealed class TrayService : IDisposable
 
     /// <summary>Raised when the user picks "Restart AppLock" from the tray menu.</summary>
     public event EventHandler? RestartRequested;
+
+    /// <summary>Raised when the user picks "Restart as administrator" from the tray menu.</summary>
+    public event EventHandler? RestartAsAdminRequested;
     public event EventHandler<bool>? ProtectionToggleRequested;
     public event EventHandler<bool>? BrightnessHotkeysToggleRequested;
     public event EventHandler<bool>? BlurHotkeyToggleRequested;
@@ -204,6 +208,8 @@ public sealed class TrayService : IDisposable
                             _speedMeterResetPositionMenuItem = mfi;
                         else if (mfi.Name == "NetworkDetailsMenuItem")
                             _networkDetailsMenuItem = mfi;
+                        else if (mfi.Name == "RestartAsAdminMenuItem" || text.Contains("administrator", StringComparison.OrdinalIgnoreCase))
+                            _restartAsAdminMenuItem = mfi;
                         else if (mfi.Name == "RestartMenuItem" || text.Contains("Restart", StringComparison.OrdinalIgnoreCase))
                             _restartMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
@@ -588,6 +594,18 @@ public sealed class TrayService : IDisposable
                     _eyeCareIntervalCustomItem.Command = new RelayCommand(customAction);
                 }
                 
+                if (_restartAsAdminMenuItem != null)
+                {
+                    _restartAsAdminMenuItem.Click -= RestartAsAdminMenuItem_Click;
+                    _restartAsAdminMenuItem.Click += RestartAsAdminMenuItem_Click;
+                    _restartAsAdminMenuItem.Command = new RelayCommand(() =>
+                    {
+                        System.Diagnostics.Debug.WriteLine("Restart as administrator Command executed!");
+                        RestartAsAdminRequested?.Invoke(this, EventArgs.Empty);
+                    });
+                    System.Diagnostics.Debug.WriteLine("Restart as administrator menu item wired");
+                }
+
                 if (_restartMenuItem != null)
                 {
                     _restartMenuItem.Click -= RestartMenuItem_Click;
@@ -774,6 +792,12 @@ public sealed class TrayService : IDisposable
     {
         System.Diagnostics.Debug.WriteLine("Emergency lock menu item clicked!");
         EmergencyLockRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RestartAsAdminMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("Restart as administrator menu item clicked!");
+        RestartAsAdminRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void RestartMenuItem_Click(object sender, RoutedEventArgs e)

@@ -275,6 +275,12 @@
                         
                         <MenuFlyoutSeparator/>
                         
+                        <MenuFlyoutItem x:Name="RestartAsAdminMenuItem" Text="Restart as administrator">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7EF;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+
                         <MenuFlyoutItem x:Name="RestartMenuItem" Text="Restart AppLock">
                             <MenuFlyoutItem.Icon>
                                 <FontIcon Glyph="&#xE72C;"/>

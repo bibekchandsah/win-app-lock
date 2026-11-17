@@ -920,7 +920,8 @@ public static class ServiceContainer
         Settings.Keyboard.Enabled = enabled;
         SettingsStore.Save(Settings);
 
-        KeyboardEnabledChanged?.Invoke(null, enabled);
+        // Publish the state that was actually applied (the API can refuse), not the requested one.
+        KeyboardEnabledChanged?.Invoke(null, KeyboardViewModel.Enabled);
         return true;
     }
 

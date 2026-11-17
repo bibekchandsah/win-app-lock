@@ -881,3 +881,20 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - New "Restart AppLock" tray item above Exit. It marks the exit authorized for the watchdog, unprotects the
   process, and starts a hidden PowerShell that waits two seconds and relaunches the executable — the delay stops
   the new instance colliding with the one that is still shutting down.
+
+## Navigation, tray and keyboard state sync
+
+- Keyboard and PC Checker now use the same breadcrumb as the Volume Mixer page: a small back arrow followed by
+  `Others › <Page>` with the current page in bold, outside any button border. Their content columns are
+  left-aligned at 880 px like the Wi-Fi page.
+- Wi-Fi Passwords content widened from 880 px to 1040 px so the rows and their action buttons use more of the
+  window.
+- Tray menu gained **Restart as administrator** next to **Restart AppLock**. It relaunches with a UAC prompt
+  (a plain restart when the app is already elevated) and, if the prompt is dismissed, the app keeps running.
+- Keyboard state no longer goes stale between surfaces:
+  * `ServiceContainer.SetKeyboardEnabled` broadcasts the state that was actually applied (read back from the
+    input API), not the requested one.
+  * The Others page re-reads the live input state whenever the keyboard card's quick-settings flyout opens and
+    on every change notification, instead of trusting a cached view-model value.
+  * The Keyboard page polls the real state every 1.5 seconds while it is visible and corrects its switch and
+    status line, skipping the update while its confirmation dialog is open.

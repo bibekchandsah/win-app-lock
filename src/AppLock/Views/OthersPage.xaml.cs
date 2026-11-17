@@ -139,7 +139,7 @@ public sealed partial class OthersPage : Page
         ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
 
         // Show what the input state really is, not what was written to the settings last.
-        SyncKeyboardCard(ServiceContainer.KeyboardViewModel.Enabled);
+        RefreshKeyboardCardFromHardware();
         UpdateClipboardCardState();
         UpdateEyeCareCardState();
         UpdateRingLightCardState();
@@ -480,6 +480,10 @@ public sealed partial class OthersPage : Page
     {
         if (sender is not Button button || button.DataContext is not UtilityCard card) return;
 
+        // The quick-settings panel is built on demand, so read the live input state first; otherwise it
+        // can show whatever value the card had when the page was opened.
+        if (card.IsKeyboardCard) RefreshKeyboardCardFromHardware();
+
         var content = new ContentControl
         {
             Content = card,
@@ -561,6 +565,19 @@ public sealed partial class OthersPage : Page
         }
     }
 
+    /// <summary>Reads the actual input state so the card never disagrees with the Keyboard page.</summary>
+    private void RefreshKeyboardCardFromHardware()
+    {
+        try
+        {
+            SyncKeyboardCard(ServiceContainer.KeyboardService.IsKeyboardEnabled());
+        }
+        catch (System.Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OthersPage] Keyboard state read failed: {ex.Message}");
+        }
+    }
+
     /// <summary>Keeps the keyboard card's switch in step with changes made on the Keyboard page.</summary>
     private void SyncKeyboardCard(bool enabled)
     {
@@ -573,7 +590,7 @@ public sealed partial class OthersPage : Page
     }
 
     private void OnKeyboardEnabledChanged(object? sender, bool enabled)
-        => DispatcherQueue.TryEnqueue(() => SyncKeyboardCard(enabled));
+        => DispatcherQueue.TryEnqueue(RefreshKeyboardCardFromHardware);
 }
 
 public class UtilityCard : INotifyPropertyChanged

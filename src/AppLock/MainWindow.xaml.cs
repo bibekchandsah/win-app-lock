@@ -1343,6 +1343,11 @@ public sealed partial class MainWindow : Window
             {
                 DispatcherQueue.TryEnqueue(RestartApplication);
             };
+
+            ServiceContainer.TrayService.RestartAsAdminRequested += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(RestartAsAdministrator);
+            };
             
             ServiceContainer.TrayService.ProtectionToggleRequested += (s, newState) =>
             {
@@ -2026,6 +2031,56 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[MainWindow] Restart failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Restarts AppLock elevated from the tray menu. If the app is already elevated this is just a restart;
+    /// if the UAC prompt is dismissed nothing happens and the app keeps running.
+    /// </summary>
+    private async void RestartAsAdministrator()
+    {
+        try
+        {
+            if (AppLock.Services.KeyboardService.IsAdministrator())
+            {
+                RestartApplication();
+                return;
+            }
+
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe))
+            {
+                exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            }
+
+            if (string.IsNullOrEmpty(exe)) return;
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo(exe)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = System.IO.Path.GetDirectoryName(exe)
+            };
+
+            AppLock.Services.ProcessProtectionService.SignalAuthorizedExit();
+            AppLock.Services.ProcessProtectionService.UnprotectCurrentProcess();
+
+            var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null) return;
+
+            _isExplicitExit = true;
+            await Task.Delay(400);
+            Microsoft.UI.Xaml.Application.Current.Exit();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // The user dismissed the UAC prompt: keep running unelevated.
+            System.Diagnostics.Debug.WriteLine("[MainWindow] Restart as administrator cancelled by the user");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Restart as administrator failed: {ex.Message}");
         }
     }
 
