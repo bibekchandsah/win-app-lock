@@ -718,23 +718,32 @@ public static class ServiceContainer
         }
 
         // The auto-mute schedule runs whenever AppLock runs, even if the overlay itself is turned off.
-        if (_muteScheduleService == null)
-        {
-            _muteScheduleService = new AppLock.Services.VolumeMixer.MuteScheduleService(dispatcherQueue);
-            _muteScheduleService.Start();
+        InitializeMuteSchedule(dispatcherQueue);
+    }
 
-            // Give the audio back if the app is closed while a range is active.
-            try
+    /// <summary>
+    /// Starts the auto-mute schedule. Deliberately separate from <see cref="InitializeVolumeMixer"/>: the
+    /// schedule has to run on its own so a problem creating the overlay can never leave the schedule dead, and
+    /// the user never has to open the Volume Mixer page for muting to happen.
+    /// </summary>
+    public static void InitializeMuteSchedule(Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue)
+    {
+        if (_muteScheduleService != null) return;
+
+        _muteScheduleService = new AppLock.Services.VolumeMixer.MuteScheduleService(dispatcherQueue);
+        _muteScheduleService.Start();
+
+        // Give the audio back if the app is closed while a range is active.
+        try
+        {
+            if (App.MainWindowInstance is { } window)
             {
-                if (App.MainWindowInstance is { } window)
-                {
-                    window.Closed += (_, _) => _muteScheduleService?.Stop();
-                }
+                window.Closed += (_, _) => _muteScheduleService?.Stop();
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ServiceContainer] Mute schedule shutdown hook failed: {ex.Message}");
-            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ServiceContainer] Mute schedule shutdown hook failed: {ex.Message}");
         }
     }
 

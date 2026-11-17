@@ -941,3 +941,18 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   refreshes it every 30 seconds, on settings changes, and immediately when `MuteScheduleService` changes state.
 - Tests: three new `MuteScheduleTests` cases cover the active text, next-start today vs tomorrow, and the off /
   empty cases (14 tests total).
+
+## Auto mute schedule: runs from app start, with diagnostics
+
+- `ServiceContainer.InitializeMuteSchedule` is now its own entry point and is called at the very start of the
+  window-initialisation block in `App.OnLaunched`, before the Volume Mixer overlay is created and in its own
+  try/catch. Previously it was only created at the end of `InitializeVolumeMixer`; anything that failed while
+  building the overlay (or the overlay never being initialised) left the schedule dead until the page happened
+  to touch it.
+- `MuteScheduleService` no longer relies on a `DispatcherQueueTimer` for its heartbeat: a background
+  `System.Threading.Timer` ticks every 20 seconds and marshals the work to the UI thread (falling back to
+  running directly if the dispatcher is gone). This keeps muting working when the window was never shown or the
+  page was never visited.
+- Diagnostics: every start, range transition, device enumeration failure and restore is appended to
+  `%LOCALAPPDATA%\AppLock\Logs\mute-schedule.log` (rolling at 256 KB), so a range that does not mute can be
+  explained instead of guessed at.

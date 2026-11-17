@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Diagnostics;
 using AppLock.Models;
 using AppLock.Services.Audio;
@@ -10,15 +12,19 @@ namespace AppLock.Services.VolumeMixer;
 
 /// <summary>
 /// Applies the auto-mute schedule to every active playback device and, when enabled, every active recording
-/// device. It is a watcher, not a driver: every 15 seconds it checks whether the current time is inside one of
-/// the ranges and only changes a device when it has to. The mute state each device had before the range is
-/// remembered per device, so leaving the range restores speakers and microphones exactly as they were.
+/// device. It is a watcher, not a driver: a background timer looks every 20 seconds at the clock, and the work
+/// itself runs on the UI thread (the same thread the Volume Mixer uses for audio), so the schedule keeps
+/// working whether or not the user ever opens the Volume Mixer page or its overlay.
+/// Each device's mute state before the range is remembered per device, so leaving the range restores speakers
+/// and microphones exactly as they were.
 /// </summary>
 public sealed class MuteScheduleService : IDisposable
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(20);
 
-    private readonly DispatcherQueueTimer _timer;
+    private readonly DispatcherQueue? _dispatcherQueue;
+    private readonly Timer _timer;
+    private readonly object _gate = new();
 
     private SpeakerVolumeService? _speakers;
     private MicrophoneVolumeService? _microphones;
@@ -30,12 +36,10 @@ public sealed class MuteScheduleService : IDisposable
     private string? _activeWindowText;
     private bool _started;
 
-    public MuteScheduleService(DispatcherQueue dispatcherQueue)
+    public MuteScheduleService(DispatcherQueue? dispatcherQueue)
     {
-        _timer = dispatcherQueue.CreateTimer();
-        _timer.Interval = PollInterval;
-        _timer.IsRepeating = true;
-        _timer.Tick += (_, _) => Evaluate();
+        _dispatcherQueue = dispatcherQueue;
+        _timer = new Timer(_ => EvaluateOnUiThread(), null, Timeout.Infinite, Timeout.Infinite);
     }
 
     /// <summary>Raised with the active range text when the schedule starts or stops muting (null when idle).</summary>
@@ -56,24 +60,37 @@ public sealed class MuteScheduleService : IDisposable
     {
         if (_started) return;
         _started = true;
-        _timer.Start();
-        Evaluate();
-        Debug.WriteLine("[MuteSchedule] Started");
+
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        Log($"Started: enabled={settings.MuteScheduleEnabled}, ranges={settings.MuteWindows.Count}, " +
+            $"speakers={settings.MuteSpeakersOnSchedule}, microphone={settings.MuteMicrophoneOnSchedule}");
+
+        _timer.Change(TimeSpan.Zero, PollInterval);
     }
 
     /// <summary>Stops watching and gives every audio device back to the user.</summary>
     public void Stop()
     {
-        _timer.Stop();
+        _timer.Change(Timeout.Infinite, Timeout.Infinite);
         _started = false;
         ReleaseSpeakers();
         ReleaseMicrophones();
         _activeWindowText = null;
-        Debug.WriteLine("[MuteSchedule] Stopped");
+        Log("Stopped, devices restored");
     }
 
     /// <summary>Re-reads settings and re-applies immediately (called when the schedule is edited).</summary>
-    public void Refresh() => Evaluate();
+    public void Refresh() => EvaluateOnUiThread();
+
+    /// <summary>The timer runs on a background thread; the audio work belongs on the UI thread.</summary>
+    private void EvaluateOnUiThread()
+    {
+        var queue = _dispatcherQueue;
+        if (queue != null && queue.TryEnqueue(Evaluate)) return;
+
+        // No dispatcher (or it is gone): the NAudio calls are still safe off the UI thread.
+        Evaluate();
+    }
 
     private void Evaluate()
     {
@@ -99,12 +116,14 @@ public sealed class MuteScheduleService : IDisposable
             {
                 _activeWindowText = text;
                 changed = true;
+                Log(text == null ? "No range active" : $"Range active: {text}");
             }
 
             if (changed) StateChanged?.Invoke(this, _activeWindowText);
         }
         catch (Exception ex)
         {
+            Log($"Evaluate failed: {ex.Message}");
             Debug.WriteLine($"[MuteSchedule] Evaluate failed: {ex.Message}");
         }
     }
@@ -118,26 +137,28 @@ public sealed class MuteScheduleService : IDisposable
     private bool MuteAllSpeakers()
     {
         var speakers = EnumerateSpeakers();
-        if (speakers.Count == 0) return false;
+        if (speakers.Count == 0)
+        {
+            return false;
+        }
 
         var changed = false;
 
-        foreach (var speaker in speakers)
+        lock (_gate)
         {
-            var id = speaker.DeviceId;
-            if (string.IsNullOrEmpty(id)) continue;
-            if (_speakerMuteBefore.ContainsKey(id)) continue;
+            foreach (var speaker in speakers)
+            {
+                var id = speaker.DeviceId;
+                if (string.IsNullOrEmpty(id)) continue;
+                if (_speakerMuteBefore.ContainsKey(id)) continue;
 
-            _speakerMuteBefore[id] = speaker.IsMuted();
-            speaker.SetMute(true);
-            changed = true;
+                _speakerMuteBefore[id] = speaker.IsMuted();
+                speaker.SetMute(true);
+                changed = true;
+            }
         }
 
-        if (changed)
-        {
-            Debug.WriteLine($"[MuteSchedule] Muted {_speakerMuteBefore.Count} playback device(s) for {_activeWindowText}");
-        }
-
+        if (changed) Log($"Muted {_speakerMuteBefore.Count} playback device(s)");
         return changed;
     }
 
@@ -156,17 +177,21 @@ public sealed class MuteScheduleService : IDisposable
 
         var restored = 0;
 
-        foreach (var (id, wasMuted) in _speakerMuteBefore)
+        lock (_gate)
         {
-            if (!byId.TryGetValue(id, out var speaker)) continue;
-            if (!speaker.IsMuted()) continue;
+            foreach (var (id, wasMuted) in _speakerMuteBefore)
+            {
+                if (!byId.TryGetValue(id, out var speaker)) continue;
+                if (!speaker.IsMuted()) continue;
 
-            speaker.SetMute(wasMuted);
-            restored++;
+                speaker.SetMute(wasMuted);
+                restored++;
+            }
+
+            _speakerMuteBefore.Clear();
         }
 
-        Debug.WriteLine($"[MuteSchedule] Restored mute state of {restored} playback device(s)");
-        _speakerMuteBefore.Clear();
+        Log($"Restored mute state of {restored} playback device(s)");
         return true;
     }
 
@@ -190,7 +215,7 @@ public sealed class MuteScheduleService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MuteSchedule] Speaker enumeration failed: {ex.Message}");
+            Log($"Speaker enumeration failed: {ex.Message}");
             return Array.Empty<SpeakerDevice>();
         }
     }
@@ -204,22 +229,21 @@ public sealed class MuteScheduleService : IDisposable
 
         var changed = false;
 
-        foreach (var microphone in microphones)
+        lock (_gate)
         {
-            var id = microphone.DeviceId;
-            if (string.IsNullOrEmpty(id)) continue;
-            if (_microphoneMuteBefore.ContainsKey(id)) continue;
+            foreach (var microphone in microphones)
+            {
+                var id = microphone.DeviceId;
+                if (string.IsNullOrEmpty(id)) continue;
+                if (_microphoneMuteBefore.ContainsKey(id)) continue;
 
-            _microphoneMuteBefore[id] = microphone.IsMuted();
-            microphone.SetMute(true);
-            changed = true;
+                _microphoneMuteBefore[id] = microphone.IsMuted();
+                microphone.SetMute(true);
+                changed = true;
+            }
         }
 
-        if (changed)
-        {
-            Debug.WriteLine($"[MuteSchedule] Muted {_microphoneMuteBefore.Count} recording device(s) for {_activeWindowText}");
-        }
-
+        if (changed) Log($"Muted {_microphoneMuteBefore.Count} recording device(s)");
         return changed;
     }
 
@@ -234,17 +258,21 @@ public sealed class MuteScheduleService : IDisposable
 
         var restored = 0;
 
-        foreach (var (id, wasMuted) in _microphoneMuteBefore)
+        lock (_gate)
         {
-            if (!byId.TryGetValue(id, out var microphone)) continue;
-            if (!microphone.IsMuted()) continue;
+            foreach (var (id, wasMuted) in _microphoneMuteBefore)
+            {
+                if (!byId.TryGetValue(id, out var microphone)) continue;
+                if (!microphone.IsMuted()) continue;
 
-            microphone.SetMute(wasMuted);
-            restored++;
+                microphone.SetMute(wasMuted);
+                restored++;
+            }
+
+            _microphoneMuteBefore.Clear();
         }
 
-        Debug.WriteLine($"[MuteSchedule] Restored mute state of {restored} recording device(s)");
-        _microphoneMuteBefore.Clear();
+        Log($"Restored mute state of {restored} recording device(s)");
         return true;
     }
 
@@ -267,14 +295,41 @@ public sealed class MuteScheduleService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MuteSchedule] Microphone enumeration failed: {ex.Message}");
+            Log($"Microphone enumeration failed: {ex.Message}");
             return Array.Empty<MicrophoneDevice>();
         }
     }
 
+    // ── Diagnostics ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Small rolling log so a user can tell why a range did or did not mute. Lives next to the other AppLock
+    /// logs; failures here are ignored on purpose.
+    /// </summary>
+    private static void Log(string message)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "Logs");
+            Directory.CreateDirectory(directory);
+
+            var path = Path.Combine(directory, "mute-schedule.log");
+            var info = new FileInfo(path);
+            if (info.Exists && info.Length > 256 * 1024)
+            {
+                File.Delete(path);
+            }
+
+            File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
+        }
+        catch { }
+    }
+
     public void Dispose()
     {
-        _timer.Stop();
+        try { _timer.Change(Timeout.Infinite, Timeout.Infinite); } catch { }
+        _timer.Dispose();
         try { _speakers?.Dispose(); } catch { }
         try { _microphones?.Dispose(); } catch { }
         _speakers = null;

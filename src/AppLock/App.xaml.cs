@@ -87,6 +87,17 @@ public partial class App : Application
         // Initialize Volume Mixer overlay
         if (_mainWindow?.DispatcherQueue != null)
         {
+            // First and on its own: the auto-mute schedule must run from startup, whether or not the overlay
+            // can be created and whether or not the user ever opens the Volume Mixer page.
+            try
+            {
+                AppLock.Services.ServiceContainer.InitializeMuteSchedule(_mainWindow.DispatcherQueue);
+            }
+            catch (Exception muteEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[App] Mute schedule init failed: {muteEx.Message}");
+            }
+
             AppLock.Services.ServiceContainer.InitializeVolumeMixer(_mainWindow.DispatcherQueue);
             AppLock.Services.ServiceContainer.InitializeNotificationCustomizer();
             AppLock.Services.ServiceContainer.InitializeLockKeyIndicator(_mainWindow.DispatcherQueue);
