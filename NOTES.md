@@ -670,3 +670,15 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   license channel, pending-reboot state with the reason, installed update count and newest update.
 - TPM is read through `root\cimv2\security\microsofttpm`. A standard user usually cannot open that namespace,
   so the row says "Needs administrator rights" rather than claiming the TPM is missing.
+
+## PC Checker — milestone 3 (Processor, Memory)
+
+- `CpuProvider` now builds its topology from `GetLogicalProcessorInformationEx`: physical cores, logical
+  processors, cache sizes per level/type, NUMA nodes, packages and the hybrid performance/efficiency split
+  (efficiency class). Instruction sets come from CPUID (`X86Base.CpuId`), microcode from the registry.
+  This laptop reports 4 P-cores / 8 threads, 12 MB L3, AVX2 and AVX-512 — matching Task Manager.
+- `MemoryProvider` reads every module from SMBIOS type 17 (slot locator, capacity, DDR type, form factor,
+  rated vs configured speed, manufacturer, part number, rank, width, voltage) with the physical memory
+  array (type 16) for slot count and maximum capacity. This laptop: 2× 8 GB Samsung DDR4-3200 SODIMM,
+  2 slots, 64 GB maximum. WMI modules are the fallback when a table has no type 17 records.
+- Channel layout and the "rated vs configured speed" hint are estimates and are labelled as such.

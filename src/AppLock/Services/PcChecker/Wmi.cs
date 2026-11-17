@@ -130,6 +130,20 @@ internal static class PcRegistry
         }
     }
 
+    public static byte[]? ReadBytes(RegistryHive hive, string path, string name)
+    {
+        try
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Default);
+            using var key = baseKey.OpenSubKey(path);
+            return key?.GetValue(name) as byte[];
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static string? MachineString(string path, string name)
         => ReadString(RegistryHive.LocalMachine, RegistryView.Registry64, path, name);
 
