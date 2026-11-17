@@ -728,3 +728,14 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - Printers come from `Win32_Printer` with driver, port, default and offline state.
 - Long lists are capped at 40 rows per view with a "more…" row, so the page stays responsive; the health
   check milestone will consume the problem-device list directly.
+
+## PC Checker — milestone 8 (Software)
+
+- `SoftwareProvider`: installed apps from the Uninstall keys (HKLM 64/32 and HKCU, system components and
+  patches filtered out, `Win32_Product` never touched), startup items from both Run keys, the StartupApproved
+  enabled state and the Startup folders, services whose binaries live outside Windows / Program Files,
+  installed Windows updates, .NET and Visual C++ runtimes, Python/Node/Java/Git/winget found on PATH with
+  their file versions, a PATH checker (missing folders, duplicates, very long entries) and the 15 largest
+  processes. Everything is read-only.
+- Installed apps are capped at 120 rows with an explicit "more…" row so the page stays quick on PCs with
+  hundreds of apps; totals are always shown in the Summary group.

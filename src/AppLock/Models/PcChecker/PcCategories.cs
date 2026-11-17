@@ -42,7 +42,7 @@ public static class PcCategories
         new() { Id = "battery", Title = "Battery & power", Glyph = "\uEDA2", ProviderIds = new[] { "battery" } },
         new() { Id = "devices", Title = "Devices & peripherals", Glyph = "\uE71B", ProviderIds = new[] { "devices" } },
         new() { Id = "sensors", Title = "Sensors", Glyph = "\uE946" },
-        new() { Id = "software", Title = "Software", Glyph = "\uE8D7" },
+        new() { Id = "software", Title = "Software", Glyph = "\uE8D7", ProviderIds = new[] { "software" } },
         new() { Id = "security", Title = "Security", Glyph = "\uE72E" },
         new() { Id = "performance", Title = "Performance (live)", Glyph = "\uEC4A" },
         new() { Id = "stability", Title = "Stability & events", Glyph = "\uE7BA" },
