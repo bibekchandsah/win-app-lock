@@ -956,3 +956,19 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - Diagnostics: every start, range transition, device enumeration failure and restore is appended to
   `%LOCALAPPDATA%\AppLock\Logs\mute-schedule.log` (rolling at 256 KB), so a range that does not mute can be
   explained instead of guessed at.
+
+## Auto mute schedule: the mute survives a restart properly
+
+- Symptom: restart during an active range left microphones muted forever — the mics were already muted when the
+  new process looked, so it recorded "was muted = true" as the user's own choice and dutifully restored them
+  *to muted* when the range ended.
+- Fix: `MuteScheduleState` (`%LOCALAPPDATA%\AppLock\mute-schedule-state.json`) records, per device id and
+  category, the state the schedule found before muting. It is written whenever the schedule takes or gives back a
+  device, refreshed every 30 minutes while a range stays active, deleted as soon as nothing is held, and ignored
+  (and deleted) if older than 24 hours so a stale record can never unmute something muted by hand long after.
+- On startup the record is restored *before* anything is muted or released, so a range ending after a restart
+  still gives the devices back, and a restart that outlived the range restores them immediately.
+- First run after this change has no record at all; a device found muted then is assumed to have been muted by
+  the schedule, so the currently stuck microphones get released at the end of the range instead of staying muted.
+- Tests: `MuteScheduleStateTests` covers round-trip, empty-record deletion, expiry, clock skew, corrupt JSON and
+  dropped empty device ids.

@@ -33,6 +33,15 @@ public sealed class MuteScheduleService : IDisposable
     private readonly Dictionary<string, bool> _speakerMuteBefore = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _microphoneMuteBefore = new(StringComparer.Ordinal);
 
+    private readonly string _statePath = MuteScheduleState.DefaultPath;
+    private bool _stateLoaded;
+
+    // True only until this run has written its own record: devices already muted then were muted by a previous
+    // run of the schedule, so "muted" is not the user's own choice and must be undone at the end of the range.
+    private bool _assumeOwnMute = true;
+
+    private DateTime _lastStateSave;
+
     private string? _activeWindowText;
     private bool _started;
 
@@ -73,10 +82,76 @@ public sealed class MuteScheduleService : IDisposable
     {
         _timer.Change(Timeout.Infinite, Timeout.Infinite);
         _started = false;
+        EnsureStateLoaded();
         ReleaseSpeakers();
         ReleaseMicrophones();
+        PersistState();
         _activeWindowText = null;
         Log("Stopped, devices restored");
+    }
+
+    // ── Remembering the state across restarts ────────────────────────────────
+
+    /// <summary>
+    /// Brings back what a previous run of the schedule was holding. Called before anything is muted or released,
+    /// so a restart during a range still knows which devices to give back when the range ends — and a restart
+    /// after the range ended gives back devices the app was killed before restoring.
+    /// </summary>
+    private void EnsureStateLoaded()
+    {
+        lock (_gate)
+        {
+            if (_stateLoaded) return;
+            _stateLoaded = true;
+
+            var state = MuteScheduleState.Load(_statePath, DateTime.Now);
+            if (state == null)
+            {
+                // No record at all (first run of this version, or the file expired): a device muted this early
+                // was almost certainly muted by the schedule before it could save its record.
+                _assumeOwnMute = true;
+                return;
+            }
+
+            foreach (var (id, muted) in state.Speakers) _speakerMuteBefore[id] = muted;
+            foreach (var (id, muted) in state.Microphones) _microphoneMuteBefore[id] = muted;
+
+            _assumeOwnMute = false;
+            Log($"Recovered pending schedule state from {state.SavedAt:yyyy-MM-dd HH:mm:ss}: " +
+                $"{state.Speakers.Count} playback, {state.Microphones.Count} recording device(s)");
+        }
+    }
+
+    /// <summary>
+    /// The mute state to give a device back at the end of the range. Without a record of our own, a device that
+    /// is already muted was muted by a previous run of the schedule, so it counts as unmuted-before.
+    /// </summary>
+    private bool PreviousStateOf(bool mutedNow) => mutedNow && !_assumeOwnMute;
+
+    private bool StateRefreshDue()
+    {
+        lock (_gate)
+        {
+            if (_speakerMuteBefore.Count == 0 && _microphoneMuteBefore.Count == 0) return false;
+            return DateTime.Now - _lastStateSave > TimeSpan.FromMinutes(30);
+        }
+    }
+
+    private void PersistState()
+    {
+        lock (_gate)
+        {
+            new MuteScheduleState
+            {
+                SavedAt = DateTime.Now,
+                Speakers = new Dictionary<string, bool>(_speakerMuteBefore, StringComparer.Ordinal),
+                Microphones = new Dictionary<string, bool>(_microphoneMuteBefore, StringComparer.Ordinal),
+            }.Save(_statePath);
+
+            // This run has now written its own record; from here on a muted device is the user's own choice.
+            _assumeOwnMute = false;
+            _lastStateSave = DateTime.Now;
+        }
     }
 
     /// <summary>Re-reads settings and re-applies immediately (called when the schedule is edited).</summary>
@@ -96,6 +171,8 @@ public sealed class MuteScheduleService : IDisposable
     {
         try
         {
+            EnsureStateLoaded();
+
             var settings = ServiceContainer.Settings.VolumeMixer;
             var windows = settings.MuteWindows;
             var enabled = settings.MuteScheduleEnabled && windows.Count > 0;
@@ -117,6 +194,12 @@ public sealed class MuteScheduleService : IDisposable
                 _activeWindowText = text;
                 changed = true;
                 Log(text == null ? "No range active" : $"Range active: {text}");
+            }
+
+            // Refresh the record now and then, so a range that stays active for a long time cannot let it expire.
+            if (changed || StateRefreshDue())
+            {
+                PersistState();
             }
 
             if (changed) StateChanged?.Invoke(this, _activeWindowText);
@@ -152,7 +235,7 @@ public sealed class MuteScheduleService : IDisposable
                 if (string.IsNullOrEmpty(id)) continue;
                 if (_speakerMuteBefore.ContainsKey(id)) continue;
 
-                _speakerMuteBefore[id] = speaker.IsMuted();
+                _speakerMuteBefore[id] = PreviousStateOf(speaker.IsMuted());
                 speaker.SetMute(true);
                 changed = true;
             }
@@ -237,7 +320,7 @@ public sealed class MuteScheduleService : IDisposable
                 if (string.IsNullOrEmpty(id)) continue;
                 if (_microphoneMuteBefore.ContainsKey(id)) continue;
 
-                _microphoneMuteBefore[id] = microphone.IsMuted();
+                _microphoneMuteBefore[id] = PreviousStateOf(microphone.IsMuted());
                 microphone.SetMute(true);
                 changed = true;
             }

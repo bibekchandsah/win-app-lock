@@ -64,6 +64,7 @@
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\MuteWindow.cs" Link="Models\MuteWindow.cs" />
     <Compile Include="..\..\src\AppLock\Services\VolumeMixer\MuteSchedule.cs" Link="Services\VolumeMixer\MuteSchedule.cs" />
+    <Compile Include="..\..\src\AppLock\Services\VolumeMixer\MuteScheduleState.cs" Link="Services\VolumeMixer\MuteScheduleState.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\InfoModel.cs" Link="Models\PcChecker\InfoModel.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCategories.cs" Link="Models\PcChecker\PcCategories.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\BugCheckTable.cs" Link="Models\PcChecker\BugCheckTable.cs" />
