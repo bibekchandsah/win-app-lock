@@ -391,6 +391,21 @@
 
                                 <StackPanel x:Name="MuteScheduleBody" Spacing="8"
                                             Visibility="{x:Bind MuteScheduleToggle.IsOn, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <CheckBox x:Name="MuteSpeakersCheckBox"
+                                                  Content="Mute speakers"
+                                                  MinWidth="0"
+                                                  Checked="MuteTarget_Changed"
+                                                  Unchecked="MuteTarget_Changed"
+                                                  AutomationProperties.Name="Mute the speakers during these ranges"/>
+                                        <CheckBox x:Name="MuteMicrophoneCheckBox"
+                                                  Content="Mute microphone"
+                                                  MinWidth="0"
+                                                  Checked="MuteTarget_Changed"
+                                                  Unchecked="MuteTarget_Changed"
+                                                  AutomationProperties.Name="Mute the microphone during these ranges"/>
+                                    </StackPanel>
+
                                     <ListView x:Name="MuteWindowsList"
                                               SelectionMode="None"
                                               MaxWidth="520"

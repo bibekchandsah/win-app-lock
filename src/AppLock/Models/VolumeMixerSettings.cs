@@ -31,6 +31,12 @@ public sealed class VolumeMixerSettings
     /// <summary>Daily ranges during which audio is muted; ranges may cross midnight.</summary>
     public List<MuteWindow> MuteWindows { get; set; } = new();
 
+    /// <summary>Mute the default playback device during the schedule.</summary>
+    public bool MuteSpeakersOnSchedule { get; set; } = true;
+
+    /// <summary>Mute the default recording device during the schedule (opt-in, because it affects calls).</summary>
+    public bool MuteMicrophoneOnSchedule { get; set; } = false;
+
     public List<string> Blacklist { get; set; } = new();
     public double? CustomX { get; set; }   // used when dragged (idle chip's left edge)
     public double? CustomY { get; set; }

@@ -847,3 +847,15 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   floating overlay is enabled, so scheduled silence works with the overlay switched off.
 - Tests: `tests/AppLock.Tests/MuteScheduleTests.cs` (11 cases) covers daytime ranges, overnight ranges, multiple
   ranges, empty/identical ranges, normalisation and the "(next day)" label.
+
+### Microphone support for the auto-mute schedule
+
+- The schedule now has two targets, both inside the same card: **Mute speakers** (on by default) and
+  **Mute microphone** (off by default, because muting a mic can surprise people on calls).
+- `MuteScheduleService` tracks the playback and recording devices separately: each has its own "muted by
+  schedule" flag and its own remembered previous mute state, so ending a range restores exactly what the user
+  had. Turning a target off while a range is active releases that endpoint immediately.
+- Microphone muting goes through `MicrophoneVolumeService` (default recording device for communications), the
+  same NAudio path the Volume Mixer overlay already uses for the mic slider.
+- The status line now names the targets, e.g. "Muted right now for 23:00 – 05:00 (next day) (speakers and
+  microphone)", and complains when the schedule is on but neither target is selected.

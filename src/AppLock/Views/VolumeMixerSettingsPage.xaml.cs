@@ -157,6 +157,8 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
         // Auto mute schedule
         MuteScheduleToggle.IsOn = s.MuteScheduleEnabled;
+        MuteSpeakersCheckBox.IsChecked = s.MuteSpeakersOnSchedule;
+        MuteMicrophoneCheckBox.IsChecked = s.MuteMicrophoneOnSchedule;
         BuildMuteWindowList();
         UpdateMuteScheduleStatus();
 
@@ -488,15 +490,53 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             return;
         }
 
+        var targets = DescribeTargets(settings);
+        if (targets == null)
+        {
+            MuteScheduleStatusText.Text = "Schedule is on but neither speakers nor microphone are selected, so nothing will happen.";
+            return;
+        }
+
         if (service?.ActiveWindowText is { } active)
         {
-            MuteScheduleStatusText.Text = $"Muted right now for {active}.";
+            var muted = new System.Collections.Generic.List<string>();
+            if (service.IsSpeakersMutedBySchedule) muted.Add("speakers");
+            if (service.IsMicrophoneMutedBySchedule) muted.Add("microphone");
+
+            MuteScheduleStatusText.Text = muted.Count > 0
+                ? $"Muted right now for {active} ({string.Join(" and ", muted)})."
+                : $"Range {active} is active, but the devices could not be muted (no default device?).";
             return;
         }
 
         MuteScheduleStatusText.Text = settings.MuteWindows.Count == 0
-            ? "Schedule is on but no ranges are configured, so nothing will happen."
-            : $"Waiting. Ranges: {summary}";
+            ? $"Schedule is on for {targets} but no ranges are configured, so nothing will happen."
+            : $"Waiting ({targets}). Ranges: {summary}";
+    }
+
+    /// <summary>"speakers", "microphone" or "speakers and microphone"; null when neither is selected.</summary>
+    private static string? DescribeTargets(VolumeMixerSettings settings)
+    {
+        var speakers = settings.MuteSpeakersOnSchedule;
+        var microphone = settings.MuteMicrophoneOnSchedule;
+
+        if (speakers && microphone) return "speakers and microphone";
+        if (speakers) return "speakers";
+        if (microphone) return "microphone";
+        return null;
+    }
+
+    private void MuteTarget_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        settings.MuteSpeakersOnSchedule = MuteSpeakersCheckBox.IsChecked == true;
+        settings.MuteMicrophoneOnSchedule = MuteMicrophoneCheckBox.IsChecked == true;
+
+        SaveSettings();
+        ServiceContainer.RefreshMuteSchedule();
+        UpdateMuteScheduleStatus();
     }
 
     private void MuteScheduleToggle_Toggled(object sender, RoutedEventArgs e)
