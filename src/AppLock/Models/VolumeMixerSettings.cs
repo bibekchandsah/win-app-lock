@@ -24,6 +24,13 @@ public sealed class VolumeMixerSettings
     public bool ShowCameraBrightness { get; set; } = true; // Show camera brightness slider
     public bool ShowScreenBrightness { get; set; } = true; // Show display brightness slider
     public string ThemeMode { get; set; } = "System";
+
+    /// <summary>Mute the default playback device automatically during <see cref="MuteWindows"/>.</summary>
+    public bool MuteScheduleEnabled { get; set; } = false;
+
+    /// <summary>Daily ranges during which audio is muted; ranges may cross midnight.</summary>
+    public List<MuteWindow> MuteWindows { get; set; } = new();
+
     public List<string> Blacklist { get; set; } = new();
     public double? CustomX { get; set; }   // used when dragged (idle chip's left edge)
     public double? CustomY { get; set; }
@@ -59,6 +66,10 @@ public sealed class VolumeMixerSettings
         // Hotkey string validation
         if (string.IsNullOrWhiteSpace(Hotkey))
             Hotkey = "Alt+V";
+
+        // Auto-mute schedule: drop unusable ranges and rewrite the times consistently
+        MuteWindows ??= new List<MuteWindow>();
+        AppLock.Services.VolumeMixer.MuteSchedule.Normalize(MuteWindows);
 
         // Blacklist: ensure all items are normalized
         if (Blacklist != null && Blacklist.Count > 0)

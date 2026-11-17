@@ -831,3 +831,19 @@ Milestone 1 of `pc-checker.md`: framework and shell.
      serial numbers/IDs are masked.
   7. Tools → each row's open button launches the listed Windows tool.
   8. Switch the app between Light and Dark and check the page, tiles and HTML report.
+
+## Volume Mixer — auto mute schedule (Appearance tab)
+
+- New "Auto Mute Schedule" card in Volume Mixer → Appearance: one toggle plus a list of daily ranges
+  (Add / Edit / Delete). Each range is a from/to time with a 24-hour picker; a range whose end is earlier than
+  its start crosses midnight, so `23:00 – 05:00` mutes overnight. Up to 12 ranges.
+- Ranges are stored in `VolumeMixerSettings.MuteWindows` as `"HH:mm"` strings (`Models/MuteWindow.cs`), validated
+  and normalised by `Services/VolumeMixer/MuteSchedule`.
+- `Services/VolumeMixer/MuteScheduleService` polls every 15 seconds on the UI dispatcher and mutes the default
+  playback device (`SpeakerVolumeService`) while a range is active. It remembers whether the user had muted
+  before, restores that state when the range ends, and never re-mutes if the user unmutes manually during a
+  range. Closing AppLock while muted restores the audio too.
+- The service starts with the app (inside `ServiceContainer.InitializeVolumeMixer`), independent of whether the
+  floating overlay is enabled, so scheduled silence works with the overlay switched off.
+- Tests: `tests/AppLock.Tests/MuteScheduleTests.cs` (11 cases) covers daytime ranges, overnight ranges, multiple
+  ranges, empty/identical ranges, normalisation and the "(next day)" label.

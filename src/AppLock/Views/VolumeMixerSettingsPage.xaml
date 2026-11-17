@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:AppLock.ViewModels"
     mc:Ignorable="d"
     Loaded="VolumeMixerSettingsPage_Loaded"
     Unloaded="VolumeMixerSettingsPage_Unloaded"
@@ -360,6 +361,93 @@
                                               OnContent=""
                                               Toggled="ShowScreenBrightnessToggle_Toggled"/>
                             </Grid>
+                        </Border>
+
+                        <!-- Auto Mute Schedule -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16">
+                            <StackPanel Spacing="12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Auto Mute Schedule" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Mute the speakers automatically during the time ranges below and unmute afterwards"
+                                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="MuteScheduleToggle"
+                                                  Grid.Column="1"
+                                                  VerticalAlignment="Center"
+                                                  MinWidth="0"
+                                                  OffContent=""
+                                                  OnContent=""
+                                                  Toggled="MuteScheduleToggle_Toggled"/>
+                                </Grid>
+
+                                <StackPanel x:Name="MuteScheduleBody" Spacing="8"
+                                            Visibility="{x:Bind MuteScheduleToggle.IsOn, Mode=OneWay}">
+                                    <ListView x:Name="MuteWindowsList"
+                                              SelectionMode="None"
+                                              MaxWidth="520"
+                                              HorizontalAlignment="Left"
+                                              AutomationProperties.Name="Auto mute time ranges">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:MuteWindowItem">
+                                                <Grid ColumnSpacing="8" Padding="0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{x:Bind Display}"
+                                                               FontSize="13"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <Button Grid.Column="1"
+                                                            Content="Edit"
+                                                            Click="EditMuteWindow_Click"
+                                                            AutomationProperties.Name="Edit this time range"/>
+                                                    <Button Grid.Column="2"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Padding="6"
+                                                            Click="DeleteMuteWindow_Click"
+                                                            ToolTipService.ToolTip="Remove this time range"
+                                                            AutomationProperties.Name="Remove this time range">
+                                                        <FontIcon Glyph="&#xE74D;" FontSize="13"/>
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+
+                                    <TextBlock x:Name="NoMuteWindowsText"
+                                               Text="No time ranges yet. Add one, for example 23:00 – 05:00 to keep the PC quiet overnight."
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Click="AddMuteWindow_Click" AutomationProperties.Name="Add a time range">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <FontIcon Glyph="&#xE710;" FontSize="12"/>
+                                                <TextBlock Text="Add time range"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="MuteScheduleStatusText"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
 
                         <!-- Restore Defaults -->

@@ -43,6 +43,7 @@ public static class ServiceContainer
     private static AppLock.Services.RingLight.RingLightService? _ringLightService;
     private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
     private static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? _volumeMixerHotkeyManager;
+    private static AppLock.Services.VolumeMixer.MuteScheduleService? _muteScheduleService;
     private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
     private static KeyboardService? _keyboardService;
     private static ViewModels.KeyboardViewModel? _keyboardViewModel;
@@ -698,6 +699,11 @@ public static class ServiceContainer
 
     public static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? VolumeMixerHotkeyManager => _volumeMixerHotkeyManager;
 
+    public static AppLock.Services.VolumeMixer.MuteScheduleService? MuteScheduleService => _muteScheduleService;
+
+    /// <summary>Re-applies the auto-mute schedule after it was edited in settings.</summary>
+    public static void RefreshMuteSchedule() => _muteScheduleService?.Refresh();
+
     public static void InitializeVolumeMixer(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
         if (_volumeOverlayService == null)
@@ -708,6 +714,26 @@ public static class ServiceContainer
             if (Settings.VolumeMixer.Enabled)
             {
                 _volumeOverlayService.Start();
+            }
+        }
+
+        // The auto-mute schedule runs whenever AppLock runs, even if the overlay itself is turned off.
+        if (_muteScheduleService == null)
+        {
+            _muteScheduleService = new AppLock.Services.VolumeMixer.MuteScheduleService(dispatcherQueue);
+            _muteScheduleService.Start();
+
+            // Give the audio back if the app is closed while a range is active.
+            try
+            {
+                if (App.MainWindowInstance is { } window)
+                {
+                    window.Closed += (_, _) => _muteScheduleService?.Stop();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ServiceContainer] Mute schedule shutdown hook failed: {ex.Message}");
             }
         }
     }

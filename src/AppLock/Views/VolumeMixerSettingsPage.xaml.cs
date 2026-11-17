@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using AppLock.Services;
 using AppLock.Services.VolumeMixer;
 using AppLock.Models;
@@ -18,6 +19,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     private string _idleOpacityText = "50%";
     private string _hoverOpacityText = "100%";
     private bool _isLoading; // Guard: prevents change handlers from saving during LoadSettings()
+    private readonly ObservableCollection<ViewModels.MuteWindowItem> _muteWindowItems = new();
 
     public string IdleOpacityText
     {
@@ -50,6 +52,14 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
 
         ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
         ServiceContainer.VolumeMixerPositionChanged += OnVolumeMixerPositionChanged;
+
+        if (ServiceContainer.MuteScheduleService is { } muteSchedule)
+        {
+            muteSchedule.StateChanged -= OnMuteScheduleStateChanged;
+            muteSchedule.StateChanged += OnMuteScheduleStateChanged;
+        }
+
+        UpdateMuteScheduleStatus();
     }
 
     private void VolumeMixerSettingsPage_Unloaded(object sender, RoutedEventArgs e)
@@ -57,6 +67,16 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         // Unsubscribe from events
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.VolumeMixerPositionChanged -= OnVolumeMixerPositionChanged;
+
+        if (ServiceContainer.MuteScheduleService is { } muteSchedule)
+        {
+            muteSchedule.StateChanged -= OnMuteScheduleStateChanged;
+        }
+    }
+
+    private void OnMuteScheduleStateChanged(object? sender, string? activeWindow)
+    {
+        DispatcherQueue?.TryEnqueue(UpdateMuteScheduleStatus);
     }
 
     private void OnVolumeMixerEnabledChanged(object? sender, bool enabled)
@@ -134,6 +154,11 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         ShowMicrophoneVolumeToggle.IsOn = s.ShowMicrophoneVolume;
         ShowCameraBrightnessToggle.IsOn = s.ShowCameraBrightness;
         ShowScreenBrightnessToggle.IsOn = s.ShowScreenBrightness;
+
+        // Auto mute schedule
+        MuteScheduleToggle.IsOn = s.MuteScheduleEnabled;
+        BuildMuteWindowList();
+        UpdateMuteScheduleStatus();
 
         // Behavior
         HoverDelayNumberBox.Value       = s.HoverDelayMs;
@@ -432,6 +457,176 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     }
 
     private void HideHint() => BlacklistHintTextBlock.Visibility = Visibility.Collapsed;
+
+    // ── Auto mute schedule ────────────────────────────────────────────────────
+
+    private void BuildMuteWindowList()
+    {
+        var windows = ServiceContainer.Settings.VolumeMixer.MuteWindows;
+
+        if (MuteWindowsList.ItemsSource == null) MuteWindowsList.ItemsSource = _muteWindowItems;
+
+        _muteWindowItems.Clear();
+        foreach (var window in windows) _muteWindowItems.Add(new ViewModels.MuteWindowItem(window));
+
+        NoMuteWindowsText.Visibility = _muteWindowItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateMuteScheduleStatus()
+    {
+        if (MuteScheduleStatusText == null) return;
+
+        var settings = ServiceContainer.Settings.VolumeMixer;
+        var summary = MuteSchedule.Summary(settings.MuteWindows);
+        var service = ServiceContainer.MuteScheduleService;
+
+        if (!settings.MuteScheduleEnabled)
+        {
+            MuteScheduleStatusText.Text = settings.MuteWindows.Count == 0
+                ? "Schedule is off and no ranges are configured."
+                : $"Schedule is off. Ranges: {summary}";
+            return;
+        }
+
+        if (service?.ActiveWindowText is { } active)
+        {
+            MuteScheduleStatusText.Text = $"Muted right now for {active}.";
+            return;
+        }
+
+        MuteScheduleStatusText.Text = settings.MuteWindows.Count == 0
+            ? "Schedule is on but no ranges are configured, so nothing will happen."
+            : $"Waiting. Ranges: {summary}";
+    }
+
+    private void MuteScheduleToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+
+        ServiceContainer.Settings.VolumeMixer.MuteScheduleEnabled = MuteScheduleToggle.IsOn;
+        SaveSettings();
+        ServiceContainer.RefreshMuteSchedule();
+        UpdateMuteScheduleStatus();
+        System.Diagnostics.Debug.WriteLine($"[Settings] Auto mute schedule {(MuteScheduleToggle.IsOn ? "enabled" : "disabled")}");
+    }
+
+    private void AddMuteWindow_Click(object sender, RoutedEventArgs e) => _ = AddMuteWindowAsync();
+
+    private async Task AddMuteWindowAsync()
+    {
+        var settings = ServiceContainer.Settings.VolumeMixer;
+
+        if (settings.MuteWindows.Count >= MuteSchedule.MaxWindows)
+        {
+            await ShowMuteNoticeAsync("That is enough ranges",
+                $"Up to {MuteSchedule.MaxWindows} ranges can be active. Remove one before adding another.");
+            return;
+        }
+
+        var range = await ShowMuteWindowDialogAsync(null);
+        if (range == null) return;
+
+        settings.MuteWindows.Add(new MuteWindow
+        {
+            Start = MuteSchedule.Format(range.Value.Start),
+            End = MuteSchedule.Format(range.Value.End)
+        });
+
+        SaveSettings();
+        ServiceContainer.RefreshMuteSchedule();
+        BuildMuteWindowList();
+        UpdateMuteScheduleStatus();
+    }
+
+    private async void EditMuteWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not ViewModels.MuteWindowItem item) return;
+
+        var range = await ShowMuteWindowDialogAsync(item.Window);
+        if (range == null) return;
+
+        item.Window.Start = MuteSchedule.Format(range.Value.Start);
+        item.Window.End = MuteSchedule.Format(range.Value.End);
+
+        SaveSettings();
+        ServiceContainer.RefreshMuteSchedule();
+        BuildMuteWindowList();
+        UpdateMuteScheduleStatus();
+    }
+
+    private void DeleteMuteWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not ViewModels.MuteWindowItem item) return;
+
+        ServiceContainer.Settings.VolumeMixer.MuteWindows.Remove(item.Window);
+        SaveSettings();
+        ServiceContainer.RefreshMuteSchedule();
+        BuildMuteWindowList();
+        UpdateMuteScheduleStatus();
+    }
+
+    private async Task<(TimeSpan Start, TimeSpan End)?> ShowMuteWindowDialogAsync(MuteWindow? existing)
+    {
+        var startPicker = new TimePicker
+        {
+            Header = "Mute from",
+            ClockIdentifier = "24HourClock",
+            Time = MuteSchedule.ParseOrDefault(existing?.Start, TimeSpan.FromHours(23))
+        };
+
+        var endPicker = new TimePicker
+        {
+            Header = "Unmute at",
+            ClockIdentifier = "24HourClock",
+            Time = MuteSchedule.ParseOrDefault(existing?.End, TimeSpan.FromHours(7))
+        };
+
+        var hint = new TextBlock
+        {
+            Text = "If the end is earlier than the start the range crosses midnight, so 23:00 – 05:00 mutes overnight.",
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7
+        };
+
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(startPicker);
+        panel.Children.Add(endPicker);
+        panel.Children.Add(hint);
+
+        var dialog = new ContentDialog
+        {
+            Title = existing == null ? "Add mute range" : "Edit mute range",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
+
+        if (startPicker.Time == endPicker.Time)
+        {
+            await ShowMuteNoticeAsync("That range is empty", "Pick a different start and end time.");
+            return null;
+        }
+
+        return (startPicker.Time, endPicker.Time);
+    }
+
+    private async Task ShowMuteNoticeAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = message,
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot
+        };
+
+        await dialog.ShowAsync();
+    }
 
     // ── Restore Defaults ──────────────────────────────────────────────────────
 
