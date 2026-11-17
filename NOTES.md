@@ -657,3 +657,16 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - `dotnet build -c Release` → build succeeded, 0 errors; no warnings in any PC Checker file.
 - App launched from the Release output; manual checks (card order, rail, tiles, search, masking,
   theme switching) are on the section 15 checklist and are re-run at each milestone.
+
+## PC Checker — milestone 2 (Operating system, Motherboard & firmware)
+
+- New `FirmwareProvider` + `Parsers/SmbiosParser` (reads `GetSystemFirmwareTable('RSMB')`): BIOS vendor/version/date,
+  firmware type (`GetFirmwareType`), Secure Boot state, board, system manufacturer/ model/SKU/family/serial/UUID,
+  chassis type, TPM state. Verified against this laptop: 58 structures parsed, SMBIOS 3.2, board
+  `LNVNB161216`, system `82HS` (IdeaPad Flex 5 14ITL05), chassis "Convertible", 2 memory slots, 64 GB max.
+- **This machine's firmware table has no SMBIOS type 0 (BIOS) structure**, so the BIOS rows fall back to
+  `HARDWARE\DESCRIPTION\System\BIOS` in the registry. Both paths are implemented.
+- OS category gained: activation status (only the last five characters of the product key, never the full key),
+  license channel, pending-reboot state with the reason, installed update count and newest update.
+- TPM is read through `root\cimv2\security\microsofttpm`. A standard user usually cannot open that namespace,
+  so the row says "Needs administrator rights" rather than claiming the TPM is missing.

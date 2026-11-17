@@ -132,4 +132,29 @@ internal static class PcRegistry
 
     public static string? MachineString(string path, string name)
         => ReadString(RegistryHive.LocalMachine, RegistryView.Registry64, path, name);
+
+    /// <summary>True when the key exists and, when a value name is given, that value holds something.</summary>
+    public static bool KeyOrValueExists(string path, string? name = null)
+    {
+        try
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default);
+            using var key = baseKey.OpenSubKey(path);
+            if (key == null) return false;
+            if (name == null) return true;
+
+            var value = key.GetValue(name);
+            return value switch
+            {
+                null => false,
+                string s => !string.IsNullOrWhiteSpace(s),
+                string[] parts => parts.Length > 0,
+                _ => true
+            };
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

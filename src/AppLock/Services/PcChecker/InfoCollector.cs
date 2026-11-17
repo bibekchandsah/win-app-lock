@@ -33,6 +33,7 @@ public sealed class InfoCollector
         => new(new IInfoProvider[]
         {
             new Providers.OsProvider(),
+            new Providers.FirmwareProvider(),
             new Providers.CpuProvider(),
             new Providers.MemoryProvider(),
             new Providers.GpuProvider(),

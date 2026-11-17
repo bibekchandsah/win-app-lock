@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models.PcChecker;
@@ -94,8 +95,109 @@ public sealed class OsProvider : IInfoProvider
             "The drive Windows is installed on."));
         machine.Items.Add(InfoItem.Of("os.windowsDir", "Windows folder", Environment.SystemDirectory, DetailLevel.Everything));
 
+        ct.ThrowIfCancellationRequested();
+        progress?.Report(0.8);
+
+        // ── Windows status ──────────────────────────────────────────────────────
+        var status = section.Group("Windows status");
+
+        var activation = ReadActivation();
+        status.Items.Add(activation.Text != null
+            ? InfoItem.Of("os.activation", "Activation", activation.Text, DetailLevel.Basic,
+                "Whether Windows is activated. Only the last five characters of the product key are read, never the full key.",
+                "Source: WMI SoftwareLicensingProduct",
+                activation.Licensed ? InfoStatus.Ok : InfoStatus.Warning)
+            : InfoItem.MissingValue("os.activation", "Activation", MissingReason.NotReported, DetailLevel.Basic,
+                "Source: WMI SoftwareLicensingProduct"));
+
+        if (activation.PartialKey != null)
+        {
+            status.Items.Add(InfoItem.Of("os.partialKey", "Product key (last 5)", activation.PartialKey, DetailLevel.Detailed,
+                "The last five characters of the installed product key, the same Windows' own licensing tools show.",
+                "Source: WMI SoftwareLicensingProduct", sensitivity: InfoSensitivity.Identifier));
+        }
+
+        if (activation.Channel != null)
+        {
+            status.Items.Add(InfoItem.Of("os.licenseChannel", "License channel", activation.Channel, DetailLevel.Detailed, null,
+                "Source: WMI SoftwareLicensingProduct"));
+        }
+
+        var rebootReasons = PendingRebootReasons();
+        var rebootItem = InfoItem.Of("os.pendingReboot", "Pending reboot",
+            rebootReasons.Count == 0 ? "No" : $"Yes ({string.Join(", ", rebootReasons)})", DetailLevel.Basic,
+            "Some updates and app installs only finish after a restart.");
+        rebootItem.Status = rebootReasons.Count == 0 ? InfoStatus.Ok : InfoStatus.Info;
+        status.Items.Add(rebootItem);
+
+        var hotfixes = Wmi.Query("SELECT HotFixID, InstalledOn FROM Win32_QuickFixEngineering");
+        status.Items.Add(hotfixes.Count == 0
+            ? InfoItem.MissingValue("os.hotfixes", "Installed updates", MissingReason.NotReported, DetailLevel.Detailed,
+                "Source: WMI Win32_QuickFixEngineering")
+            : InfoItem.Of("os.hotfixes", "Installed updates", hotfixes.Count.ToString(), DetailLevel.Detailed,
+                "How many Windows updates are installed. The full list and update history come with the software milestone.",
+                "Source: WMI Win32_QuickFixEngineering"));
+
+        var newest = hotfixes
+            .Select(row => new { Id = row.Str("HotFixID"), Date = row.Date("InstalledOn") })
+            .Where(x => x.Date.HasValue)
+            .OrderByDescending(x => x.Date)
+            .FirstOrDefault();
+
+        if (newest?.Date is { } newestDate)
+        {
+            status.Items.Add(InfoItem.Of("os.newestUpdate", "Newest update",
+                $"{newest.Id} · {PcFormat.DateText(newestDate)}", DetailLevel.Detailed,
+                "The most recently installed Windows update on this PC.", "Source: WMI Win32_QuickFixEngineering"));
+        }
+
         progress?.Report(1);
         return section;
+    }
+
+    private sealed record ActivationInfo(string? Text, string? PartialKey, string? Channel, bool Licensed);
+
+    private static ActivationInfo ReadActivation()
+    {
+        const string applicationId = "55c92734-d682-4d71-983e-d6ec3f16059f";
+        var rows = Wmi.Query(
+            "SELECT LicenseStatus, PartialProductKey, ProductKeyChannel FROM SoftwareLicensingProduct " +
+            $"WHERE PartialProductKey IS NOT NULL AND ApplicationID='{applicationId}'");
+
+        if (rows.Count == 0) return new ActivationInfo(null, null, null, false);
+
+        var row = rows[0];
+        int? licenseStatus = row.Int("LicenseStatus");
+        string? partialKey = row.Str("PartialProductKey");
+        string? channel = row.Str("ProductKeyChannel");
+
+        var text = licenseStatus switch
+        {
+            0 => "Not activated",
+            1 => "Activated (licensed)",
+            2 or 3 or 4 or 6 => "Activated temporarily",
+            5 => "Not activated (notification mode)",
+            _ => null
+        };
+
+        return new ActivationInfo(text, partialKey, channel, licenseStatus == 1);
+    }
+
+    /// <summary>Reasons Windows is waiting for a restart, in plain language.</summary>
+    private static List<string> PendingRebootReasons()
+    {
+        var reasons = new List<string>();
+
+        if (PcRegistry.KeyOrValueExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"))
+            reasons.Add("an update finished installing");
+
+        if (PcRegistry.KeyOrValueExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"))
+            reasons.Add("Windows Update needs a restart");
+
+        if (PcRegistry.KeyOrValueExists(@"SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations"))
+            reasons.Add("an installer is waiting to replace files");
+
+        return reasons;
     }
 
     private static string ArchitectureText()
