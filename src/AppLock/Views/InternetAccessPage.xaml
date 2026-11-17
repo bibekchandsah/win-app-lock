@@ -854,6 +854,17 @@
 
                     <!-- Device list / Empty state -->
                     <Grid Grid.Row="2">
+                        <!-- Feedback for the row actions (currently: MAC address copied) -->
+                        <InfoBar x:Name="NetworkDeviceActionInfoBar"
+                                 VerticalAlignment="Bottom"
+                                 HorizontalAlignment="Left"
+                                 Margin="12"
+                                 MaxWidth="560"
+                                 IsOpen="False"
+                                 IsClosable="True"
+                                 CornerRadius="8"
+                                 Severity="Success"/>
+
                         <!-- Empty state -->
                         <StackPanel x:Name="NetworkDevicesEmptyState"
                                     HorizontalAlignment="Center"

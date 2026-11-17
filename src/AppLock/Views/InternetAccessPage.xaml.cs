@@ -33,6 +33,7 @@ public sealed partial class InternetAccessPage : Page
     private bool _isElevated;
     private ScrollViewer? _appsScrollViewer;
     private bool _isLoadingAppIcons = false;
+    private Microsoft.UI.Xaml.DispatcherTimer? _networkDeviceActionTimer;
 
     public InternetAccessViewModel ViewModel => _viewModel;
     public ActiveConnectionViewModel ActiveConnectionsViewModel => _activeConnectionsViewModel;
@@ -1923,23 +1924,59 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
-    /// <summary>Clicking a device's MAC address puts it on the clipboard.</summary>
+    /// <summary>Clicking a device's MAC address puts it on the clipboard and confirms it did.</summary>
     private void CopyMacAddress_Click(object sender, RoutedEventArgs e)
     {
+        if (sender is not FrameworkElement element || element.DataContext is not NetworkDeviceViewModel device) return;
+
+        var mac = device.MacAddress?.Trim();
+        if (string.IsNullOrWhiteSpace(mac))
+        {
+            ShowNetworkDeviceAction(false, "No MAC address", "This device has no MAC address to copy.");
+            return;
+        }
+
         try
         {
-            if (sender is not FrameworkElement element || element.DataContext is not NetworkDeviceViewModel device) return;
-            if (string.IsNullOrWhiteSpace(device.MacAddress)) return;
-
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(device.MacAddress);
+            package.SetText(mac);
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
             Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+
+            ShowNetworkDeviceAction(true, "MAC address copied", $"{mac} is on the clipboard.");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] Copy MAC failed: {ex.Message}");
+            ShowNetworkDeviceAction(false, "Could not copy the MAC address", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Shows the inline status strip over the device list. Success closes itself after a few seconds; an error
+    /// stays long enough to read and can also be dismissed by hand.
+    /// </summary>
+    private void ShowNetworkDeviceAction(bool success, string title, string message)
+    {
+        if (NetworkDeviceActionInfoBar == null) return;
+
+        NetworkDeviceActionInfoBar.Severity = success ? InfoBarSeverity.Success : InfoBarSeverity.Error;
+        NetworkDeviceActionInfoBar.Title = title;
+        NetworkDeviceActionInfoBar.Message = message;
+        NetworkDeviceActionInfoBar.IsOpen = true;
+
+        _networkDeviceActionTimer ??= new Microsoft.UI.Xaml.DispatcherTimer();
+        _networkDeviceActionTimer.Stop();
+        _networkDeviceActionTimer.Interval = TimeSpan.FromSeconds(success ? 4 : 8);
+        _networkDeviceActionTimer.Tick -= OnNetworkDeviceActionTimerTick;
+        _networkDeviceActionTimer.Tick += OnNetworkDeviceActionTimerTick;
+        _networkDeviceActionTimer.Start();
+    }
+
+    private void OnNetworkDeviceActionTimerTick(object? sender, object e)
+    {
+        _networkDeviceActionTimer?.Stop();
+        if (NetworkDeviceActionInfoBar != null) NetworkDeviceActionInfoBar.IsOpen = false;
     }
 
     private void CopyPortDetails(ListeningPortItemViewModel vm)

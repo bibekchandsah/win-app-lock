@@ -898,3 +898,11 @@ Milestone 1 of `pc-checker.md`: framework and shell.
     on every change notification, instead of trusting a cached view-model value.
   * The Keyboard page polls the real state every 1.5 seconds while it is visible and corrects its switch and
     status line, skipping the update while its confirmation dialog is open.
+
+## Network devices: MAC copy feedback
+
+- Clicking a MAC address in Internet Access → Network devices now shows an inline InfoBar over the bottom-left
+  of the device list instead of copying silently: green "MAC address copied — <mac> is on the clipboard." for
+  four seconds, red "Could not copy the MAC address" with the exception message for eight seconds (both
+  dismissable by hand).
+- A device without a MAC address reports "This device has no MAC address to copy." rather than doing nothing.
