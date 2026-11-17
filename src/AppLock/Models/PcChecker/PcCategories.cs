@@ -41,7 +41,7 @@ public static class PcCategories
         new() { Id = "network", Title = "Network", Glyph = "\uE701", ProviderIds = new[] { "network" } },
         new() { Id = "battery", Title = "Battery & power", Glyph = "\uEDA2", ProviderIds = new[] { "battery" } },
         new() { Id = "devices", Title = "Devices & peripherals", Glyph = "\uE71B", ProviderIds = new[] { "devices" } },
-        new() { Id = "sensors", Title = "Sensors", Glyph = "\uE946" },
+        new() { Id = "sensors", Title = "Sensors", Glyph = "\uE946", ProviderIds = new[] { "sensors" }, RequiresAdmin = true },
         new() { Id = "software", Title = "Software", Glyph = "\uE8D7", ProviderIds = new[] { "software" } },
         new() { Id = "security", Title = "Security", Glyph = "\uE72E", ProviderIds = new[] { "security" }, RequiresAdmin = true },
         new() { Id = "performance", Title = "Performance (live)", Glyph = "\uEC4A", ProviderIds = new[] { "performance" } },
