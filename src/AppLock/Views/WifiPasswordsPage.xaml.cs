@@ -179,6 +179,54 @@ public sealed partial class WifiPasswordsPage : Page
         CopyPassword(network);
     }
 
+    /// <summary>
+    /// Shows the standard `WIFI:` QR payload so a phone can join from a scan instead of typing the password.
+    /// </summary>
+    private async void QrButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not WifiProfileViewModel network) return;
+        if (network.IsOpen || network.IsPasswordUnavailable) return;
+
+        var payload = WifiQrCode.BuildPayload(network.Ssid, network.Password, network.IsOpen);
+
+        var stack = new StackPanel { Spacing = 12 };
+        stack.Children.Add(WifiQrCode.CreateVisual(payload));
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = network.Ssid,
+            FontSize = 16,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center
+        });
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Point your phone's camera at the code to join this network.",
+            FontSize = 12,
+            Opacity = 0.7,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            MaxWidth = 280
+        });
+
+        var dialog = new ContentDialog
+        {
+            Title = "Wi-Fi QR code",
+            Content = stack,
+            PrimaryButtonText = "Copy password",
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            CopyPassword(network);
+        }
+    }
+
     private void CopyPassword(WifiProfileViewModel network)
     {
         try

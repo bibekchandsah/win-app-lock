@@ -859,3 +859,25 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   same NAudio path the Volume Mixer overlay already uses for the mic slider.
 - The status line now names the targets, e.g. "Muted right now for 23:00 – 05:00 (next day) (speakers and
   microphone)", and complains when the schedule is on but neither target is selected.
+
+## Wi-Fi passwords: QR sharing, breadcrumb and layout
+
+- The Wi-Fi Passwords page now uses the same breadcrumb as the Volume Mixer page (small back arrow, then
+  `Others › Wi-Fi Passwords` with the current page in bold) and its content is left-aligned instead of sitting
+  in the middle of the window, so the cards start where the title starts.
+- Each saved network with a password has a **QR** button. It shows the standard `WIFI:T:WPA;S:ssid;P:pass;;`
+  payload as a QR code (quiet zone included, always black on white so it scans in dark mode too) plus the SSID,
+  and a "Copy password" action. Reserved characters in the SSID/password are escaped.
+- QR rendering uses `Net.Codecrete.QrCodeGenerator` (pure managed, added to the project) for the module matrix
+  and draws it as vector rectangles, so no image encoding or bitmap APIs are involved in the UI.
+
+## Network devices: MAC address copies on click
+
+- In Internet Access → Network devices the MAC address is a flat button with the tooltip "Click to copy this
+  MAC address"; clicking it copies the address to the clipboard (with `Clipboard.Flush` so it survives).
+
+## Tray menu: Restart AppLock
+
+- New "Restart AppLock" tray item above Exit. It marks the exit authorized for the watchdog, unprotects the
+  process, and starts a hidden PowerShell that waits two seconds and relaunches the executable — the delay stops
+  the new instance colliding with the one that is still shutting down.

@@ -1338,6 +1338,11 @@ public sealed partial class MainWindow : Window
             {
                 DispatcherQueue.TryEnqueue(async () => await HandleExitRequestAsync());
             };
+
+            ServiceContainer.TrayService.RestartRequested += (s, e) =>
+            {
+                DispatcherQueue.TryEnqueue(RestartApplication);
+            };
             
             ServiceContainer.TrayService.ProtectionToggleRequested += (s, newState) =>
             {
@@ -1987,6 +1992,43 @@ public sealed partial class MainWindow : Window
         }
     }
     
+    /// <summary>
+    /// Restarts AppLock from the tray menu: a small hidden PowerShell waits for this process to finish, then
+    /// starts it again, so the fresh instance never races the one that is still shutting down.
+    /// </summary>
+    private void RestartApplication()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe))
+            {
+                exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            }
+
+            if (string.IsNullOrEmpty(exe)) return;
+
+            var arguments = $"-NoProfile -WindowStyle Hidden -Command \"Start-Sleep -Seconds 2; Start-Process -FilePath '{exe.Replace("'", "''")}'\"";
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell.exe", arguments)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+            });
+
+            _isExplicitExit = true;
+            AppLock.Services.ProcessProtectionService.SignalAuthorizedExit();
+            AppLock.Services.ProcessProtectionService.UnprotectCurrentProcess();
+
+            Microsoft.UI.Xaml.Application.Current.Exit();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Restart failed: {ex.Message}");
+        }
+    }
+
     private void MainWindow_ActualClose()
     {
         // Signal authorized exit to watchdog and restore process DACL

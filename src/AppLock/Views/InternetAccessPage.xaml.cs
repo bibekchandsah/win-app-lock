@@ -1923,6 +1923,25 @@ public sealed partial class InternetAccessPage : Page
         }
     }
 
+    /// <summary>Clicking a device's MAC address puts it on the clipboard.</summary>
+    private void CopyMacAddress_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not FrameworkElement element || element.DataContext is not NetworkDeviceViewModel device) return;
+            if (string.IsNullOrWhiteSpace(device.MacAddress)) return;
+
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(device.MacAddress);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InternetAccessPage] Copy MAC failed: {ex.Message}");
+        }
+    }
+
     private void CopyPortDetails(ListeningPortItemViewModel vm)
     {
         try

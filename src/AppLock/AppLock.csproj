@@ -42,6 +42,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.1.4" />
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="2.0.3" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
     <PackageReference Include="System.Management" Version="8.0.0" />
@@ -82,15 +83,10 @@
       <HookDllSrc Condition="'$(HookDllSrc)' == '' and Exists('$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll')">$(MSBuildThisFileDirectory)..\AppLockHook\x64\Debug\AppLockHook.dll</HookDllSrc>
       <HookDllDst>$(OutputPath)AppLockHook.dll</HookDllDst>
     </PropertyGroup>
-    <Exec Command="powershell -NoProfile -Command &quot;if (Test-Path '$(HookDllDst)') { Move-Item -Path '$(HookDllDst)' -Destination ('$(HookDllDst).old.' + [Guid]::NewGuid().ToString('N').Substring(0,8)) -Force -ErrorAction SilentlyContinue }&quot;"
-          Condition="'$(HookDllSrc)' != '' and Exists('$(HookDllDst)')"
-          IgnoreExitCode="true" />
-    <Copy SourceFiles="$(HookDllSrc)" DestinationFiles="$(HookDllDst)"
-          SkipUnchangedFiles="false" Condition="'$(HookDllSrc)' != ''" />
-    <Message Text="Copied AppLockHook.dll: $(HookDllSrc) → $(HookDllDst)" Importance="high"
-             Condition="'$(HookDllSrc)' != ''" />
-    <Warning Text="AppLockHook.dll not found — thumbnail injection will be disabled"
-             Condition="'$(HookDllSrc)' == ''" />
+    <Exec Command="powershell -NoProfile -Command &quot;if (Test-Path '$(HookDllDst)') { Move-Item -Path '$(HookDllDst)' -Destination ('$(HookDllDst).old.' + [Guid]::NewGuid().ToString('N').Substring(0,8)) -Force -ErrorAction SilentlyContinue }&quot;" Condition="'$(HookDllSrc)' != '' and Exists('$(HookDllDst)')" IgnoreExitCode="true" />
+    <Copy SourceFiles="$(HookDllSrc)" DestinationFiles="$(HookDllDst)" SkipUnchangedFiles="false" Condition="'$(HookDllSrc)' != ''" />
+    <Message Text="Copied AppLockHook.dll: $(HookDllSrc) → $(HookDllDst)" Importance="high" Condition="'$(HookDllSrc)' != ''" />
+    <Warning Text="AppLockHook.dll not found — thumbnail injection will be disabled" Condition="'$(HookDllSrc)' == ''" />
   </Target>
 
   <Target Name="CopyAppLockGuardExe" AfterTargets="Build">

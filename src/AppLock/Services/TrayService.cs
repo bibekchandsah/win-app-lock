@@ -67,6 +67,7 @@ public sealed class TrayService : IDisposable
     private MenuFlyoutItem? _speedMeterResetPositionMenuItem;
     private MenuFlyoutItem? _networkDetailsMenuItem;
     private MenuFlyoutItem? _exitMenuItem;
+    private MenuFlyoutItem? _restartMenuItem;
     
     private readonly List<MenuFlyoutItemBase> _bitLockerMenuItems = new();
     private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
@@ -79,6 +80,9 @@ public sealed class TrayService : IDisposable
     public event EventHandler? OpenMainWindowRequested;
     public event EventHandler? EmergencyLockRequested;
     public event EventHandler? ExitRequested;
+
+    /// <summary>Raised when the user picks "Restart AppLock" from the tray menu.</summary>
+    public event EventHandler? RestartRequested;
     public event EventHandler<bool>? ProtectionToggleRequested;
     public event EventHandler<bool>? BrightnessHotkeysToggleRequested;
     public event EventHandler<bool>? BlurHotkeyToggleRequested;
@@ -200,6 +204,8 @@ public sealed class TrayService : IDisposable
                             _speedMeterResetPositionMenuItem = mfi;
                         else if (mfi.Name == "NetworkDetailsMenuItem")
                             _networkDetailsMenuItem = mfi;
+                        else if (mfi.Name == "RestartMenuItem" || text.Contains("Restart", StringComparison.OrdinalIgnoreCase))
+                            _restartMenuItem = mfi;
                         else if (mfi.Name == "ExitMenuItem" || text.Contains("Exit", StringComparison.OrdinalIgnoreCase))
                             _exitMenuItem = mfi;
                     }
@@ -582,6 +588,18 @@ public sealed class TrayService : IDisposable
                     _eyeCareIntervalCustomItem.Command = new RelayCommand(customAction);
                 }
                 
+                if (_restartMenuItem != null)
+                {
+                    _restartMenuItem.Click -= RestartMenuItem_Click;
+                    _restartMenuItem.Click += RestartMenuItem_Click;
+                    _restartMenuItem.Command = new RelayCommand(() =>
+                    {
+                        System.Diagnostics.Debug.WriteLine("Restart menu item Command executed!");
+                        RestartRequested?.Invoke(this, EventArgs.Empty);
+                    });
+                    System.Diagnostics.Debug.WriteLine("Restart menu item wired");
+                }
+
                 if (_exitMenuItem != null)
                 {
                     _exitMenuItem.Click -= ExitMenuItem_Click;
@@ -756,6 +774,12 @@ public sealed class TrayService : IDisposable
     {
         System.Diagnostics.Debug.WriteLine("Emergency lock menu item clicked!");
         EmergencyLockRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RestartMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("Restart menu item clicked!");
+        RestartRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
