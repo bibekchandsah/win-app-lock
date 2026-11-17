@@ -12,16 +12,51 @@ public sealed class InfoItemRow : INotifyPropertyChanged
 {
     private bool _revealed;
 
+    private string _value = string.Empty;
+    private InfoStatus _status;
+
     public string Key { get; init; } = string.Empty;
     public string Label { get; init; } = string.Empty;
 
     /// <summary>The text shown for this value (already formatted, or a "Not available" reason).</summary>
-    public string Value { get; init; } = string.Empty;
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (_value == value) return;
+            _value = value;
+            OnPropertyChanged(nameof(Value));
+            OnPropertyChanged(nameof(DisplayValue));
+        }
+    }
 
     public string? Explain { get; init; }
     public string? Source { get; init; }
     public string? Badge { get; init; }
-    public InfoStatus Status { get; init; }
+
+    public InfoStatus Status
+    {
+        get => _status;
+        set
+        {
+            if (_status == value) return;
+            _status = value;
+            OnPropertyChanged(nameof(Status));
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(OkVisibility));
+            OnPropertyChanged(nameof(InfoVisibility));
+            OnPropertyChanged(nameof(WarningVisibility));
+            OnPropertyChanged(nameof(ProblemVisibility));
+        }
+    }
+
+    /// <summary>Updates a live value in place without rebuilding the whole list.</summary>
+    public void Update(string value, InfoStatus status)
+    {
+        Value = value;
+        Status = status;
+    }
 
     /// <summary>True when "Hide identifiers" is on and this value is an identifier.</summary>
     public bool Masked { get; init; }

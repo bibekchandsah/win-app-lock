@@ -26,6 +26,8 @@ public sealed partial class PcCheckerPage : Page
     private readonly Dictionary<string, InfoSection> _sections = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _cts;
     private bool _suppressSelectionHandlers;
+    private DispatcherTimer? _liveTimer;
+    private bool _liveRefreshing;
 
     public PcCheckerViewModel ViewModel { get; } = new();
 
@@ -76,6 +78,44 @@ public sealed partial class PcCheckerPage : Page
     private void PcCheckerPage_Unloaded(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
+        _liveTimer?.Stop();
+    }
+
+    /// <summary>
+    /// The live performance category refreshes once a second, and only while it is on screen. Values are
+    /// updated in place so the list does not jump or lose its scroll position.
+    /// </summary>
+    private async void LiveTimer_Tick(object? sender, object e)
+    {
+        if (_liveRefreshing) return;
+        if (ViewModel.SelectedCategory?.Id != "performance") return;
+        if (ViewModel.SearchText.Trim().Length > 0) return;
+
+        _liveRefreshing = true;
+        try
+        {
+            var options = new CollectOptions { Level = CurrentLevel, HideIdentifiers = ViewModel.HideIdentifiers };
+            var section = await _collector.CollectAsync("performance", options);
+            _sections["performance"] = section;
+
+            foreach (var item in section.AllItems())
+            {
+                var row = ViewModel.Rows.FirstOrDefault(r => r.Key == item.Key);
+                if (row == null) continue;
+
+                row.Update(item.Value ?? InfoItem.ReasonText(item.Missing), item.Status);
+            }
+
+            UpdateStatusText();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PcChecker] Live refresh failed: {ex.Message}");
+        }
+        finally
+        {
+            _liveRefreshing = false;
+        }
     }
 
     // ── Toolbar ────────────────────────────────────────────────────────────────
@@ -205,6 +245,17 @@ public sealed partial class PcCheckerPage : Page
                 await EnsureSectionsAsync(category.ProviderIds, ct);
                 if (ct.IsCancellationRequested) return;
                 BuildCategory(category);
+            }
+
+            // Live data only ticks while its category is open.
+            if (category.Id == "performance")
+            {
+                _liveTimer ??= CreateLiveTimer();
+                _liveTimer.Start();
+            }
+            else
+            {
+                _liveTimer?.Stop();
             }
 
             ViewModel.ShowAdminHint = category.RequiresAdmin && !ElevationHelper.IsElevated;
@@ -466,6 +517,13 @@ public sealed partial class PcCheckerPage : Page
             : "Standard user — some values need administrator rights");
 
         ViewModel.StatusText = string.Join(" · ", parts);
+    }
+
+    private DispatcherTimer CreateLiveTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += LiveTimer_Tick;
+        return timer;
     }
 
     private static void SaveSettings()

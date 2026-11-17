@@ -748,3 +748,16 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   per volume. Everything is read-only.
 - Rows that indicate a weaker setting use the shared warning/problem icons so they line up with the health
   check that lands in the next milestone.
+
+## PC Checker — milestone 10 (Performance live, Stability & events)
+
+- `PerformanceProvider` samples CPU through `GetSystemTimes`, memory through WMI, per-disk throughput/active
+  time through `Win32_PerfFormattedData_PerfDisk_PhysicalDisk`, network rates from the IPv4 byte counters and
+  GPU utilisation from the GPU engine performance counters.
+- The Performance category refreshes **once a second and only while it is open**; values are updated in place so
+  the list does not jump. Leaving the category (or the page) stops the timer.
+- `StabilityProvider` reads `Win32_ReliabilityRecords` for the last 30 days plus the system event log entries for
+  blue screens (BugCheck 1001), unexpected shutdowns (Kernel-Power 41) and WHEA hardware errors, and names
+  bug check codes through `Models/PcChecker/BugCheckTable` (e.g. `0x0000009F DRIVER_POWER_STATE_FAILURE`).
+- Per-core CPU and per-engine GPU charts from the spec are represented as numeric rows for now; chart drawing
+  is on the follow-up list rather than half-done.
