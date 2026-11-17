@@ -38,6 +38,9 @@ public sealed class InfoCollector
             new Providers.MemoryProvider(),
             new Providers.GpuProvider(),
             new Providers.DisplayProvider(),
+            new Providers.AudioProvider(),
+            new Providers.NetworkProvider(),
+            new Providers.BatteryProvider(),
             new Providers.StorageProvider(),
             new Providers.StorageHealthProvider()
         }, context, clock);

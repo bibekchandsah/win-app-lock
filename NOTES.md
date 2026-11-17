@@ -708,3 +708,14 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   position in the multi-monitor layout, primary flag and scaling.
 - **Connection type (HDMI/DisplayPort/eDP) is reported as "Not reported"**: it needs QueryDisplayConfig,
   which is on the follow-up list rather than guessed.
+
+## PC Checker — milestone 6 (Audio, Network, Battery & power)
+
+- `AudioProvider` lists playback and recording endpoints from the MMDevice API with default and
+  communications roles, state, shared-mode format, volume and mute. No audio is ever captured.
+- `NetworkProvider` lists adapters (status, type, link speed, MAC), IPv4/IPv6, gateway, DNS, DHCP and MTU,
+  plus the current Wi-Fi SSID, signal bars and profile name through `Windows.Networking.Connectivity`.
+  Saved Wi-Fi passwords are never read.
+- `BatteryProvider` reports charge, AC state, design vs full-charge capacity with a wear reading, chemistry,
+  cycle count and serial (as an identifier), plus the active power scheme and Fast Startup state.
+  A desktop PC shows "No battery" instead of empty rows.
