@@ -278,6 +278,18 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap"/>
 
+                    <InfoBar Severity="Informational"
+                             IsClosable="False"
+                             Title="Some values need administrator rights"
+                             Message="Restart AppLock as administrator to read drive health, TPM details and some event logs."
+                             Visibility="{x:Bind ViewModel.AdminHintVisibility, Mode=OneWay}">
+                        <InfoBar.ActionButton>
+                            <Button Content="Restart as administrator"
+                                    Click="RestartAdminButton_Click"
+                                    AutomationProperties.Name="Restart AppLock as administrator"/>
+                        </InfoBar.ActionButton>
+                    </InfoBar>
+
                     <TextBlock Text="{x:Bind ViewModel.PlaceholderText, Mode=OneWay}"
                                Visibility="{x:Bind ViewModel.PlaceholderVisibility, Mode=OneWay}"
                                FontSize="13"

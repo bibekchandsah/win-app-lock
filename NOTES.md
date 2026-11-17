@@ -682,3 +682,16 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   array (type 16) for slot count and maximum capacity. This laptop: 2× 8 GB Samsung DDR4-3200 SODIMM,
   2 slots, 64 GB maximum. WMI modules are the fallback when a table has no type 17 records.
 - Channel layout and the "rated vs configured speed" hint are estimates and are labelled as such.
+
+## PC Checker — milestone 4 (Storage, storage health)
+
+- `StorageProvider` gained MSFT_PhysicalDisk/ MSFT_Disk detail: media type (HDD/SSD), bus (NVMe/SATA/USB),
+  spindle speed, health status, firmware, partition count, GPT/MBR partition style and system/boot roles,
+  plus per-volume cluster size and a low-free-space status.
+- New `StorageHealthProvider` reads `MSFT_StorageReliabilityCounter` (temperature, wear, power-on hours,
+  power cycles, uncorrected read/write errors) and prints plain-language wear readings. It is a Tier 2
+  source: unelevated it reports "Needs administrator rights", never a blank or a guess.
+- The page now shows an InfoBar with a **Restart as administrator** button (shared `ElevationHelper`) for
+  categories whose data is partly administrator-only (storage, firmware, devices, security, stability).
+- Volume/health rows use the shared InfoStatus icons, so a nearly full drive or worn SSD is flagged in the
+  same way the health check will report it later.

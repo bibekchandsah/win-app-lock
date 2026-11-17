@@ -16,6 +16,9 @@ public sealed class PcCategory
     /// <summary>Provider ids that fill this category. Empty until the category's milestone lands.</summary>
     public string[] ProviderIds { get; init; } = Array.Empty<string>();
 
+    /// <summary>True when part of this category can only be read with administrator rights.</summary>
+    public bool RequiresAdmin { get; init; }
+
     public bool HasProviders => ProviderIds.Length > 0;
 }
 
@@ -28,10 +31,10 @@ public static class PcCategories
     {
         new() { Id = OverviewId, Title = "Overview", Glyph = "\uE71D", ProviderIds = new[] { "os", "cpu", "memory", "gpu", "storage" } },
         new() { Id = "os", Title = "Operating system", Glyph = "\uE774", ProviderIds = new[] { "os" } },
-        new() { Id = "firmware", Title = "Motherboard & firmware", Glyph = "\uE9F3", ProviderIds = new[] { "firmware" } },
+        new() { Id = "firmware", Title = "Motherboard & firmware", Glyph = "\uE9F3", ProviderIds = new[] { "firmware" }, RequiresAdmin = true },
         new() { Id = "cpu", Title = "Processor", Glyph = "\uE9E9", ProviderIds = new[] { "cpu" } },
         new() { Id = "memory", Title = "Memory", Glyph = "\uE8D2", ProviderIds = new[] { "memory" } },
-        new() { Id = "storage", Title = "Storage", Glyph = "\uE8B7", ProviderIds = new[] { "storage" } },
+        new() { Id = "storage", Title = "Storage", Glyph = "\uE8B7", ProviderIds = new[] { "storage", "storage.health" }, RequiresAdmin = true },
         new() { Id = "graphics", Title = "Graphics", Glyph = "\uE785", ProviderIds = new[] { "gpu" } },
         new() { Id = "displays", Title = "Displays", Glyph = "\uE8B9" },
         new() { Id = "audio", Title = "Audio", Glyph = "\uE767" },

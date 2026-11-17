@@ -99,6 +99,7 @@ public sealed class PcCheckerViewModel : INotifyPropertyChanged
     private PcCategory? _selectedCategory;
     private string _searchText = string.Empty;
     private bool _hideIdentifiers;
+    private bool _showAdminHint;
 
     public ObservableCollection<PcCategory> Categories { get; } = new();
 
@@ -145,6 +146,20 @@ public sealed class PcCheckerViewModel : INotifyPropertyChanged
         get => _hideIdentifiers;
         set => Set(ref _hideIdentifiers, value);
     }
+
+    /// <summary>Shown when the current category has values that need administrator rights.</summary>
+    public bool ShowAdminHint
+    {
+        get => _showAdminHint;
+        set
+        {
+            if (!Set(ref _showAdminHint, value)) return;
+            OnPropertyChanged(nameof(AdminHintVisibility));
+        }
+    }
+
+    public Visibility AdminHintVisibility
+        => _showAdminHint ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility PlaceholderVisibility
         => string.IsNullOrEmpty(_placeholderText) ? Visibility.Collapsed : Visibility.Visible;

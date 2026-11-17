@@ -158,6 +158,16 @@ public sealed partial class PcCheckerPage : Page
         Frame.Navigate(typeof(OthersPage));
     }
 
+    /// <summary>Relaunches AppLock elevated through the standard UAC prompt (shared helper).</summary>
+    private async void RestartAdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ElevationHelper.TryRestartElevated())
+        {
+            await Task.Delay(400);
+            Application.Current.Exit();
+        }
+    }
+
     // ── Content ────────────────────────────────────────────────────────────────
 
     private async Task ShowCategoryAsync(PcCategory category)
@@ -197,6 +207,7 @@ public sealed partial class PcCheckerPage : Page
                 BuildCategory(category);
             }
 
+            ViewModel.ShowAdminHint = category.RequiresAdmin && !ElevationHelper.IsElevated;
             ViewModel.RefreshVisibility();
             UpdateStatusText();
         }

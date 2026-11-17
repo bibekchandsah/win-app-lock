@@ -37,7 +37,8 @@ public sealed class InfoCollector
             new Providers.CpuProvider(),
             new Providers.MemoryProvider(),
             new Providers.GpuProvider(),
-            new Providers.StorageProvider()
+            new Providers.StorageProvider(),
+            new Providers.StorageHealthProvider()
         }, context, clock);
 
     public IReadOnlyList<IInfoProvider> Providers => _providers;
