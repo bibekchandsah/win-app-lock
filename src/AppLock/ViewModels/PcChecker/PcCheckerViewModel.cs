@@ -35,6 +35,11 @@ public sealed class InfoItemRow : INotifyPropertyChanged
     public string? Source { get; init; }
     public string? Badge { get; init; }
 
+    /// <summary>Set on health findings so they can be dismissed permanently.</summary>
+    public string? DismissId { get; init; }
+
+    public Visibility DismissVisibility => string.IsNullOrWhiteSpace(DismissId) ? Visibility.Collapsed : Visibility.Visible;
+
     public InfoStatus Status
     {
         get => _status;

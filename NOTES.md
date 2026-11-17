@@ -761,3 +761,15 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   bug check codes through `Models/PcChecker/BugCheckTable` (e.g. `0x0000009F DRIVER_POWER_STATE_FAILURE`).
 - Per-core CPU and per-engine GPU charts from the spec are represented as numeric rows for now; chart drawing
   is on the follow-up list rather than half-done.
+
+## PC Checker — milestone 11 (Health check)
+
+- `Services/PcChecker/Health/HealthRuleEngine` turns the collected sections into findings with severity,
+  what it means, what to do and the owning category. Rules cover storage free space/health/wear/errors, memory
+  pressure/channel/profile, problem devices, battery wear/age, Secure Boot/TPM/old BIOS, Defender, firewall,
+  UAC, SMBv1, RDP, pending reboot, blue screens, WHEA errors, unexpected shutdowns, many startup items and
+  PATH problems.
+- The **Health check** category collects every provider, lists findings worst-first and lets each one be
+  dismissed ("Don't show this again", stored in `PcCheckerSettings.DismissedFindings`).
+- The status line above the content now starts with the health summary: "All good", "Needs attention (N)" or
+  "Problems (N)", plus the note count, so the Overview doubles as a health summary until the tiles grow one.

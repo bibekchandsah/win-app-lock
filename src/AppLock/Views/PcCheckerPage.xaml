@@ -68,6 +68,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -134,6 +135,17 @@
                             ToolTipService.ToolTip="Copy this value"
                             AutomationProperties.Name="Copy this value">
                         <FontIcon Glyph="&#xE8C8;" FontSize="13"/>
+                    </Button>
+
+                    <Button Grid.Column="5"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="6"
+                            Visibility="{x:Bind DismissVisibility}"
+                            Click="DismissFinding_Click"
+                            ToolTipService.ToolTip="Don't show this finding again"
+                            AutomationProperties.Name="Dismiss this finding">
+                        <FontIcon Glyph="&#xE74D;" FontSize="13"/>
                     </Button>
                 </Grid>
             </Border>

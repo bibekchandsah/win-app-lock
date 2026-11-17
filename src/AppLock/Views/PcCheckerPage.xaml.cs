@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AppLock.Models.PcChecker;
 using AppLock.Services;
 using AppLock.Services.PcChecker;
+using AppLock.Services.PcChecker.Health;
 using AppLock.ViewModels.PcChecker;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -234,6 +235,12 @@ public sealed partial class PcCheckerPage : Page
                 if (ct.IsCancellationRequested) return;
                 BuildOverview();
             }
+            else if (category.Id == "health")
+            {
+                await EnsureSectionsAsync(AllProviderIds(), ct);
+                if (ct.IsCancellationRequested) return;
+                BuildHealth();
+            }
             else if (!category.HasProviders)
             {
                 ViewModel.Tiles.Clear();
@@ -450,6 +457,50 @@ public sealed partial class PcCheckerPage : Page
         ViewModel.PlaceholderText = added == 0 ? $"No field or value matches “{search}”." : string.Empty;
     }
 
+    private static IEnumerable<string> AllProviderIds()
+        => PcCategories.All.SelectMany(c => c.ProviderIds).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private List<Finding> EvaluateHealth()
+        => HealthRuleEngine.Evaluate(_sections, Settings);
+
+    /// <summary>The Health check category lists every finding, worst first.</summary>
+    private void BuildHealth()
+    {
+        ViewModel.Tiles.Clear();
+        ViewModel.Rows.Clear();
+
+        var findings = EvaluateHealth();
+        foreach (var finding in findings)
+        {
+            ViewModel.Rows.Add(new InfoItemRow
+            {
+                Key = finding.Id,
+                Label = finding.Title,
+                Value = $"{finding.Explanation} {finding.Action}",
+                Badge = PcCategories.ById(finding.CategoryId)?.Title,
+                Status = finding.Severity,
+                DismissId = finding.Id
+            });
+        }
+
+        ViewModel.PlaceholderText = findings.Count == 0
+            ? "No issues found. Everything this page can check looks healthy."
+            : string.Empty;
+    }
+
+    private void DismissFinding_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not InfoItemRow row) return;
+        if (string.IsNullOrWhiteSpace(row.DismissId)) return;
+        if (Settings.DismissedFindings.Contains(row.DismissId)) return;
+
+        Settings.DismissedFindings.Add(row.DismissId!);
+        SaveSettings();
+        BuildHealth();
+        ViewModel.RefreshVisibility();
+        UpdateStatusText();
+    }
+
     private InfoItemRow ToRow(InfoItem item, string? badge)
     {
         var missingText = item.Value is null && item.Missing != MissingReason.None
@@ -509,6 +560,24 @@ public sealed partial class PcCheckerPage : Page
         {
             parts.Add($"Scanned {PcFormat.Since(scanned)}");
             parts.Add(sections == 1 ? "1 source" : $"{sections} sources");
+        }
+
+        // Health summary: only meaningful once a few sections have been collected.
+        if (_sections.Count >= 3)
+        {
+            var findings = EvaluateHealth();
+            var problems = findings.Count(f => f.Severity == InfoStatus.Problem);
+            var warnings = findings.Count(f => f.Severity == InfoStatus.Warning);
+            var notes = findings.Count - problems - warnings;
+
+            var summary = problems > 0
+                ? $"Problems ({problems})"
+                : warnings > 0
+                    ? $"Needs attention ({warnings})"
+                    : "All good";
+
+            if (notes > 0) summary += $" · {notes} note{(notes == 1 ? "" : "s")}";
+            parts.Insert(0, summary);
         }
 
         parts.Add(ViewModel.HideIdentifiers ? "Identifiers hidden" : "Identifiers visible");
