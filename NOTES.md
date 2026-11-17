@@ -930,3 +930,14 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - Both restart actions now set the explicit-exit flag before relaunching and, after `Application.Exit()`, hard
   exit with `Environment.Exit(0)` if XAML shutdown lingers, so the old process cannot sit around with a window
   while the new one opens.
+
+## Auto mute status on the volume overlay
+
+- The overlay's speaker button now carries the schedule state, so the settings page is no longer needed to
+  check it: a small accent badge (with a clock glyph) appears on the speaker icon while a range is active, and
+  the speaker button's tooltip/help text says either "Auto muted until 05:00 (23:00 – 05:00)" or
+  "Auto mute starts at 23:00 (23:00 – 05:00)", with "(tomorrow)" when the next range starts after midnight.
+- `MuteSchedule.GetStatus` computes that one line (off / no ranges / active until / next start) and the overlay
+  refreshes it every 30 seconds, on settings changes, and immediately when `MuteScheduleService` changes state.
+- Tests: three new `MuteScheduleTests` cases cover the active text, next-start today vs tomorrow, and the off /
+  empty cases (14 tests total).

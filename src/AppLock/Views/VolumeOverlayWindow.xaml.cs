@@ -41,6 +41,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private DispatcherQueueTimer? _hideDelayTimer;
     private DispatcherQueueTimer? _pollingTimer;
     private DispatcherQueueTimer? _topmostTimer;  // Periodically re-enforce topmost z-order
+    private DispatcherQueueTimer? _scheduleStatusTimer; // Keeps the auto-mute tooltip current
     private bool _isClosed;                       // Native window is gone; don't touch it via WinRT
     private bool _isPointerOverBar;
     private bool _isPointerOverPanel;
@@ -384,6 +385,22 @@ public sealed partial class VolumeOverlayWindow : Window
             _topmostTimer.Tick += (s, e) => EnsureTopmost();
             _topmostTimer.Start();
 
+            // Auto-mute schedule: a badge on the speaker icon while a range is active, and the range times in
+            // the tooltip, so the settings page is not needed to check.
+            UpdateMuteScheduleStatus();
+
+            _scheduleStatusTimer = DispatcherQueue.CreateTimer();
+            _scheduleStatusTimer.Interval = TimeSpan.FromSeconds(30);
+            _scheduleStatusTimer.IsRepeating = true;
+            _scheduleStatusTimer.Tick += (s, e) => UpdateMuteScheduleStatus();
+            _scheduleStatusTimer.Start();
+
+            if (ServiceContainer.MuteScheduleService is { } muteSchedule)
+            {
+                muteSchedule.StateChanged -= OnMuteScheduleStateChanged;
+                muteSchedule.StateChanged += OnMuteScheduleStateChanged;
+            }
+
             // The timer can tick after the native window is gone; asking WinRT for its handle then
             // faults inside COM and takes the whole process down. Stop it on close.
             Closed += (s, e) =>
@@ -391,6 +408,13 @@ public sealed partial class VolumeOverlayWindow : Window
                 _isClosed = true;
                 _topmostTimer?.Stop();
                 _topmostTimer = null;
+                _scheduleStatusTimer?.Stop();
+                _scheduleStatusTimer = null;
+
+                if (ServiceContainer.MuteScheduleService is { } muteSchedule)
+                {
+                    muteSchedule.StateChanged -= OnMuteScheduleStateChanged;
+                }
             };
 
             // Initialize SMTC session manager for accurate per-app play/pause
@@ -4447,6 +4471,35 @@ public sealed partial class VolumeOverlayWindow : Window
     /// <summary>
     /// Called when settings change externally - reapplies all settings to the window.
     /// </summary>
+    /// <summary>Updates the speaker-icon badge and tooltip with what the auto-mute schedule is doing.</summary>
+    private void UpdateMuteScheduleStatus()
+    {
+        try
+        {
+            var settings = ServiceContainer.Settings.VolumeMixer;
+            var status = MuteSchedule.GetStatus(DateTime.Now, settings.MuteScheduleEnabled, settings.MuteWindows);
+
+            if (ScheduleBadge != null)
+            {
+                ScheduleBadge.Visibility = status.IsActive ? Visibility.Visible : Visibility.Collapsed;
+                ToolTipService.SetToolTip(ScheduleBadge, status.Text);
+            }
+
+            if (SpeakerButton != null)
+            {
+                ToolTipService.SetToolTip(SpeakerButton, status.Text);
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(SpeakerButton, $"Click to mute or unmute system audio. {status.Text}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VolumeMixer] Schedule status update failed: {ex.Message}");
+        }
+    }
+
+    private void OnMuteScheduleStateChanged(object? sender, string? activeWindow)
+        => DispatcherQueue.TryEnqueue(UpdateMuteScheduleStatus);
+
     public void RefreshSettings()
     {
         System.Diagnostics.Debug.WriteLine("[VolumeMixer] RefreshSettings called");
@@ -4457,6 +4510,8 @@ public sealed partial class VolumeOverlayWindow : Window
         // Reinitialize camera and microphone to reflect visibility changes
         _ = InitializeCameraAsync();
         _ = InitializeMicrophoneAsync();
+
+        UpdateMuteScheduleStatus();
     }
 
     public new void Close()

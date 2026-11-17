@@ -66,6 +66,36 @@ public class MuteScheduleTests
     }
 
     [Fact]
+    public void GetStatus_ReportsActiveRangeUntilItsEnd()
+    {
+        var status = MuteSchedule.GetStatus(new DateTime(2026, 1, 1, 1, 0, 0), true, Windows(("23:00", "05:00")));
+
+        Assert.True(status.IsActive);
+        Assert.Contains("until 05:00", status.Text);
+    }
+
+    [Fact]
+    public void GetStatus_ReportsNextStartTodayOrTomorrow()
+    {
+        var today = MuteSchedule.GetStatus(new DateTime(2026, 1, 1, 12, 0, 0), true, Windows(("23:00", "05:00")));
+        Assert.False(today.IsActive);
+        Assert.Contains("starts at 23:00", today.Text);
+        Assert.DoesNotContain("tomorrow", today.Text);
+
+        var tomorrow = MuteSchedule.GetStatus(new DateTime(2026, 1, 1, 23, 30, 0), true, Windows(("05:00", "07:00")));
+        Assert.False(tomorrow.IsActive);
+        Assert.Contains("starts at 05:00 (tomorrow)", tomorrow.Text);
+    }
+
+    [Fact]
+    public void GetStatus_SaysWhenScheduleIsOffOrEmpty()
+    {
+        Assert.False(MuteSchedule.GetStatus(DateTime.Now, false, Windows(("23:00", "05:00"))).IsActive);
+        Assert.Contains("off", MuteSchedule.GetStatus(DateTime.Now, false, Windows()).Text);
+        Assert.Contains("no ranges", MuteSchedule.GetStatus(DateTime.Now, true, Windows()).Text);
+    }
+
+    [Fact]
     public void Describe_MarksOvernightRanges()
     {
         Assert.Equal("23:00 – 05:00 (next day)", MuteSchedule.Describe(new MuteWindow { Start = "23:00", End = "05:00" }));

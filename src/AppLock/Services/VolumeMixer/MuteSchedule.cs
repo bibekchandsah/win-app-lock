@@ -62,6 +62,46 @@ public static class MuteSchedule
         return false;
     }
 
+    /// <summary>What the schedule is doing right now, in one line for tooltips and status labels.</summary>
+    public sealed record ScheduleStatus(bool IsActive, string Text);
+
+    /// <summary>
+    /// Tells whether a range is active and, when it is not, when the next one starts, so the overlay can say
+    /// "Auto muted until 05:00" or "Auto mute starts at 23:00 (tomorrow)" without opening settings.
+    /// </summary>
+    public static ScheduleStatus GetStatus(DateTime now, bool enabled, IReadOnlyList<MuteWindow>? windows)
+    {
+        if (!enabled) return new ScheduleStatus(false, "Auto mute schedule is off");
+        if (windows == null || windows.Count == 0) return new ScheduleStatus(false, "Auto mute schedule is on, but no ranges are set");
+
+        if (IsActive(now, windows, out var active) && active != null)
+        {
+            return new ScheduleStatus(true, $"Auto muted until {active.End} ({Describe(active)})");
+        }
+
+        DateTime? next = null;
+        MuteWindow? nextWindow = null;
+
+        foreach (var window in windows)
+        {
+            if (!TryParse(window.Start, out var start)) continue;
+
+            var today = now.Date + start;
+            var when = today > now ? today : today.AddDays(1);
+
+            if (next == null || when < next)
+            {
+                next = when;
+                nextWindow = window;
+            }
+        }
+
+        if (nextWindow == null || next == null) return new ScheduleStatus(false, "Auto mute schedule is on, but no valid ranges are set");
+
+        var relative = next.Value.Date == now.Date ? string.Empty : " (tomorrow)";
+        return new ScheduleStatus(false, $"Auto mute starts at {nextWindow.Start}{relative} ({Describe(nextWindow)})");
+    }
+
     public static bool CrossesMidnight(MuteWindow window)
         => TryParse(window.Start, out var start) && TryParse(window.End, out var end) && end < start;
 

@@ -159,10 +159,27 @@
                             VerticalAlignment="Center"
                             AutomationProperties.Name="Master volume mute toggle"
                             AutomationProperties.HelpText="Click to mute or unmute system audio">
-                        <FontIcon x:Name="SpeakerIcon"
-                                  Glyph="&#xE767;"
-                                  FontSize="16"
-                                  Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <Grid>
+                            <FontIcon x:Name="SpeakerIcon"
+                                      Glyph="&#xE767;"
+                                      FontSize="16"
+                                      Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <!-- Shown while an auto-mute range is active; the tooltip carries the schedule detail -->
+                            <Border x:Name="ScheduleBadge"
+                                    Visibility="Collapsed"
+                                    Width="13" Height="13"
+                                    CornerRadius="7"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,-4,-4"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    AutomationProperties.Name="Auto mute schedule active">
+                                <FontIcon Glyph="&#xE823;"
+                                          FontSize="8"
+                                          Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+                            </Border>
+                        </Grid>
                     </Button>
 
                     <!-- ── Column 0, Row 1: Active App Icon / Host button ── -->
