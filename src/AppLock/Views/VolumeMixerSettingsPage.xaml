@@ -376,7 +376,7 @@
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
                                         <TextBlock Text="Auto Mute Schedule" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                        <TextBlock Text="Mute the speakers automatically during the time ranges below and unmute afterwards"
+                                        <TextBlock Text="Mute every speaker (and microphone, if selected) during the ranges below, then restore each device to how it was"
                                                    FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>

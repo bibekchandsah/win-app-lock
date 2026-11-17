@@ -906,3 +906,13 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   four seconds, red "Could not copy the MAC address" with the exception message for eight seconds (both
   dismissable by hand).
 - A device without a MAC address reports "This device has no MAC address to copy." rather than doing nothing.
+
+## Auto mute schedule: every device, not just the default
+
+- `MuteScheduleService` now walks every active playback device (`SpeakerVolumeService.GetSpeakers()`) and every
+  active recording device (`MicrophoneVolumeService.GetMicrophones()`), muting each one and remembering its own
+  previous mute state in a device-id keyed dictionary.
+- Devices connected while a range is running are picked up by the 15 second poll and muted too, so "all
+  speakers" stays true through docking and headset changes.
+- Leaving the range restores each device to its remembered state; a device the user unmuted by hand during the
+  range keeps their choice, and devices that disappeared are simply forgotten.
