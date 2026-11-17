@@ -773,3 +773,17 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   dismissed ("Don't show this again", stored in `PcCheckerSettings.DismissedFindings`).
 - The status line above the content now starts with the health summary: "All good", "Needs attention (N)" or
   "Problems (N)", plus the note count, so the Overview doubles as a health summary until the tiles grow one.
+
+## PC Checker — milestone 12 (Reports & history)
+
+- `Services/PcChecker/ReportExporter` writes HTML (single self-contained file, light/dark aware), plain text,
+  JSON and CSV. Identifiers become `••••••` when masking is on, control characters are stripped, values are
+  length-capped and HTML is escaped.
+- The toolbar's **More** menu has "Copy a summary", the four save formats, "Take a snapshot" and "Compare last
+  two snapshots". The native Win32 save dialog is used because the WinRT pickers fail silently here (see the
+  earlier notes on export settings).
+- `Services/PcChecker/SnapshotService` stores gzipped JSON snapshots in `%APPDATA%\AppLock\PcChecker\snapshots`
+  (newest 20 kept). Identifiers are stored only as salted SHA-256 prefixes and live performance values are
+  excluded, so comparing two snapshots shows configuration changes.
+- "Reports & history" lists the recent snapshots and, after a comparison, every changed value as
+  `before → after`.

@@ -29,6 +29,7 @@ public sealed partial class PcCheckerPage : Page
     private bool _suppressSelectionHandlers;
     private DispatcherTimer? _liveTimer;
     private bool _liveRefreshing;
+    private (SnapshotService.SnapshotInfo? Before, SnapshotService.SnapshotInfo? After, List<SnapshotService.Change> Changes)? _comparison;
 
     public PcCheckerViewModel ViewModel { get; } = new();
 
@@ -240,6 +241,10 @@ public sealed partial class PcCheckerPage : Page
                 await EnsureSectionsAsync(AllProviderIds(), ct);
                 if (ct.IsCancellationRequested) return;
                 BuildHealth();
+            }
+            else if (category.Id == "reports")
+            {
+                BuildReports();
             }
             else if (!category.HasProviders)
             {
@@ -486,6 +491,180 @@ public sealed partial class PcCheckerPage : Page
         ViewModel.PlaceholderText = findings.Count == 0
             ? "No issues found. Everything this page can check looks healthy."
             : string.Empty;
+    }
+
+    // ── Reports & history ───────────────────────────────────────────────────────
+
+    private void BuildReports()
+    {
+        ViewModel.Tiles.Clear();
+        ViewModel.Rows.Clear();
+
+        var snapshots = SnapshotService.List();
+        if (snapshots.Count == 0)
+        {
+            ViewModel.Rows.Add(new InfoItemRow
+            {
+                Key = "reports.none",
+                Label = "Snapshots",
+                Value = "No snapshots yet. Take one from More → Take a snapshot to be able to compare later.",
+                Status = InfoStatus.Info
+            });
+        }
+
+        for (var i = 0; i < Math.Min(5, snapshots.Count); i++)
+        {
+            ViewModel.Rows.Add(new InfoItemRow
+            {
+                Key = $"reports.snapshot.{i}",
+                Label = i == 0 ? "Latest snapshot" : $"Snapshot {i + 1}",
+                Value = snapshots[i].DisplayName,
+                Status = InfoStatus.Ok
+            });
+        }
+
+        if (_comparison is { Before: not null, After: not null } comparison)
+        {
+            ViewModel.Rows.Add(new InfoItemRow
+            {
+                Key = "reports.compared",
+                Label = "Compared",
+                Value = $"{comparison.Before.DisplayName} → {comparison.After.DisplayName}",
+                Badge = "History",
+                Status = InfoStatus.Info
+            });
+
+            if (comparison.Changes.Count == 0)
+            {
+                ViewModel.Rows.Add(new InfoItemRow
+                {
+                    Key = "reports.noChanges",
+                    Label = "Changes",
+                    Value = "Nothing changed between these two snapshots.",
+                    Status = InfoStatus.Ok
+                });
+            }
+
+            foreach (var change in comparison.Changes.Take(120))
+            {
+                var before = change.Before ?? "(not present)";
+                var after = change.After ?? "(removed)";
+                ViewModel.Rows.Add(new InfoItemRow
+                {
+                    Key = $"reports.change.{change.Section}.{change.Label}",
+                    Label = change.Label,
+                    Value = $"{before} → {after}",
+                    Badge = PcCategories.ById(change.Section)?.Title ?? change.Section,
+                    Status = InfoStatus.Info
+                });
+            }
+        }
+
+        ViewModel.PlaceholderText = string.Empty;
+        ViewModel.RefreshVisibility();
+        UpdateStatusText();
+    }
+
+    private async void CopySummary_Click(object sender, RoutedEventArgs e)
+    {
+        await EnsureSectionsAsync(AllProviderIds(), CancellationToken.None);
+        CopyToClipboard(ReportExporter.BuildSummary(_sections.Values, new ReportExporter.Options
+        {
+            Level = CurrentLevel,
+            RedactIdentifiers = ViewModel.HideIdentifiers
+        }));
+    }
+
+    private async void SaveReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuFlyoutItem item) return;
+
+        var format = item.Tag as string ?? "html";
+        await EnsureSectionsAsync(AllProviderIds(), CancellationToken.None);
+
+        var options = new ReportExporter.Options
+        {
+            Level = CurrentLevel,
+            RedactIdentifiers = ViewModel.HideIdentifiers
+        };
+
+        var sections = _sections.Values.ToList();
+        string content;
+        string extension;
+        string filter;
+
+        switch (format)
+        {
+            case "txt":
+                content = ReportExporter.BuildText(sections, options);
+                extension = "txt";
+                filter = "Text file|*.txt|All files|*.*";
+                break;
+            case "json":
+                content = ReportExporter.BuildJson(sections, options);
+                extension = "json";
+                filter = "JSON file|*.json|All files|*.*";
+                break;
+            case "csv":
+                content = ReportExporter.BuildCsv(sections, options);
+                extension = "csv";
+                filter = "CSV file|*.csv|All files|*.*";
+                break;
+            default:
+                content = ReportExporter.BuildHtml(sections, options);
+                extension = "html";
+                filter = "HTML file|*.html|All files|*.*";
+                break;
+        }
+
+        var suggested = $"pc-checker-{DateTime.Now:yyyy-MM-dd-HHmm}.{extension}";
+        var path = NativeFileDialog.Save("Save PC Checker report", filter, extension, suggested);
+        if (path == null) return;
+
+        try
+        {
+            System.IO.File.WriteAllText(path, content);
+            await ShowNoticeAsync("Report saved", System.IO.Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            await ShowNoticeAsync("Could not save the report", ex.Message);
+        }
+    }
+
+    private async void TakeSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        await EnsureSectionsAsync(AllProviderIds(), CancellationToken.None);
+        var path = SnapshotService.Save(_sections.Values);
+
+        await ShowNoticeAsync(path == null ? "Could not save the snapshot" : "Snapshot saved",
+            path == null ? "Check that the AppData folder is writable." : System.IO.Path.GetFileName(path));
+    }
+
+    private void CompareSnapshots_Click(object sender, RoutedEventArgs e)
+    {
+        var comparison = SnapshotService.CompareLatest();
+        if (comparison.Before == null)
+        {
+            _ = ShowNoticeAsync("Two snapshots are needed", "Take a snapshot now, change something, then take another one.");
+            return;
+        }
+
+        _comparison = comparison;
+        if (PcCategories.ById("reports") is { } reports) CategoryList.SelectedItem = reports;
+    }
+
+    private async Task ShowNoticeAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = message,
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot
+        };
+
+        await dialog.ShowAsync();
     }
 
     private void DismissFinding_Click(object sender, RoutedEventArgs e)

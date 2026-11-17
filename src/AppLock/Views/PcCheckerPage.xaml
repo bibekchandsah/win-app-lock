@@ -196,6 +196,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <TextBox x:Name="SearchBox"
@@ -237,8 +238,39 @@
                 </StackPanel>
             </Button>
 
+            <DropDownButton x:Name="MoreButton"
+                            Grid.Column="4"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="More PC Checker actions">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE712;" FontSize="12"/>
+                    <TextBlock Text="More"/>
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuFlyoutItem Text="Copy a summary" Click="CopySummary_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8C8;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="Save report as HTML…" Tag="html" Click="SaveReport_Click"/>
+                        <MenuFlyoutItem Text="Save report as text…" Tag="txt" Click="SaveReport_Click"/>
+                        <MenuFlyoutItem Text="Save report as JSON…" Tag="json" Click="SaveReport_Click"/>
+                        <MenuFlyoutItem Text="Save report as CSV…" Tag="csv" Click="SaveReport_Click"/>
+                        <MenuFlyoutSeparator/>
+                        <MenuFlyoutItem Text="Take a snapshot" Click="TakeSnapshot_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE722;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Compare last two snapshots" Click="CompareSnapshots_Click"/>
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+
             <ProgressRing x:Name="BusyRing"
-                          Grid.Column="4"
+                          Grid.Column="5"
                           Width="18"
                           Height="18"
                           IsActive="False"
