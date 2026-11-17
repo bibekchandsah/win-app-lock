@@ -739,3 +739,12 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   processes. Everything is read-only.
 - Installed apps are capped at 120 rows with an explicit "more…" row so the page stays quick on PCs with
   hundreds of apps; totals are always shown in the Summary group.
+
+## PC Checker — milestone 9 (Security)
+
+- `SecurityProvider` reports Defender state (real-time protection, signature version and age, tamper
+  protection), firewall per profile, UAC, Secure Boot, memory integrity (HVCI), VBS, Credential Guard,
+  Remote Desktop, SMBv1, AutoPlay, SmartScreen, local accounts (Guest flagged when enabled) and BitLocker
+  per volume. Everything is read-only.
+- Rows that indicate a weaker setting use the shared warning/problem icons so they line up with the health
+  check that lands in the next milestone.

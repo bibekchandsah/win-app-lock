@@ -43,6 +43,7 @@ public sealed class InfoCollector
             new Providers.BatteryProvider(),
             new Providers.DevicesProvider(),
             new Providers.SoftwareProvider(),
+            new Providers.SecurityProvider(),
             new Providers.StorageProvider(),
             new Providers.StorageHealthProvider()
         }, context, clock);
