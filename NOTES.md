@@ -719,3 +719,12 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - `BatteryProvider` reports charge, AC state, design vs full-charge capacity with a wear reading, chemistry,
   cycle count and serial (as an identifier), plus the active power scheme and Fast Startup state.
   A desktop PC shows "No battery" instead of empty rows.
+
+## PC Checker — milestone 7 (Devices & peripherals)
+
+- `DevicesProvider` is the read-only Device Manager equivalent: every PnP device, the devices Windows
+  flags with a problem code first (with the plain-language meaning of each code), a per-class summary, and
+  focused views for USB, HID/keyboards/mice, cameras, Bluetooth, biometrics and sensors.
+- Printers come from `Win32_Printer` with driver, port, default and offline state.
+- Long lists are capped at 40 rows per view with a "more…" row, so the page stays responsive; the health
+  check milestone will consume the problem-device list directly.

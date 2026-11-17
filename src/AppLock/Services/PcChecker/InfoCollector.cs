@@ -41,6 +41,7 @@ public sealed class InfoCollector
             new Providers.AudioProvider(),
             new Providers.NetworkProvider(),
             new Providers.BatteryProvider(),
+            new Providers.DevicesProvider(),
             new Providers.StorageProvider(),
             new Providers.StorageHealthProvider()
         }, context, clock);

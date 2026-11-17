@@ -40,7 +40,7 @@ public static class PcCategories
         new() { Id = "audio", Title = "Audio", Glyph = "\uE767", ProviderIds = new[] { "audio" } },
         new() { Id = "network", Title = "Network", Glyph = "\uE701", ProviderIds = new[] { "network" } },
         new() { Id = "battery", Title = "Battery & power", Glyph = "\uEDA2", ProviderIds = new[] { "battery" } },
-        new() { Id = "devices", Title = "Devices & peripherals", Glyph = "\uE71B" },
+        new() { Id = "devices", Title = "Devices & peripherals", Glyph = "\uE71B", ProviderIds = new[] { "devices" } },
         new() { Id = "sensors", Title = "Sensors", Glyph = "\uE946" },
         new() { Id = "software", Title = "Software", Glyph = "\uE8D7" },
         new() { Id = "security", Title = "Security", Glyph = "\uE72E" },
