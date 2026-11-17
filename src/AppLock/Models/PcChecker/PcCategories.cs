@@ -36,7 +36,7 @@ public static class PcCategories
         new() { Id = "memory", Title = "Memory", Glyph = "\uE8D2", ProviderIds = new[] { "memory" } },
         new() { Id = "storage", Title = "Storage", Glyph = "\uE8B7", ProviderIds = new[] { "storage", "storage.health" }, RequiresAdmin = true },
         new() { Id = "graphics", Title = "Graphics", Glyph = "\uE785", ProviderIds = new[] { "gpu" } },
-        new() { Id = "displays", Title = "Displays", Glyph = "\uE8B9" },
+        new() { Id = "displays", Title = "Displays", Glyph = "\uE8B9", ProviderIds = new[] { "display" } },
         new() { Id = "audio", Title = "Audio", Glyph = "\uE767" },
         new() { Id = "network", Title = "Network", Glyph = "\uE701" },
         new() { Id = "battery", Title = "Battery & power", Glyph = "\uEDA2" },

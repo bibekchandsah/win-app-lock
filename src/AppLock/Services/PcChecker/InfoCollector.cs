@@ -37,6 +37,7 @@ public sealed class InfoCollector
             new Providers.CpuProvider(),
             new Providers.MemoryProvider(),
             new Providers.GpuProvider(),
+            new Providers.DisplayProvider(),
             new Providers.StorageProvider(),
             new Providers.StorageHealthProvider()
         }, context, clock);

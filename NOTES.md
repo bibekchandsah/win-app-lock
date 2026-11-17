@@ -695,3 +695,16 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   categories whose data is partly administrator-only (storage, firmware, devices, security, stability).
 - Volume/health rows use the shared InfoStatus icons, so a nearly full drive or worn SSD is flagged in the
   same way the health check will report it later.
+
+## PC Checker — milestone 5 (Graphics, Displays)
+
+- Graphics now reads exact VRAM from the driver's registry key (`HardwareInformation.qwMemorySize`), so cards
+  above 4 GB no longer show Windows' capped figure; it also reports driver provider, hardware-accelerated GPU
+  scheduling, the DirectX runtime and whether the Vulkan loader is installed.
+- **Direct3D feature level is not implemented** (it needs a live DXGI/D3D device); the row says "Not reported"
+  instead of guessing, as allowed by the "closest working approach" rule.
+- New `DisplayProvider` + `Parsers/EdidParser`: monitor name, EDID manufacturer/model/serial/manufacture
+  week, native resolution, screen size and diagonal, computed PPI, current mode/refresh/colour depth,
+  position in the multi-monitor layout, primary flag and scaling.
+- **Connection type (HDMI/DisplayPort/eDP) is reported as "Not reported"**: it needs QueryDisplayConfig,
+  which is on the follow-up list rather than guessed.
