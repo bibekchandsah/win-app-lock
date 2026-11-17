@@ -809,3 +809,25 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - When firmware exposes no fan tachometer the row says so and explains that this is normal without a driver.
   Per-core clocks, voltages and manual fan control need a kernel driver, which this app deliberately never
   installs or offers to install.
+
+## PC Checker — milestone 15 (Tests, accessibility, manual checklist)
+
+- Tests: `tests/AppLock.Tests/PcCheckerTests.cs` (12 tests) covers bug check formatting, report redaction,
+  HTML escaping, CSV quoting, detail-level filtering, health rule severity/ordering, dismissal, and category
+  id uniqueness. They link the model/service files directly, so they run without the WinUI app.
+- Accessibility: every icon-only row button has an `AutomationProperties.Name`, the search box, detail level,
+  masking toggle, category rail and More menu are named, and status colours always come with text
+  ("Needs administrator rights", "Not available", finding severity in words).
+- Manual checklist (needs a human, the app is password-protected and the window cannot be driven from here):
+  1. Open Others → PC Checker; the Overview tiles fill in and the status line shows a health summary.
+  2. Visit Performance and watch CPU/memory/disk update once per second; leave it and confirm the timer stops
+     (the values freeze).
+  3. Security → confirm Defender/firewall rows appear; unprivileged, drive health and TPM say "Needs
+     administrator rights" instead of a guess.
+  4. Health check → dismiss one finding, reopen the page, confirm it stays hidden.
+  5. More → Take a snapshot, change something (e.g. toggle a setting), take another, then Compare last two
+     snapshots and check the change list.
+  6. More → Save report as HTML and open it in a browser; toggle "Hide identifiers" first and confirm
+     serial numbers/IDs are masked.
+  7. Tools → each row's open button launches the listed Windows tool.
+  8. Switch the app between Light and Dark and check the page, tiles and HTML report.

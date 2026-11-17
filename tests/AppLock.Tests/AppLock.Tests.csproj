@@ -62,6 +62,11 @@
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\PcChecker\InfoModel.cs" Link="Models\PcChecker\InfoModel.cs" />
+    <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCategories.cs" Link="Models\PcChecker\PcCategories.cs" />
+    <Compile Include="..\..\src\AppLock\Models\PcChecker\BugCheckTable.cs" Link="Models\PcChecker\BugCheckTable.cs" />
+    <Compile Include="..\..\src\AppLock\Services\PcChecker\ReportExporter.cs" Link="Services\PcChecker\ReportExporter.cs" />
+    <Compile Include="..\..\src\AppLock\Services\PcChecker\Health\HealthRuleEngine.cs" Link="Services\PcChecker\Health\HealthRuleEngine.cs" />
     <Compile Include="..\..\src\AppLock\Services\SpeedMeter\NetworkStatsProvider.cs" Link="Services\SpeedMeter\NetworkStatsProvider.cs" />
     <Compile Include="..\..\src\AppLock\Services\SpeedMeter\UsageStore.cs" Link="Services\SpeedMeter\UsageStore.cs" />
     <Compile Include="..\..\src\AppLock\Services\SpeedMeter\SpeedMeterPresets.cs" Link="Services\SpeedMeter\SpeedMeterPresets.cs" />
