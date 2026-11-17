@@ -2001,7 +2001,7 @@ public sealed partial class MainWindow : Window
     /// Restarts AppLock from the tray menu: a small hidden PowerShell waits for this process to finish, then
     /// starts it again, so the fresh instance never races the one that is still shutting down.
     /// </summary>
-    private void RestartApplication()
+    private async void RestartApplication()
     {
         try
         {
@@ -2013,6 +2013,8 @@ public sealed partial class MainWindow : Window
 
             if (string.IsNullOrEmpty(exe)) return;
 
+            // A short delay lets this instance release the single-instance mutex first. The new instance also
+            // waits for it, so even a slow shutdown never produces two windows.
             var arguments = $"-NoProfile -WindowStyle Hidden -Command \"Start-Sleep -Seconds 2; Start-Process -FilePath '{exe.Replace("'", "''")}'\"";
 
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell.exe", arguments)
@@ -2027,6 +2029,11 @@ public sealed partial class MainWindow : Window
             AppLock.Services.ProcessProtectionService.UnprotectCurrentProcess();
 
             Microsoft.UI.Xaml.Application.Current.Exit();
+
+            // XAML shutdown can linger on background services; make sure the process really goes away so
+            // the restarted instance is the only one on screen.
+            await Task.Delay(1500);
+            Environment.Exit(0);
         }
         catch (Exception ex)
         {
@@ -2063,15 +2070,18 @@ public sealed partial class MainWindow : Window
                 WorkingDirectory = System.IO.Path.GetDirectoryName(exe)
             };
 
+            _isExplicitExit = true;
             AppLock.Services.ProcessProtectionService.SignalAuthorizedExit();
             AppLock.Services.ProcessProtectionService.UnprotectCurrentProcess();
 
             var process = System.Diagnostics.Process.Start(startInfo);
             if (process == null) return;
 
-            _isExplicitExit = true;
-            await Task.Delay(400);
+            // The elevated instance waits for this process's single-instance mutex, so exiting first is safe.
             Microsoft.UI.Xaml.Application.Current.Exit();
+
+            await Task.Delay(400);
+            Environment.Exit(0);
         }
         catch (System.ComponentModel.Win32Exception)
         {

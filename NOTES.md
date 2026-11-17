@@ -916,3 +916,17 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   speakers" stays true through docking and headset changes.
 - Leaving the range restores each device to its remembered state; a device the user unmuted by hand during the
   range keeps their choice, and devices that disappeared are simply forgotten.
+
+## Single instance guard (fixes the double window after restart)
+
+- `Program.Main` now takes a named mutex (`Local\AppLock_MainInstance_Mutex`) before starting XAML and holds it
+  for the life of the process.
+  * A restarted instance (normal or elevated) waits up to 8 seconds for the previous one to release the mutex,
+    so it starts only when the old window is really gone; an abandoned mutex - the normal restart case - is
+    treated as "free" and the new instance continues immediately.
+  * A stray second launch (double-click while AppLock is already running) waits briefly and then exits quietly
+    instead of adding a second window.
+  * The watchdog and BitLocker headless entry points return before the guard, so they are unaffected.
+- Both restart actions now set the explicit-exit flag before relaunching and, after `Application.Exit()`, hard
+  exit with `Environment.Exit(0)` if XAML shutdown lingers, so the old process cannot sit around with a window
+  while the new one opens.

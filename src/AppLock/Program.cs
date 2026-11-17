@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using AppLock.Services;
 
 namespace AppLock;
@@ -9,6 +10,15 @@ public static class Program
     [DllImport("Microsoft.ui.xaml.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     private static extern void XamlCheckProcessRequirements();
+
+    /// <summary>
+    /// Only one AppLock window may exist. The mutex is held for the life of the process, and a restarted
+    /// instance waits here for the previous one to exit (the abandoned-mutex case) instead of opening a
+    /// second window next to it.
+    /// </summary>
+    private const string SingleInstanceMutexName = @"Local\AppLock_MainInstance_Mutex";
+
+    private static Mutex? _singleInstanceMutex;
 
     [STAThread]
     static void Main(string[] args)
@@ -27,7 +37,14 @@ public static class Program
             return;
         }
 
-        // 3. Normal AppLock instance
+        // 3. Normal AppLock instance — but only one at a time. A restarted instance waits for the old one
+        //    to finish shutting down; a stray second launch gives up quietly instead of adding a window.
+        if (!TryAcquireSingleInstance(TimeSpan.FromSeconds(8)))
+        {
+            System.Diagnostics.Debug.WriteLine("[Program] Another AppLock instance is already running; exiting");
+            return;
+        }
+
         XamlCheckProcessRequirements();
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Microsoft.UI.Xaml.Application.Start((p) =>
@@ -37,5 +54,28 @@ public static class Program
             System.Threading.SynchronizationContext.SetSynchronizationContext(context);
             new App();
         });
+    }
+
+    private static bool TryAcquireSingleInstance(TimeSpan timeout)
+    {
+        try
+        {
+            _singleInstanceMutex = new Mutex(false, SingleInstanceMutexName);
+
+            try
+            {
+                return _singleInstanceMutex.WaitOne(timeout);
+            }
+            catch (AbandonedMutexException)
+            {
+                // The previous instance exited without releasing it - which is exactly a restart.
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Program] Single-instance check failed: {ex.Message}");
+            return true;
+        }
     }
 }
