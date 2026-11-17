@@ -40,6 +40,11 @@ public sealed class InfoItemRow : INotifyPropertyChanged
 
     public Visibility DismissVisibility => string.IsNullOrWhiteSpace(DismissId) ? Visibility.Collapsed : Visibility.Visible;
 
+    /// <summary>Set on Tools rows: the id of the {@link ToolsCatalog} entry this row opens.</summary>
+    public string? LaunchId { get; init; }
+
+    public Visibility LaunchVisibility => string.IsNullOrWhiteSpace(LaunchId) ? Visibility.Collapsed : Visibility.Visible;
+
     public InfoStatus Status
     {
         get => _status;

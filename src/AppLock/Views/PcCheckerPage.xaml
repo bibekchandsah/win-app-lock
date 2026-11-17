@@ -137,16 +137,27 @@
                         <FontIcon Glyph="&#xE8C8;" FontSize="13"/>
                     </Button>
 
-                    <Button Grid.Column="5"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Padding="6"
-                            Visibility="{x:Bind DismissVisibility}"
-                            Click="DismissFinding_Click"
-                            ToolTipService.ToolTip="Don't show this finding again"
-                            AutomationProperties.Name="Dismiss this finding">
-                        <FontIcon Glyph="&#xE74D;" FontSize="13"/>
-                    </Button>
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2">
+                        <Button Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6"
+                                Visibility="{x:Bind LaunchVisibility}"
+                                Click="LaunchRow_Click"
+                                ToolTipService.ToolTip="Open this Windows tool"
+                                AutomationProperties.Name="Open this Windows tool">
+                            <FontIcon Glyph="&#xE8A7;" FontSize="13"/>
+                        </Button>
+
+                        <Button Background="Transparent"
+                                BorderThickness="0"
+                                Padding="6"
+                                Visibility="{x:Bind DismissVisibility}"
+                                Click="DismissFinding_Click"
+                                ToolTipService.ToolTip="Don't show this finding again"
+                                AutomationProperties.Name="Dismiss this finding">
+                            <FontIcon Glyph="&#xE74D;" FontSize="13"/>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>

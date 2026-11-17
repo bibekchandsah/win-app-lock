@@ -242,6 +242,16 @@ public sealed partial class PcCheckerPage : Page
                 if (ct.IsCancellationRequested) return;
                 BuildHealth();
             }
+            else if (category.Id == "tools")
+            {
+                BuildTools();
+            }
+            else if (category.Id == "compatibility")
+            {
+                await EnsureSectionsAsync(AllProviderIds(), ct);
+                if (ct.IsCancellationRequested) return;
+                BuildCompatibility();
+            }
             else if (category.Id == "reports")
             {
                 BuildReports();
@@ -491,6 +501,66 @@ public sealed partial class PcCheckerPage : Page
         ViewModel.PlaceholderText = findings.Count == 0
             ? "No issues found. Everything this page can check looks healthy."
             : string.Empty;
+    }
+
+    private void BuildTools()
+    {
+        ViewModel.Tiles.Clear();
+        ViewModel.Rows.Clear();
+
+        foreach (var tool in ToolsCatalog.All)
+        {
+            ViewModel.Rows.Add(new InfoItemRow
+            {
+                Key = tool.Id,
+                Label = tool.Label,
+                Value = tool.Description,
+                LaunchId = tool.Id,
+                Status = InfoStatus.Info
+            });
+        }
+
+        ViewModel.PlaceholderText = string.Empty;
+    }
+
+    private void BuildCompatibility()
+    {
+        var compatibility = CompatibilityService.Evaluate(_sections);
+
+        ViewModel.Tiles.Clear();
+        ViewModel.Rows.Clear();
+
+        foreach (var group in compatibility.Groups)
+        {
+            foreach (var item in group.Items)
+            {
+                var row = ToRow(item, group.Title);
+                ViewModel.Rows.Add(row);
+            }
+        }
+
+        ViewModel.PlaceholderText = string.Empty;
+    }
+
+    private void LaunchRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not InfoItemRow row) return;
+        if (string.IsNullOrWhiteSpace(row.LaunchId)) return;
+
+        var tool = ToolsCatalog.All.FirstOrDefault(t => t.Id == row.LaunchId);
+        if (tool == null) return;
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(tool.Target, tool.Arguments ?? string.Empty)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _ = ShowNoticeAsync($"Could not open {tool.Label}", ex.Message);
+        }
     }
 
     // ── Reports & history ───────────────────────────────────────────────────────

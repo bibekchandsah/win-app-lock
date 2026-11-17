@@ -787,3 +787,25 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   excluded, so comparing two snapshots shows configuration changes.
 - "Reports & history" lists the recent snapshots and, after a comparison, every changed value as
   `before → after`.
+
+## PC Checker — milestone 13 (Tools, Compatibility)
+
+- **Tools** lists the Windows tools a report makes you want: System Information, Device Manager, Reliability
+  Monitor, Disk Cleanup, Storage settings, Windows Update, DirectX diagnostics, network connections, power
+  options and Task Manager. Each row has an open button that launches the tool through the shell; nothing is
+  installed and nothing runs elevated on its own.
+- **Compatibility** evaluates Windows 11 readiness from already-collected values (TPM 2.0, Secure Boot, UEFI,
+  memory, system drive size, DirectX 12, 64-bit) and gives upgrade advice (free memory slots, HDD system drive,
+  little feature-update headroom, two cores or fewer). Unknown values are reported as unknown, never as passed.
+- Microsoft's supported-CPU list is not bundled, so that single check is stated as unverifiable rather than
+  guessed. The spec's editable requirement profile was left out instead of being half-built; the readiness
+  checks and advice cover the useful part.
+
+## PC Checker — milestone 14 (Sensors)
+
+- Driver-free sensors only: ACPI thermal zones (`MSAcpi_ThermalZoneTemperature`), firmware fan entries
+  (`Win32_Fan`), drive temperatures from `MSFT_StorageReliabilityCounter` and battery temperature
+  (`root\wmi BatteryTemperature`).
+- When firmware exposes no fan tachometer the row says so and explains that this is normal without a driver.
+  Per-core clocks, voltages and manual fan control need a kernel driver, which this app deliberately never
+  installs or offers to install.
