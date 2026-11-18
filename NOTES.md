@@ -991,7 +991,8 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 
 ## Microphone lock badge in the mixer
 
-- While `LockMicrophoneVolume` is on, each microphone row shows a small lock glyph after the mute button, and the
-  slider tooltip reads "Volume held at N% — changes made elsewhere are put back". Both follow the held level and
-  disappear (tooltip falls back to the device name) as soon as the lock is switched off.
-- The badge lives in the expanded row next to the level it protects; the icon-only chip view is untouched.
+- While `LockMicrophoneVolume` is on, a small circular lock badge overlays the microphone icon (same look as the
+  locked-app icon badge on the Protection page), and the slider tooltip reads "Volume held at N% — changes made
+  elsewhere are put back". Badge and tooltip follow the held level and clear when the lock is switched off.
+- The badge sits on the 32 px icon chip, so it shows in both the icon-only and expanded mixer views without
+  needing extra horizontal space — the earlier inline badge next to the mute button was clipped by row width.

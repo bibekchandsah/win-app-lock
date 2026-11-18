@@ -145,7 +145,7 @@ public sealed partial class VolumeOverlayWindow : Window
         public Button MuteButton = null!;
 
         /// <summary>Lock shown while the microphone level is held, so a change made elsewhere is not a mystery.</summary>
-        public FontIcon? LockBadge;
+        public Border? LockBadge;
         public string? LockTooltip;
     }
 
@@ -963,7 +963,36 @@ public sealed partial class VolumeOverlayWindow : Window
                 Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
             };
 
-            iconButton.Content = icon;
+            // Lock badge overlaid on the mic icon, matching the protected-app icon badge on the
+            // Protection page: it only appears while this microphone's level is being held.
+            var lockBadge = new Border
+            {
+                Width = 13,
+                Height = 13,
+                CornerRadius = new CornerRadius(7),
+                Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                BorderBrush = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, -3, -3),
+                Visibility = Visibility.Collapsed,
+                Child = new FontIcon
+                {
+                    Glyph = "\uE72E", // Lock
+                    FontSize = 7,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
+                }
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(lockBadge, "Microphone volume is held");
+
+            var iconGrid = new Grid();
+            iconGrid.Children.Add(icon);
+            iconGrid.Children.Add(lockBadge);
+
+            iconButton.Content = iconGrid;
             iconButton.Click += (s, e) =>
             {
                 var deviceId = (string)((Button)s).Tag;
@@ -1074,21 +1103,6 @@ public sealed partial class VolumeOverlayWindow : Window
 
             Grid.SetColumn(muteButton, 2);
             controlsGrid.Children.Add(muteButton);
-
-            // Lock badge: only shown while this microphone's level is being held
-            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Lock badge
-            var lockBadge = new FontIcon
-            {
-                Glyph = "\uE72E", // Lock
-                FontSize = 11,
-                Margin = new Thickness(6, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Visibility = Visibility.Collapsed,
-                Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
-            };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(lockBadge, "Microphone volume is held");
-            Grid.SetColumn(lockBadge, 3);
-            controlsGrid.Children.Add(lockBadge);
 
             // Add to separate containers
             MicrophoneIconsContainer.Children.Add(iconButton);
@@ -1888,7 +1902,12 @@ public sealed partial class VolumeOverlayWindow : Window
         {
             try
             {
-                if (row.ControlsGrid?.Visibility == Visibility.Collapsed) continue;
+                if (row.ControlsGrid?.Visibility == Visibility.Collapsed)
+                {
+                    // Values are hidden in the icon-only chip view, but the lock badge overlays the icon there too.
+                    UpdateMicrophoneLockBadge(row, (float)row.Slider.Value);
+                    continue;
+                }
                 if (_userVolumeChangeAt.TryGetValue(row.DeviceId, out var changedAt) &&
                     (DateTime.UtcNow - changedAt).TotalMilliseconds < 1200) continue;
 
