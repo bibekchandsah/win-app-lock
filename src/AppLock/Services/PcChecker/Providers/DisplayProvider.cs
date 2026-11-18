@@ -30,6 +30,17 @@ public sealed class DisplayProvider : IInfoProvider
     public Task<InfoSection> CollectAsync(CollectOptions options, IProgress<double> progress, CancellationToken ct)
         => Task.Run(() => Collect(progress, ct), ct);
 
+    private const int SmDigitizer = 94;
+    private const int SmMaximumTouch = 95;
+    private const int NidIntegratedTouch = 0x01;
+    private const int NidExternalTouch = 0x02;
+    private const int NidIntegratedPen = 0x04;
+    private const int NidExternalPen = 0x08;
+    private const int NidMultiInput = 0x40;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
     private InfoSection Collect(IProgress<double> progress, CancellationToken ct)
     {
         var section = new InfoSection { Id = Id, Title = "Displays", Category = Category };
@@ -154,6 +165,34 @@ public sealed class DisplayProvider : IInfoProvider
         if (monitorIndex == 0)
         {
             group.Items.Add(InfoItem.MissingValue("display.none", "Monitor", MissingReason.NotReported, DetailLevel.Basic, source));
+        }
+
+        // ── Touch and pen ───────────────────────────────────────────────────────
+        // Whether the display itself takes fingers or a pen is a display property, so it belongs here rather
+        // than only in the device list.
+        var touchGroup = section.Group("Touch and pen");
+        int digitizer = GetSystemMetrics(SmDigitizer);
+        bool touch = (digitizer & (NidIntegratedTouch | NidExternalTouch)) != 0;
+        bool pen = (digitizer & (NidIntegratedPen | NidExternalPen)) != 0;
+
+        var touchItem = InfoItem.Of("display.touch", "Touch screen", touch ? "Yes — the display accepts touch" : "No",
+            DetailLevel.Basic, "Whether Windows sees a touch digitizer for this display.",
+            "Source: GetSystemMetrics(SM_DIGITIZER)", touch ? InfoStatus.Ok : InfoStatus.None);
+        touchGroup.Items.Add(touchItem);
+
+        touchGroup.Items.Add(InfoItem.Of("display.pen", "Pen or stylus", pen ? "Supported" : "Not supported",
+            DetailLevel.Basic, "Whether a pen or stylus digitizer is present.",
+            "Source: GetSystemMetrics(SM_DIGITIZER)"));
+
+        if (touch)
+        {
+            int maxTouches = GetSystemMetrics(SmMaximumTouch);
+            touchGroup.Items.Add(InfoItem.Of("display.touch.points", "Simultaneous touch points",
+                Math.Max(1, maxTouches).ToString(), DetailLevel.Detailed,
+                "How many fingers the screen can track at once.", "Source: GetSystemMetrics(SM_MAXIMUMTOUCHES)"));
+            touchGroup.Items.Add(InfoItem.Of("display.touch.multi", "Multi-touch",
+                (digitizer & NidMultiInput) != 0 ? "Supported" : "Not supported", DetailLevel.Detailed, null,
+                "Source: GetSystemMetrics(SM_DIGITIZER)"));
         }
 
         progress?.Report(1);

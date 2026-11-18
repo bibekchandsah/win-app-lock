@@ -64,7 +64,7 @@
 
         <TabView Grid.Row="1" IsAddTabButtonVisible="False" TabWidthMode="SizeToContent">
             <!-- ══ CPU & RAM ══ -->
-            <TabViewItem Header="CPU &amp; RAM">
+            <TabViewItem IsClosable="False" Header="CPU &amp; RAM">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE950;"/>
                 </TabViewItem.IconSource>
@@ -98,7 +98,7 @@
             </TabViewItem>
 
             <!-- ══ Disk ══ -->
-            <TabViewItem Header="Disk">
+            <TabViewItem IsClosable="False" Header="Disk">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xEDA2;"/>
                 </TabViewItem.IconSource>
@@ -132,7 +132,7 @@
             </TabViewItem>
 
             <!-- ══ Network ══ -->
-            <TabViewItem Header="Network">
+            <TabViewItem IsClosable="False" Header="Network">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE774;"/>
                 </TabViewItem.IconSource>
@@ -164,7 +164,7 @@
             </TabViewItem>
 
             <!-- ══ Speaker ══ -->
-            <TabViewItem Header="Speaker">
+            <TabViewItem IsClosable="False" Header="Speaker">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE767;"/>
                 </TabViewItem.IconSource>
@@ -196,7 +196,7 @@
             </TabViewItem>
 
             <!-- ══ Microphone ══ -->
-            <TabViewItem Header="Microphone">
+            <TabViewItem IsClosable="False" Header="Microphone">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE720;"/>
                 </TabViewItem.IconSource>
@@ -229,7 +229,7 @@
             </TabViewItem>
 
             <!-- ══ Keyboard & mouse ══ -->
-            <TabViewItem Header="Keyboard &amp; mouse">
+            <TabViewItem IsClosable="False" Header="Keyboard &amp; mouse">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE765;"/>
                 </TabViewItem.IconSource>
@@ -281,7 +281,7 @@
             </TabViewItem>
 
             <!-- ══ Camera ══ -->
-            <TabViewItem Header="Camera">
+            <TabViewItem IsClosable="False" Header="Camera">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE722;"/>
                 </TabViewItem.IconSource>
@@ -318,7 +318,7 @@
             </TabViewItem>
 
             <!-- ══ Touch & pen ══ -->
-            <TabViewItem Header="Touch &amp; pen">
+            <TabViewItem IsClosable="False" Header="Touch &amp; pen">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE7C9;"/>
                 </TabViewItem.IconSource>

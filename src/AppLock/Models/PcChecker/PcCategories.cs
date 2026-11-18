@@ -27,6 +27,9 @@ public static class PcCategories
 {
     public const string OverviewId = "overview";
 
+    /// <summary>Rail entry that launches the interactive hardware tests instead of loading a section.</summary>
+    public const string HardwareTestsId = "tests";
+
     public static IReadOnlyList<PcCategory> All { get; } = new List<PcCategory>
     {
         new() { Id = OverviewId, Title = "Overview", Glyph = "\uE71D", ProviderIds = new[] { "os", "cpu", "memory", "gpu", "storage" } },
@@ -49,7 +52,10 @@ public static class PcCategories
         new() { Id = "health", Title = "Health check", Glyph = "\uE73E" },
         new() { Id = "tools", Title = "Tools", Glyph = "\uE90F" },
         new() { Id = "compatibility", Title = "Compatibility", Glyph = "\uE762" },
-        new() { Id = "reports", Title = "Reports & history", Glyph = "\uE712" }
+        new() { Id = "reports", Title = "Reports & history", Glyph = "\uE712" },
+
+        // Not a data category: selecting it opens the hardware tests page. Kept last in the rail.
+        new() { Id = HardwareTestsId, Title = "Performance Test", Glyph = "\uE9D9" }
     };
 
     public static PcCategory? ById(string id)

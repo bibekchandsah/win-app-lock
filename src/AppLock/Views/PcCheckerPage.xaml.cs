@@ -127,6 +127,17 @@ public sealed partial class PcCheckerPage : Page
         if (_suppressSelectionHandlers) return;
         if (CategoryList.SelectedItem is not PcCategory category) return;
 
+        // The last rail entry is a launcher, not a data category: open the tests and leave the rail where it was.
+        if (category.Id == PcCategories.HardwareTestsId)
+        {
+            _suppressSelectionHandlers = true;
+            CategoryList.SelectedItem = ViewModel.SelectedCategory;
+            _suppressSelectionHandlers = false;
+
+            Frame.Navigate(typeof(HardwareTestsPage));
+            return;
+        }
+
         ViewModel.SelectedCategory = category;
         await ShowCategoryAsync(category);
     }
@@ -198,12 +209,6 @@ public sealed partial class PcCheckerPage : Page
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(OthersPage));
-    }
-
-    /// <summary>Opens the interactive hardware tests (benchmarks, tone, level, camera, input).</summary>
-    private void OpenHardwareTests_Click(object sender, RoutedEventArgs e)
-    {
-        Frame.Navigate(typeof(HardwareTestsPage));
     }
 
     /// <summary>Relaunches AppLock elevated through the standard UAC prompt (shared helper).</summary>

@@ -1064,3 +1064,13 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   with `ExclusiveControl` (required for MediaPlayer), and Stop pauses, detaches and disposes the player before
   the capture object.
 - Not verified at runtime here (the app is password-protected and the camera is on the user's machine).
+
+## PC Checker rail entry, test tabs and display touch rows
+
+- The hardware tests are opened from a new last entry in the PC Checker rail, "Performance Test"
+  (`PcCategories.HardwareTestsId = "tests"`), instead of the More flyout item. Selecting it navigates to
+  `HardwareTestsPage` and puts the rail back on the category that was open, so the entry behaves as a launcher
+  rather than a data category. The More menu keeps the report/snapshot actions.
+- The test page's `TabViewItem`s are `IsClosable="False"`, so the close crosses are gone.
+- `DisplayProvider` gained a "Touch and pen" group (touch screen, pen/stylus, simultaneous points, multi-touch)
+  from `GetSystemMetrics`, so the Displays category answers that question directly instead of only Devices.
