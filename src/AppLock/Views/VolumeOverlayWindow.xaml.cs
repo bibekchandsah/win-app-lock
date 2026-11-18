@@ -143,6 +143,10 @@ public sealed partial class VolumeOverlayWindow : Window
         public Slider Slider = null!;
         public TextBlock PercentText = null!;
         public Button MuteButton = null!;
+
+        /// <summary>Lock shown while the microphone level is held, so a change made elsewhere is not a mystery.</summary>
+        public FontIcon? LockBadge;
+        public string? LockTooltip;
     }
 
     // Win32 imports for window styling — use Ptr variants for 64-bit safety
@@ -1071,6 +1075,21 @@ public sealed partial class VolumeOverlayWindow : Window
             Grid.SetColumn(muteButton, 2);
             controlsGrid.Children.Add(muteButton);
 
+            // Lock badge: only shown while this microphone's level is being held
+            controlsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Lock badge
+            var lockBadge = new FontIcon
+            {
+                Glyph = "\uE72E", // Lock
+                FontSize = 11,
+                Margin = new Thickness(6, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Visibility = Visibility.Collapsed,
+                Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(lockBadge, "Microphone volume is held");
+            Grid.SetColumn(lockBadge, 3);
+            controlsGrid.Children.Add(lockBadge);
+
             // Add to separate containers
             MicrophoneIconsContainer.Children.Add(iconButton);
             MicrophoneControlsContainer.Children.Add(controlsGrid);
@@ -1084,7 +1103,10 @@ public sealed partial class VolumeOverlayWindow : Window
                 Slider = slider,
                 PercentText = percentText,
                 MuteButton = muteButton,
+                LockBadge = lockBadge,
             };
+
+            UpdateMicrophoneLockBadge(_microphoneRows[mic.DeviceId], mic.GetVolume());
             
             Debug.WriteLine($"[VolumeMixer] Created row for: {mic.FriendlyName} ({(mic.IsDefault ? "Default" : "Secondary")})");
         }
@@ -1882,6 +1904,7 @@ public sealed partial class VolumeOverlayWindow : Window
                 }
 
                 SetTextIfChanged(row.PercentText, $"{(int)Math.Round(volume)}%");
+                UpdateMicrophoneLockBadge(row, volume);
 
                 if (row.MuteButton.Content is FontIcon muteIcon)
                 {
@@ -1890,6 +1913,54 @@ public sealed partial class VolumeOverlayWindow : Window
                 }
             }
             catch { }
+        }
+    }
+
+    /// <summary>
+    /// Shows the lock badge and explains it in a tooltip while the microphone volume is held, so a level that
+    /// snaps back after being changed elsewhere has a visible reason.
+    /// </summary>
+    private void UpdateMicrophoneLockBadge(MicrophoneRowUi row, float volume)
+    {
+        if (row.LockBadge == null) return;
+
+        try
+        {
+            var settings = ServiceContainer.Settings.VolumeMixer;
+            bool held = settings.LockMicrophoneVolume;
+
+            var visibility = held ? Visibility.Visible : Visibility.Collapsed;
+            if (row.LockBadge.Visibility != visibility) row.LockBadge.Visibility = visibility;
+
+            // The slider carries the explanation, so hovering the control that seems to snap back says why.
+            var device = _microphoneService.GetMicrophone(row.DeviceId);
+            var name = device?.FriendlyName ?? "Microphone volume";
+
+            string tooltip;
+            if (held)
+            {
+                float target = settings.LockedMicrophoneVolumes != null &&
+                               settings.LockedMicrophoneVolumes.TryGetValue(row.DeviceId, out var stored)
+                    ? stored
+                    : volume;
+
+                tooltip = $"Volume held at {(int)Math.Round(target)}% \u2014 changes made elsewhere are put back";
+            }
+            else
+            {
+                tooltip = name + (device?.IsDefault == true ? " (Default)" : string.Empty);
+            }
+
+            if (row.LockTooltip != tooltip)
+            {
+                row.LockTooltip = tooltip;
+                ToolTipService.SetToolTip(row.LockBadge, tooltip);
+                ToolTipService.SetToolTip(row.Slider, tooltip);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[VolumeMixer] Microphone lock badge error: {ex.Message}");
         }
     }
 

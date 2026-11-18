@@ -988,3 +988,10 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   The device list is re-enumerated every 15 seconds rather than on every poll to keep the COM cost low.
 - Toggle: Volume Mixer -> Appearance -> "Keep Microphone Volume Fixed". Diagnostics:
   `%LOCALAPPDATA%\AppLock\Logs\mic-volume-lock.log` (captures, each put-back, totals).
+
+## Microphone lock badge in the mixer
+
+- While `LockMicrophoneVolume` is on, each microphone row shows a small lock glyph after the mute button, and the
+  slider tooltip reads "Volume held at N% — changes made elsewhere are put back". Both follow the held level and
+  disappear (tooltip falls back to the device name) as soon as the lock is switched off.
+- The badge lives in the expanded row next to the level it protects; the icon-only chip view is untouched.
