@@ -1135,3 +1135,23 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   - Manages active in-memory `VaultSession` instances with zeroed keys on lock/exit.
   - Events for `VaultLocked` and `VaultUnlocked` automatically refreshing vault card states in `VaultListViewModel`.
   - Global "Lock all" command bar action.
+
+
+## Vault Feature — Milestone 4 (Vault Browser Basics)
+
+- **Vault Browser (`VaultBrowserPage.xaml/.cs`):**
+  - Fully integrated into navigation from `VaultPage`: clicking "Open" on a locked vault card unlocks and opens the browser, while clicking "Browse" on an already unlocked card opens the browser immediately.
+  - Header displays vault name, status chip ("Unlocked"), live item count, total plaintext storage size, and "Lock vault" button.
+  - Navigation bar with WinUI 3 `BreadcrumbBar` path supporting direct navigation to parent folders, root vault folder, or trash.
+  - Search box filtering file names in real time.
+- **Operations & Cryptographic Atomicity (`VaultOperations.cs`):**
+  - **Verify-before-delete:** when adding files, ciphertext is decrypted and verified against the computed SHA-256 hash before deleting originals. Originals are deleted only after verified encryption (configurable via `DeleteOriginalsAfterVerify`).
+  - **Streaming pipeline:** processes files in streaming chunks (256 KiB) without loading full files into memory.
+  - **Directory import:** recursively adds folder trees, creating virtual directory index items while preserving relative paths and timestamps. Reparse points and symlinks are skipped with clear error reporting.
+  - **Virtual folder operations:** Create folder, rename item, and move item updating index metadata and monotonic revision.
+  - **Encrypted Trash:** moving to trash moves underlying encrypted object files to `trash/<prefix>/<id>.obj` and marks index item `IsTrash = true`. Items can be restored back to `data/` or permanently deleted. Empty trash removes all trash objects from disk and index.
+  - **Export with hash check:** decrypts files to destination directory with SHA-256 verification and file timestamp restoration. Supports "Move out of vault" option.
+  - **Drag and Drop:** supports dragging and dropping files or folders from Windows Explorer directly onto the page.
+- **Unit Tests (`VaultOperationsTests.cs`):**
+  - Added 5 new unit tests covering add file with round-trip verification, verify-before-delete, directory tree preservation, rename/move, trash/restore/permanent delete, and empty trash.
+  - Total Vault test suite passing: 44 tests.

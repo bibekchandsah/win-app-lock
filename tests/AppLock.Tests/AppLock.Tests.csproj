@@ -77,6 +77,9 @@
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultIndex.cs" Link="Services\Vault\VaultIndex.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultStorage.cs" Link="Services\Vault\VaultStorage.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\PasswordStrength.cs" Link="Services\Vault\PasswordStrength.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\VaultSessionManager.cs" Link="Services\Vault\VaultSessionManager.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\VaultOperations.cs" Link="Services\Vault\VaultOperations.cs" />
+    <Compile Include="..\..\src\AppLock\Services\LogService.cs" Link="Services\LogService.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\MuteWindow.cs" Link="Models\MuteWindow.cs" />
     <Compile Include="..\..\src\AppLock\Services\VolumeMixer\MuteSchedule.cs" Link="Services\VolumeMixer\MuteSchedule.cs" />

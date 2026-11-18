@@ -198,10 +198,14 @@
 
                                     <!-- Action Buttons -->
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button Content="Browse"
+                                                Click="CardBrowse_Click"
+                                                Tag="{x:Bind}"
+                                                Visibility="{x:Bind IsUnlocked, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                Style="{ThemeResource AccentButtonStyle}"/>
                                         <Button Content="{x:Bind OpenOrLockLabel, Mode=OneWay}"
                                                 Click="CardOpenLock_Click"
-                                                Tag="{x:Bind}"
-                                                Style="{ThemeResource AccentButtonStyle}"/>
+                                                Tag="{x:Bind}"/>
                                         <Button ToolTipService.ToolTip="Vault settings"
                                                 Click="CardSettings_Click"
                                                 Tag="{x:Bind}">

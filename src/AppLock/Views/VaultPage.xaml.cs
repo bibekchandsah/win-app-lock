@@ -138,6 +138,17 @@ public sealed partial class VaultPage : Page
 
     // ---- Card buttons -------------------------------------------------
 
+    private void CardBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not VaultCardViewModel card) return;
+
+        var session = ServiceContainer.VaultSessionManager.GetSession(card.Id);
+        if (session != null)
+        {
+            Frame.Navigate(typeof(VaultBrowserPage), session);
+        }
+    }
+
     private async void CardOpenLock_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not VaultCardViewModel card) return;
@@ -162,16 +173,7 @@ public sealed partial class VaultPage : Page
         if (dialog.UnlockedSession != null)
         {
             ViewModel.LoadVaults();
-            // Vault browser will be wired in Milestone 4
-            // For now, show a success message
-            var info = new InfoBar
-            {
-                Severity   = InfoBarSeverity.Success,
-                IsOpen     = true,
-                IsClosable = true,
-                Title      = "Vault unlocked",
-                Message    = $"'{reg.Name}' is now open. Vault browser coming in Milestone 4."
-            };
+            Frame.Navigate(typeof(VaultBrowserPage), dialog.UnlockedSession);
         }
     }
 
