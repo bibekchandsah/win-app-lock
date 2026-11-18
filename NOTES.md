@@ -1025,3 +1025,21 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   system error at exit. `ProcessExit` now runs managed-only cleanup once, guarded by an `Interlocked` flag that
   the normal exit path sets, so native teardown happens exactly once, while the runtime is still healthy.
 - This is a plausible-cause fix, not a reproduced one: without a crash dump there is no stack to confirm it.
+
+## PC Checker hardware tests
+
+- New `HardwareTestsPage`, opened from PC Checker → More → "Hardware tests…", with one tab per test:
+  CPU & RAM benchmark (single-thread and all-core arithmetic rates plus a memory-copy GB/s), disk read/write
+  (writes a 256 MB temporary file to the chosen drive, reads it back, deletes it), network speed (25 MB download,
+  reports the real path throughput), speaker tone (NAudio `WaveOutEvent` + `SignalGenerator` on a chosen device),
+  microphone level (NAudio `WaveInEvent`, peak meter, nothing written to disk), keyboard & mouse pad (echoes keys,
+  clicks and drags, with counters), camera preview (`MediaCapture` + `MediaFrameReader` into a
+  `SoftwareBitmapSource`, stopped and disposed on leave) and touch/pen capabilities.
+- Measurements live in `HardwareTestService` so the maths is separate from the page; the network test needs an
+  internet connection and says so, and the disk test refuses to start when the drive lacks free space.
+- `ProductKeyReader` decodes the installed key from `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion` →
+  `DigitalProductId`; it is shown as an identifier row (`os.productKey`) and the reveal button asks a
+  "Show the full product key?" warning first. The row explains that a Store digital licence is tied to the
+  account and hardware, so the decoded key may be a generic upgrade key.
+- `DevicesProvider` gained a "Touch and pen" group (touchable display, pen/stylus, simultaneous points,
+  multi-touch) from `GetSystemMetrics`. HDD/SSD type was already reported per disk in `StorageProvider`.

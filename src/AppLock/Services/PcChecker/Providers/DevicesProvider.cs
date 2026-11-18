@@ -21,6 +21,18 @@ public sealed class DevicesProvider : IInfoProvider
 
     public bool IsSupported(SystemContext ctx) => true;
 
+    // Windows digitizer bitmask (GetSystemMetrics SM_DIGITIZER) and the maximum-touch metric.
+    private const int SmDigitizer = 94;
+    private const int SmMaximumTouch = 95;
+    private const int NidIntegratedTouch = 0x01;
+    private const int NidExternalTouch = 0x02;
+    private const int NidIntegratedPen = 0x04;
+    private const int NidExternalPen = 0x08;
+    private const int NidMultiInput = 0x40;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
     public Task<InfoSection> CollectAsync(CollectOptions options, IProgress<double> progress, CancellationToken ct)
         => Task.Run(() => Collect(progress, ct), ct);
 
@@ -91,6 +103,29 @@ public sealed class DevicesProvider : IInfoProvider
             classGroup.Items.Add(InfoItem.Of($"devices.class.{group.Key}", group.Key,
                 group.Count() == 1 ? "1 device" : $"{group.Count()} devices", DetailLevel.Detailed,
                 "Devices in this Device Manager class.", source));
+        }
+
+        // ── Touch, pen and handwriting ──────────────────────────────────────────
+        var touchGroup = section.Group("Touch and pen");
+        int digitizer = GetSystemMetrics(SmDigitizer);
+        int maxTouches = GetSystemMetrics(SmMaximumTouch);
+        bool hasTouch = (digitizer & (NidIntegratedTouch | NidExternalTouch)) != 0;
+        bool hasPen = (digitizer & (NidIntegratedPen | NidExternalPen)) != 0;
+
+        touchGroup.Items.Add(InfoItem.Of("devices.touch", "Display is touchable", hasTouch ? "Yes" : "No", DetailLevel.Basic,
+            "Whether Windows reports a touch digitizer for this PC's display.", "Source: GetSystemMetrics(SM_DIGITIZER)",
+            hasTouch ? InfoStatus.Ok : InfoStatus.None));
+        touchGroup.Items.Add(InfoItem.Of("devices.pen", "Pen or stylus input", hasPen ? "Yes" : "No", DetailLevel.Basic,
+            "Whether a pen or stylus digitizer is present.", "Source: GetSystemMetrics(SM_DIGITIZER)"));
+
+        if (hasTouch)
+        {
+            touchGroup.Items.Add(InfoItem.Of("devices.touch.points", "Simultaneous touch points",
+                Math.Max(1, maxTouches).ToString(), DetailLevel.Detailed,
+                "How many fingers the touch digitizer can track at once.", "Source: GetSystemMetrics(SM_MAXIMUMTOUCHES)"));
+            touchGroup.Items.Add(InfoItem.Of("devices.touch.multi", "Multi-touch",
+                (digitizer & NidMultiInput) != 0 ? "Supported" : "Not supported", DetailLevel.Detailed, null,
+                "Source: GetSystemMetrics(SM_DIGITIZER)"));
         }
 
         // ── Specific views ──────────────────────────────────────────────────────

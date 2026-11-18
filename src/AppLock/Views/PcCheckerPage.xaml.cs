@@ -200,6 +200,12 @@ public sealed partial class PcCheckerPage : Page
         Frame.Navigate(typeof(OthersPage));
     }
 
+    /// <summary>Opens the interactive hardware tests (benchmarks, tone, level, camera, input).</summary>
+    private void OpenHardwareTests_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(HardwareTestsPage));
+    }
+
     /// <summary>Relaunches AppLock elevated through the standard UAC prompt (shared helper).</summary>
     private async void RestartAdminButton_Click(object sender, RoutedEventArgs e)
     {
@@ -864,10 +870,36 @@ public sealed partial class PcCheckerPage : Page
         CopyToClipboard(row.DisplayValue);
     }
 
-    private void RevealRow_Click(object sender, RoutedEventArgs e)
+    private async void RevealRow_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.DataContext is not InfoItemRow row) return;
-        row.IsRevealed = !row.IsRevealed;
+
+        if (row.IsRevealed)
+        {
+            row.IsRevealed = false;
+            return;
+        }
+
+        // The product key is a licence secret; make the consequence explicit before showing it in full.
+        if (row.Key.StartsWith("os.productKey", StringComparison.OrdinalIgnoreCase))
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ActualTheme,
+                Title = "Show the full product key?",
+                Content = "This key can be used to activate Windows on another PC, and anyone who sees it can copy it.\n\n" +
+                          "Only show it when you need it for your own record or a support call, and do not post it online.\n\n" +
+                          "A digital licence from the Store is tied to your Microsoft account anyway.",
+                PrimaryButtonText = "Show the key",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        }
+
+        row.IsRevealed = true;
     }
 
     private void Tile_Click(object sender, RoutedEventArgs e)

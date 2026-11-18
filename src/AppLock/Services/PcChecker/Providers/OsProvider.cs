@@ -123,6 +123,19 @@ public sealed class OsProvider : IInfoProvider
                 "Source: WMI SoftwareLicensingProduct"));
         }
 
+        // The full installed key, decoded from the registry value Windows keeps for its own licensing. It stays
+        // masked until someone asks for it, and the page warns about misuse before revealing it.
+        var installedKey = ProductKeyReader.ReadInstalledKey();
+        status.Items.Add(installedKey != null
+            ? InfoItem.Of("os.productKey", "Product key (full)", installedKey, DetailLevel.Detailed,
+                "The key installed on this PC, decoded from Windows' own DigitalProductId. Treat it like a password: " +
+                "anyone who has it can try to activate Windows with it. A digital licence is tied to your Microsoft " +
+                "account and this hardware instead.",
+                "Source: registry HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+                InfoStatus.Info, InfoSensitivity.Identifier)
+            : InfoItem.MissingValue("os.productKey", "Product key (full)", MissingReason.NotReported, DetailLevel.Detailed,
+                "Source: registry HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"));
+
         var rebootReasons = PendingRebootReasons();
         var rebootItem = InfoItem.Of("os.pendingReboot", "Pending reboot",
             rebootReasons.Count == 0 ? "No" : $"Yes ({string.Join(", ", rebootReasons)})", DetailLevel.Basic,
