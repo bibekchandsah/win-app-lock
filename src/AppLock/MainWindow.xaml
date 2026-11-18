@@ -154,39 +154,52 @@
                         </Grid>
                     </Button>
                     
-                    <Button x:Name="RulesNavButton" 
+                    <Button x:Name="VaultNavButton" 
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="8"
-                            IsEnabled="False"
+                            Click="VaultNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
-                            ToolTipService.ToolTip="Rules/Profiles (Coming Soon)">
+                            ToolTipService.ToolTip="Vault">
                         <Grid Height="40" HorizontalAlignment="Stretch">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <FontIcon x:Name="RulesNavIcon"
-                                      Glyph="&#xE90F;" 
-                                      Grid.Column="0"
-                                      FontSize="16" 
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                            <TextBlock x:Name="RulesNavLabel"
-                                       Grid.Column="1"
-                                       Text="Rules (Coming Soon)"
-                                       FontSize="13"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,12,0"
-                                       TextTrimming="CharacterEllipsis"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       Visibility="Collapsed"/>
+                            <Border x:Name="VaultNavBackground"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="VaultNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="VaultNavIcon" 
+                                          Grid.Column="0"
+                                          Glyph="&#xF540;" 
+                                          FontSize="16"
+                                          HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="VaultNavLabel"
+                                           Grid.Column="1"
+                                           Text="Vault"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </Button>
                     

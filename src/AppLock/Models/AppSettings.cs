@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AppLock.Models.Vault;
 
 namespace AppLock.Models;
 
@@ -97,6 +98,9 @@ public class AppSettings
 
     // PC Checker
     public PcChecker.PcCheckerSettings PcChecker { get; set; } = new();
+
+    // Vault
+    public VaultSettings Vault { get; set; } = new();
 
     // First run
     public bool IsFirstRun { get; set; } = true;

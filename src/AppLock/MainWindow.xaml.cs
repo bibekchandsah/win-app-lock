@@ -321,6 +321,7 @@ public sealed partial class MainWindow : Window
     private void UpdateNavSelection(Type? pageType)
     {
         bool isProtection = pageType == typeof(ProtectionPage);
+        bool isVault = pageType == typeof(VaultPage) || (pageType != null && pageType.FullName?.StartsWith("AppLock.Views.Vault") == true);
         bool isFeedback = pageType == typeof(FeedbackPage);
         bool isSettings = pageType == typeof(SettingsPage);
         bool isBitLocker = pageType == typeof(BitLockerPage);
@@ -373,6 +374,9 @@ public sealed partial class MainWindow : Window
         UpdateNavItem(isProtection, ProtectionNavBackground, ProtectionNavIndicator, ProtectionNavIcon, ProtectionNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
+        UpdateNavItem(isVault, VaultNavBackground, VaultNavIndicator, VaultNavIcon, VaultNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
         UpdateNavItem(isFeedback, FeedbackNavBackground, FeedbackNavIndicator, FeedbackNavIcon, FeedbackNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
@@ -398,6 +402,7 @@ public sealed partial class MainWindow : Window
         // Slide the accent pill to whichever row is selected.
         Button? selectedButton =
             isProtection ? ProtectionNavButton :
+            isVault ? VaultNavButton :
             isFeedback ? FeedbackNavButton :
             isSettings ? SettingsNavButton :
             isInternetAccess ? InternetAccessNavButton :
@@ -407,8 +412,6 @@ public sealed partial class MainWindow : Window
         MoveNavSelectionPill(selectedButton, animate: true);
 
         if (NavTogglePaneIcon != null) NavTogglePaneIcon.Foreground = inactiveIconBrush;
-        if (RulesNavIcon != null) RulesNavIcon.Foreground = disabledBrush;
-        if (RulesNavLabel != null) RulesNavLabel.Foreground = disabledBrush;
         if (WebsitesNavIcon != null) WebsitesNavIcon.Foreground = disabledBrush;
         if (WebsitesNavLabel != null) WebsitesNavLabel.Foreground = disabledBrush;
     }
@@ -707,6 +710,22 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void VaultNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isMainAuthenticated) return;
+        if (ContentFrame.CurrentSourcePageType != typeof(VaultPage))
+        {
+            try
+            {
+                ContentFrame.Navigate(typeof(VaultPage));
+            }
+            catch (Exception ex)
+            {
+                LogService.LogAction("nav", $"Error navigating to VaultPage: {ex.Message}");
+            }
+        }
+    }
+
     private void FeedbackNavButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_isMainAuthenticated) return;
@@ -896,7 +915,7 @@ public sealed partial class MainWindow : Window
     {
         var labelVis = visible ? Visibility.Visible : Visibility.Collapsed;
         if (ProtectionNavLabel != null) ProtectionNavLabel.Visibility = labelVis;
-        if (RulesNavLabel != null) RulesNavLabel.Visibility = labelVis;
+        if (VaultNavLabel != null) VaultNavLabel.Visibility = labelVis;
         if (WebsitesNavLabel != null) WebsitesNavLabel.Visibility = labelVis;
         if (FeedbackNavLabel != null) FeedbackNavLabel.Visibility = labelVis;
         if (SettingsNavLabel != null) SettingsNavLabel.Visibility = labelVis;
@@ -963,7 +982,7 @@ public sealed partial class MainWindow : Window
     private IEnumerable<TextBlock> GetNavLabels()
     {
         if (ProtectionNavLabel != null) yield return ProtectionNavLabel;
-        if (RulesNavLabel != null) yield return RulesNavLabel;
+        if (VaultNavLabel != null) yield return VaultNavLabel;
         if (WebsitesNavLabel != null) yield return WebsitesNavLabel;
         if (FeedbackNavLabel != null) yield return FeedbackNavLabel;
         if (SettingsNavLabel != null) yield return SettingsNavLabel;
@@ -1213,13 +1232,13 @@ public sealed partial class MainWindow : Window
         var loc = ServiceContainer.LocalizationService;
         if (AppTitleText != null) AppTitleText.Text = loc["AppTitle"];
         if (ProtectionNavLabel != null) ProtectionNavLabel.Text = loc["NavProtection"];
-        if (RulesNavLabel != null) RulesNavLabel.Text = loc["NavRules"];
+        if (VaultNavLabel != null) VaultNavLabel.Text = loc["NavVault"];
         if (WebsitesNavLabel != null) WebsitesNavLabel.Text = loc["NavWebsites"];
         if (FeedbackNavLabel != null) FeedbackNavLabel.Text = loc["NavFeedback"];
         if (SettingsNavLabel != null) SettingsNavLabel.Text = loc["NavSettings"];
 
         if (ProtectionNavButton != null) ToolTipService.SetToolTip(ProtectionNavButton, loc["NavProtection"]);
-        if (RulesNavButton != null) ToolTipService.SetToolTip(RulesNavButton, loc["NavRules"]);
+        if (VaultNavButton != null) ToolTipService.SetToolTip(VaultNavButton, loc["NavVault"]);
         if (WebsitesNavButton != null) ToolTipService.SetToolTip(WebsitesNavButton, loc["NavWebsites"]);
         if (FeedbackNavButton != null) ToolTipService.SetToolTip(FeedbackNavButton, loc["NavFeedback"]);
         if (SettingsNavButton != null) ToolTipService.SetToolTip(SettingsNavButton, loc["NavSettings"]);

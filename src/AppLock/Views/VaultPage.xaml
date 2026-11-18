@@ -1,0 +1,247 @@
+<Page
+    x:Class="AppLock.Views.VaultPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AppLock.Views"
+    xmlns:vm="using:AppLock.ViewModels.Vault"
+    Background="Transparent">
+
+    <Page.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Command Bar -->
+        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Stretch" Background="Transparent">
+            <AppBarButton x:Name="CreateVaultButton" Label="Create vault" Icon="Add" Click="CreateVaultButton_Click"
+                          ToolTipService.ToolTip="Create a new encrypted vault"/>
+            <AppBarButton x:Name="OpenExistingVaultButton" Label="Open existing vault…" Icon="Folder" Click="OpenExistingVaultButton_Click"
+                          ToolTipService.ToolTip="Open an existing vault from disk"/>
+            <AppBarSeparator/>
+            <AppBarButton x:Name="LockAllButton" Label="Lock all" Click="LockAllButton_Click"
+                          ToolTipService.ToolTip="Instantly lock all open vaults">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE72E;"/>
+                </AppBarButton.Icon>
+            </AppBarButton>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Label="Vault settings" Icon="Setting" Click="VaultSettingsButton_Click"
+                              ToolTipService.ToolTip="Configure vault security and behavior"/>
+                <AppBarSeparator/>
+                <AppBarButton Label="How the vault protects you" Icon="Help" Click="HelpButton_Click"
+                              ToolTipService.ToolTip="Learn about vault security design and limitations"/>
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+
+        <!-- Page Header -->
+        <Grid Grid.Row="1" Padding="24,12,24,12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Vault"
+                           Style="{ThemeResource TitleTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="Encrypted folders that open only after you authenticate"
+                           Style="{ThemeResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- InfoBars -->
+        <StackPanel Grid.Row="2" Padding="24,0,24,12" Spacing="8">
+            <InfoBar x:Name="NotConnectedInfoBar"
+                     Severity="Warning"
+                     IsOpen="{x:Bind ViewModel.HasNotConnectedVaults, Mode=OneWay}"
+                     Title="Wrong drive?"
+                     Message="One or more vaults could not be found. Check if the external or network drive is connected."
+                     IsClosable="True"/>
+
+            <InfoBar x:Name="PendingRewrapInfoBar"
+                     Severity="Informational"
+                     IsOpen="{x:Bind ViewModel.HasPendingRewrapVaults, Mode=OneWay}"
+                     Title="Password sync needed"
+                     Message="This vault still uses your previous AppLock password. Unlock it and sync to use your new password."
+                     IsClosable="True"/>
+
+            <InfoBar x:Name="BitLockerTipInfoBar"
+                     Severity="Informational"
+                     IsOpen="{x:Bind ViewModel.ShowBitLockerTip, Mode=OneWay}"
+                     Title="Security Tip"
+                     Message="{x:Bind ViewModel.BitLockerTipMessage, Mode=OneWay}"
+                     IsClosable="True">
+                <InfoBar.ActionButton>
+                    <Button Content="Go to BitLocker" Click="GoToBitLockerButton_Click"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </StackPanel>
+
+        <!-- Content Area -->
+        <Grid Grid.Row="3" Margin="24,0,24,24">
+            <!-- Empty State -->
+            <Grid x:Name="EmptyStateGrid"
+                  Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                  MaxWidth="480">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <Border Width="80" Height="80"
+                            CornerRadius="40"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xF540;" FontSize="36"
+                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Create your first vault"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Your files are encrypted before they are stored. Without your password or recovery key, nobody can read them, including us."
+                               Style="{ThemeResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,8,0,0">
+                        <Button Content="Create vault"
+                                Style="{ThemeResource AccentButtonStyle}"
+                                Click="CreateVaultButton_Click"/>
+                        <Button Content="Open existing vault…"
+                                Click="OpenExistingVaultButton_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Vaults List -->
+            <ListView x:Name="VaultsList"
+                      Visibility="{x:Bind ViewModel.HasVaults, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                      ItemsSource="{x:Bind ViewModel.Vaults, Mode=OneWay}"
+                      SelectionMode="None">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,4"/>
+                        <Setter Property="CornerRadius" Value="8"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:VaultCardViewModel">
+                        <Border Padding="16,14">
+                            <Grid RowSpacing="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Row 0: Icon, Name/Path, Status Chip, Action Buttons -->
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Vault Icon -->
+                                    <Border Grid.Column="0"
+                                            Width="40" Height="40"
+                                            CornerRadius="8"
+                                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                            Margin="0,0,14,0"
+                                            VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xF540;"
+                                                  FontSize="20"
+                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+
+                                    <!-- Name and Path -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{x:Bind Name, Mode=OneWay}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="15"
+                                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <!-- Status Chip -->
+                                            <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <FontIcon Glyph="{x:Bind StatusGlyph, Mode=OneWay}"
+                                                              FontSize="11"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
+                                                               FontSize="11"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind ShortenedPath, Mode=OneWay}"
+                                                   ToolTipService.ToolTip="{x:Bind Path, Mode=OneWay}"
+                                                   FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- Action Buttons -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button Content="{x:Bind OpenOrLockLabel, Mode=OneWay}"
+                                                Click="CardOpenLock_Click"
+                                                Tag="{x:Bind}"
+                                                Style="{ThemeResource AccentButtonStyle}"/>
+                                        <Button ToolTipService.ToolTip="Vault settings"
+                                                Click="CardSettings_Click"
+                                                Tag="{x:Bind}">
+                                            <FontIcon Glyph="&#xE713;" FontSize="14"/>
+                                        </Button>
+                                        <Button ToolTipService.ToolTip="More options">
+                                            <FontIcon Glyph="&#xE712;" FontSize="14"/>
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="Back up vault…" Icon="Copy" Click="CardBackup_Click" Tag="{x:Bind}"/>
+                                                    <MenuFlyoutItem Text="Verify vault" Icon="Accept" Click="CardVerify_Click" Tag="{x:Bind}"/>
+                                                    <MenuFlyoutItem Text="Show in File Explorer" Icon="Folder" Click="CardShowExplorer_Click" Tag="{x:Bind}"/>
+                                                    <MenuFlyoutSeparator/>
+                                                    <MenuFlyoutItem Text="Remove from list" Icon="Cancel" Click="CardRemove_Click" Tag="{x:Bind}"/>
+                                                    <MenuFlyoutItem Text="Delete vault…" Icon="Delete" Click="CardDelete_Click" Tag="{x:Bind}"/>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Row 1: Size, Items count, Last opened -->
+                                <Grid Grid.Row="1" Margin="54,0,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="Size:" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{x:Bind SizeDisplay, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="Items:" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                            <TextBlock Text="{x:Bind ItemCountDisplay, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind LastOpenedDisplay, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+    </Grid>
+</Page>

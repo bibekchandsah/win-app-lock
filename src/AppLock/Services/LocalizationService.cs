@@ -84,6 +84,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Protection",
             ["NavRules"] = "Rules",
+            ["NavVault"] = "Vault",
             ["NavWebsites"] = "Websites",
             ["NavFeedback"] = "Feedback & Community",
             ["NavSettings"] = "Settings",
@@ -175,6 +176,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Protección",
             ["NavRules"] = "Reglas",
+            ["NavVault"] = "Bóveda",
             ["NavWebsites"] = "Sitios web",
             ["NavFeedback"] = "Comentarios y Comunidad",
             ["NavSettings"] = "Configuración",
@@ -264,6 +266,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Protection",
             ["NavRules"] = "Règles",
+            ["NavVault"] = "Coffre-fort",
             ["NavWebsites"] = "Sites web",
             ["NavFeedback"] = "Commentaires & Communauté",
             ["NavSettings"] = "Paramètres",
@@ -353,6 +356,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Schutz",
             ["NavRules"] = "Regeln",
+            ["NavVault"] = "Tresor",
             ["NavWebsites"] = "Websites",
             ["NavFeedback"] = "Feedback & Community",
             ["NavSettings"] = "Einstellungen",
@@ -442,6 +446,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Protezione",
             ["NavRules"] = "Regole",
+            ["NavVault"] = "Cassaforte",
             ["NavWebsites"] = "Siti web",
             ["NavFeedback"] = "Feedback & Community",
             ["NavSettings"] = "Impostazioni",
@@ -531,6 +536,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "Proteção",
             ["NavRules"] = "Regras",
+            ["NavVault"] = "Cofre",
             ["NavWebsites"] = "Sites",
             ["NavFeedback"] = "Feedback & Comunidade",
             ["NavSettings"] = "Configurações",
@@ -620,6 +626,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "应用保护",
             ["NavRules"] = "规则",
+            ["NavVault"] = "保管库",
             ["NavWebsites"] = "网站",
             ["NavFeedback"] = "反馈与社区",
             ["NavSettings"] = "设置",
@@ -709,6 +716,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "保護",
             ["NavRules"] = "ルール",
+            ["NavVault"] = "保管庫",
             ["NavWebsites"] = "ウェブサイト",
             ["NavFeedback"] = "フィードバック & コミュニティ",
             ["NavSettings"] = "設定",
@@ -798,6 +806,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "सुरक्षा",
             ["NavRules"] = "नियमहरू",
+            ["NavVault"] = "भोल्ट",
             ["NavWebsites"] = "वेबसाइटहरू",
             ["NavFeedback"] = "प्रतिक्रिया र समुदाय",
             ["NavSettings"] = "सेटिङहरू",
@@ -887,6 +896,7 @@ public class LocalizationService
         {
             ["NavProtection"] = "सुरक्षा",
             ["NavRules"] = "नियम",
+            ["NavVault"] = "तिजोरी",
             ["NavWebsites"] = "वेबसाइटें",
             ["NavFeedback"] = "प्रतिक्रिया और समुदाय",
             ["NavSettings"] = "सेटिंग्स",

@@ -61,6 +61,7 @@
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\Vault\VaultSettings.cs" Link="Models\Vault\VaultSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\MuteWindow.cs" Link="Models\MuteWindow.cs" />
     <Compile Include="..\..\src\AppLock\Services\VolumeMixer\MuteSchedule.cs" Link="Services\VolumeMixer\MuteSchedule.cs" />

@@ -1085,3 +1085,13 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - Known limits: keys Windows intercepts before XAML (Windows key, Ctrl+Alt+Del, Alt+Tab) never reach the pad,
   Tab moves focus instead of reaching KeyDown, and the layout assumes the US ANSI arrangement — the caps are a
   visual guide, not a remapping of the physical keyboard.
+
+
+## Vault Feature — Milestone 1 (Sidebar and Shell)
+
+- **Sidebar change:** Rules placeholder (`RulesNavButton`) in `MainWindow.xaml` replaced with `VaultNavButton` in the same second position after Protection, enabled (`IsEnabled="True"`).
+- **Icon:** Safe/Vault glyph `\uF540` from Segoe Fluent Icons (verified present in the font typeface). It renders a safe with a dial wheel and is distinctly recognizable from the Protection padlock (`\uE72E`).
+- **Placeholder reference update:** The `instructions.md` placeholder reference ("Rules/Profiles") is superseded by Vault. If a Profiles feature is built later, it will go under Protection or Settings, not here.
+- **Models:** Created `Models/Vault/VaultSettings.cs` with `VaultSettings` and `VaultRegistration`, added `Vault` property to `AppSettings`, and linked in `AppLock.Tests.csproj`.
+- **ViewModels & Views:** Created `VaultListViewModel`, `VaultCardViewModel`, and `VaultPage.xaml(.cs)` with empty state, vault cards list, command bar (Create vault, Open existing vault…, Lock all), InfoBars (Not connected, Pending password rewrap, BitLocker tip), and More menu flyout actions.
+- **Theme integration:** The app theme (Light/Dark/System) uses WinUI 3 theme resources exclusively (`ThemeResource` brushes: `CardBackgroundFillColorDefaultBrush`, `CardStrokeColorDefaultBrush`, `TextFillColorPrimaryBrush`, `TextFillColorSecondaryBrush`, `TextFillColorTertiaryBrush`, `AccentFillColorDefaultBrush`, `SubtleFillColorSecondaryBrush`, `AccentButtonStyle`). No hardcoded light/dark colors are used in `VaultPage.xaml`, ensuring seamless live theme switching.
