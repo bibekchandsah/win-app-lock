@@ -10,6 +10,7 @@ using AppLock.Services.PcChecker;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Windows.Media.Capture;
@@ -53,6 +54,13 @@ namespace AppLock.Views
         private int _rightClicks;
         private int _otherClicks;
 
+        /// <summary>Key caps keyed by <see cref="Windows.System.VirtualKey"/> name, so a key press can light one up.</summary>
+        private readonly Dictionary<string, Border> _keyCaps = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _heldKeys = new();
+        private Brush? _keyCapBackground;
+        private Brush? _keyCapForeground;
+        private Brush? _keyCapHighlight;
+
         public HardwareTestsPage()
         {
             this.InitializeComponent();
@@ -67,6 +75,104 @@ namespace AppLock.Views
             FillSpeakers();
             FillMicrophones();
             DescribeTouch();
+            BuildKeyboardLayout();
+        }
+
+        private void BuildKeyboardLayout()
+        {
+            if (_keyCaps.Count > 0) return;
+
+            _keyCapBackground = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+            _keyCapForeground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            _keyCapHighlight = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+
+            KeyboardLayoutHost.Children.Clear();
+            _keyCaps.Clear();
+
+            // label | VirtualKey name | width in key units
+            var mainRows = new[]
+            {
+                new[] { "Esc|Escape|1.3", "F1|F1|1", "F2|F2|1", "F3|F3|1", "F4|F4|1", "F5|F5|1", "F6|F6|1",
+                        "F7|F7|1", "F8|F8|1", "F9|F9|1", "F10|F10|1", "F11|F11|1", "F12|F12|1" },
+                new[] { "\u0060|OemTilde|1", "1|Number1|1", "2|Number2|1", "3|Number3|1", "4|Number4|1", "5|Number5|1",
+                        "6|Number6|1", "7|Number7|1", "8|Number8|1", "9|Number9|1", "0|Number0|1", "-|OemMinus|1",
+                        "=|OemPlus|1", "Backspace|Back|2" },
+                new[] { "Tab|Tab|1.5", "Q|Q|1", "W|W|1", "E|E|1", "R|R|1", "T|T|1", "Y|Y|1", "U|U|1", "I|I|1",
+                        "O|O|1", "P|P|1", "[|OemOpenBrackets|1", "]|OemCloseBrackets|1", "\\|OemPipe|1.5" },
+                new[] { "Caps|CapitalLock|1.8", "A|A|1", "S|S|1", "D|D|1", "F|F|1", "G|G|1", "H|H|1", "J|J|1",
+                        "K|K|1", "L|L|1", ";|OemSemicolon|1", "'|OemQuotes|1", "Enter|Enter|2.2" },
+                new[] { "Shift|LeftShift|2.3", "Z|Z|1", "X|X|1", "C|C|1", "V|V|1", "B|B|1", "N|N|1", "M|M|1",
+                        ",|OemComma|1", ".|OemPeriod|1", "/|OemQuestion|1", "Shift|RightShift|2.7" },
+                new[] { "Ctrl|Control|1.3", "Win|LeftWindows|1.1", "Alt|Menu|1.1", "Space|Space|6.3",
+                        "Alt|RightMenu|1.1", "Win|RightWindows|1.1", "Menu|Application|1.1", "Ctrl|RightControl|1.3" }
+            };
+
+            var navigationRows = new[]
+            {
+                new[] { "PrtSc|Snapshot|1", "ScrLk|Scroll|1", "Pause|Pause|1" },
+                new[] { "Ins|Insert|1", "Home|Home|1", "PgUp|PageUp|1" },
+                new[] { "Del|Delete|1", "End|End|1", "PgDn|PageDown|1" },
+                new[] { "|None|1", "\u2191|Up|1", "|None|1" },
+                new[] { "\u2190|Left|1", "\u2193|Down|1", "\u2192|Right|1" }
+            };
+
+            var numpadRows = new[]
+            {
+                new[] { "Num|NumberKeyLock|1", "/|Divide|1", "*|Multiply|1", "-|Subtract|1" },
+                new[] { "7|NumberPad7|1", "8|NumberPad8|1", "9|NumberPad9|1", "+|Add|1" },
+                new[] { "4|NumberPad4|1", "5|NumberPad5|1", "6|NumberPad6|1", "|None|1" },
+                new[] { "1|NumberPad1|1", "2|NumberPad2|1", "3|NumberPad3|1", "Enter|NumberPadEnter|1" },
+                new[] { "0|NumberPad0|1.6", ".|Decimal|1", "|None|1.4" }
+            };
+
+            KeyboardLayoutHost.Children.Add(BuildCluster(mainRows));
+            KeyboardLayoutHost.Children.Add(BuildCluster(navigationRows));
+            KeyboardLayoutHost.Children.Add(BuildCluster(numpadRows));
+        }
+
+        private StackPanel BuildCluster(string[][] rows)
+        {
+            var cluster = new StackPanel { Spacing = 3 };
+
+            foreach (var row in rows)
+            {
+                var rowPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+                foreach (var definition in row)
+                {
+                    var parts = definition.Split('|');
+                    string label = parts[0];
+                    string keyName = parts.Length > 1 ? parts[1] : string.Empty;
+                    double units = parts.Length > 2 && double.TryParse(parts[2], out var value) ? value : 1;
+
+                    var cap = new Border
+                    {
+                        Width = Math.Round(26 * units) + Math.Max(0, (int)Math.Round(units) - 1) * 3,
+                        Height = 26,
+                        CornerRadius = new CornerRadius(4),
+                        Background = parts.Length > 1 && keyName == "None" ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : _keyCapBackground,
+                        BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                        BorderThickness = new Thickness(keyName == "None" ? 0 : 1),
+                        Child = new TextBlock
+                        {
+                            Text = label,
+                            FontSize = 9.5,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Foreground = _keyCapForeground
+                        }
+                    };
+
+                    if (!string.IsNullOrEmpty(keyName) && keyName != "None")
+                    {
+                        _keyCaps[keyName] = cap;
+                    }
+
+                    rowPanel.Children.Add(cap);
+                }
+                cluster.Children.Add(rowPanel);
+            }
+
+            return cluster;
         }
 
         private void HardwareTestsPage_Unloaded(object sender, RoutedEventArgs e)
@@ -457,9 +563,97 @@ namespace AppLock.Views
 
         private void InputPad_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            _keyCount++;
-            LastInputText.Text = $"Key: {e.Key} (virtual key {(int)e.Key})";
+            string name = e.Key.ToString();
+            bool firstPress = HighlightKey(name, true);
+
+            if (firstPress)
+            {
+                _keyCount++;
+                _heldKeys.Add(name);
+            }
+
+            LastInputText.Text = $"Key: {DescribeKey(name)} (virtual key {(int)e.Key})";
             UpdateInputCounts();
+            UpdateHeldKeys();
+        }
+
+        private void InputPad_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            string name = e.Key.ToString();
+            HighlightKey(name, false);
+            _heldKeys.Remove(name);
+            UpdateHeldKeys();
+        }
+
+        private void InputPad_LostFocus(object sender, RoutedEventArgs e)
+        {
+            // A key held while focus left would stay lit forever; let go of every cap.
+            foreach (var cap in _keyCaps.Values) ResetKeyCap(cap);
+            _heldKeys.Clear();
+            UpdateHeldKeys();
+        }
+
+        /// <summary>Lights a key cap up or restores it. Returns false when the key was already lit.</summary>
+        private bool HighlightKey(string keyName, bool down)
+        {
+            if (!_keyCaps.TryGetValue(keyName, out var cap)) return false;
+
+            if (!down)
+            {
+                ResetKeyCap(cap);
+                return true;
+            }
+
+            if (cap.Tag is true) return false;
+
+            cap.Tag = true;
+            cap.Background = _keyCapHighlight;
+            if (cap.Child is TextBlock text) text.Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
+            return true;
+        }
+
+        private void ResetKeyCap(Border cap)
+        {
+            cap.Tag = null;
+            cap.Background = _keyCapBackground;
+            if (cap.Child is TextBlock text) text.Foreground = _keyCapForeground;
+        }
+
+        private static string DescribeKey(string keyName) => keyName switch
+        {
+            "CapitalLock" => "Caps Lock",
+            "NumberKeyLock" => "Num Lock",
+            "Snapshot" => "Print Screen",
+            "OemTilde" => "`",
+            "OemMinus" => "-",
+            "OemPlus" => "=",
+            "OemOpenBrackets" => "[",
+            "OemCloseBrackets" => "]",
+            "OemPipe" => "\\",
+            "OemSemicolon" => ";",
+            "OemQuotes" => "'",
+            "OemComma" => ",",
+            "OemPeriod" => ".",
+            "OemQuestion" => "/",
+            "Space" => "Space",
+            "Control" => "Left Ctrl",
+            "RightControl" => "Right Ctrl",
+            "LeftWindows" => "Left Win",
+            "RightWindows" => "Right Win",
+            "Menu" => "Left Alt",
+            "RightMenu" => "Right Alt",
+            "Application" => "Menu",
+            "LeftShift" => "Left Shift",
+            "RightShift" => "Right Shift",
+            "NumberPadEnter" => "Numpad Enter",
+            _ => keyName.StartsWith("NumberPad", StringComparison.Ordinal) ? $"Numpad {keyName[9..]}" : keyName
+        };
+
+        private void UpdateHeldKeys()
+        {
+            HeldKeysText.Text = _heldKeys.Count == 0
+                ? "Keys held: none"
+                : "Keys held: " + string.Join(" + ", _heldKeys.Select(DescribeKey));
         }
 
         private void UpdateInputCounts()
@@ -470,8 +664,12 @@ namespace AppLock.Views
         private void ResetInput_Click(object sender, RoutedEventArgs e)
         {
             _keyCount = _leftClicks = _rightClicks = _otherClicks = 0;
+            _heldKeys.Clear();
+            foreach (var cap in _keyCaps.Values) ResetKeyCap(cap);
+
             LastInputText.Text = "No input yet.";
             UpdateInputCounts();
+            UpdateHeldKeys();
         }
 
         // ── Camera ───────────────────────────────────────────────────────────────

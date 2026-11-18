@@ -1074,3 +1074,14 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - The test page's `TabViewItem`s are `IsClosable="False"`, so the close crosses are gone.
 - `DisplayProvider` gained a "Touch and pen" group (touch screen, pen/stylus, simultaneous points, multi-touch)
   from `GetSystemMetrics`, so the Displays category answers that question directly instead of only Devices.
+
+## Keyboard & mouse test: on-screen layout
+
+- The blank "click here" pad is replaced by a real 104-key layout built in code: main block (Esc + F-row,
+  number row, QWERTY rows, bottom modifiers), navigation cluster (PrtSc/ScrLk/Pause, Ins/Home/PgUp,
+  Del/End/PgDn, arrows) and numpad. Each cap is a `Border` stored in `_keyCaps` under its `VirtualKey` name.
+- KeyDown lights the matching cap (accent background, on-accent glyph) and records the key in "Keys held";
+  KeyUp restores it, LostFocus releases everything so a key can't stay lit. Reset clears caps and counters.
+- Known limits: keys Windows intercepts before XAML (Windows key, Ctrl+Alt+Del, Alt+Tab) never reach the pad,
+  Tab moves focus instead of reaching KeyDown, and the layout assumes the US ANSI arrangement — the caps are a
+  visual guide, not a remapping of the physical keyboard.

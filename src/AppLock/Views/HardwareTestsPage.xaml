@@ -245,23 +245,29 @@
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="Click inside the pad, then type any keys and click the mouse buttons. Each input is echoed here, so a key or button that never appears is a key or button that is not reaching Windows."/>
                                 <Border x:Name="InputPad"
-                                        Height="180"
                                         IsTabStop="True"
                                         Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                         BorderThickness="1"
                                         CornerRadius="6"
+                                        Padding="10"
                                         KeyDown="InputPad_KeyDown"
+                                        KeyUp="InputPad_KeyUp"
+                                        LostFocus="InputPad_LostFocus"
                                         PointerPressed="InputPad_PointerPressed"
                                         PointerMoved="InputPad_PointerMoved"
                                         AutomationProperties.Name="Keyboard and mouse test pad">
-                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
-                                        <FontIcon Glyph="&#xE765;" FontSize="22" HorizontalAlignment="Center"
-                                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Text="Click here first, then use the keyboard or mouse"
-                                                   FontSize="12"
-                                                   TextAlignment="Center"
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="InputPadHint"
+                                                   Text="Click a key or the space below, then press keys — each one lights up while it is held."
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <!-- Laid out like a real keyboard, built in code so every cap can be looked up by key -->
+                                        <StackPanel x:Name="KeyboardLayoutHost"
+                                                    Orientation="Horizontal"
+                                                    Spacing="10"
+                                                    HorizontalAlignment="Left"/>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock x:Name="LastInputText"
@@ -271,6 +277,10 @@
                                            IsTextSelectionEnabled="True"/>
                                 <TextBlock x:Name="InputCountText"
                                            Text="Keys: 0 left clicks: 0 right clicks: 0 other buttons: 0"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="HeldKeysText"
+                                           Text="Keys held: none"
                                            FontSize="12"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 <Button Content="Reset counters" Click="ResetInput_Click"/>
