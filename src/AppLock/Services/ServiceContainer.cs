@@ -52,6 +52,19 @@ public static class ServiceContainer
     private static AppLock.Services.SpeedMeter.SpeedMeterService? _speedMeterService;
     private static AppLock.Services.Network.NetworkScannerService? _networkScannerService;
     private static AppLock.Services.Firewall.PortWatchService? _portWatchService;
+    private static AppLock.Services.Vault.VaultSessionManager? _vaultSessionManager;
+
+    public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
+    {
+        get
+        {
+            if (_vaultSessionManager == null)
+            {
+                _vaultSessionManager = new AppLock.Services.Vault.VaultSessionManager();
+            }
+            return _vaultSessionManager;
+        }
+    }
 
     public static NotificationService NotificationService
     {

@@ -380,16 +380,16 @@ fixed - in protection page in running applications list is clicked then it bring
 fixed - need to fix this error, it shows during exit of application: WinUI Desktop: AppLock.exe - System Error  X  x  The system detected an overrun of a stack-based buffer in this application. This overrun could potentially allow a malicious user to gain control of this application. 
 
 
-implemnted - pc details
-show full product key after showing warning of misuse
-show the display is touchable or not too pen and touch 
-selected disk read/write speed test
-network speed test
-selected speaker check
-selected microphone check
-keyboard & mouse test
-camera test 
-CPU & RAM test
+implemented - pc details
+implemented - show full product key after showing warning of misuse
+implemented - show the display is touchable or not too pen and touch 
+implemented - selected disk read/write speed test
+implemented - network speed test
+implemented - selected speaker check
+implemented - selected microphone check
+implemented - keyboard & mouse test
+implemented - camera test 
+implemented - CPU & RAM test
 disk HDD/SSD 
 
 

@@ -14,6 +14,9 @@ public class SettingsStore
     private static readonly string SettingsFilePath = Path.Combine(AppDataPath, "settings.json");
     private static readonly string LogsPath = Path.Combine(AppDataPath, "logs");
 
+    /// <summary>The AppLock data directory (e.g. %APPDATA%\AppLock).</summary>
+    public string SettingsDirectory => AppDataPath;
+
     public SettingsStore()
     {
         EnsureDirectoriesExist();

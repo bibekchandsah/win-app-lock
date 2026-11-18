@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
@@ -62,6 +63,20 @@
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultSettings.cs" Link="Models\Vault\VaultSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\Vault\KeySlot.cs" Link="Models\Vault\KeySlot.cs" />
+    <Compile Include="..\..\src\AppLock\Models\Vault\VaultConfig.cs" Link="Models\Vault\VaultConfig.cs" />
+    <Compile Include="..\..\src\AppLock\Models\Vault\IndexEntry.cs" Link="Models\Vault\IndexEntry.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\IKdf.cs" Link="Services\Vault\Crypto\IKdf.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\Argon2Kdf.cs" Link="Services\Vault\Crypto\Argon2Kdf.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\RecoveryKey.cs" Link="Services\Vault\Crypto\RecoveryKey.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\VaultCrypto.cs" Link="Services\Vault\Crypto\VaultCrypto.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\KeySlots.cs" Link="Services\Vault\Crypto\KeySlots.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\FileObjectWriter.cs" Link="Services\Vault\Crypto\FileObjectWriter.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\FileObjectReader.cs" Link="Services\Vault\Crypto\FileObjectReader.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\ChunkedCryptoStream.cs" Link="Services\Vault\Crypto\ChunkedCryptoStream.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\VaultIndex.cs" Link="Services\Vault\VaultIndex.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\VaultStorage.cs" Link="Services\Vault\VaultStorage.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\PasswordStrength.cs" Link="Services\Vault\PasswordStrength.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\MuteWindow.cs" Link="Models\MuteWindow.cs" />
     <Compile Include="..\..\src\AppLock\Services\VolumeMixer\MuteSchedule.cs" Link="Services\VolumeMixer\MuteSchedule.cs" />

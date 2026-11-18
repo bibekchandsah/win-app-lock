@@ -1095,3 +1095,43 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - **Models:** Created `Models/Vault/VaultSettings.cs` with `VaultSettings` and `VaultRegistration`, added `Vault` property to `AppSettings`, and linked in `AppLock.Tests.csproj`.
 - **ViewModels & Views:** Created `VaultListViewModel`, `VaultCardViewModel`, and `VaultPage.xaml(.cs)` with empty state, vault cards list, command bar (Create vault, Open existing vault…, Lock all), InfoBars (Not connected, Pending password rewrap, BitLocker tip), and More menu flyout actions.
 - **Theme integration:** The app theme (Light/Dark/System) uses WinUI 3 theme resources exclusively (`ThemeResource` brushes: `CardBackgroundFillColorDefaultBrush`, `CardStrokeColorDefaultBrush`, `TextFillColorPrimaryBrush`, `TextFillColorSecondaryBrush`, `TextFillColorTertiaryBrush`, `AccentFillColorDefaultBrush`, `SubtleFillColorSecondaryBrush`, `AccentButtonStyle`). No hardcoded light/dark colors are used in `VaultPage.xaml`, ensuring seamless live theme switching.
+
+
+## Vault Feature — Milestone 2 (Crypto Core)
+
+- **Argon2id Library Choice:** Evaluated pure .NET implementations and selected `Konscious.Security.Cryptography.Argon2` (version 1.3.1). It provides a fully managed, SIMD-accelerated implementation of Argon2id with no unmanaged C runtime dependencies, ensuring high portability and memory safety on Windows.
+- **Key Hierarchy Implementation:**
+  - 256-bit Vault Master Key (VMK) generated with `RandomNumberGenerator`.
+  - Sub-keys derived via HKDF-SHA256 with fixed info labels (`index-key`, `fek-wrap-key`, `config-mac-key`, `verifier-key`) and `vaultId` salt.
+  - Verifier uses AES-256-GCM over a fixed 32-byte known plaintext string to validate password and recovery keys without touching file objects.
+  - Key slots: password slot (`Argon2id` derived KEK, wrapped VMK with AES-256-GCM and slot AAD) and recovery slot (`HKDF-SHA256` derived KEK from 160-bit recovery key).
+- **KDF Floors:** Enforced `m >= 64 MiB` and `t >= 3` on all configurations and key slots during load to block downgrade attacks.
+- **Recovery Key Format:** 160 bits of entropy encoded into 8 groups of 5 characters (40 characters) using an unambiguous Crockford Base32 alphabet (omitting I, L, O, U) plus a 5-byte SHA-256 checksum. Validates against typo errors before any slot operations.
+- **File Object Binary Format:**
+  - 114-byte authenticated header (`ALV1` magic, version 1, AES-256-GCM cipher ID, chunk size, 16-byte fileId, 60-byte wrapped FEK, 8-byte nonce prefix, 16-byte header authentication tag).
+  - Chunked AES-256-GCM streaming with `nonce = prefix || counter (big-endian)` and `AAD = fileId || chunkIndex || finalChunkFlag`.
+  - Implemented `ChunkedCryptoStream` supporting random-access seeks and chunk-level caching for media seeking.
+- **Encrypted Index & Atomic Storage:**
+  - `index.enc` with GZip-compressed JSON encrypted via AES-256-GCM and monotonic revision counter with rollback detection.
+  - Two-generation atomic storage (`.bak` fallback) for `vault.config` and `index.enc` using atomic file replacement.
+  - Fan-out object storage in `data/<prefix>/` and `trash/<prefix>/` with orphan object scanning.
+- **Unit Test Suite:** 30 comprehensive tests in `tests/AppLock.Tests/Vault/` covering round-trip across various chunk/file sizes, random access seeking, RFC 5869 HKDF test vectors, password re-wrapping leaving file data untouched, tamper detection (header, ciphertext, tag, reordering, truncation), and atomic backup recovery. All 30 tests pass.
+
+
+## Vault Feature — Milestone 3 (Create Wizard, Unlock, Lock)
+
+- **Create Vault Wizard (`CreateVaultWizardDialog.xaml/.cs`):**
+  - Multi-step `ContentDialog` with progressive dot indicators (Steps 1–5).
+  - Step 1: Name and location with automatic path suggestion (`%LOCALAPPDATA%\AppLock\Vaults\<name>`), FolderPicker integration via `WindowNative`, validation blocking Windows, Program Files, and AppLock settings folders.
+  - Step 2: Password setup with minimum 10 characters requirement, password strength evaluator (`PasswordStrength.cs`) checking variety and an offline common-passwords dictionary, weak password warnings, and dual confirmation.
+  - Step 3: Crockford Base32 160-bit recovery key display with copy-to-clipboard (60-second auto-clear timer) and file export. Proof challenge requires typing back two randomly chosen groups before proceeding.
+  - Step 4: Vault options (auto-lock minutes, secure preview only toggle, trash retention days, screen capture protection toggle).
+  - Step 5: Background creation task via `VaultFactory.CreateVaultAsync` with step progress reporting and sensitive key zeroing via `CryptographicOperations.ZeroMemory`.
+- **Unlock Dialog (`UnlockVaultDialog.xaml/.cs`):**
+  - Supports both password unlock and recovery key unlock modes.
+  - Shared failed-attempt tracking, clear password memory clearing, and lockout messaging.
+  - "Keep unlocked for" duration selector.
+- **Session & Lifetime Management (`VaultSessionManager.cs`):**
+  - Manages active in-memory `VaultSession` instances with zeroed keys on lock/exit.
+  - Events for `VaultLocked` and `VaultUnlocked` automatically refreshing vault card states in `VaultListViewModel`.
+  - Global "Lock all" command bar action.

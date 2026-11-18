@@ -174,10 +174,6 @@ public class HelloService
                     int classLen = PInvoke.GetClassName(hwnd, new PWSTR(classBuffer), bufferSize);
                     string className = classLen > 0 ? new string(classBuffer, 0, classLen) : string.Empty;
 
-                    var titleBuffer = stackalloc char[bufferSize];
-                    int titleLen = PInvoke.GetWindowText(hwnd, new PWSTR(titleBuffer), bufferSize);
-                    string title = titleLen > 0 ? new string(titleBuffer, 0, titleLen) : string.Empty;
-
                     bool isTarget = false;
                     if (!string.IsNullOrEmpty(className))
                     {
@@ -189,8 +185,11 @@ public class HelloService
                         }
                     }
 
-                    if (!isTarget && !string.IsNullOrEmpty(title))
+                    if (!isTarget && (className == "#32770" || className.Contains("Credential") || className.Contains("Windows.UI.Core.CoreWindow")))
                     {
+                        var titleBuffer = stackalloc char[bufferSize];
+                        int titleLen = PInvoke.GetWindowText(hwnd, new PWSTR(titleBuffer), bufferSize);
+                        string title = titleLen > 0 ? new string(titleBuffer, 0, titleLen) : string.Empty;
                         if (title.Equals("Windows Security", StringComparison.OrdinalIgnoreCase) ||
                             title.Equals("Windows Hello", StringComparison.OrdinalIgnoreCase))
                         {

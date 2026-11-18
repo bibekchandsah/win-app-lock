@@ -5,6 +5,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using AppLock.Models.Vault;
 using AppLock.Services;
+using AppLock.Services.Vault;
 
 namespace AppLock.ViewModels.Vault;
 
@@ -47,6 +48,17 @@ public partial class VaultListViewModel : ObservableObject
             if (!Directory.Exists(reg.Path))
             {
                 card.Status = VaultStatus.NotConnected;
+            }
+            else if (ServiceContainer.VaultSessionManager.IsUnlocked(reg.Id))
+            {
+                card.IsUnlocked = true;
+                card.Status = VaultStatus.Unlocked;
+                var session = ServiceContainer.VaultSessionManager.GetSession(reg.Id);
+                if (session != null)
+                {
+                    card.ItemCountDisplay = $"{session.Index.Items.Count} items";
+                    card.SizeDisplay = "Open";
+                }
             }
             else if (reg.PendingRewrap)
             {

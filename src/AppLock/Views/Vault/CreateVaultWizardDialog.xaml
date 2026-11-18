@@ -1,0 +1,280 @@
+<ContentDialog
+    x:Class="AppLock.Views.Vault.CreateVaultWizardDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Create Vault"
+    PrimaryButtonText="Next"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="PrimaryButton_Click">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="560">
+        <StackPanel Spacing="16" MinWidth="400" MaxWidth="480" Padding="0,4,0,0">
+
+            <!-- Step indicator -->
+            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                <Ellipse x:Name="Dot1" Width="8" Height="8"
+                         Fill="{ThemeResource AccentFillColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot2" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot3" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot4" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot5" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 1: Name & Location ===================== -->
+            <StackPanel x:Name="Step1Panel" Spacing="14" Visibility="Visible">
+                <TextBlock Text="Name and location"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="Choose a name and where to store your vault's encrypted files."
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <TextBox x:Name="VaultNameBox"
+                         Header="Vault name"
+                         PlaceholderText="e.g. My Private Files"
+                         CornerRadius="4"
+                         TextChanged="VaultNameBox_TextChanged"/>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Location" FontSize="13" FontWeight="SemiBold"/>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="VaultPathBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="Choose a folder…"
+                                 IsReadOnly="True"
+                                 CornerRadius="4"/>
+                        <Button Grid.Column="1" Content="Browse…"
+                                Click="BrowseFolderButton_Click"
+                                CornerRadius="4"/>
+                    </Grid>
+                    <TextBlock x:Name="PathErrorText"
+                               FontSize="12"
+                               Foreground="{ThemeResource SystemErrorTextColor}"
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"/>
+                    <InfoBar x:Name="NetworkPathWarning"
+                             Severity="Warning"
+                             IsOpen="False"
+                             IsClosable="False"
+                             Message="Network and removable paths may cause data loss if the drive disconnects while the vault is open."
+                             CornerRadius="4"/>
+                </StackPanel>
+
+                <TextBlock x:Name="Step1ErrorText"
+                           Foreground="{ThemeResource SystemErrorTextColor}"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 2: Password ===================== -->
+            <StackPanel x:Name="Step2Panel" Spacing="14" Visibility="Collapsed">
+                <TextBlock Text="Set a password"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                    <Run Text="Your vault is protected by this password. "/>
+                    <Run Text="Anyone who copies the vault folder can try passwords offline — a strong passphrase is your best defence." FontWeight="SemiBold"/>
+                </TextBlock>
+
+                <InfoBar x:Name="WeakPasswordWarning"
+                         Severity="Warning"
+                         IsOpen="False"
+                         IsClosable="False"
+                         Title="Weak password detected"
+                         Message="Consider using a longer passphrase or choose a separate vault password for sensitive data."
+                         CornerRadius="4"/>
+
+                <PasswordBox x:Name="PasswordBox"
+                             Header="Vault password (minimum 10 characters)"
+                             PlaceholderText="Enter a strong password or passphrase"
+                             PasswordRevealMode="Peek"
+                             CornerRadius="4"
+                             PasswordChanged="PasswordBox_PasswordChanged"/>
+
+                <PasswordBox x:Name="ConfirmPasswordBox"
+                             Header="Confirm password"
+                             PlaceholderText="Re-enter password"
+                             PasswordRevealMode="Peek"
+                             CornerRadius="4"
+                             PasswordChanged="PasswordBox_PasswordChanged"/>
+
+                <!-- Strength bar -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Password strength:" FontSize="12"/>
+                    <ProgressBar x:Name="StrengthBar"
+                                 Minimum="0" Maximum="100" Value="0"
+                                 Height="6" CornerRadius="3"/>
+                    <TextBlock x:Name="StrengthText"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <TextBlock x:Name="Step2ErrorText"
+                           Foreground="{ThemeResource SystemErrorTextColor}"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           FontSize="12"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 3: Recovery Key ===================== -->
+            <StackPanel x:Name="Step3Panel" Spacing="14" Visibility="Collapsed">
+                <TextBlock Text="Save your recovery key"
+                           FontSize="15" FontWeight="SemiBold"/>
+
+                <InfoBar Severity="Warning"
+                         IsOpen="True"
+                         IsClosable="False"
+                         Title="No recovery without this key"
+                         Message="If you forget your password and lose this key, your files are permanently unreadable. AppLock cannot reset it."
+                         CornerRadius="4"/>
+
+                <!-- Recovery key display -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="16,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Your recovery key:" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock x:Name="RecoveryKeyText"
+                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   IsTextSelectionEnabled="True"
+                                   CharacterSpacing="80"/>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="CopyKeyButton" Content="&#xE8C8;  Copy to clipboard"
+                            FontFamily="{ThemeResource ContentControlThemeFontFamily}"
+                            Click="CopyKeyButton_Click"
+                            CornerRadius="4"/>
+                    <Button Content="&#xE749;  Save to file…"
+                            Click="SaveKeyToFileButton_Click"
+                            CornerRadius="4"/>
+                </StackPanel>
+
+                <TextBlock x:Name="CopyFeedbackText"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Visibility="Collapsed"/>
+
+                <TextBlock Text="Prove you've saved it — type back any two of the 8 groups:"
+                           TextWrapping="Wrap"
+                           FontSize="13"/>
+
+                <Grid ColumnSpacing="12" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Column="0" Grid.Row="0" Spacing="4">
+                        <TextBlock x:Name="ProofLabel1" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBox x:Name="ProofBox1"
+                                 PlaceholderText="XXXXX"
+                                 MaxLength="5"
+                                 CharacterSpacing="80"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 TextChanged="ProofBox_TextChanged"
+                                 CornerRadius="4"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Grid.Row="0" Spacing="4">
+                        <TextBlock x:Name="ProofLabel2" FontSize="12" FontWeight="SemiBold"/>
+                        <TextBox x:Name="ProofBox2"
+                                 PlaceholderText="XXXXX"
+                                 MaxLength="5"
+                                 CharacterSpacing="80"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 TextChanged="ProofBox_TextChanged"
+                                 CornerRadius="4"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="ProofErrorText"
+                               Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1"
+                               FontSize="12"
+                               Foreground="{ThemeResource SystemErrorTextColor}"
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- ===================== STEP 4: Options ===================== -->
+            <StackPanel x:Name="Step4Panel" Spacing="14" Visibility="Collapsed">
+                <TextBlock Text="Vault options"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="These settings can be changed later in vault settings."
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <NumberBox x:Name="AutoLockBox"
+                           Header="Auto-lock after idle (minutes; 0 = never)"
+                           Value="10"
+                           Minimum="0"
+                           Maximum="1440"
+                           SpinButtonPlacementMode="Inline"
+                           CornerRadius="4"/>
+
+                <ToggleSwitch x:Name="SecurePreviewOnlySwitch"
+                              Header="Secure preview only"
+                              OffContent="Allow opening files in other apps"
+                              OnContent="Block 'Open with another app'"
+                              IsOn="False"/>
+
+                <NumberBox x:Name="TrashDaysBox"
+                           Header="Trash retention (days; 0 = delete immediately)"
+                           Value="30"
+                           Minimum="0"
+                           Maximum="365"
+                           SpinButtonPlacementMode="Inline"
+                           CornerRadius="4"/>
+
+                <ToggleSwitch x:Name="ExcludeFromCaptureSwitch"
+                              Header="Screen capture protection"
+                              OffContent="Vault window visible in screenshots"
+                              OnContent="Exclude vault window from screenshots and screen sharing"
+                              IsOn="True"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 5: Creating ===================== -->
+            <StackPanel x:Name="Step5Panel" Spacing="16" Visibility="Collapsed"
+                        HorizontalAlignment="Center">
+                <ProgressRing x:Name="CreatingRing"
+                              IsActive="False"
+                              Width="48" Height="48"
+                              HorizontalAlignment="Center"/>
+                <TextBlock x:Name="CreatingStatusText"
+                           Text="Creating your vault…"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"/>
+                <TextBlock x:Name="CreatingErrorText"
+                           Foreground="{ThemeResource SystemErrorTextColor}"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           FontSize="12"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>
