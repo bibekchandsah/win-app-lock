@@ -152,6 +152,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         HoverOpacityText           = $"{s.HoverOpacity}%";
         SliderWidthNumberBox.Value = s.SliderWidth;
         ShowMicrophoneVolumeToggle.IsOn = s.ShowMicrophoneVolume;
+        LockMicrophoneVolumeToggle.IsOn = s.LockMicrophoneVolume;
         ShowCameraBrightnessToggle.IsOn = s.ShowCameraBrightness;
         ShowScreenBrightnessToggle.IsOn = s.ShowScreenBrightness;
 
@@ -184,6 +185,21 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
     {
         if (_isLoading) return;
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private void LockMicrophoneVolumeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading) return;
+
+        bool enabled = LockMicrophoneVolumeToggle.IsOn;
+        ServiceContainer.Settings.VolumeMixer.LockMicrophoneVolume = enabled;
+
+        // Whatever the microphones sit at right now is the level that should stick.
+        if (enabled) ServiceContainer.MicrophoneVolumeLockService?.CaptureCurrentVolumes();
+
+        SaveSettings();
+        ServiceContainer.RefreshMicrophoneVolumeLock();
+        System.Diagnostics.Debug.WriteLine($"[Settings] Microphone volume lock {(enabled ? "enabled" : "disabled")}");
     }
 
     // ── Appearance ────────────────────────────────────────────────────────────

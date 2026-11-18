@@ -972,3 +972,19 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   the schedule, so the currently stuck microphones get released at the end of the range instead of staying muted.
 - Tests: `MuteScheduleStateTests` covers round-trip, empty-record deletion, expiry, clock skew, corrupt JSON and
   dropped empty device ids.
+
+## Keep microphone volume fixed
+
+- Windows, a driver's automatic gain control and communication apps all write the capture level behind the
+  user's back (the mixer showed it drifting 54% -> 73% -> 100%). `MicrophoneVolumeLockService` polls every
+  700 ms and writes the held level back when a device sits more than 0.75 percentage points away from it.
+- The held level is whatever the user has at the moment the feature is switched on (`CaptureCurrentVolumes`), and
+  it is updated whenever the mixer slider is moved for that device (`NoteUserVolume`), so the guard never fights
+  a deliberate change.
+- Held levels are stored per device id in `VolumeMixerSettings.LockedMicrophoneVolumes`, so the guard survives a
+  restart; a device that appears later keeps whatever level it has when it is first seen.
+- The service has its own `MicrophoneVolumeService` and runs from `App.OnLaunched` (top of
+  `InitializeVolumeMixer`, own try/catch), so it works with the overlay closed and with the page never visited.
+  The device list is re-enumerated every 15 seconds rather than on every poll to keep the COM cost low.
+- Toggle: Volume Mixer -> Appearance -> "Keep Microphone Volume Fixed". Diagnostics:
+  `%LOCALAPPDATA%\AppLock\Logs\mic-volume-lock.log` (captures, each put-back, totals).

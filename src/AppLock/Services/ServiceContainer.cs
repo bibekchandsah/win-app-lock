@@ -44,6 +44,7 @@ public static class ServiceContainer
     private static AppLock.Services.VolumeMixer.VolumeOverlayService? _volumeOverlayService;
     private static AppLock.Services.VolumeMixer.VolumeMixerHotkeyManager? _volumeMixerHotkeyManager;
     private static AppLock.Services.VolumeMixer.MuteScheduleService? _muteScheduleService;
+    private static AppLock.Services.VolumeMixer.MicrophoneVolumeLockService? _microphoneVolumeLockService;
     private static AppLock.Services.Notifications.NotificationCustomizerService? _notificationCustomizerService;
     private static KeyboardService? _keyboardService;
     private static ViewModels.KeyboardViewModel? _keyboardViewModel;
@@ -704,8 +705,16 @@ public static class ServiceContainer
     /// <summary>Re-applies the auto-mute schedule after it was edited in settings.</summary>
     public static void RefreshMuteSchedule() => _muteScheduleService?.Refresh();
 
+    public static AppLock.Services.VolumeMixer.MicrophoneVolumeLockService? MicrophoneVolumeLockService => _microphoneVolumeLockService;
+
+    /// <summary>Re-reads settings and re-checks the held microphone levels.</summary>
+    public static void RefreshMicrophoneVolumeLock() => _microphoneVolumeLockService?.Refresh();
+
     public static void InitializeVolumeMixer(Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
     {
+        // Independent of the overlay: the held microphone levels apply whether or not the mixer is shown.
+        InitializeMicrophoneVolumeLock(dispatcherQueue);
+
         if (_volumeOverlayService == null)
         {
             _volumeOverlayService = new AppLock.Services.VolumeMixer.VolumeOverlayService(dispatcherQueue);
@@ -719,6 +728,37 @@ public static class ServiceContainer
 
         // The auto-mute schedule runs whenever AppLock runs, even if the overlay itself is turned off.
         InitializeMuteSchedule(dispatcherQueue);
+    }
+
+    /// <summary>
+    /// Starts the microphone volume watcher. Like the mute schedule it stands on its own, so a problem creating
+    /// the overlay cannot stop the levels from being held.
+    /// </summary>
+    public static void InitializeMicrophoneVolumeLock(Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue)
+    {
+        if (_microphoneVolumeLockService != null) return;
+
+        try
+        {
+            _microphoneVolumeLockService = new AppLock.Services.VolumeMixer.MicrophoneVolumeLockService(dispatcherQueue);
+            _microphoneVolumeLockService.Start();
+
+            try
+            {
+                if (App.MainWindowInstance is { } window)
+                {
+                    window.Closed += (_, _) => _microphoneVolumeLockService?.Stop();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ServiceContainer] Mic volume lock shutdown hook failed: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ServiceContainer] Mic volume lock init failed: {ex.Message}");
+        }
     }
 
     /// <summary>

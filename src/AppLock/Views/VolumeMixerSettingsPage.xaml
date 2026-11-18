@@ -313,6 +313,33 @@
                             </Grid>
                         </Border>
 
+                        <!-- Keep Microphone Volume Fixed -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Keep Microphone Volume Fixed" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Hold the microphone at the level you set: when Windows, the driver or an app changes it, it is put back"
+                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LockMicrophoneVolumeToggle"
+                                              Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              MinWidth="0"
+                                              OffContent=""
+                                              OnContent=""
+                                              AutomationProperties.Name="Keep the microphone volume fixed"
+                                              Toggled="LockMicrophoneVolumeToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
                         <!-- Show Camera Brightness -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"

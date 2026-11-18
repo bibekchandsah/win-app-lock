@@ -1791,7 +1791,14 @@ public sealed partial class VolumeOverlayWindow : Window
                     continue;
                 }
 
-                _microphoneService.GetMicrophone(deviceId)?.SetVolume(volume);
+                var microphone = _microphoneService.GetMicrophone(deviceId);
+                if (microphone != null)
+                {
+                    microphone.SetVolume(volume);
+
+                    // The user's own slider move is the level to hold, not drift to undo.
+                    ServiceContainer.MicrophoneVolumeLockService?.NoteUserVolume(deviceId, volume);
+                }
             }
             catch (Exception ex)
             {

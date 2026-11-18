@@ -37,6 +37,15 @@ public sealed class VolumeMixerSettings
     /// <summary>Mute the default recording device during the schedule (opt-in, because it affects calls).</summary>
     public bool MuteMicrophoneOnSchedule { get; set; } = false;
 
+    /// <summary>
+    /// Keep the microphone at the level the user chose instead of letting Windows, a driver's automatic gain
+    /// control, or a communication app move it.
+    /// </summary>
+    public bool LockMicrophoneVolume { get; set; } = false;
+
+    /// <summary>Recording device id -> level (0-100) to hold while <see cref="LockMicrophoneVolume"/> is on.</summary>
+    public Dictionary<string, float> LockedMicrophoneVolumes { get; set; } = new(StringComparer.Ordinal);
+
     public List<string> Blacklist { get; set; } = new();
     public double? CustomX { get; set; }   // used when dragged (idle chip's left edge)
     public double? CustomY { get; set; }
@@ -76,6 +85,16 @@ public sealed class VolumeMixerSettings
         // Auto-mute schedule: drop unusable ranges and rewrite the times consistently
         MuteWindows ??= new List<MuteWindow>();
         AppLock.Services.VolumeMixer.MuteSchedule.Normalize(MuteWindows);
+
+        // Held microphone levels: rebuild so the ids are compared ordinally and the levels stay in range
+        var heldVolumes = new Dictionary<string, float>(StringComparer.Ordinal);
+        foreach (var (deviceId, volume) in LockedMicrophoneVolumes ?? new Dictionary<string, float>())
+        {
+            if (string.IsNullOrWhiteSpace(deviceId)) continue;
+            if (float.IsNaN(volume)) continue;
+            heldVolumes[deviceId] = Math.Clamp(volume, 0f, 100f);
+        }
+        LockedMicrophoneVolumes = heldVolumes;
 
         // Blacklist: ensure all items are normalized
         if (Blacklist != null && Blacklist.Count > 0)
