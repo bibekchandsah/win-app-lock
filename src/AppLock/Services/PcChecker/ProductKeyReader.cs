@@ -32,13 +32,23 @@ public static class ProductKeyReader
         }
     }
 
-    /// <summary>Decodes the 15-byte base-24 packed key starting at offset 52 of the DigitalProductId.</summary>
+    /// <summary>
+    /// Decodes the 15-byte base-24 packed key starting at offset 52 of the DigitalProductId. Windows 8 and
+    /// later store the position of the "N" placeholder in the last bytes, so the plain 25 characters have to
+    /// be reshaped the same way Windows does before they form a valid key.
+    /// </summary>
     private static string Decode(byte[] digitalProductId)
     {
         const string digits = "BCDFGHJKMPQRTVWXY2346789";
         const int keyOffset = 52;
 
         var buffer = (byte[])digitalProductId.Clone();
+
+        // Windows 8+ style keys are flagged in byte 66; bit 3 of the same byte is a marker Windows clears
+        // before the packed digits are decoded. Reading it wrongly shifts every character of the result.
+        int windows8Style = (buffer[66] / 6) & 1;
+        buffer[66] = (byte)(buffer[66] & 0xF7);
+
         var characters = new char[25];
         int lastDigit = 0;
 
@@ -58,12 +68,12 @@ public static class ProductKeyReader
 
         var raw = new string(characters);
 
-        // Windows 8 and later move one digit out of the key and keep its position in the third-to-last byte;
-        // the missing spot is shown as "N". Older keys decode straight into the 25 characters.
-        bool windows8Style = ((buffer[66] >> 3) & 1) == 1;
-        if (windows8Style && lastDigit is >= 0 and < 25)
+        if (windows8Style == 1)
         {
-            raw = raw.Insert(lastDigit, "N");
+            // Windows 8+ keys drop the first decoded character and put the "N" placeholder where the last
+            // division remainder says. Without this the key is valid-looking but simply wrong.
+            int position = Math.Clamp(lastDigit, 0, raw.Length - 2);
+            raw = raw.Substring(1, position) + "N" + raw.Substring(position + 1);
         }
 
         var formatted = new StringBuilder(29);
@@ -74,5 +84,20 @@ public static class ProductKeyReader
         }
 
         return formatted.ToString();
+    }
+
+    /// <summary>
+    /// True when the decoded key ends with the same five characters Windows reports for the installed licence.
+    /// Used as a sanity check: a mismatch means the decoded key should not be presented as the real one.
+    /// </summary>
+    public static bool MatchesPartialKey(string decodedKey, string? partialKey)
+    {
+        if (string.IsNullOrWhiteSpace(partialKey)) return true;
+
+        var compact = decodedKey.Replace("-", string.Empty, StringComparison.Ordinal);
+        var expected = partialKey.Trim().Replace("-", string.Empty, StringComparison.Ordinal);
+        if (expected.Length == 0 || compact.Length < expected.Length) return false;
+
+        return compact.EndsWith(expected, StringComparison.OrdinalIgnoreCase);
     }
 }

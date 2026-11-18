@@ -126,15 +126,27 @@ public sealed class OsProvider : IInfoProvider
         // The full installed key, decoded from the registry value Windows keeps for its own licensing. It stays
         // masked until someone asks for it, and the page warns about misuse before revealing it.
         var installedKey = ProductKeyReader.ReadInstalledKey();
-        status.Items.Add(installedKey != null
-            ? InfoItem.Of("os.productKey", "Product key (full)", installedKey, DetailLevel.Detailed,
+        if (installedKey != null)
+        {
+            // The decoded key must end with the same five characters Windows reports for this licence;
+            // otherwise it is a decoding mismatch and must not be presented as the real key.
+            bool matchesWindows = ProductKeyReader.MatchesPartialKey(installedKey, activation.PartialKey);
+            var productKeyItem = InfoItem.Of("os.productKey", "Product key (full)", installedKey, DetailLevel.Detailed,
                 "The key installed on this PC, decoded from Windows' own DigitalProductId. Treat it like a password: " +
                 "anyone who has it can try to activate Windows with it. A digital licence is tied to your Microsoft " +
-                "account and this hardware instead.",
+                "account and this hardware instead." +
+                (matchesWindows ? string.Empty
+                    : $" Unconfirmed: this value does not end with the five characters Windows reports ({activation.PartialKey}), " +
+                      "so do not rely on it."),
                 "Source: registry HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
-                InfoStatus.Info, InfoSensitivity.Identifier)
-            : InfoItem.MissingValue("os.productKey", "Product key (full)", MissingReason.NotReported, DetailLevel.Detailed,
-                "Source: registry HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"));
+                matchesWindows ? InfoStatus.Info : InfoStatus.Warning, InfoSensitivity.Identifier);
+            status.Items.Add(productKeyItem);
+        }
+        else
+        {
+            status.Items.Add(InfoItem.MissingValue("os.productKey", "Product key (full)", MissingReason.NotReported,
+                DetailLevel.Detailed, "Source: registry HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"));
+        }
 
         var rebootReasons = PendingRebootReasons();
         var rebootItem = InfoItem.Of("os.pendingReboot", "Pending reboot",

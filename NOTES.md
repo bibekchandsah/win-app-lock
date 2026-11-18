@@ -1043,3 +1043,13 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   account and hardware, so the decoded key may be a generic upgrade key.
 - `DevicesProvider` gained a "Touch and pen" group (touchable display, pen/stylus, simultaneous points,
   multi-touch) from `GetSystemMetrics`. HDD/SSD type was already reported per disk in `StorageProvider`.
+
+## Product key decoding
+
+- `ProductKeyReader.Decode` had two defects: it *set* bit 2 of byte 66 (the real algorithm only clears bit 3
+  there) and inserted the Windows 8+ "N" placeholder at the wrong offset, so the full key was a plausible but
+  wrong 25 characters that disagreed with the last five Windows reports.
+- Verified on the development PC: the decoder now returns `VK7JG-NPHTM-C97JM-9MPGT-3V66T` (the well-known
+  Windows 10/11 Pro generic upgrade key), and its last five characters match WMI's `PartialProductKey` (3V66T).
+- The row is now marked as a warning, with an explanation, whenever the decoded key does not end with the five
+  characters Windows reports — a decode mismatch can no longer be presented as the real key.
