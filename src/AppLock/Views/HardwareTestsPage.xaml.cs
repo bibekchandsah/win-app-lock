@@ -56,8 +56,11 @@ namespace AppLock.Views
 
         /// <summary>Key caps keyed by <see cref="Windows.System.VirtualKey"/> name, so a key press can light one up.</summary>
         private readonly Dictionary<string, Border> _keyCaps = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Border> _mouseCaps = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _heldKeys = new();
+        private readonly HashSet<string> _testedKeys = new(StringComparer.OrdinalIgnoreCase);
         private Brush? _keyCapBackground;
+        private Brush? _mouseCapBackground;
         private Brush? _keyCapForeground;
         private Brush? _keyCapHighlight;
 
@@ -83,6 +86,7 @@ namespace AppLock.Views
             if (_keyCaps.Count > 0) return;
 
             _keyCapBackground = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+            _mouseCapBackground = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
             _keyCapForeground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
             _keyCapHighlight = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
 
@@ -128,15 +132,105 @@ namespace AppLock.Views
             KeyboardLayoutHost.Children.Add(BuildCluster(mainRows));
             KeyboardLayoutHost.Children.Add(BuildCluster(navigationRows));
             KeyboardLayoutHost.Children.Add(BuildCluster(numpadRows));
+
+            BuildMouseDiagram();
+
+            foreach (var cap in _keyCaps.Values) ApplyKeyCapState(cap);
+            UpdateCoverage();
+        }
+
+        /// <summary>
+        /// A top-down mouse: left / wheel / right on the top and the two side buttons on the left flank, so a
+        /// button that never lights up is visibly a button that never reached Windows.
+        /// </summary>
+        private void BuildMouseDiagram()
+        {
+            MouseDiagramHost.Children.Clear();
+            _mouseCaps.Clear();
+
+            var body = new Border
+            {
+                Width = 150,
+                CornerRadius = new CornerRadius(56, 56, 30, 30),
+                Background = _keyCapBackground,
+                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(6)
+            };
+
+            var layout = new StackPanel { Spacing = 6 };
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+            buttons.Children.Add(MouseCap("left", "Left", 52, 42));
+            buttons.Children.Add(MouseCap("middle", "\u22EE", 20, 42));
+            buttons.Children.Add(MouseCap("right", "Right", 52, 42));
+            layout.Children.Add(buttons);
+
+            var bodyArea = new Grid { Height = 92 };
+
+            var sideButtons = new StackPanel
+            {
+                Spacing = 5,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            sideButtons.Children.Add(MouseCap("back", "Back", 40, 26));
+            sideButtons.Children.Add(MouseCap("forward", "Fwd", 40, 26));
+            bodyArea.Children.Add(sideButtons);
+
+            bodyArea.Children.Add(new TextBlock
+            {
+                Text = "Mouse",
+                FontSize = 10,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = _keyCapForeground
+            });
+
+            layout.Children.Add(bodyArea);
+            body.Child = layout;
+            MouseDiagramHost.Children.Add(body);
+
+            MouseDiagramHost.Children.Add(new TextBlock
+            {
+                Text = "Tap the pad first, then press\na button to see it light up.",
+                FontSize = 9.5,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+            });
+        }
+
+        private Border MouseCap(string key, string label, double width, double height)
+        {
+            var cap = new Border
+            {
+                Width = width,
+                Height = height,
+                CornerRadius = new CornerRadius(10),
+                Background = _mouseCapBackground,
+                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = label,
+                    FontSize = 9.5,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = _keyCapForeground
+                }
+            };
+
+            _mouseCaps[key] = cap;
+            return cap;
         }
 
         private StackPanel BuildCluster(string[][] rows)
         {
-            var cluster = new StackPanel { Spacing = 3 };
+            var cluster = new StackPanel { Spacing = 4 };
 
             foreach (var row in rows)
             {
-                var rowPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+                var rowPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
                 foreach (var definition in row)
                 {
                     var parts = definition.Split('|');
@@ -146,16 +240,17 @@ namespace AppLock.Views
 
                     var cap = new Border
                     {
-                        Width = Math.Round(26 * units) + Math.Max(0, (int)Math.Round(units) - 1) * 3,
-                        Height = 26,
-                        CornerRadius = new CornerRadius(4),
+                        Width = Math.Round(24 * units) + Math.Max(0, (int)Math.Round(units) - 1) * 4,
+                        Height = 28,
+                        CornerRadius = new CornerRadius(5),
+                        Tag = keyName,
                         Background = parts.Length > 1 && keyName == "None" ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : _keyCapBackground,
                         BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
                         BorderThickness = new Thickness(keyName == "None" ? 0 : 1),
                         Child = new TextBlock
                         {
                             Text = label,
-                            FontSize = 9.5,
+                            FontSize = 10,
                             HorizontalAlignment = HorizontalAlignment.Center,
                             VerticalAlignment = VerticalAlignment.Center,
                             Foreground = _keyCapForeground
@@ -549,14 +644,32 @@ namespace AppLock.Views
                                      : properties.IsXButton2Pressed ? "forward button"
                                      : "pointer down");
 
+            HighlightMouseButtons(properties);
             UpdateInputCounts();
+        }
+
+        private void InputPad_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            ResetMouseCaps();
+        }
+
+        private void InputPad_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            ResetMouseCaps();
         }
 
         private void InputPad_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             // Hover alone is not a click; only report movement while a button is held.
             var point = e.GetCurrentPoint(InputPad);
-            if (!point.Properties.IsLeftButtonPressed && !point.Properties.IsRightButtonPressed) return;
+            var properties = point.Properties;
+            HighlightMouseButtons(properties);
+
+            if (!properties.IsLeftButtonPressed && !properties.IsRightButtonPressed &&
+                !properties.IsMiddleButtonPressed && !properties.IsXButton1Pressed && !properties.IsXButton2Pressed)
+            {
+                return;
+            }
 
             LastInputText.Text = $"Dragging at {point.Position.X:0}, {point.Position.Y:0}";
         }
@@ -564,59 +677,96 @@ namespace AppLock.Views
         private void InputPad_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             string name = e.Key.ToString();
-            bool firstPress = HighlightKey(name, true);
+            _keyCount++;
 
-            if (firstPress)
-            {
-                _keyCount++;
-                _heldKeys.Add(name);
-            }
+            if (!_heldKeys.Contains(name)) _heldKeys.Add(name);
+            _testedKeys.Add(name);
+
+            if (_keyCaps.TryGetValue(name, out var cap)) ApplyKeyCapState(cap);
 
             LastInputText.Text = $"Key: {DescribeKey(name)} (virtual key {(int)e.Key})";
             UpdateInputCounts();
             UpdateHeldKeys();
+            UpdateCoverage();
         }
 
         private void InputPad_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             string name = e.Key.ToString();
-            HighlightKey(name, false);
             _heldKeys.Remove(name);
+
+            if (_keyCaps.TryGetValue(name, out var cap)) ApplyKeyCapState(cap);
+
             UpdateHeldKeys();
         }
 
         private void InputPad_LostFocus(object sender, RoutedEventArgs e)
         {
-            // A key held while focus left would stay lit forever; let go of every cap.
-            foreach (var cap in _keyCaps.Values) ResetKeyCap(cap);
+            // A key held while focus left would stay lit forever; let go of every cap and keep the coverage.
             _heldKeys.Clear();
+            foreach (var cap in _keyCaps.Values) ApplyKeyCapState(cap);
+            ResetMouseCaps();
             UpdateHeldKeys();
         }
 
-        /// <summary>Lights a key cap up or restores it. Returns false when the key was already lit.</summary>
-        private bool HighlightKey(string keyName, bool down)
+        /// <summary>
+        /// Three states per cap: held (accent), already tested (normal), never tested (faint). The faint caps are
+        /// what makes it obvious at a glance which keys still need pressing.
+        /// </summary>
+        private void ApplyKeyCapState(Border cap)
         {
-            if (!_keyCaps.TryGetValue(keyName, out var cap)) return false;
+            string name = cap.Tag as string ?? string.Empty;
+            bool held = name.Length > 0 && _heldKeys.Contains(name, StringComparer.OrdinalIgnoreCase);
+            bool tested = name.Length > 0 && _testedKeys.Contains(name);
+
+            if (cap.Child is TextBlock text)
+            {
+                text.Foreground = held
+                    ? (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
+                    : _keyCapForeground;
+            }
+
+            cap.Background = held ? _keyCapHighlight : _keyCapBackground;
+            cap.Opacity = held || tested ? 1 : 0.42;
+        }
+
+        private void UpdateCoverage()
+        {
+            int total = _keyCaps.Count;
+            int tested = _keyCaps.Keys.Count(_testedKeys.Contains);
+            CoverageText.Text = tested == 0
+                ? $"Keys tested: 0 of {total} — faint keys have not been pressed yet"
+                : $"Keys tested: {tested} of {total}" + (tested == total ? " — every key covered" : " — faint keys have not been pressed yet");
+        }
+
+        /// <summary>Mirrors the pressed state of every mouse button onto the diagram.</summary>
+        private void HighlightMouseButtons(Microsoft.UI.Input.PointerPointProperties properties)
+        {
+            SetMouseCap("left", properties.IsLeftButtonPressed);
+            SetMouseCap("middle", properties.IsMiddleButtonPressed);
+            SetMouseCap("right", properties.IsRightButtonPressed);
+            SetMouseCap("back", properties.IsXButton1Pressed);
+            SetMouseCap("forward", properties.IsXButton2Pressed);
+        }
+
+        private void SetMouseCap(string key, bool down)
+        {
+            if (!_mouseCaps.TryGetValue(key, out var cap)) return;
 
             if (!down)
             {
-                ResetKeyCap(cap);
-                return true;
+                cap.Background = _mouseCapBackground;
+                if (cap.Child is TextBlock released) released.Foreground = _keyCapForeground;
+                return;
             }
 
-            if (cap.Tag is true) return false;
-
-            cap.Tag = true;
             cap.Background = _keyCapHighlight;
             if (cap.Child is TextBlock text) text.Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
-            return true;
         }
 
-        private void ResetKeyCap(Border cap)
+        private void ResetMouseCaps()
         {
-            cap.Tag = null;
-            cap.Background = _keyCapBackground;
-            if (cap.Child is TextBlock text) text.Foreground = _keyCapForeground;
+            foreach (var key in _mouseCaps.Keys.ToList()) SetMouseCap(key, false);
         }
 
         private static string DescribeKey(string keyName) => keyName switch
@@ -665,11 +815,14 @@ namespace AppLock.Views
         {
             _keyCount = _leftClicks = _rightClicks = _otherClicks = 0;
             _heldKeys.Clear();
-            foreach (var cap in _keyCaps.Values) ResetKeyCap(cap);
+            _testedKeys.Clear();
+            foreach (var cap in _keyCaps.Values) ApplyKeyCapState(cap);
 
+            ResetMouseCaps();
             LastInputText.Text = "No input yet.";
             UpdateInputCounts();
             UpdateHeldKeys();
+            UpdateCoverage();
         }
 
         // ── Camera ───────────────────────────────────────────────────────────────

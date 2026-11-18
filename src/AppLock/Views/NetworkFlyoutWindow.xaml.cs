@@ -61,6 +61,21 @@ public sealed partial class NetworkFlyoutWindow : Window
     private string _localIp = string.Empty;
     private string? _publicIp;
 
+    // The window has no title bar, so the header row is the drag handle.
+    private bool _isDragging;
+    private POINT _dragStartCursor;
+    private PointInt32 _dragStartPosition;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
+
     /// <summary>Raised when the user pauses or resumes tracking from the flyout.</summary>
     public event EventHandler<bool>? PauseToggled;
 
@@ -88,6 +103,48 @@ public sealed partial class NetworkFlyoutWindow : Window
         _detailsTimer.Start();
 
         Closed += (_, _) => _detailsTimer?.Stop();
+    }
+
+    private void HeaderArea_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (AppWindow is null) return;
+
+        var point = e.GetCurrentPoint(HeaderArea);
+        if (!point.Properties.IsLeftButtonPressed) return;
+
+        // Screen coordinates keep the drag correct even when the pointer leaves the window.
+        if (!GetCursorPos(out _dragStartCursor)) return;
+
+        _dragStartPosition = AppWindow.Position;
+        _isDragging = true;
+        HeaderArea.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void HeaderArea_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_isDragging || AppWindow is null) return;
+        if (!GetCursorPos(out var cursor)) return;
+
+        int x = _dragStartPosition.X + (cursor.X - _dragStartCursor.X);
+        int y = _dragStartPosition.Y + (cursor.Y - _dragStartCursor.Y);
+        AppWindow.Move(new PointInt32(x, y));
+    }
+
+    private void HeaderArea_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        EndDrag(e.Pointer);
+    }
+
+    private void HeaderArea_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _isDragging = false;
+    }
+
+    private void EndDrag(Microsoft.UI.Xaml.Input.Pointer pointer)
+    {
+        _isDragging = false;
+        try { HeaderArea.ReleasePointerCapture(pointer); } catch { }
     }
 
     private static Polyline CreateLine(Color color) => new()

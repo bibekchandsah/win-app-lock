@@ -256,18 +256,31 @@
                                         LostFocus="InputPad_LostFocus"
                                         PointerPressed="InputPad_PointerPressed"
                                         PointerMoved="InputPad_PointerMoved"
+                                        PointerReleased="InputPad_PointerReleased"
+                                        PointerCaptureLost="InputPad_PointerCaptureLost"
                                         AutomationProperties.Name="Keyboard and mouse test pad">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="InputPadHint"
-                                                   Text="Click a key or the space below, then press keys — each one lights up while it is held."
+                                                   Text="Click anywhere in this pad, then press keys or mouse buttons — each key and button lights up while it is held."
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <!-- Laid out like a real keyboard, built in code so every cap can be looked up by key -->
-                                        <StackPanel x:Name="KeyboardLayoutHost"
-                                                    Orientation="Horizontal"
-                                                    Spacing="10"
-                                                    HorizontalAlignment="Left"/>
+                                        <!-- Laid out like a real keyboard and mouse, built in code so every cap can be looked up -->
+                                        <!-- Scrolls sideways on a narrow window instead of clipping the layout -->
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      HorizontalScrollMode="Auto"
+                                                      VerticalScrollBarVisibility="Disabled"
+                                                      VerticalScrollMode="Disabled">
+                                            <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Left">
+                                                <StackPanel x:Name="KeyboardLayoutHost"
+                                                            Orientation="Horizontal"
+                                                            Spacing="10"
+                                                            VerticalAlignment="Top"/>
+                                                <StackPanel x:Name="MouseDiagramHost"
+                                                            Spacing="6"
+                                                            VerticalAlignment="Top"/>
+                                            </StackPanel>
+                                        </ScrollViewer>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock x:Name="LastInputText"
@@ -282,6 +295,11 @@
                                 <TextBlock x:Name="HeldKeysText"
                                            Text="Keys held: none"
                                            FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="CoverageText"
+                                           Text="Keys tested: 0 of 0 — faint keys have not been pressed yet"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 <Button Content="Reset counters" Click="ResetInput_Click"/>
                             </StackPanel>

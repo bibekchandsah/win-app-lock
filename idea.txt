@@ -353,27 +353,51 @@ fixed - in extra stats card move "ram format, warn cpu above %, warn ram above %
 fixed - when all top apps line is toggled on then show all four top apps currently it shows only CPU
 fixed - in data usage history it don't show used value when selected or hovered on bar
 when the appearance theme is set to transparent and glass then widget background still shows black and background opacity has no effect
-when the appearance theme is set to "follows window" then show mica background effect instead of black background
-also add the support of custom battery values like 10, 20, 50, 70, 100 instead of 80% and 20%
-show the color preview of selected color in appearance card
-remember the position of widget 
 fixed - in appearance card when background color, text color, download color, upload color is selected then selected color don't show in preview which is infront of color code value
+fixed - show the color preview of selected color in appearance card
+fixed - when window is minimized manually then "auto lock on idle" isn't working
+fixed - also add the support of custom battery values like 10, 20, 50, 70, 100 instead of 80% and 20%
+implemented - keyboard page: Caps/Num/fn lock indicator: a small on-screen pop-up when you press them.
+implemented - Network device scanner: list devices on your Wi-Fi and alert when a new unknown one joins.
+implemented - Open ports monitor: show which apps are listening on which ports, with a link to block them.
+implemented - add auto mute &  unmmute all speaker and microphone in selected multiple duration in volume mixture > appearance tab
+5:00 - 7:00
+23:00 - 5:00
+fixed - clicking in mac column should copy the mac address in internet access > network devices
+implemented - Wi-Fi password and QR share: show saved Wi-Fi passwords as a QR code
+implemented - restart app/ as administrator in tray menu 
+
+when the appearance theme is set to "follows window" then show mica background effect instead of black background
+remember the position of widget 
 when notification is shown black window border flashes everytime when i choose the color picker and notification flashes then color picker gets closed 
 speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
 font weight has no effect
+make network access toast notificaton as default custom notification and user can customize it in setting page
+fixed - Keep Microphone Volume Fixed
+fixed - keybord enable/disable: Error  Failed to change input state: BlockInput API call failed
+fixed - keyboard still gets enabled though the keyboard is toggled to disable
+fixed - in protection page in running applications list is clicked then it brings or hightlight window but it shows in resized instead of just highlighting it's also resizing.
+fixed - need to fix this error, it shows during exit of application: WinUI Desktop: AppLock.exe - System Error  X  x  The system detected an overrun of a stack-based buffer in this application. This overrun could potentially allow a malicious user to gain control of this application. 
 
 
+implemnted - pc details
+show full product key after showing warning of misuse
+show the display is touchable or not too pen and touch 
+selected disk read/write speed test
+network speed test
+selected speaker check
+selected microphone check
+keyboard & mouse test
+camera test 
+CPU & RAM test
+disk HDD/SSD 
 
 
-implemented - keyboard page: Caps/Num/fn lock indicator: a small on-screen pop-up when you press them.
-Wi-Fi password and QR share: show saved Wi-Fi passwords as a QR code
 Screen time tracker: per-app foreground time with daily and weekly charts, and a limit that feeds into Self-Discipline.
 Secure folder vault: an encrypted folder that opens only after AppLock authentication.
 add search box to search in google, edge 
 website lock: Website category blocking: adult, gambling and social media blocking through a filtered DNS or a block list.
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
-implemented - Network device scanner: list devices on your Wi-Fi and alert when a new unknown one joins.
-iimplemented - Open ports monitor: show which apps are listening on which ports, with a link to block them.
 
 
 

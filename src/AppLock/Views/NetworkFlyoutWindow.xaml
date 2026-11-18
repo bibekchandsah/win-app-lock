@@ -34,7 +34,14 @@
                 Padding="16">
             <StackPanel Spacing="12" Width="340">
 
-                <Grid ColumnSpacing="8">
+                <Grid x:Name="HeaderArea"
+                      ColumnSpacing="8"
+                      Background="Transparent"
+                      PointerPressed="HeaderArea_PointerPressed"
+                      PointerMoved="HeaderArea_PointerMoved"
+                      PointerReleased="HeaderArea_PointerReleased"
+                      PointerCaptureLost="HeaderArea_PointerCaptureLost"
+                      ToolTipService.ToolTip="Drag to move this window">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
