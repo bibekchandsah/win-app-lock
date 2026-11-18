@@ -1275,12 +1275,24 @@ public sealed partial class MainWindow : Window
         // Initialize Eye Care scheduler
         ServiceContainer.InitializeEyeCare(DispatcherQueue);
 
-        // Safety net: restore all DWM thumbnails even on unexpected process exit
-        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
-        {
-            try { ServiceContainer.ThumbnailService.Dispose(); } catch { }
-            try { ServiceContainer.ShutdownNotificationCustomizer(); } catch { }
-        };
+        // Safety net for an exit that never reached MainWindow_ActualClose. It must stay managed-only:
+        // ProcessExit runs while the CLR is shutting down and AppLockHook.dll is detaching, and calling
+        // its exported thumbnail-uninstall functions from there made AppLock raise the "stack-based buffer
+        // overrun" system error on exit. The native cleanup happens once, in MainWindow_ActualClose.
+        AppDomain.CurrentDomain.ProcessExit += (s, e) => ShutdownAfterUnexpectedExit();
+    }
+
+    private static int _finalCleanupDone;
+
+    /// <summary>
+    /// Runs the shutdown steps that are safe during CLR teardown, once only. The normal exit path marks
+    /// this done in MainWindow_ActualClose so ProcessExit does not repeat work (or touch native DLLs).
+    /// </summary>
+    private static void ShutdownAfterUnexpectedExit()
+    {
+        if (Interlocked.Exchange(ref _finalCleanupDone, 1) != 0) return;
+
+        try { ServiceContainer.ShutdownNotificationCustomizer(); } catch { }
     }
 
     private void InstallWndProcSubclass()
@@ -2139,6 +2151,10 @@ public sealed partial class MainWindow : Window
         _windowIcon?.Dispose();
         _windowIcon = null;
         Instance = null;
+
+        // Nothing left for the ProcessExit safety net to do; it must not run native cleanup again
+        // while the CLR and AppLockHook.dll are detaching.
+        Interlocked.Exchange(ref _finalCleanupDone, 1);
     }
 
     public void Show()

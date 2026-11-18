@@ -1013,3 +1013,15 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   windows (UIPI), so those apps still receive input while the switch is off. Ctrl+Alt+Del is never blocked.
 - The page's administrator warning card, its restart-as-admin button, and the "keyboard and mouse input"
   wording are gone; the manual i8042prt driver method remains as the fallback card.
+
+## Protection page: focusing a running app, and the exit-time system error
+
+- Clicking a "Running programs" entry used to call `ShowWindow(SW_RESTORE)` unconditionally, and restoring a
+  non-minimised window is what un-maximises it. The click now restores only when the window is actually
+  minimised, shows it only when it is hidden, and otherwise just calls `SetForegroundWindow`.
+- Exit used to run the teardown twice: `MainWindow_ActualClose` disposes the DWM thumbnails (native
+  `AppLockHook.dll` exports) and then the `AppDomain.ProcessExit` safety net disposed them again while the CLR
+  was shutting down and the DLL was detaching — the most likely source of the "stack-based buffer overrun"
+  system error at exit. `ProcessExit` now runs managed-only cleanup once, guarded by an `Interlocked` flag that
+  the normal exit path sets, so native teardown happens exactly once, while the runtime is still healthy.
+- This is a plausible-cause fix, not a reproduced one: without a crash dump there is no stack to confirm it.

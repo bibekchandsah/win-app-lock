@@ -899,7 +899,18 @@ public sealed partial class ProtectionPage : Page
         try
         {
             var hwnd = new HWND(window.Handle);
-            PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
+
+            // Only un-minimise. SW_RESTORE also drops a maximised window back to its restored size,
+            // which made the click look like it was resizing the app instead of just focusing it.
+            if (PInvoke.IsIconic(hwnd))
+            {
+                PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_RESTORE);
+            }
+            else if (!PInvoke.IsWindowVisible(hwnd))
+            {
+                PInvoke.ShowWindow(hwnd, SHOW_WINDOW_CMD.SW_SHOW);
+            }
+
             PInvoke.SetForegroundWindow(hwnd);
         }
         catch (Exception ex)
