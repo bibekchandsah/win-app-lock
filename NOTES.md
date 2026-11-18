@@ -996,3 +996,20 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   elsewhere are put back". Badge and tooltip follow the held level and clear when the lock is switched off.
 - The badge sits on the 32 px icon chip, so it shows in both the icon-only and expanded mixer views without
   needing extra horizontal space — the earlier inline badge next to the mute button was clipped by row width.
+
+## Keyboard enable/disable
+
+- `KeyboardService` no longer uses `BlockInput`. That API needed administrator rights (the "BlockInput API
+  call failed" error on a normal launch), blocked the mouse as well, and only held while the calling thread
+  lived. It is replaced by a `WH_KEYBOARD_LL` hook that returns 1 for key messages while disabled: no
+  elevation needed, mouse untouched so the switch can always be turned back on, and the block disappears
+  with the process instead of outliving a crash. The hook is installed on the UI thread on first disable
+  (low-level hooks need a message pump) and stays installed while the app runs.
+- Both switches now read `KeyboardService.IsKeyboardEnabled()` — the Others card used to initialize from
+  `Settings.Keyboard.Enabled` while the page read the service, which is why they disagreed. The change event
+  still fans out to the other surface, and both revert on failure.
+- The block is per session: restarting AppLock leaves the keyboard enabled and the toggles show that truth.
+- Known limit: a low-level hook from an unelevated process does not see keystrokes typed into elevated
+  windows (UIPI), so those apps still receive input while the switch is off. Ctrl+Alt+Del is never blocked.
+- The page's administrator warning card, its restart-as-admin button, and the "keyboard and mouse input"
+  wording are gone; the manual i8042prt driver method remains as the fallback card.

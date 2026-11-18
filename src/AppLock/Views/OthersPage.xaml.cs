@@ -324,7 +324,7 @@ public sealed partial class OthersPage : Page
                 RingLightEnabled = false,
                 VolumeMixerEnabled = false,
                 NotificationsEnabled = false,
-                KeyboardEnabled = ServiceContainer.Settings.Keyboard.Enabled
+                KeyboardEnabled = ServiceContainer.KeyboardService.IsKeyboardEnabled()
             },
             new UtilityCard
             {

@@ -60,45 +60,6 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="12" MaxWidth="880" HorizontalAlignment="Left">
-                <!-- Administrator Privileges Card (top of page, with a restart action) -->
-                <Border 
-                    x:Name="WarningCard"
-                    Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
-                    BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="20"
-                    Visibility="Collapsed">
-                    <Grid ColumnDefinitions="Auto,*">
-                        <FontIcon 
-                            Grid.Column="0"
-                            Glyph="&#xE7BA;"
-                            FontSize="20"
-                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                            Margin="0,0,16,0"
-                            VerticalAlignment="Top"/>
-                        <StackPanel Grid.Column="1" Spacing="8">
-                            <TextBlock 
-                                x:Name="WarningTitle"
-                                Text="Administrator Privileges Required"
-                                Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                            <TextBlock 
-                                x:Name="WarningMessage"
-                                Text="This feature requires administrator privileges. Please restart AppLock as administrator to enable or disable the keyboard."
-                                TextWrapping="Wrap"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Style="{StaticResource CaptionTextBlockStyle}"/>
-                            <Button 
-                                Content="Restart as administrator" 
-                                Click="RestartAsAdminButton_Click"
-                                TabIndex="4"
-                                Margin="0,4,0,0"
-                                HorizontalAlignment="Left"
-                                AutomationProperties.Name="Restart AppLock as administrator"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
                 <!-- Master Toggle Card -->
                 <Border 
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -176,19 +137,19 @@
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             Style="{StaticResource BodyTextBlockStyle}">
-                            <Run Text="This feature allows you to instantly enable or disable all keyboard and mouse input. Useful when cleaning your keyboard or when you need to prevent accidental input."/>
+                            <Run Text="This turns the keyboard off instantly: keystrokes are ignored by every app until you switch it back on. Useful when cleaning your keyboard or when you need to prevent accidental input."/>
                         </TextBlock>
                         <TextBlock 
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             Style="{StaticResource BodyTextBlockStyle}">
-                            <Run Text="• Works instantly without system restart"/>
+                            <Run Text="• Works instantly without a system restart"/>
                             <LineBreak/>
-                            <Run Text="• Requires administrator privileges to use"/>
+                            <Run Text="• Needs no administrator rights"/>
                             <LineBreak/>
-                            <Run Text="• Blocks both keyboard and mouse input"/>
+                            <Run Text="• Blocks the keyboard only — the mouse keeps working, so the switch can always be turned back on"/>
                             <LineBreak/>
-                            <Run Text="• Re-enable by toggling the switch again"/>
+                            <Run Text="• Windows' own security screens (Ctrl+Alt+Del) are never blocked"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>

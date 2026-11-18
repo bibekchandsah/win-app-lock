@@ -51,7 +51,7 @@ namespace AppLock.Views
             if (KeyboardToggle.IsOn == actual)
             {
                 // Status text can still be stale after a failed API call; refresh it cheaply.
-                if (_viewModel.IsAdmin && _viewModel.StatusText != $"Input is currently: {(actual ? "Enabled" : "Disabled")}")
+                if (_viewModel.StatusText != $"Keyboard input is currently: {(actual ? "Enabled" : "Disabled")}")
                 {
                     _viewModel.RefreshStatus();
                     UpdateStatus();
@@ -107,44 +107,19 @@ namespace AppLock.Views
 
         private void UpdateStatus()
         {
-            if (!_viewModel.IsAdmin)
-            {
-                StatusText.Text = "Administrator privileges required";
-                StatusIcon.Glyph = "\uE7BA"; // Warning icon
-                StatusIcon.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Orange);
-                
-                WarningCard.Visibility = Visibility.Visible;
-                
-                KeyboardToggle.IsEnabled = false;
-            }
-            else
-            {
-                // Re-read the state so the status line follows what was just applied instead of the
-                // value captured when the (singleton) view model was created.
-                _viewModel.RefreshStatus();
+            // Re-read the state so the status line follows what was just applied instead of the
+            // value captured when the (singleton) view model was created.
+            _viewModel.RefreshStatus();
 
-                StatusText.Text = _viewModel.StatusText;
-                StatusIcon.Glyph = _viewModel.Enabled ? "\uE73E" : "\uE711"; // Checkmark or Cancel
-                StatusIcon.Foreground = _viewModel.Enabled 
-                    ? new SolidColorBrush(Microsoft.UI.Colors.Green)
-                    : new SolidColorBrush(Microsoft.UI.Colors.Red);
-                
-                WarningCard.Visibility = Visibility.Collapsed;
-                KeyboardToggle.IsEnabled = true;
-            }
+            StatusText.Text = _viewModel.StatusText;
+            StatusIcon.Glyph = _viewModel.Enabled ? "\uE73E" : "\uE711"; // Checkmark or Cancel
+            StatusIcon.Foreground = _viewModel.Enabled
+                ? new SolidColorBrush(Microsoft.UI.Colors.Green)
+                : new SolidColorBrush(Microsoft.UI.Colors.Red);
         }
 
         private async void KeyboardToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            if (!_viewModel.IsAdmin)
-            {
-                // Revert toggle
-                KeyboardToggle.Toggled -= KeyboardToggle_Toggled;
-                KeyboardToggle.IsOn = _viewModel.Enabled;
-                KeyboardToggle.Toggled += KeyboardToggle_Toggled;
-                return;
-            }
-
             var newState = KeyboardToggle.IsOn;
             _confirmingToggle = true;
 
@@ -156,7 +131,7 @@ namespace AppLock.Views
                 // light-themed window; follow the page's actual theme instead.
                 RequestedTheme = this.ActualTheme,
                 Title = newState ? "Enable Input?" : "Disable Input?",
-                Content = $"Are you sure you want to {(newState ? "enable" : "disable")} keyboard and mouse input?\n\nThis will take effect immediately.",
+                Content = $"Are you sure you want to {(newState ? "enable" : "disable")} keyboard input?\n\nThis will take effect immediately.",
                 PrimaryButtonText = "Yes",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close
@@ -173,7 +148,7 @@ namespace AppLock.Views
                     // switch on the Others page.
                     if (!ServiceContainer.SetKeyboardEnabled(newState))
                     {
-                        throw new Exception("BlockInput API call failed");
+                        throw new Exception("the keyboard hook could not be installed");
                     }
 
                     UpdateStatus();
@@ -186,7 +161,7 @@ namespace AppLock.Views
                         XamlRoot = this.XamlRoot,
                         RequestedTheme = this.ActualTheme,
                         Title = "Error",
-                        Content = $"Failed to change input state: {ex.Message}",
+                        Content = $"Could not change the keyboard state: {ex.Message}",
                         CloseButtonText = "OK"
                     };
                     await errorDialog.ShowAsync();
@@ -217,47 +192,6 @@ namespace AppLock.Views
             // Reload current status from registry
             _viewModel.Enabled = _keyboardService.IsKeyboardEnabled();
             LoadSettings();
-        }
-
-        /// <summary>
-        /// Relaunches AppLock elevated so the keyboard service (BlockInput) can be used, mirroring
-        /// the BitLocker page's restart action.
-        /// </summary>
-        private async void RestartAsAdminButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_viewModel.IsAdmin) return;
-
-                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (string.IsNullOrEmpty(exe)) return;
-
-                var psi = new System.Diagnostics.ProcessStartInfo(exe)
-                {
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                // Mark this exit as authorized so the watchdog does not revive the non-elevated instance.
-                ProcessProtectionService.SignalAuthorizedExit();
-                ProcessProtectionService.UnprotectCurrentProcess();
-
-                var process = System.Diagnostics.Process.Start(psi);
-                if (process != null)
-                {
-                    // Give the elevated instance a moment to come up, then close this one.
-                    await Task.Delay(400);
-                    Environment.Exit(0);
-                }
-            }
-            catch (System.ComponentModel.Win32Exception)
-            {
-                // The user dismissed the UAC prompt - keep running unelevated.
-            }
-            catch (System.Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[KeyboardPage] Restart as administrator failed: {ex.Message}");
-            }
         }
 
         private void LockKeyIndicatorToggle_Toggled(object sender, RoutedEventArgs e)

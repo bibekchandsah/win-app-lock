@@ -29,8 +29,7 @@ namespace AppLock.ViewModels
         public void RefreshStatus()
         {
             Enabled = _keyboardService.IsKeyboardEnabled();
-            StatusText = $"Input is currently: {(Enabled ? "Enabled" : "Disabled")}";
-            StatusText += $"\nAdministrator rights: {(IsAdmin ? "Yes ✓" : "No ✗")}";
+            StatusText = $"Keyboard input is currently: {(Enabled ? "Enabled" : "Disabled")}";
         }
 
         /// <summary>
