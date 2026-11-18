@@ -1053,3 +1053,14 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   Windows 10/11 Pro generic upgrade key), and its last five characters match WMI's `PartialProductKey` (3V66T).
 - The row is now marked as a warning, with an explanation, whenever the decoded key does not end with the five
   characters Windows reports — a decode mismatch can no longer be presented as the real key.
+
+## Camera test preview
+
+- The first version pulled frames from a `MediaFrameReader` into a `SoftwareBitmapSource`. The preview stayed
+  blank: the frames arrive in a pixel format the XAML image source rejects, and `SetBitmapAsync` threw inside a
+  swallowed catch, so the page still reported "Preview running".
+- The preview now uses `MediaPlayer` + `MediaSource.CreateFromMediaFrameSource(frameSource)` attached to a
+  `MediaPlayerElement`, which is the supported way to show a camera in WinUI 3. `MediaCapture` is initialised
+  with `ExclusiveControl` (required for MediaPlayer), and Stop pauses, detaches and disposes the player before
+  the capture object.
+- Not verified at runtime here (the app is password-protected and the camera is on the user's machine).

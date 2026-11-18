@@ -10,14 +10,12 @@ using AppLock.Services.PcChecker;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media.Imaging;
-using Microsoft.UI.Xaml.Navigation;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
-using Windows.Media.MediaProperties;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 
 namespace AppLock.Views
 {
@@ -48,9 +46,7 @@ namespace AppLock.Views
         private WaveOutEvent? _toneOutput;
         private WaveInEvent? _microphone;
         private MediaCapture? _camera;
-        private MediaFrameReader? _cameraReader;
-        private SoftwareBitmapSource? _cameraSource;
-        private int _cameraFrameBusy;
+        private MediaPlayer? _cameraPlayer;
 
         private int _keyCount;
         private int _leftClicks;
@@ -487,15 +483,11 @@ namespace AppLock.Views
 
             try
             {
-                _cameraSource = new SoftwareBitmapSource();
-                CameraPreview.Source = _cameraSource;
-
                 _camera = new MediaCapture();
                 await _camera.InitializeAsync(new MediaCaptureInitializationSettings
                 {
                     StreamingCaptureMode = StreamingCaptureMode.Video,
-                    SharingMode = MediaCaptureSharingMode.SharedReadOnly,
-                    MemoryPreference = MediaCaptureMemoryPreference.Cpu
+                    SharingMode = MediaCaptureSharingMode.ExclusiveControl
                 });
 
                 var frameSource = _camera.FrameSources.Values
@@ -504,9 +496,13 @@ namespace AppLock.Views
                 if (frameSource == null)
                     throw new InvalidOperationException("No camera video source was found.");
 
-                _cameraReader = await _camera.CreateFrameReaderAsync(frameSource, MediaEncodingSubtypes.Bgra8);
-                _cameraReader.FrameArrived += CameraReader_FrameArrived;
-                await _cameraReader.StartAsync();
+                // MediaPlayer renders camera frames itself. Pulling single frames into a SoftwareBitmap and
+                // pushing them into an Image only produced a blank surface, because the frames arrive in a
+                // pixel format the XAML image source rejects.
+                _cameraPlayer = new MediaPlayer { RealTimePlayback = true };
+                _cameraPlayer.Source = MediaSource.CreateFromMediaFrameSource(frameSource);
+                CameraPreview.SetMediaPlayer(_cameraPlayer);
+                _cameraPlayer.Play();
 
                 StopCameraButton.IsEnabled = true;
                 CameraStatusText.Text = "Preview running. Nothing is recorded or saved.";
@@ -516,40 +512,6 @@ namespace AppLock.Views
                 CameraStatusText.Text = $"The camera could not start: {ex.Message}\n" +
                                         "Check Windows Settings › Privacy › Camera for app access, and that no other app is using it.";
                 await StopCameraAsync();
-            }
-        }
-
-        private void CameraReader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
-        {
-            if (Interlocked.Exchange(ref _cameraFrameBusy, 1) == 1) return;
-
-            try
-            {
-                using var frame = sender.TryAcquireLatestFrame();
-                var bitmap = frame?.VideoMediaFrame?.SoftwareBitmap;
-                if (bitmap == null)
-                {
-                    Interlocked.Exchange(ref _cameraFrameBusy, 0);
-                    return;
-                }
-
-                var copy = SoftwareBitmap.Copy(bitmap);
-                DispatcherQueue.TryEnqueue(async () =>
-                {
-                    try
-                    {
-                        if (_cameraSource != null) await _cameraSource.SetBitmapAsync(copy);
-                    }
-                    catch { }
-                    finally
-                    {
-                        Interlocked.Exchange(ref _cameraFrameBusy, 0);
-                    }
-                });
-            }
-            catch
-            {
-                Interlocked.Exchange(ref _cameraFrameBusy, 0);
             }
         }
 
@@ -563,25 +525,21 @@ namespace AppLock.Views
         {
             try
             {
-                if (_cameraReader != null)
-                {
-                    _cameraReader.FrameArrived -= CameraReader_FrameArrived;
-                    await _cameraReader.StopAsync();
-                    _cameraReader.Dispose();
-                }
+                _cameraPlayer?.Pause();
+                CameraPreview.SetMediaPlayer(null);
+                _cameraPlayer?.Dispose();
             }
             catch { }
 
-            _cameraReader = null;
+            _cameraPlayer = null;
 
             try { _camera?.Dispose(); } catch { }
             _camera = null;
-            _cameraSource = null;
-
-            try { CameraPreview.Source = null; } catch { }
 
             StartCameraButton.IsEnabled = true;
             StopCameraButton.IsEnabled = false;
+
+            await Task.CompletedTask;
         }
 
         // ── Touch & pen ──────────────────────────────────────────────────────────

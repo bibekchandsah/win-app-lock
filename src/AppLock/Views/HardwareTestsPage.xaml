@@ -301,8 +301,10 @@
                                     <Button x:Name="StopCameraButton" Content="Stop" Click="StopCamera_Click" IsEnabled="False"/>
                                 </StackPanel>
                                 <Border Height="320" Background="#11000000" CornerRadius="6">
-                                    <Image x:Name="CameraPreview" Stretch="Uniform"
-                                           AutomationProperties.Name="Camera preview"/>
+                                    <MediaPlayerElement x:Name="CameraPreview"
+                                                        AreTransportControlsEnabled="False"
+                                                        Stretch="Uniform"
+                                                        AutomationProperties.Name="Camera preview"/>
                                 </Border>
                                 <TextBlock x:Name="CameraStatusText"
                                            Text="Idle."
