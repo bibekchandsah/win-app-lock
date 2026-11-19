@@ -9,9 +9,9 @@ namespace AppLock.Services.Audio
     /// <summary>One playback (speaker) device with its volume control interface.</summary>
     public class SpeakerDevice
     {
-        public string DeviceId { get; set; }
-        public string FriendlyName { get; set; }
-        public MMDevice Device { get; set; }
+        public string DeviceId { get; set; } = string.Empty;
+        public string FriendlyName { get; set; } = string.Empty;
+        public MMDevice Device { get; set; } = null!;
         public bool IsDefault { get; set; }
 
         public float GetVolume()

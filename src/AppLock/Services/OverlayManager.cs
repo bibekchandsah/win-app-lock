@@ -559,6 +559,24 @@ public class OverlayManager
 
         if (_lockManager.IsWindowLocked(window))
         {
+            // Limit-only rules run freely and lock only when their quota/schedule/idle rule
+            // triggers (that call always carries a forced reason).
+            if (!forcedReason.HasValue)
+            {
+                var matchingRules = _lockManager.GetAllRules()
+                    .Where(r => _lockManager.IsWindowLockedByRule(r, window))
+                    .ToList();
+
+                if (matchingRules.Count > 0 && matchingRules.All(r => r.IsLimitOnly))
+                {
+                    if (_activeOverlays.ContainsKey(windowHandle))
+                        RemoveOverlay(windowHandle);
+                    else
+                        _thumbnailService.ClearLockedThumbnailByTarget(hwnd);
+                    return;
+                }
+            }
+
             // Check if window is indefinitely unlocked
             if (_indefinitelyUnlocked.Contains(windowHandle))
                 return;

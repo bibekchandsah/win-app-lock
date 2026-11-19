@@ -112,6 +112,7 @@ public class LocalizationService
             ["ActiveLocks"] = "Active Locks",
             ["ProtectionStatus"] = "Protection Status",
             ["RunningApps"] = "Running Applications",
+            ["ScreenTimeTab"] = "Screen Time",
             ["RunningAppsDesc"] = "Applications with visible windows that can be locked",
             ["FilterAll"] = "All",
             ["FilterRunning"] = "Running",

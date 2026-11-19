@@ -46,6 +46,13 @@ if ($vsPath) {
         Write-Host ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -ForegroundColor Yellow
         Write-Host "`nTo run the app as administrator, execute:" -ForegroundColor Cyan
         Write-Host 'Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs' -ForegroundColor Yellow
+        if (Test-Path ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe") {
+            try {
+                Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs
+            } catch {
+                Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -ErrorAction SilentlyContinue
+            }
+        }
     } else {
         Write-Host "`nBuild failed with exit code $LASTEXITCODE" -ForegroundColor Red
     }
@@ -53,5 +60,3 @@ if ($vsPath) {
     Write-Host "Visual Studio not found. Please build from Developer Command Prompt." -ForegroundColor Red
     Write-Host "Or run: dotnet build -c Release" -ForegroundColor Yellow
 }
-
-Start-Process ".\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" -Verb RunAs

@@ -11,7 +11,8 @@ public sealed record UsageDelta(
     int Seconds,
     int Opens = 0,
     string? ExePath = null,
-    string? Aumid = null);
+    string? Aumid = null,
+    byte[]? IconPng = null);
 
 /// <summary>Per-app total for a queried range. Seconds is the sum of the hourly rows.</summary>
 public sealed record AppUsageRow(string AppKey, string DisplayName, long Seconds, int Opens)
@@ -33,3 +34,16 @@ public sealed record BarSeriesPoint(string Label, double Value, string? Tooltip 
 
 /// <summary>A colored part of a stacked chart bar (one app, or "Other").</summary>
 public sealed record BarSegment(string AppKey, string Label, int Seconds, int ColorIndex, string Tooltip);
+
+/// <summary>One bar of the usage chart: hourly (Today) or daily (Week/Month).</summary>
+public sealed record UsageBar(
+    string Label,
+    string Tooltip,
+    double Value,
+    IReadOnlyList<BarSegment> Segments,
+    bool Incomplete = false,
+    bool Future = false,
+    DateOnly? Day = null);
+
+/// <summary>An app row as persisted in the history database.</summary>
+public sealed record StoredApp(string AppKey, string DisplayName, string? ExePath, string? Aumid);

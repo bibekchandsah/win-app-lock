@@ -216,6 +216,7 @@ public sealed partial class ProtectionPage : Page
         if (LockedSearchBox != null) LockedSearchBox.PlaceholderText = loc["Search"];
         if (RunningProgramsTab != null) RunningProgramsTab.Header = loc["RunningApps"];
         if (LockedProgramsTab != null) LockedProgramsTab.Header = loc["ProtectedApps"];
+        if (ScreenTimeTabItem != null) ScreenTimeTabItem.Header = loc["ScreenTimeTab"];
         if (CancelPickButton != null) CancelPickButton.Content = loc["Cancel"];
         UpdateStatusUI();
     }
@@ -402,7 +403,10 @@ public sealed partial class ProtectionPage : Page
 
     private void MainTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Handle tab changes if needed
+        if (e.AddedItems.Contains(ScreenTimeTabItem))
+        {
+            _ = ScreenTimeTabView.OnActivatedAsync();
+        }
     }
 
     private void BrowseRunningPrograms_Click(object sender, RoutedEventArgs e)

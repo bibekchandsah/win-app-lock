@@ -470,7 +470,7 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
         BlacklistHintTextBlock.Visibility = Visibility.Visible;
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        timer.Tick += (s, _) => { BlacklistHintTextBlock.Visibility = Visibility.Collapsed; ((DispatcherTimer)s).Stop(); };
+        timer.Tick += (_, _) => { BlacklistHintTextBlock.Visibility = Visibility.Collapsed; timer.Stop(); };
         timer.Start();
     }
 

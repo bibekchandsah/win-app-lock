@@ -527,6 +527,18 @@
                                                                 <TextBlock Text="Discipline" FontSize="9" Foreground="White" FontWeight="SemiBold"/>
                                                             </StackPanel>
                                                         </Border>
+                                                        <Border x:Name="LimitOnlyBadge"
+                                                                Background="{ThemeResource ControlStrongFillColorDefaultBrush}"
+                                                                CornerRadius="4"
+                                                                Padding="4,1"
+                                                                VerticalAlignment="Center"
+                                                                ToolTipService.ToolTip="Runs normally; locks only when its daily limit, schedule or idle rule triggers."
+                                                                Visibility="{x:Bind IsLimitOnly, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <FontIcon Glyph="&#xE916;" FontSize="9"/>
+                                                                <TextBlock Text="Limit only" FontSize="9" FontWeight="SemiBold"/>
+                                                            </StackPanel>
+                                                        </Border>
                                                     </StackPanel>
                                                 </StackPanel>
 
@@ -615,6 +627,14 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </TabViewItem>
+
+                <!-- Screen Time Tab -->
+                <TabViewItem x:Name="ScreenTimeTabItem" Header="Screen Time" IsClosable="False">
+                    <TabViewItem.IconSource>
+                        <FontIconSource Glyph="&#xE9D9;"/>
+                    </TabViewItem.IconSource>
+                    <local:ScreenTimeTab x:Name="ScreenTimeTabView"/>
                 </TabViewItem>
             </TabView.TabItems>
         </TabView>

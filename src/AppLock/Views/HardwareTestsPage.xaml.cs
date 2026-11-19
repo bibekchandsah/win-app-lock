@@ -803,7 +803,7 @@ namespace AppLock.Views
 
         private void HardwareTestsPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            if (TestsTabs.SelectedItem != KeyboardTab) return;
+            if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
 
             string name = e.Key.ToString();
             _keyCount++;
@@ -821,7 +821,7 @@ namespace AppLock.Views
 
         private void HardwareTestsPage_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
-            if (TestsTabs.SelectedItem != KeyboardTab) return;
+            if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
 
             string name = e.Key.ToString();
             _heldKeys.Remove(name);

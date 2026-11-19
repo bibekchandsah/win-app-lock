@@ -11,9 +11,9 @@ namespace AppLock.Services.Audio
     /// </summary>
     public class MicrophoneDevice
     {
-        public string DeviceId { get; set; }
-        public string FriendlyName { get; set; }
-        public MMDevice Device { get; set; }
+        public string DeviceId { get; set; } = string.Empty;
+        public string FriendlyName { get; set; } = string.Empty;
+        public MMDevice Device { get; set; } = null!;
 
         public float GetVolume()
         {
@@ -176,7 +176,7 @@ namespace AppLock.Services.Audio
         /// <summary>
         /// Get a specific microphone by device ID
         /// </summary>
-        public MicrophoneDevice GetMicrophone(string deviceId)
+        public MicrophoneDevice? GetMicrophone(string deviceId)
         {
             return _microphones.TryGetValue(deviceId, out var mic) ? mic : null;
         }

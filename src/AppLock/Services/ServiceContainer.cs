@@ -26,6 +26,7 @@ public static class ServiceContainer
     private static LocalizationService? _localizationService;
     private static NotificationService? _notificationService;
     private static SelfDisciplineService? _selfDisciplineService;
+    private static AppLock.Services.ScreenTime.ScreenTimeService? _screenTimeService;
     private static AppLock.Services.BitLocker.BitLockerSupportService? _bitLockerSupportService;
     private static AppLock.Services.BitLocker.BitLockerService? _bitLockerService;
     private static AppLock.Services.BitLocker.VolumeWatcher? _volumeWatcher;
@@ -313,6 +314,12 @@ public static class ServiceContainer
     {
         // Stop and dispose services that need cleanup
         _selfDisciplineService?.Dispose(); // flushes quota on exit
+        if (_screenTimeService != null)
+        {
+            _screenTimeService.Sampler.Dispose();
+            _ = _screenTimeService.Store.DisposeAsync();
+            _screenTimeService = null;
+        }
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();
         _idleService?.Dispose();
@@ -367,12 +374,29 @@ public static class ServiceContainer
     {
         if (_selfDisciplineService == null)
         {
-            _selfDisciplineService = new SelfDisciplineService(LockManager, OverlayManager, SettingsStore, Settings, dispatcherQueue);
+            _selfDisciplineService = new SelfDisciplineService(
+                LockManager, OverlayManager, SettingsStore, Settings, dispatcherQueue, ScreenTimeService.Sampler);
         }
         return _selfDisciplineService;
     }
 
     public static SelfDisciplineService? SelfDisciplineService => _selfDisciplineService;
+
+    /// <summary>
+    /// One store and one foreground sampler for the whole app. Created on first use, which happens
+    /// when Self-Discipline starts, so history is recorded before the Screen Time tab is opened.
+    /// </summary>
+    public static AppLock.Services.ScreenTime.ScreenTimeService ScreenTimeService
+    {
+        get
+        {
+            if (_screenTimeService == null)
+            {
+                _screenTimeService = new AppLock.Services.ScreenTime.ScreenTimeService(SettingsStore, Settings);
+            }
+            return _screenTimeService;
+        }
+    }
 
     public static AppLock.Services.BitLocker.BitLockerSupportService BitLockerSupportService
     {

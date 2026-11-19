@@ -135,9 +135,9 @@ public static class StartupManager
             // GetCurrentPackageFullName returns non-zero for packaged apps
             int length = 0;
             var result = GetCurrentPackageFullName(ref length, null);
-            // ERROR_INSUFFICIENT_BUFFER (0x8007007A) means packaged (buffer too small but function found package)
-            // APPMODEL_ERROR_NO_PACKAGE (0x80073D54) means not packaged
-            return result == 0x8007007A || result == 0;
+            // ERROR_INSUFFICIENT_BUFFER (122 / 0x8007007A) means packaged (buffer too small but function found package)
+            // APPMODEL_ERROR_NO_PACKAGE (15700 / 0x80073D54) means not packaged
+            return result == 122 || result == unchecked((int)0x8007007A) || result == 0;
         }
         catch
         {

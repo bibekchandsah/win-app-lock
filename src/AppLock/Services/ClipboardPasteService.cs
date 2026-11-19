@@ -30,7 +30,9 @@ public class ClipboardPasteResult
 /// </summary>
 public class ClipboardPasteService
 {
+#pragma warning disable CS0067
     public event EventHandler<string>? FallbackToastRequested;
+#pragma warning restore CS0067
 
     /// <summary>
     /// Executes the paste flow for a single item.

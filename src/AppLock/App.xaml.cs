@@ -156,15 +156,15 @@ public partial class App : Application
 
                 if (AppLock.Services.ServiceContainer.Settings.BitLockerRequireHelloOnAppStart)
                 {
-                    _mainWindow.DispatcherQueue.TryEnqueue(async () =>
+                    _mainWindow?.DispatcherQueue.TryEnqueue(async () =>
                     {
                         int retries = 0;
-                        while (_mainWindow.Content?.XamlRoot == null && retries++ < 25)
+                        while (_mainWindow?.Content?.XamlRoot == null && retries++ < 25)
                         {
                             await Task.Delay(200);
                         }
 
-                        if (_mainWindow.Content?.XamlRoot != null)
+                        if (_mainWindow?.Content?.XamlRoot != null)
                         {
                             var auth = await AppLock.Services.BitLocker.BitLockerSecurityGate.EnsureAuthenticatedAsync(_mainWindow.Content.XamlRoot);
                             if (auth)
@@ -184,7 +184,7 @@ public partial class App : Application
         // Everything is created; let the message loop paint the first frame before showing again.
         if (!startMinimized)
         {
-            _mainWindow.DispatcherQueue.TryEnqueue(
+            _mainWindow?.DispatcherQueue.TryEnqueue(
                 Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
                 () => _mainWindow.RevealAfterStartup());
         }

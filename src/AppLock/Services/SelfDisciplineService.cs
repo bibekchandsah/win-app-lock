@@ -1,5 +1,6 @@
 using System;
 using AppLock.Models;
+using AppLock.Services.ScreenTime;
 using Microsoft.UI.Dispatching;
 using Microsoft.Win32;
 using Windows.Win32;
@@ -22,6 +23,7 @@ public class SelfDisciplineService : IDisposable
 
     private readonly QuotaTracker _quotaTracker;
     private readonly ScheduleEvaluator _scheduleEvaluator;
+    private readonly ForegroundUsageSampler _sampler;
 
     private System.Threading.Timer? _tickTimer;
     private bool _disposed;
@@ -31,16 +33,21 @@ public class SelfDisciplineService : IDisposable
         OverlayManager overlayManager,
         SettingsStore settingsStore,
         AppSettings settings,
-        DispatcherQueue dispatcherQueue)
+        DispatcherQueue dispatcherQueue,
+        ForegroundUsageSampler sampler)
     {
         _lockManager = lockManager;
         _overlayManager = overlayManager;
         _settingsStore = settingsStore;
         _settings = settings;
         _dispatcherQueue = dispatcherQueue;
+        _sampler = sampler;
 
         _quotaTracker = new QuotaTracker(lockManager, overlayManager, settingsStore, settings, SystemClock.Instance);
         _scheduleEvaluator = new ScheduleEvaluator(SystemClock.Instance);
+
+        // Quota counting comes from the one shared sampler; the timer below only enforces.
+        _sampler.UsageTicked += OnUsageTicked;
 
         // When a rule is unlocked via the overlay, reset its idle-relock flag
         _overlayManager.RuleUnlocked += (_, rule) => rule.IdleRelockPending = false;
@@ -58,6 +65,9 @@ public class SelfDisciplineService : IDisposable
 
     public void Start()
     {
+        // The sampler runs even when the master toggle is off, so history keeps recording.
+        _sampler.Start();
+
         _tickTimer?.Dispose();
         _tickTimer = new System.Threading.Timer(OnTick, null,
             TimeSpan.FromSeconds(1),
@@ -68,6 +78,21 @@ public class SelfDisciplineService : IDisposable
     {
         _tickTimer?.Dispose();
         _tickTimer = null;
+        _sampler.Stop();
+    }
+
+    private void OnUsageTicked(object? sender, UsageTickedEventArgs e)
+    {
+        if (_disposed) return;
+
+        try
+        {
+            _quotaTracker.OnUsageTicked(e.AppKey, e.Seconds, e.ForegroundHwnd);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SelfDisciplineService] quota tick error: {ex.Message}");
+        }
     }
 
     private void OnSystemTimeChanged(object? sender, EventArgs e)
@@ -91,7 +116,6 @@ public class SelfDisciplineService : IDisposable
         try
         {
             double idleSeconds = IdleService.GetIdleTimeMinutes() * 60.0;
-            nint foregroundHwnd = (nint)PInvoke.GetForegroundWindow().Value;
 
             foreach (var rule in _lockManager.GetAllRules())
             {
@@ -122,8 +146,8 @@ public class SelfDisciplineService : IDisposable
                 EvaluateIdleRelock(rule, sd, idleSeconds / 60.0);
             }
 
-            // --- Step 4: Quota tracking ---
-            _quotaTracker.OnTick(idleSeconds, foregroundHwnd);
+            // --- Step 4: Quota rollover + enforcement (counting comes from UsageTicked) ---
+            _quotaTracker.OnTick();
         }
         catch (Exception ex)
         {
@@ -153,6 +177,7 @@ public class SelfDisciplineService : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
+        _sampler.UsageTicked -= OnUsageTicked;
 
         try
         {

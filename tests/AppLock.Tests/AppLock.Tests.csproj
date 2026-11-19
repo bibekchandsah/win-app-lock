@@ -41,6 +41,12 @@
     <Compile Include="..\..\src\AppLock\Models\ScreenTimeSettings.cs" Link="Models\ScreenTimeSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\UsageModels.cs" Link="Models\UsageModels.cs" />
     <Compile Include="..\..\src\AppLock\Services\ScreenTime\ScreenTimeStore.cs" Link="Services\ScreenTime\ScreenTimeStore.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\UsageSlicer.cs" Link="Services\ScreenTime\UsageSlicer.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\UsageSliceTracker.cs" Link="Services\ScreenTime\UsageSliceTracker.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\ActivityGate.cs" Link="Services\ScreenTime\ActivityGate.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\UsageClockGuard.cs" Link="Services\ScreenTime\UsageClockGuard.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\ScreenTimeQueries.cs" Link="Services\ScreenTime\ScreenTimeQueries.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\LimitPolicy.cs" Link="Services\ScreenTime\LimitPolicy.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />
     <Compile Include="..\..\src\AppLock\Models\AppSettings.cs" Link="Models\AppSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\NetworkRuleEntry.cs" Link="Models\NetworkRuleEntry.cs" />

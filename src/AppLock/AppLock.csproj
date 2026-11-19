@@ -21,6 +21,8 @@
     <ApplicationIcon>icons\icon.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3851</MSBuildWarningsAsMessages>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin-verify\**;bin-verify3\**;verify-bin\**;**\*verify*\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- Point AppxMSBuildToolsPath to VS 18.0 if using dotnet CLI directly -->
@@ -91,8 +93,14 @@
   </Target>
 
   <Target Name="CopyAppLockGuardExe" AfterTargets="Build">
-    <Copy SourceFiles="$(OutputPath)AppLock.exe" DestinationFiles="$(OutputPath)AppLockGuard.exe" SkipUnchangedFiles="false" ContinueOnError="true" />
-    <Message Text="Copied AppLockGuard.exe" Importance="high" />
+    <PropertyGroup>
+      <GuardSrc Condition="Exists('$(TargetDir)AppLock.exe')">$(TargetDir)AppLock.exe</GuardSrc>
+      <GuardSrc Condition="'$(GuardSrc)' == '' and Exists('$(OutputPath)AppLock.exe')">$(OutputPath)AppLock.exe</GuardSrc>
+      <GuardDst Condition="'$(GuardSrc)' != '' and Exists('$(TargetDir)AppLock.exe')">$(TargetDir)AppLockGuard.exe</GuardDst>
+      <GuardDst Condition="'$(GuardDst)' == '' and '$(GuardSrc)' != ''">$(OutputPath)AppLockGuard.exe</GuardDst>
+    </PropertyGroup>
+    <Copy SourceFiles="$(GuardSrc)" DestinationFiles="$(GuardDst)" SkipUnchangedFiles="false" Condition="'$(GuardSrc)' != '' and Exists('$(GuardSrc)')" ContinueOnError="true" />
+    <Message Text="Copied AppLockGuard.exe" Importance="high" Condition="'$(GuardSrc)' != ''" />
   </Target>
 
 </Project>

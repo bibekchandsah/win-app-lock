@@ -2435,6 +2435,7 @@ public sealed partial class VolumeOverlayWindow : Window
     {
         var container = ActiveAppRowsContainer;
         System.Diagnostics.Debug.WriteLine($"[VolumeMixer] UpdateSessionRows: container={container?.Name}, has {container?.Children.Count ?? -1} children before update");
+        if (container == null) return;
         
         var currentKeys = _appSessions.Keys.ToHashSet();
         var newKeys = groups.Select(g => g.Key).ToHashSet();
@@ -3120,7 +3121,7 @@ public sealed partial class VolumeOverlayWindow : Window
     private class IconExtractor
     {
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern uint ExtractIconEx(string szFileName, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, uint nIcons);
+        private static extern uint ExtractIconEx(string szFileName, int nIconIndex, IntPtr[]? phiconLarge, IntPtr[]? phiconSmall, uint nIcons);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr hIcon);
@@ -3134,7 +3135,7 @@ public sealed partial class VolumeOverlayWindow : Window
 
         public System.Drawing.Icon[]? GetAllIcons()
         {
-            IntPtr[] largeIcons = null;
+            IntPtr[]? largeIcons = null;
             try
             {
                 // Get count of icons

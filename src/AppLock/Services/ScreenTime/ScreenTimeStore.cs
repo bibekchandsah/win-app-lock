@@ -154,18 +154,20 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         using var upsert = connection.CreateCommand();
         upsert.Transaction = transaction;
         upsert.CommandText = """
-            INSERT INTO app (app_key, display_name, exe_path, aumid, first_seen)
-            VALUES ($key, $name, $exe, $aumid, $firstSeen)
+            INSERT INTO app (app_key, display_name, exe_path, aumid, first_seen, icon_png)
+            VALUES ($key, $name, $exe, $aumid, $firstSeen, $icon)
             ON CONFLICT(app_key) DO UPDATE SET
                 display_name = CASE WHEN excluded.display_name = app.app_key THEN app.display_name ELSE excluded.display_name END,
                 exe_path     = COALESCE(excluded.exe_path, app.exe_path),
-                aumid        = COALESCE(excluded.aumid, app.aumid);
+                aumid        = COALESCE(excluded.aumid, app.aumid),
+                icon_png     = COALESCE(excluded.icon_png, app.icon_png);
             """;
         upsert.Parameters.AddWithValue("$key", delta.AppKey);
         upsert.Parameters.AddWithValue("$name", delta.DisplayName);
         upsert.Parameters.AddWithValue("$exe", (object?)delta.ExePath ?? DBNull.Value);
         upsert.Parameters.AddWithValue("$aumid", (object?)delta.Aumid ?? DBNull.Value);
         upsert.Parameters.AddWithValue("$firstSeen", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        upsert.Parameters.AddWithValue("$icon", (object?)delta.IconPng ?? DBNull.Value);
         upsert.ExecuteNonQuery();
 
         using var id = connection.CreateCommand();
@@ -294,6 +296,59 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         return Enumerable.Range(0, 24).Select(h => new CoverageHour(h, hours[h])).ToList();
     }
 
+    /// <summary>Every app that has a row in the database, including its path for rule creation.</summary>
+    public IReadOnlyList<StoredApp> GetApps()
+    {
+        EnsureInitialized();
+
+        var apps = new List<StoredApp>();
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT app_key, display_name, exe_path, aumid FROM app ORDER BY display_name;";
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            apps.Add(new StoredApp(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return apps;
+    }
+
+    /// <summary>Cached PNG icons for the visible list, read once per refresh.</summary>
+    public IReadOnlyDictionary<string, byte[]> GetAppIcons(IEnumerable<string> appKeys)
+    {
+        var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var keys = appKeys.Where(k => !string.IsNullOrEmpty(k)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (keys.Count == 0) return result;
+
+        EnsureInitialized();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        var names = new List<string>();
+        for (int i = 0; i < keys.Count; i++)
+        {
+            string name = "$k" + i.ToString(CultureInfo.InvariantCulture);
+            names.Add(name);
+            command.Parameters.AddWithValue(name, keys[i]);
+        }
+
+        command.CommandText = $"SELECT app_key, icon_png FROM app WHERE app_key IN ({string.Join(",", names)}) AND icon_png IS NOT NULL;";
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            result[reader.GetString(0)] = (byte[])reader.GetValue(1);
+        }
+
+        return result;
+    }
+
     /// <summary>Top apps of one hour, plus the rest as "Other", prepared for a stacked bar.</summary>
     public IReadOnlyList<BarSegment> GetHourStack(DateOnly day, int hour, int topCount = 3)
     {
@@ -382,6 +437,17 @@ public sealed class ScreenTimeStore : IAsyncDisposable
 
         transaction.Commit();
         return removed;
+    }
+
+    /// <summary>Deletes stored window titles when the user turns title recording off.</summary>
+    public void ClearTitles()
+    {
+        EnsureInitialized();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM window_title;";
+        command.ExecuteNonQuery();
     }
 
     /// <summary>Removes every usage row. Quota counters live in the settings file and are untouched.</summary>
