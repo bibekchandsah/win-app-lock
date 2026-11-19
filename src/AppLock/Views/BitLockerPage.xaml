@@ -174,11 +174,9 @@
                         </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:DriveItemViewModel">
-                            <!-- Border provides the rounded card outline; ListViewItem underneath provides the rounded card surface and state colors -->
-                            <Border Padding="16,12"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
+                            <!-- ListViewItem is the card surface (rounded corners, border, background, hover/selection tint).
+                                 Inner Border provides only padding — no extra stroke. -->
+                            <Border Padding="16,12">
                                 <Grid RowSpacing="12">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>

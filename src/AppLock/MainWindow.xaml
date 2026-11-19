@@ -48,9 +48,11 @@
             <Grid x:Name="NavRail" SizeChanged="NavRail_SizeChanged">
                 <Grid.Resources>
                     <ResourceDictionary>
-                        <!-- Dynamic accent-based nav hover/press fills -->
-                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
-                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                        <!-- Nav buttons manage their own hover via NavBackground border in code.
+                             Suppress the Button's built-in state fills to prevent flicker/double-paint. -->
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="Transparent"/>
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="Transparent"/>
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
                     </ResourceDictionary>
                 </Grid.Resources>
                 <Grid.RowDefinitions>
@@ -105,6 +107,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Protection">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="ProtectionNavBackground"
@@ -154,6 +160,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Vault">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="VaultNavBackground"
@@ -239,6 +249,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Internet Access">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="InternetAccessNavBackground"
@@ -288,6 +302,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="BitLocker"
                             Visibility="Collapsed">
                         <Grid Height="40" HorizontalAlignment="Stretch">
@@ -341,6 +359,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Others">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="OthersNavBackground"
@@ -390,6 +412,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Feedback &amp; Community">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="FeedbackNavBackground"
@@ -439,6 +465,10 @@
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
                             ToolTipService.ToolTip="Settings">
                         <Grid Height="40" HorizontalAlignment="Stretch">
                             <Border x:Name="SettingsNavBackground"

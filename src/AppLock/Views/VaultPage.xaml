@@ -144,11 +144,9 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VaultCardViewModel">
-                        <!-- Border provides the rounded card outline; ListViewItem underneath provides the rounded card surface and dynamic accent hover -->
-                        <Border Padding="16,14"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                        <!-- The ListViewItem is the card surface (rounded corners, border, background, hover tint).
+                             The inner Border provides only padding — no extra stroke or corner clipping. -->
+                        <Border Padding="16,14">
                             <Grid RowSpacing="10">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

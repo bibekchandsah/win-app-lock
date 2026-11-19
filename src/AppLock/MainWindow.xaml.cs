@@ -433,6 +433,7 @@ public sealed partial class MainWindow : Window
         if (background != null)
         {
             background.Background = activeBg;
+            background.Opacity = 1.0;
             background.Visibility = isSelected ? Visibility.Visible : Visibility.Collapsed;
         }
         if (indicator != null)
@@ -754,6 +755,73 @@ public sealed partial class MainWindow : Window
                 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
+
+    // ── Nav hover helpers ────────────────────────────────────────────────────
+    // The nav buttons have ButtonBackground* suppressed to Transparent so the
+    // Button's built-in visual-state machine never paints anything.  Hover is
+    // instead shown by toggling the NavBackground border via these handlers.
+    // The border is already visible (and styled) when the item is *selected*;
+    // for unselected items we show it at a lower opacity on PointerEntered and
+    // hide it on PointerExited.
+
+    private static readonly double NavHoverOpacity = 0.55;   // opacity applied to the NavBackground border while hovering an unselected item
+
+    private void NavButton_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        var bg = GetNavBackground(btn);
+        if (bg == null) return;
+        // Only show hover tint when the item is not already selected (selected = Visible)
+        if (bg.Visibility != Visibility.Visible)
+        {
+            var accent = GetWindowAccentColor();
+            bg.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(
+                IsDarkMode ? (byte)38 : (byte)22,
+                accent.R, accent.G, accent.B));
+            bg.Visibility = Visibility.Visible;
+            bg.Opacity = NavHoverOpacity;
+        }
+    }
+
+    private void NavButton_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        var bg = GetNavBackground(btn);
+        if (bg == null) return;
+        // Only collapse if the item is not currently selected (selected items stay visible at full opacity)
+        if (bg.Opacity < 1.0)
+        {
+            bg.Visibility = Visibility.Collapsed;
+            bg.Opacity = 1.0;
+        }
+    }
+
+    private void NavButton_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        var bg = GetNavBackground(btn);
+        if (bg == null) return;
+        if (bg.Opacity < 1.0)
+        {
+            var accent = GetWindowAccentColor();
+            bg.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(
+                IsDarkMode ? (byte)58 : (byte)36,
+                accent.R, accent.G, accent.B));
+            bg.Visibility = Visibility.Visible;
+        }
+    }
+
+    private Border? GetNavBackground(Button btn) => btn.Name switch
+    {
+        nameof(ProtectionNavButton)   => ProtectionNavBackground,
+        nameof(VaultNavButton)        => VaultNavBackground,
+        nameof(InternetAccessNavButton) => InternetAccessNavBackground,
+        nameof(BitLockerNavButton)    => BitLockerNavBackground,
+        nameof(OthersNavButton)       => OthersNavBackground,
+        nameof(FeedbackNavButton)     => FeedbackNavBackground,
+        nameof(SettingsNavButton)     => SettingsNavBackground,
+        _ => null
+    };
 
     private void BitLockerNavButton_Click(object sender, RoutedEventArgs e)
     {
