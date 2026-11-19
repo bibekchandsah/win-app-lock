@@ -68,6 +68,12 @@ public sealed partial class GlobalVaultSettingsDialog : ContentDialog
 
         // 11. SendTo shortcut
         SendToSwitch.IsOn = SendToShortcutService.IsEnabled();
+
+        // 12. Explorer Context Menu
+        ContextMenuSwitch.IsOn = ExplorerContextMenuService.IsEnabled();
+
+        // 13. Size Padding
+        SizePaddingSwitch.IsOn = _settings.EnableSizePadding;
     }
 
     private void SaveButton_Click(ContentDialog sender, ContentDialogButtonClickEventArgs args)
@@ -102,11 +108,17 @@ public sealed partial class GlobalVaultSettingsDialog : ContentDialog
         _settings.TempGenericNames = TempGenericNamesSwitch.IsOn;
         _settings.TempOverwriteOnDelete = TempOverwriteSwitch.IsOn;
         _settings.TrashDays = (int)Math.Max(0, TrashRetentionBox.Value);
+        _settings.EnableSizePadding = SizePaddingSwitch.IsOn;
 
         // Update SendTo shortcut
         bool sendToWanted = SendToSwitch.IsOn;
         _settings.SendToEnabled = sendToWanted;
         SendToShortcutService.SetEnabled(sendToWanted);
+
+        // Update Explorer context menu
+        bool contextMenuWanted = ContextMenuSwitch.IsOn;
+        _settings.ContextMenuEnabled = contextMenuWanted;
+        ExplorerContextMenuService.SetEnabled(contextMenuWanted);
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         LogService.LogAction("Vault", "Global vault settings updated.");

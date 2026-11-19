@@ -16,13 +16,15 @@ public static class FileObjectWriter
     /// <summary>
     /// Encrypts input plaintext stream into vault chunked object format.
     /// Computes SHA-256 hash and plaintext length while streaming.
+    /// Optionally pads the object to a bucket multiple (e.g. 64 KiB) to prevent size analysis.
     /// </summary>
     public static (long PlaintextLength, string Sha256Hex) WriteObject(
         Stream inputStream,
         Stream outputStream,
         byte[] fekWrapKey,
         Guid fileId,
-        int chunkSize = DefaultChunkSize)
+        int chunkSize = DefaultChunkSize,
+        PaddingMode paddingMode = PaddingMode.None)
     {
         if (fekWrapKey == null || fekWrapKey.Length != 32)
             throw new ArgumentException("FEK wrap key must be 32 bytes.", nameof(fekWrapKey));
@@ -127,12 +129,25 @@ public static class FileObjectWriter
                 BinaryPrimitives.WriteUInt32BigEndian(chunkAad.AsSpan(16, 4), chunkIndex);
                 chunkAad[20] = finalFlag;
 
-                var plaintextSpan = chunkBuffer.AsSpan(0, bytesRead);
-                var cipherSpan = ciphertextBuffer.AsSpan(0, bytesRead);
+                // If padding is enabled, pad the final chunk up to the next bucket size
+                int bytesToWrite = bytesRead;
+                if (isFinal && paddingMode == PaddingMode.Bucket64KiB && bytesRead < chunkSize)
+                {
+                    int paddedBytes = SizePadding.CalculatePaddedChunkSize(bytesRead, SizePadding.DefaultBucketSize);
+                    if (paddedBytes > bytesRead && paddedBytes <= chunkSize)
+                    {
+                        // Fill remainder of chunk with secure random padding bytes
+                        RandomNumberGenerator.Fill(chunkBuffer.AsSpan(bytesRead, paddedBytes - bytesRead));
+                        bytesToWrite = paddedBytes;
+                    }
+                }
+
+                var plaintextSpan = chunkBuffer.AsSpan(0, bytesToWrite);
+                var cipherSpan = ciphertextBuffer.AsSpan(0, bytesToWrite);
 
                 fekAes.Encrypt(chunkNonce, plaintextSpan, cipherSpan, tagBuffer, chunkAad);
 
-                // Update hash & totals
+                // Update hash & totals with genuine plaintext bytes only
                 if (bytesRead > 0)
                 {
                     sha256.AppendData(chunkBuffer, 0, bytesRead);
@@ -140,7 +155,7 @@ public static class FileObjectWriter
                 }
 
                 // Write chunk ciphertext + tag
-                outputStream.Write(ciphertextBuffer, 0, bytesRead);
+                outputStream.Write(ciphertextBuffer, 0, bytesToWrite);
                 outputStream.Write(tagBuffer, 0, tagBuffer.Length);
 
                 if (isFinal)

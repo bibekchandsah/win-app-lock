@@ -18,6 +18,8 @@ public class VaultSettings
     public bool OverwriteOriginals { get; set; }
     public int TrashDays { get; set; } = 30;
     public bool SendToEnabled { get; set; }
+    public bool ContextMenuEnabled { get; set; }
+    public bool EnableSizePadding { get; set; } = true;
     public bool RequireFreshAuth { get; set; } = true;
 }
 

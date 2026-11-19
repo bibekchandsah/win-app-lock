@@ -286,11 +286,13 @@ public static class TempOpenService
 
         long plainLength;
         string sha256Hex;
+        var paddingMode = Crypto.PaddingMode.Bucket64KiB;
+
         using (var src = new FileStream(meta.TempFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         using (var dst = new FileStream(tempObjPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             (plainLength, sha256Hex) = await Task.Run(() =>
-                FileObjectWriter.WriteObject(src, dst, session.FekWrapKey, item.Id), ct);
+                FileObjectWriter.WriteObject(src, dst, session.FekWrapKey, item.Id, paddingMode: paddingMode), ct);
         }
 
         if (File.Exists(finalObjPath)) File.Delete(finalObjPath);

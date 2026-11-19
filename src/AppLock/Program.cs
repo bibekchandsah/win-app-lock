@@ -37,7 +37,29 @@ public static class Program
             return;
         }
 
-        // 3. Normal AppLock instance — but only one at a time. A restarted instance waits for the old one
+        // 3. If invoked with --vault-add to add files/folders to vault
+        var vaultAddIdx = Array.FindIndex(args, a => string.Equals(a, "--vault-add", StringComparison.OrdinalIgnoreCase));
+        if (vaultAddIdx >= 0)
+        {
+            var pathsToAdd = new System.Collections.Generic.List<string>();
+            for (int i = vaultAddIdx + 1; i < args.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(args[i]))
+                    pathsToAdd.Add(args[i]);
+            }
+
+            if (pathsToAdd.Count > 0)
+            {
+                // Try signaling running instance
+                if (AppLock.Services.Vault.VaultIpcService.SignalPendingAdd(pathsToAdd))
+                {
+                    System.Diagnostics.Debug.WriteLine("[Program] Signaled running instance with --vault-add items.");
+                    return;
+                }
+            }
+        }
+
+        // 4. Normal AppLock instance — but only one at a time. A restarted instance waits for the old one
         //    to finish shutting down; a stray second launch gives up quietly instead of adding a window.
         if (!TryAcquireSingleInstance(TimeSpan.FromSeconds(8)))
         {

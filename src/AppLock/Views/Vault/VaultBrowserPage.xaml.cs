@@ -213,9 +213,30 @@ public sealed partial class VaultBrowserPage : Page
         }
     }
 
-    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private async void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        ViewModel?.Refresh();
+        if (ViewModel == null) return;
+        if (ViewModel.IsContentSearch)
+        {
+            await ViewModel.RefreshAsync();
+        }
+        else
+        {
+            ViewModel.Refresh();
+        }
+    }
+
+    private async void SearchModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+
+        ViewModel.IsContentSearch = !ViewModel.IsContentSearch;
+        SearchModeLabel.Text = ViewModel.IsContentSearch ? "Content" : "Names";
+        VaultSearchBox.PlaceholderText = ViewModel.IsContentSearch
+            ? "Search encrypted content…"
+            : "Search files…";
+
+        await ViewModel.RefreshAsync();
     }
 
     private void TrashToggle_Click(object sender, RoutedEventArgs e)

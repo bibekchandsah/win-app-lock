@@ -45,6 +45,8 @@ public sealed partial class MainWindow : Window
     private bool _startInTray;
     private DispatcherTimer? _toastTimer;
     private Windows.UI.ViewManagement.UISettings? _uiSettings;
+    private EventWaitHandle? _vaultAddIpcEvent;
+    private CancellationTokenSource? _vaultAddIpcCts;
 
     internal static MainWindow? Instance { get; private set; }
     internal HWND Hwnd => _hwnd;
@@ -1294,6 +1296,9 @@ public sealed partial class MainWindow : Window
         // Initialize Eye Care scheduler
         ServiceContainer.InitializeEyeCare(DispatcherQueue);
 
+        // Start listening for external "Add to AppLock Vault" IPC requests
+        StartVaultAddIpcListener();
+
         // Safety net for an exit that never reached MainWindow_ActualClose. It must stay managed-only:
         // ProcessExit runs while the CLR is shutting down and AppLockHook.dll is detaching, and calling
         // its exported thumbnail-uninstall functions from there made AppLock raise the "stack-based buffer
@@ -1312,6 +1317,67 @@ public sealed partial class MainWindow : Window
         if (Interlocked.Exchange(ref _finalCleanupDone, 1) != 0) return;
 
         try { ServiceContainer.ShutdownNotificationCustomizer(); } catch { }
+    }
+
+    private void StartVaultAddIpcListener()
+    {
+        try
+        {
+            _vaultAddIpcEvent = new EventWaitHandle(false, EventResetMode.AutoReset, AppLock.Services.Vault.VaultIpcService.VaultAddEventName);
+            _vaultAddIpcCts = new CancellationTokenSource();
+            var token = _vaultAddIpcCts.Token;
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var handles = new WaitHandle[] { _vaultAddIpcEvent, token.WaitHandle };
+                while (!token.IsCancellationRequested)
+                {
+                    int index = WaitHandle.WaitAny(handles);
+                    if (index == 0) // Event signaled
+                    {
+                        var pending = AppLock.Services.Vault.VaultIpcService.ReadAndClearPendingAdd();
+                        if (pending.Count > 0)
+                        {
+                            DispatcherQueue.TryEnqueue(() => HandleExternalVaultAdd(pending));
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] StartVaultAddIpcListener failed: {ex.Message}");
+        }
+    }
+
+    private void HandleExternalVaultAdd(List<string> paths)
+    {
+        try
+        {
+            // Restore window if minimized or hidden
+            RevealAfterStartup();
+            _appWindow?.Show();
+
+            // Navigate to Vault page if authenticated
+            if (_isMainAuthenticated && ContentFrame.CurrentSourcePageType != typeof(VaultPage))
+            {
+                ContentFrame.Navigate(typeof(VaultPage));
+            }
+
+            ShowToastNotification(new AppNotification
+            {
+                Title = "AppLock",
+                Message = $"Received {paths.Count} item{(paths.Count > 1 ? "s" : "")} to add to Vault. Select or open a vault to add."
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] HandleExternalVaultAdd error: {ex.Message}");
+        }
     }
 
     private void InstallWndProcSubclass()

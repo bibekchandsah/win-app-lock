@@ -137,8 +137,10 @@ public static class FileObjectReader
     /// <summary>
     /// Reads and decrypts all chunks from input stream to output stream.
     /// Verifies counter continuity, final-chunk flag, and chunk authentication tags.
+    /// If expectedPlaintextLength is provided (e.g. from IndexItem.Size), only genuine plaintext
+    /// bytes are written to outputStream, transparently stripping padding.
     /// </summary>
-    public static long DecryptAll(Stream inputStream, Stream outputStream, byte[] fekWrapKey)
+    public static long DecryptAll(Stream inputStream, Stream outputStream, byte[] fekWrapKey, long? expectedPlaintextLength = null)
     {
         using var header = ReadAndVerifyHeader(inputStream, fekWrapKey);
         using var fekAes = new AesGcm(header.Fek, 16);
@@ -223,8 +225,18 @@ public static class FileObjectReader
 
             if (cipherLen > 0)
             {
-                outputStream.Write(plainBuffer, 0, cipherLen);
-                totalDecrypted += cipherLen;
+                int bytesToWrite = cipherLen;
+                if (expectedPlaintextLength.HasValue)
+                {
+                    long remainingExpected = Math.Max(0, expectedPlaintextLength.Value - totalDecrypted);
+                    bytesToWrite = (int)Math.Min((long)cipherLen, remainingExpected);
+                }
+
+                if (bytesToWrite > 0)
+                {
+                    outputStream.Write(plainBuffer, 0, bytesToWrite);
+                    totalDecrypted += bytesToWrite;
+                }
             }
 
             if (isFinal)

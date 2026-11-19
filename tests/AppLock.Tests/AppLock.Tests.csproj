@@ -74,6 +74,10 @@
     <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\FileObjectWriter.cs" Link="Services\Vault\Crypto\FileObjectWriter.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\FileObjectReader.cs" Link="Services\Vault\Crypto\FileObjectReader.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\ChunkedCryptoStream.cs" Link="Services\Vault\Crypto\ChunkedCryptoStream.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\Crypto\SizePadding.cs" Link="Services\Vault\Crypto\SizePadding.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\ContentSearchService.cs" Link="Services\Vault\ContentSearchService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\ExplorerContextMenuService.cs" Link="Services\Vault\ExplorerContextMenuService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\VaultIpcService.cs" Link="Services\Vault\VaultIpcService.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultIndex.cs" Link="Services\Vault\VaultIndex.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultStorage.cs" Link="Services\Vault\VaultStorage.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\PasswordStrength.cs" Link="Services\Vault\PasswordStrength.cs" />

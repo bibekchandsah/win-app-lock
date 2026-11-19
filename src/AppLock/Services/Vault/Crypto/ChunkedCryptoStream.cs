@@ -112,7 +112,9 @@ public class ChunkedCryptoStream : Stream
             int availableInChunk = _cachedChunkPlaintext.Length - offsetInChunk;
             if (availableInChunk <= 0) break;
 
-            int toCopy = Math.Min(count, availableInChunk);
+            // Clamp to genuine plaintext: never expose padding bytes that may exist in the final chunk
+            long remainingPlain = _plainLength - _position;
+            int toCopy = (int)Math.Min(Math.Min((long)count, (long)availableInChunk), remainingPlain);
             Buffer.BlockCopy(_cachedChunkPlaintext, offsetInChunk, buffer, offset + totalRead, toCopy);
 
             totalRead += toCopy;

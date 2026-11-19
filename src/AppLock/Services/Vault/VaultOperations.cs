@@ -22,7 +22,8 @@ public static class VaultOperations
         Guid? parentId = null,
         bool deleteOriginal = false,
         IProgress<(int Percent, string Status)>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool enableSizePadding = true)
     {
         if (!File.Exists(sourceFilePath))
             return new AddFileResult(false, Path.GetFileName(sourceFilePath), "Source file does not exist.");
@@ -55,11 +56,15 @@ public static class VaultOperations
             // 1. Encrypt source file to temp object
             long plaintextLength;
             string sha256Hex;
+            var paddingMode = enableSizePadding
+                ? Crypto.PaddingMode.Bucket64KiB
+                : Crypto.PaddingMode.None;
+
             using (var src = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true))
             using (var dst = new FileStream(tempObjPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true))
             {
                 (plaintextLength, sha256Hex) = await Task.Run(() =>
-                    FileObjectWriter.WriteObject(src, dst, session.FekWrapKey, fileId), ct);
+                    FileObjectWriter.WriteObject(src, dst, session.FekWrapKey, fileId, paddingMode: paddingMode), ct);
             }
 
             ct.ThrowIfCancellationRequested();
@@ -70,7 +75,7 @@ public static class VaultOperations
             using (var sha = SHA256.Create())
             using (var hashStream = new CryptoStream(Stream.Null, sha, CryptoStreamMode.Write))
             {
-                await Task.Run(() => FileObjectReader.DecryptAll(verifyStream, hashStream, session.FekWrapKey), ct);
+                await Task.Run(() => FileObjectReader.DecryptAll(verifyStream, hashStream, session.FekWrapKey, plaintextLength), ct);
                 hashStream.FlushFinalBlock();
                 var computedHash = Convert.ToHexString(sha.Hash!).ToLowerInvariant();
                 if (!string.Equals(computedHash, sha256Hex, StringComparison.OrdinalIgnoreCase))
@@ -503,7 +508,7 @@ public static class VaultOperations
         using (var sha = SHA256.Create())
         using (var hashStream = new CryptoStream(outStream, sha, CryptoStreamMode.Write))
         {
-            await Task.Run(() => FileObjectReader.DecryptAll(inStream, hashStream, session.FekWrapKey), ct);
+            await Task.Run(() => FileObjectReader.DecryptAll(inStream, hashStream, session.FekWrapKey, item.Size), ct);
             hashStream.FlushFinalBlock();
 
             // Hash verification

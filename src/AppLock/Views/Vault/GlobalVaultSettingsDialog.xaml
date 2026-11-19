@@ -96,13 +96,21 @@
 
             <MenuFlyoutSeparator Margin="0,4"/>
 
-            <!-- Section 4: System Integration -->
-            <TextBlock Text="System Integration" FontWeight="SemiBold" FontSize="14"
+            <!-- Section 4: System Integration & Advanced Security -->
+            <TextBlock Text="System Integration &amp; Advanced Security" FontWeight="SemiBold" FontSize="14"
                        Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+
+            <ToggleSwitch x:Name="ContextMenuSwitch"
+                          Header="Windows Explorer context menu ('Add to AppLock Vault')"
+                          OffContent="Disabled" OnContent="Enabled"/>
 
             <ToggleSwitch x:Name="SendToSwitch"
                           Header="'Add to AppLock Vault' in Windows Send To menu"
                           OffContent="Disabled" OnContent="Enabled"/>
+
+            <ToggleSwitch x:Name="SizePaddingSwitch"
+                          Header="Obfuscate file sizes (pad encrypted objects to prevent traffic/storage analysis)"
+                          OffContent="Exact sizes" OnContent="Bucket size padding"/>
 
         </StackPanel>
     </ScrollViewer>

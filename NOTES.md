@@ -1305,3 +1305,26 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 
 
 
+
+## Vault - Milestone 11 Phase 2 (Explorer Context Menu, Content Search, Size Padding)
+
+### Explorer Context-Menu Command
+- Registered under HKCU (no admin required) at HKCU\Software\Classes\*\shell\AppLock.AddVault and HKCU\Software\Classes\Directory\shell\AppLock.AddVault
+- Shell command: AppLock.exe --vault-add "%1"
+- IPC: named Win32 event Local\AppLock_VaultAdd_Event + JSON file %LOCALAPPDATA%\AppLock\pending_vault_add.json
+- Running instance receives paths, restores window, navigates to Vault page, shows in-app toast
+- If no instance is running, falls through to normal startup and shows import dialog
+
+### Encrypted Content Search
+- Full-text streaming search inside encrypted vault objects while unlocked
+- Uses ChunkedCryptoStream with knownPlaintextLength = item.Size - plaintext never written to disk
+- Supports: .txt .md .cs .json .xml .csv .log .yaml .html .js .ts .py .rb .go .rs .java .cpp .h .css
+- Max 10 MiB per file; returns ContentSearchResult with matched file name, line number, and snippet
+- UI: Names / Content toggle on VaultBrowserPage; snippets shown inline per result item
+
+### Size Padding (Traffic/Storage Analysis Resistance)
+- PaddingMode.Bucket64KiB: pads each encrypted .obj file's final chunk to the next 64 KiB multiple using CSPRNG bytes
+- SHA-256 and IndexItem.Size track real byte count only - padding is stripped transparently by ChunkedCryptoStream using knownPlaintextLength
+- ChunkedCryptoStream.Read() clamps output to remainingPlain to prevent padding leakage to consumers
+- Enabled by default (VaultSettings.EnableSizePadding = true); toggled in Global Settings
+- TempOpenService write-back always uses Bucket64KiB

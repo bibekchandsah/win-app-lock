@@ -26,6 +26,12 @@ public partial class VaultItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    [ObservableProperty]
+    private string _searchSnippet = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasSearchSnippet;
+
     public string DisplaySize => IsDirectory ? "--" : FormatFileSize(Size);
 
     public string DisplayModified => ModifiedTimeUtc.ToLocalTime().ToString("g");

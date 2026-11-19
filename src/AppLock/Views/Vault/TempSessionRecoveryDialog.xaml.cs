@@ -52,10 +52,14 @@ public sealed partial class TempSessionRecoveryDialog : ContentDialog
 
                         long plainLen;
                         string shaHex;
+                        var paddingMode = ServiceContainer.Settings.Vault.EnableSizePadding
+                            ? AppLock.Services.Vault.Crypto.PaddingMode.Bucket64KiB
+                            : AppLock.Services.Vault.Crypto.PaddingMode.None;
+
                         using (var src = new FileStream(meta.TempFilePath, FileMode.Open, FileAccess.Read))
                         using (var dst = new FileStream(finalObjPath, FileMode.Create, FileAccess.Write))
                         {
-                            (plainLen, shaHex) = FileObjectWriter.WriteObject(src, dst, openSession.FekWrapKey, item.Id);
+                            (plainLen, shaHex) = FileObjectWriter.WriteObject(src, dst, openSession.FekWrapKey, item.Id, paddingMode: paddingMode);
                         }
 
                         lock (openSession)

@@ -34,6 +34,12 @@ public partial class VaultBrowserViewModel : ObservableObject
     private string _searchQuery = string.Empty;
 
     [ObservableProperty]
+    private bool _isContentSearch = false;
+
+    [ObservableProperty]
+    private bool _isSearchingContent = false;
+
+    [ObservableProperty]
     private string _statusSummary = string.Empty;
 
     [ObservableProperty]
@@ -58,6 +64,17 @@ public partial class VaultBrowserViewModel : ObservableObject
     {
         Session = session;
         VaultName = session.VaultName;
+        Refresh();
+    }
+
+    public async Task RefreshAsync()
+    {
+        if (IsContentSearch && !string.IsNullOrWhiteSpace(SearchQuery) && !IsTrashMode)
+        {
+            await RunContentSearchAsync(SearchQuery.Trim());
+            return;
+        }
+
         Refresh();
     }
 
@@ -101,6 +118,37 @@ public partial class VaultBrowserViewModel : ObservableObject
 
         UpdateBreadcrumbs();
         UpdateStatusSummary();
+    }
+
+    private async Task RunContentSearchAsync(string query)
+    {
+        IsSearchingContent = true;
+        Items.Clear();
+
+        try
+        {
+            var results = await ContentSearchService.SearchAsync(Session, query, CurrentFolderId);
+            foreach (var r in results)
+            {
+                var vm = new VaultItemViewModel(r.Item)
+                {
+                    HasSearchSnippet = true,
+                    SearchSnippet = $"Line {r.FirstMatchLine}: {r.Snippet} ({r.MatchCount} match{(r.MatchCount > 1 ? "es" : "")})"
+                };
+                Items.Add(vm);
+            }
+
+            StatusSummary = $"{results.Count} document{(results.Count == 1 ? "" : "s")} found matching content \"{query}\"";
+        }
+        catch (Exception ex)
+        {
+            StatusSummary = $"Search error: {ex.Message}";
+        }
+        finally
+        {
+            IsSearchingContent = false;
+            UpdateBreadcrumbs();
+        }
     }
 
     public void NavigateToFolder(Guid? folderId)

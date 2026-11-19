@@ -75,6 +75,7 @@
         <Grid Grid.Row="1" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="240"/>
             </Grid.ColumnDefinitions>
 
@@ -89,8 +90,22 @@
                 </BreadcrumbBar.ItemTemplate>
             </BreadcrumbBar>
 
+            <!-- Search Mode Toggle (File Names vs Encrypted Content) -->
+            <Button Grid.Column="1"
+                    x:Name="SearchModeButton"
+                    ToolTipService.ToolTip="Toggle search mode: File name vs Encrypted document content"
+                    Click="SearchModeButton_Click"
+                    CornerRadius="4"
+                    Padding="8,5">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE8D2;" FontSize="14"/>
+                    <TextBlock x:Name="SearchModeLabel" Text="Names" FontSize="12"/>
+                </StackPanel>
+            </Button>
+
             <!-- Search box -->
-            <AutoSuggestBox Grid.Column="1"
+            <AutoSuggestBox Grid.Column="2"
+                            x:Name="VaultSearchBox"
                             QueryIcon="Find"
                             PlaceholderText="Search files…"
                             Text="{x:Bind ViewModel.SearchQuery, Mode=TwoWay}"
@@ -223,12 +238,17 @@
                                       FontSize="18"
                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
 
-                            <!-- Name -->
-                            <TextBlock Grid.Column="1"
-                                       Text="{x:Bind Name}"
-                                       VerticalAlignment="Center"
-                                       FontWeight="Medium"
-                                       TextTrimming="CharacterEllipsis"/>
+                            <!-- Name & Match Snippet -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{x:Bind Name}"
+                                           FontWeight="Medium"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{x:Bind SearchSnippet}"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="{x:Bind HasSearchSnippet, Mode=OneWay}"/>
+                            </StackPanel>
 
                             <!-- Type -->
                             <TextBlock Grid.Column="2"
