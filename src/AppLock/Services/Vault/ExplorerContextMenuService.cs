@@ -11,8 +11,11 @@ namespace AppLock.Services.Vault;
 /// </summary>
 public static class ExplorerContextMenuService
 {
-    private const string MenuKeyPathFiles = @"Software\Classes\*\shell\AppLock.AddVault";
-    private const string MenuKeyPathFolders = @"Software\Classes\Directory\shell\AppLock.AddVault";
+    public const string DefaultMenuKeyPathFiles = @"Software\Classes\*\shell\AppLock.AddVault";
+    public const string DefaultMenuKeyPathFolders = @"Software\Classes\Directory\shell\AppLock.AddVault";
+
+    internal static string MenuKeyPathFiles = DefaultMenuKeyPathFiles;
+    internal static string MenuKeyPathFolders = DefaultMenuKeyPathFolders;
     private const string VerbText = "Add to AppLock Vault";
 
     [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]

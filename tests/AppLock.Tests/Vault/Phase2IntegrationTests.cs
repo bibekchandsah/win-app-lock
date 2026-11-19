@@ -16,8 +16,13 @@ namespace AppLock.Tests.Vault;
 /// </summary>
 public class ExplorerContextMenuServiceTests : IDisposable
 {
+    private const string TestKeyPathFiles = @"Software\Classes\*\shell\AppLock.AddVault.UnitTest";
+    private const string TestKeyPathFolders = @"Software\Classes\Directory\shell\AppLock.AddVault.UnitTest";
+
     public ExplorerContextMenuServiceTests()
     {
+        ExplorerContextMenuService.MenuKeyPathFiles = TestKeyPathFiles;
+        ExplorerContextMenuService.MenuKeyPathFolders = TestKeyPathFolders;
         // Ensure clean state before each test
         ExplorerContextMenuService.Unregister();
     }
@@ -25,6 +30,8 @@ public class ExplorerContextMenuServiceTests : IDisposable
     public void Dispose()
     {
         ExplorerContextMenuService.Unregister();
+        ExplorerContextMenuService.MenuKeyPathFiles = ExplorerContextMenuService.DefaultMenuKeyPathFiles;
+        ExplorerContextMenuService.MenuKeyPathFolders = ExplorerContextMenuService.DefaultMenuKeyPathFolders;
     }
 
     [Fact]
