@@ -53,6 +53,7 @@ public sealed partial class VaultBrowserPage : Page
         ServiceContainer.VaultSessionManager.VaultLocked += OnVaultLocked;
         TempOpenService.OpenCountChanged += OnTempSessionsChanged;
         UpdateOpenFilesBanner();
+        _ = UpdateHelloButtonsAsync();
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -692,5 +693,91 @@ public sealed partial class VaultBrowserPage : Page
         }
 
         flyout.ShowAt(elem);
+    }
+
+    // ---- Windows Hello enrollment -------------------------------------
+
+    private async Task UpdateHelloButtonsAsync()
+    {
+        if (ViewModel == null) return;
+        try
+        {
+            bool available = await HelloKeyService.IsAvailableAsync();
+            bool enrolled  = HelloKeyService.IsEnrolledForVault(ViewModel.Session.VaultId);
+
+            EnableHelloButton.Visibility  = (available && !enrolled) ? Visibility.Visible : Visibility.Collapsed;
+            DisableHelloButton.Visibility = (available && enrolled)  ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch
+        {
+            EnableHelloButton.Visibility  = Visibility.Collapsed;
+            DisableHelloButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async void EnableHelloButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        try
+        {
+            var config = VaultStorage.LoadConfig(ViewModel.Session.VaultPath);
+            HelloKeyService.Enroll(ViewModel.Session, config);
+            VaultStorage.SaveConfig(ViewModel.Session.VaultPath, config, ViewModel.Session.ConfigMacKey);
+
+            await UpdateHelloButtonsAsync();
+
+            var dialog = new ContentDialog
+            {
+                Title = "Windows Hello Enabled",
+                Content = "You can now unlock this vault using Windows Hello (PIN or biometrics) on this PC.",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Windows Hello Enrollment Failed",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+    }
+
+    private async void DisableHelloButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        try
+        {
+            var config = VaultStorage.LoadConfig(ViewModel.Session.VaultPath);
+            HelloKeyService.Revoke(ViewModel.Session.VaultId, config);
+            VaultStorage.SaveConfig(ViewModel.Session.VaultPath, config, ViewModel.Session.ConfigMacKey);
+
+            await UpdateHelloButtonsAsync();
+
+            var dialog = new ContentDialog
+            {
+                Title = "Windows Hello Removed",
+                Content = "Windows Hello unlock has been removed for this vault.",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Failed to Remove Windows Hello",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
     }
 }

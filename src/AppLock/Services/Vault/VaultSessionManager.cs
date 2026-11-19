@@ -204,6 +204,60 @@ public sealed class VaultSessionManager
         }, ct);
     }
 
+    // ---- Windows Hello unlock ----------------------------------------
+
+    /// <summary>
+    /// Unlocks a vault using Windows Hello (UserConsentVerifier + DPAPI-protected KEK).
+    /// Throws CryptographicException on Hello failure, or InvalidOperationException if not enrolled.
+    /// </summary>
+    public async Task<VaultSession> UnlockWithHelloAsync(
+        VaultRegistration reg,
+        bool forceTakeOver = false,
+        CancellationToken ct = default)
+    {
+        // 1. Acquire single-writer lock
+        var lockHandle = VaultLockFile.Acquire(reg.Path, forceTakeOver);
+
+        try
+        {
+            var config = VaultStorage.LoadConfig(reg.Path);
+
+            // 2. Unlock VMK via Hello (prompts user)
+            var vmk = await HelloKeyService.UnlockAsync(reg, config,
+                $"Authenticate to open vault \"{reg.Name}\"", ct);
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // 3. Verify
+                if (!VaultCrypto.CheckVerifier(vmk, config.VaultId, config.Verifier))
+                    throw new CryptographicException("Verifier check failed after Hello unlock.");
+
+                var indexKey = VaultCrypto.DeriveIndexKey(vmk, config.VaultId);
+                var index = VaultStorage.LoadIndex(reg.Path, indexKey, config.VaultId,
+                                reg.HighestIndexRevision > 0 ? reg.HighestIndexRevision : null);
+
+                var session = new VaultSession(config.VaultId, reg.Path, reg.Name, vmk, index)
+                {
+                    LockHandle = lockHandle
+                };
+                AddSession(session);
+                return session;
+            }
+            catch
+            {
+                CryptographicOperations.ZeroMemory(vmk);
+                throw;
+            }
+        }
+        catch
+        {
+            lockHandle.Dispose();
+            throw;
+        }
+    }
+
     // ---- Lock ---------------------------------------------------------
 
     public void Lock(Guid vaultId)

@@ -100,7 +100,7 @@
         <CommandBar Grid.Row="2"
                     DefaultLabelPosition="Right"
                     Background="Transparent"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Stretch">
             <AppBarButton Icon="Add" Label="Add files"
                           Click="AddFilesButton_Click"
                           Visibility="{x:Bind GetNormalVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
@@ -130,6 +130,17 @@
             <AppBarButton Icon="Refresh" Label="Restore selected"
                           Click="RestoreButton_Click"
                           Visibility="{x:Bind GetTrashVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
+
+            <CommandBar.SecondaryCommands>
+                <AppBarButton x:Name="EnableHelloButton"
+                              Icon="Permissions"
+                              Label="Enable Windows Hello"
+                              Click="EnableHelloButton_Click"/>
+                <AppBarButton x:Name="DisableHelloButton"
+                              Icon="Cancel"
+                              Label="Remove Windows Hello"
+                              Click="DisableHelloButton_Click"/>
+            </CommandBar.SecondaryCommands>
         </CommandBar>
 
         <!-- =================== 3. InfoBars =================== -->

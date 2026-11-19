@@ -24,6 +24,52 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         _registration = registration;
         InitializeComponent();
         VaultNameText.Text = registration.Name;
+
+        if (registration.AutoLockMinutes == 0)
+            KeepUnlockedBox.SelectedIndex = 0;
+        else if (registration.AutoLockMinutes == 5)
+            KeepUnlockedBox.SelectedIndex = 1;
+        else if (registration.AutoLockMinutes == 15)
+            KeepUnlockedBox.SelectedIndex = 2;
+        else if (registration.AutoLockMinutes == 30)
+            KeepUnlockedBox.SelectedIndex = 3;
+
+        Loaded += async (_, _) => await InitHelloButtonAsync();
+    }
+
+    private void ApplyKeepUnlockedSetting()
+    {
+        switch (KeepUnlockedBox.SelectedIndex)
+        {
+            case 0:
+                _registration.AutoLockMinutes = 0;
+                break;
+            case 1:
+                _registration.AutoLockMinutes = 5;
+                break;
+            case 2:
+                _registration.AutoLockMinutes = 15;
+                break;
+            case 3:
+                _registration.AutoLockMinutes = 30;
+                break;
+        }
+    }
+
+    private async Task InitHelloButtonAsync()
+    {
+        try
+        {
+            bool helloAvailable = await HelloKeyService.IsAvailableAsync();
+            bool helloEnrolled  = HelloKeyService.IsEnrolledForVault(_registration.Id);
+            HelloButton.Visibility = (helloAvailable && helloEnrolled)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        catch
+        {
+            HelloButton.Visibility = Visibility.Collapsed;
+        }
     }
 
     // ---- Mode toggle --------------------------------------------------
@@ -53,6 +99,57 @@ public sealed partial class UnlockVaultDialog : ContentDialog
     private void RecoveryKeyBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         ErrorText.Visibility = Visibility.Collapsed;
+    }
+
+    // ---- Windows Hello ------------------------------------------------
+
+    private async void HelloButton_Click(object sender, RoutedEventArgs e)
+    {
+        await TryHelloUnlockAsync();
+    }
+
+    private async Task TryHelloUnlockAsync()
+    {
+        ErrorText.Visibility = Visibility.Collapsed;
+        SetUnlockingState(true);
+        _cts = new CancellationTokenSource();
+        try
+        {
+            var mgr = ServiceContainer.VaultSessionManager;
+            var session = await mgr.UnlockWithHelloAsync(_registration, ct: _cts.Token);
+
+            // Finalize session (mirror logic from TryUnlockAsync)
+            UnlockedSession = session;
+            _ = ServiceContainer.VaultAutoLockService;
+            ApplyKeepUnlockedSetting();
+            _registration.LastOpened = DateTime.UtcNow;
+            if (session.Index.Revision > _registration.HighestIndexRevision)
+                _registration.HighestIndexRevision = session.Index.Revision;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+            Hide();
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            ShowError($"Windows Hello failed: {ex.Message}\nUse password instead.");
+            LogService.LogAction("Vault", $"Hello unlock failed: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            ShowError(ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            // cancelled — do nothing
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Unlock error: {ex.Message}");
+        }
+        finally
+        {
+            SetUnlockingState(false);
+        }
     }
 
     // ---- Unlock -------------------------------------------------------
@@ -109,6 +206,8 @@ public sealed partial class UnlockVaultDialog : ContentDialog
 
             // Ensure auto-lock service is running
             _ = ServiceContainer.VaultAutoLockService;
+
+            ApplyKeepUnlockedSetting();
 
             // Update highest revision in registration
             _registration.LastOpened = DateTime.UtcNow;

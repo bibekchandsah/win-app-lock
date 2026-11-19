@@ -23,6 +23,18 @@
                        TextWrapping="Wrap"/>
         </StackPanel>
 
+        <!-- Windows Hello button (shown when enrolled) -->
+        <Button x:Name="HelloButton"
+                HorizontalAlignment="Stretch"
+                Visibility="Collapsed"
+                Click="HelloButton_Click"
+                CornerRadius="4">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons" FontSize="20"/>
+                <TextBlock Text="Use Windows Hello" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Button>
+
         <!-- Password panel -->
         <StackPanel x:Name="PasswordPanel" Spacing="12" Visibility="Visible">
             <PasswordBox x:Name="PasswordBox"
@@ -51,9 +63,11 @@
                      CharacterSpacing="40"
                      CornerRadius="4"
                      TextChanged="RecoveryKeyBox_TextChanged"/>
-            <HyperlinkButton Content="Use password instead"
-                             Click="UsePasswordButton_Click"
-                             FontSize="12"/>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <HyperlinkButton Content="Use password instead"
+                                 Click="UsePasswordButton_Click"
+                                 FontSize="12"/>
+            </StackPanel>
         </StackPanel>
 
         <!-- Keep unlocked selector -->

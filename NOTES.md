@@ -1224,3 +1224,20 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   - Step 2 now has a "Use my AppLock admin password" checkbox. When checked, the password box re-labels itself and validates against the current admin credential. `VaultRegistration.UsesAdminPassword` is set on creation.
 - **Lock-on-lock temp session flush:**
   - `VaultSessionManager.Lock()` and `LockAll()` now synchronously flush temp sessions (`TempOpenService.CloseAllSessionsAsync`) before zeroing keys.
+
+## Vault Feature — Milestone 8 (Windows Hello Unlock Slot)
+
+- **HelloKeyService (`HelloKeyService.cs`):**
+  - Manages the `"windows_hello"` key slot in `vault.config` alongside password and recovery key slots.
+  - Generates a random 32-byte secret, derives a KEK via HKDF (SHA-256 with vault ID context), and wraps the VMK using AES-256-GCM.
+  - Protects the 32-byte secret using DPAPI (`ProtectedData.Protect`, CurrentUser scope + per-vault entropy) stored in `%LOCALAPPDATA%\AppLock\VaultHello\vault-hello-<id>.bin`.
+  - Verification: prompts user through `AppLock.Services.HelloService` (`UserConsentVerifier`), then unprotects secret and decrypts VMK.
+  - Revoke removes the slot from `vault.config` and deletes the DPAPI-protected secret file.
+- **Unlock Experience (`UnlockVaultDialog`):**
+  - Shows "Use Windows Hello" button at the top of the dialog when Hello is supported on device and enrolled for the selected vault.
+  - Falls back smoothly to password / recovery key if Hello verification is cancelled or fails.
+  - Honors "Keep unlocked for" duration setting on Hello unlock as well.
+- **Vault Browser Enrollment (`VaultBrowserPage`):**
+  - Added "Enable Windows Hello" / "Remove Windows Hello" secondary commands in the command bar menu.
+  - Dynamic button visibility based on Hello hardware availability and current vault enrollment state.
+
