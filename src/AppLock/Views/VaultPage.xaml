@@ -207,11 +207,13 @@
                                                 Click="CardOpenLock_Click"
                                                 Tag="{x:Bind}"/>
                                         <Button ToolTipService.ToolTip="Vault settings"
+                                                AutomationProperties.Name="Vault settings"
                                                 Click="CardSettings_Click"
                                                 Tag="{x:Bind}">
                                             <FontIcon Glyph="&#xE713;" FontSize="14"/>
                                         </Button>
-                                        <Button ToolTipService.ToolTip="More options">
+                                        <Button ToolTipService.ToolTip="More options"
+                                                AutomationProperties.Name="More options">
                                             <FontIcon Glyph="&#xE712;" FontSize="14"/>
                                             <Button.Flyout>
                                                 <MenuFlyout>

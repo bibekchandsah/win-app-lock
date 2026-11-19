@@ -17,7 +17,7 @@ You are building **AppLock**, a Windows 10/11 desktop app that locks selected ap
 ## 2. Features
 
 ### 2.1 Main window (matches the preview screenshots)
-- Left navigation rail with icons: **Protection** (lock), **Rules/Profiles** (placeholder), **Websites** (globe, phase 2), and at the bottom **Feedback** and **Settings**.
+- Left navigation rail with icons: **Protection** (lock), **Vault** (encrypted storage, supersedes the Rules placeholder), **Websites** (globe, phase 2), and at the bottom **Feedback** and **Settings**.
 - **Top status card:** a master **toggle switch** (enable/disable AppLock protection), a green status dot, and text such as "Admin password verified — AppLock is protecting your apps." When locked: "Locked: <window title>".
 - Two tabs: **Running programs** and **Locked programs**.
 - **Running programs tab:** list of visible top-level windows showing icon, window title, process name, and a lock button on the right. A search box filters by process name or window title. A refresh button reloads the list. A **"Pick a window"** button lets the user click any on-screen window to select it. A badge next to it shows the count of currently locked items.

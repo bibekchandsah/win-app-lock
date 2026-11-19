@@ -42,6 +42,7 @@
                     Width="36" Height="36"
                     CornerRadius="18"
                     Click="BackButton_Click"
+                    AutomationProperties.Name="Back to Vaults"
                     ToolTipService.ToolTip="Back to Vaults"/>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">

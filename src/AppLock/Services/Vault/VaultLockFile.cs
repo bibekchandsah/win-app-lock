@@ -133,7 +133,7 @@ public static class VaultLockFile
                 lockFilePath,
                 FileMode.Create,
                 FileAccess.ReadWrite,
-                FileShare.Read,
+                FileShare.Read | FileShare.Delete,
                 4096,
                 FileOptions.None);
 

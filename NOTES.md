@@ -1259,4 +1259,49 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   - SendTo menu shortcut (`SendToShortcutService.cs`): creates/removes "Add to AppLock Vault.lnk" in `%APPDATA%\Microsoft\Windows\SendTo`.
   - Secondary command bar integration in `VaultBrowserPage`: accessible from both the vault cards and inside an active vault browser.
 
+## Vault Feature — Milestone 10 (Polish, Comprehensive Test Suite & Crypto Security Review)
+
+### 1. Crypto Architecture & Key Hierarchy
+- **Vault Master Key (VMK):** 256-bit cryptographically secure random key (`RandomNumberGenerator.Fill`). Stored in RAM only while a vault session is active; never persisted in plaintext.
+- **Key Slots (LUKS-style):**
+  - **Password slot:** `KEK = Argon2id(password, salt16, m=256MB, t=3, p=4)`. Floor enforcement ensures `m >= 64MB` and `t >= 3` to thwart offline downgrade attacks. VMK wrapped via AES-256-GCM with 96-bit random nonce and AAD binding `vaultId || "password" || slotId`.
+  - **Recovery slot:** 160-bit random key formatted as 8 groups of 5 Crockford Base32 characters with check character. KEK derived via `HKDF-SHA256(rawKey, salt, info="recovery-kek")`.
+  - **Windows Hello slot:** 256-bit random secret protected with DPAPI (`ProtectedData.Protect` at CurrentUser scope + per-vault entropy). KEK derived via HKDF; biometric/PIN authorization gated via `UserConsentVerifier`.
+- **Key Derivation (HKDF-SHA256 from VMK):**
+  - `index-key`: Derivation info `"index-key"` (encrypts/decrypts `index.enc`).
+  - `fek-wrap-key`: Derivation info `"fek-wrap-key"` (wraps per-file encryption keys in ALV1 headers).
+  - `config-mac-key`: Derivation info `"config-mac-key"` (computes HMAC-SHA256 over `vault.config`).
+  - `verifier`: Fixed verification payload (`"AppLock.Vault.Verifier.v1"`) encrypted under VMK to validate correct unlock before reading any file index.
+- **Per-File Encryption Key (FEK):** Random 256-bit key generated per file. Changing password or recovery key requires re-wrapping slots only, never re-encrypting file data.
+
+### 2. File Format & Anti-Tamper Design (`ALV1`)
+- **Chunked AES-256-GCM:** Files split into 256 KiB chunks. Nonce: 64-bit random prefix || 32-bit big-endian chunk counter. AAD: `fileId || chunkIndex || isFinalChunk`.
+  - Prevents chunk reordering (enforced by chunk index in AAD).
+  - Prevents chunk removal/truncation (enforced by final-chunk flag in AAD and length match against index).
+  - Prevents chunk swapping between files (enforced by `fileId` in AAD).
+- **Index Protection:** Serialized JSON compressed and encrypted as an authenticated AEAD blob. Revision counter monotonically increments on every write; rollback detection rejects older index revisions.
+- **Crash Safety:** Two generations of headers (`vault.config` and `vault.config.bak`, `index.enc` and `index.enc.bak`). Writes follow atomic replace (`File.Replace` / swap). Leftover temp files or orphaned `.obj` files are safely identified without deleting user data.
+
+### 3. Memory & Process Hygiene
+- Sensitive byte arrays (`vmk`, `fek`, derived keys) are explicitly cleared with `CryptographicOperations.ZeroMemory` immediately upon session lock, error, or disposal.
+- WinUI `PasswordBox.Password` strings are cleared immediately after KDF derivation. (Residual risk: .NET managed strings are immutable and cannot be guaranteed zeroed immediately until garbage collected; KDF operations run on native byte arrays).
+- Vault windows and preview renderers apply `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` to prevent unauthorized capture by screen recorders or screen-sharing tools.
+- Decrypted file previews (images, text, PDF, audio/video) stream directly from in-memory decryptors without touching disk storage.
+
+### 4. Concurrency & Advisory Lock
+- Single-writer advisory lock (`vault.lock`) records machine name, user, PID, and timestamp.
+- Process identity validation checks both process lifetime and process name (`AppLock`) to prevent PID recycling false-positives. Stale locks from crashed instances are safely acquired. Conflicting locks on remote machines or live instances offer inline "Take over lock" action.
+
+### 5. Automated Unit Tests (316 passing)
+- Comprehensive test coverage across:
+  - RFC 5869 HKDF test vectors
+  - Argon2id key derivation & floor enforcement
+  - Recovery key formatting, checksum validation, and typo rejection
+  - AES-256-GCM chunked streaming (0B, 1B, boundary sizes, multi-chunk)
+  - Tamper detection: chunk flipping, truncation, reordering, object swapping, header tampering, revision replay
+  - Single-writer locking, stale lock recovery, and force takeover
+  - Windows Hello key slot enroll/unlock/revoke cycle
+  - Orphan object scanning and index integrity verification
+
+
 
