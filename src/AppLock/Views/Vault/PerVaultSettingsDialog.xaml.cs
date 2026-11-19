@@ -85,16 +85,6 @@ public sealed partial class PerVaultSettingsDialog : ContentDialog
         }
     }
 
-    private async Task<VaultSession?> EnsureUnlockedSessionAsync()
-    {
-        var session = ServiceContainer.VaultSessionManager.GetSession(_registration.Id);
-        if (session != null) return session;
-
-        var unlockDlg = new UnlockVaultDialog(_registration) { XamlRoot = this.XamlRoot };
-        await unlockDlg.ShowAsync();
-        return unlockDlg.UnlockedSession;
-    }
-
     private async void HelloActionButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -115,12 +105,30 @@ public sealed partial class PerVaultSettingsDialog : ContentDialog
             }
             else
             {
-                var session = await EnsureUnlockedSessionAsync();
-                if (session == null) return;
+                var session = ServiceContainer.VaultSessionManager.GetSession(_registration.Id);
+                if (session == null)
+                {
+                    Hide();
+                    await Task.Delay(150);
 
-                var config = VaultStorage.LoadConfig(_registration.Path);
-                HelloKeyService.Enroll(session, config);
-                VaultStorage.SaveConfig(_registration.Path, config, session.ConfigMacKey);
+                    var unlockDlg = new UnlockVaultDialog(_registration) { XamlRoot = this.XamlRoot };
+                    await unlockDlg.ShowAsync();
+                    session = unlockDlg.UnlockedSession;
+
+                    if (session == null) return;
+
+                    var config = VaultStorage.LoadConfig(_registration.Path);
+                    HelloKeyService.Enroll(session, config);
+                    VaultStorage.SaveConfig(_registration.Path, config, session.ConfigMacKey);
+
+                    var newSettingsDlg = new PerVaultSettingsDialog(_registration) { XamlRoot = this.XamlRoot };
+                    await newSettingsDlg.ShowAsync();
+                    return;
+                }
+
+                var conf = VaultStorage.LoadConfig(_registration.Path);
+                HelloKeyService.Enroll(session, conf);
+                VaultStorage.SaveConfig(_registration.Path, conf, session.ConfigMacKey);
 
                 await RefreshHelloStatusAsync();
                 ShowStatus("Windows Hello enabled successfully.", InfoBarSeverity.Success);
@@ -134,63 +142,69 @@ public sealed partial class PerVaultSettingsDialog : ContentDialog
 
     private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)
     {
-        var session = await EnsureUnlockedSessionAsync();
-        if (session == null) return;
+        var session = ServiceContainer.VaultSessionManager.GetSession(_registration.Id);
+        if (session == null)
+        {
+            Hide();
+            await Task.Delay(150);
+
+            var unlockDlg = new UnlockVaultDialog(_registration) { XamlRoot = this.XamlRoot };
+            await unlockDlg.ShowAsync();
+            session = unlockDlg.UnlockedSession;
+
+            if (session == null) return;
+        }
+        else
+        {
+            Hide();
+            await Task.Delay(150);
+        }
 
         var changeDlg = new ChangeVaultPasswordDialog(session) { XamlRoot = this.XamlRoot };
         await changeDlg.ShowAsync();
+
+        var newSettingsDlg = new PerVaultSettingsDialog(_registration) { XamlRoot = this.XamlRoot };
+        await newSettingsDlg.ShowAsync();
     }
 
     private async void RegenerateRecoveryKeyButton_Click(object sender, RoutedEventArgs e)
     {
-        var session = await EnsureUnlockedSessionAsync();
-        if (session == null) return;
+        var session = ServiceContainer.VaultSessionManager.GetSession(_registration.Id);
+        if (session == null)
+        {
+            Hide();
+            await Task.Delay(150);
+
+            var unlockDlg = new UnlockVaultDialog(_registration) { XamlRoot = this.XamlRoot };
+            await unlockDlg.ShowAsync();
+            session = unlockDlg.UnlockedSession;
+
+            if (session == null) return;
+
+            var newSettingsDlg = new PerVaultSettingsDialog(_registration) { XamlRoot = this.XamlRoot };
+            await newSettingsDlg.ShowAsync();
+            return;
+        }
 
         try
         {
             string newKey = await VaultManager.RegenerateRecoveryKeyAsync(session);
-
-            var keyDialog = new ContentDialog
-            {
-                Title = "New Recovery Key Generated",
-                Content = new StackPanel
-                {
-                    Spacing = 12,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = "Your old recovery key is now invalid. Save your new recovery key in a secure place:",
-                            TextWrapping = TextWrapping.Wrap
-                        },
-                        new TextBox
-                        {
-                            Text = newKey,
-                            IsReadOnly = true,
-                            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code, Consolas"),
-                            TextWrapping = TextWrapping.Wrap
-                        }
-                    }
-                },
-                PrimaryButtonText = "Copy to clipboard",
-                CloseButtonText = "Done",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.XamlRoot
-            };
-
-            var res = await keyDialog.ShowAsync();
-            if (res == ContentDialogResult.Primary)
-            {
-                var pkg = new DataPackage();
-                pkg.SetText(newKey);
-                Clipboard.SetContent(pkg);
-                ShowStatus("Recovery key copied to clipboard.", InfoBarSeverity.Success);
-            }
+            NewKeyText.Text = newKey;
+            NewKeyPanel.Visibility = Visibility.Visible;
+            ShowStatus("New recovery key generated. Save it in a safe place.", InfoBarSeverity.Warning);
         }
         catch (Exception ex)
         {
             ShowStatus($"Failed to regenerate recovery key: {ex.Message}", InfoBarSeverity.Error);
         }
+    }
+
+    private void CopyNewKeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var pkg = new DataPackage();
+        pkg.SetText(NewKeyText.Text);
+        Clipboard.SetContent(pkg);
+        ShowStatus("Recovery key copied to clipboard.", InfoBarSeverity.Success);
     }
 
     private async void BackupVaultButton_Click(object sender, RoutedEventArgs e)
@@ -223,53 +237,63 @@ public sealed partial class PerVaultSettingsDialog : ContentDialog
 
     private async void VerifyVaultButton_Click(object sender, RoutedEventArgs e)
     {
-        var session = await EnsureUnlockedSessionAsync();
-        if (session == null) return;
+        var session = ServiceContainer.VaultSessionManager.GetSession(_registration.Id);
+        if (session == null)
+        {
+            Hide();
+            await Task.Delay(150);
+
+            var unlockDlg = new UnlockVaultDialog(_registration) { XamlRoot = this.XamlRoot };
+            await unlockDlg.ShowAsync();
+            session = unlockDlg.UnlockedSession;
+
+            if (session == null) return;
+        }
+        else
+        {
+            Hide();
+            await Task.Delay(150);
+        }
 
         var verifyDlg = new VerifyVaultDialog(session) { XamlRoot = this.XamlRoot };
         await verifyDlg.ShowAsync();
+
+        var newSettingsDlg = new PerVaultSettingsDialog(_registration) { XamlRoot = this.XamlRoot };
+        await newSettingsDlg.ShowAsync();
     }
 
-    private async void DeleteVaultButton_Click(object sender, RoutedEventArgs e)
+    private void DeleteVaultButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirmDlg = new ContentDialog
+        DeleteConfirmPanel.Visibility = Visibility.Visible;
+    }
+
+    private void CancelDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        DeleteConfirmPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void ConfirmDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            Title = $"Permanently Delete '{_registration.Name}'?",
-            Content = new TextBlock
-            {
-                Text = "WARNING: This will permanently delete the vault and ALL encrypted files within it from your disk.\n\nThis action cannot be undone.",
-                TextWrapping = TextWrapping.Wrap
-            },
-            PrimaryButtonText = "Delete permanently",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
-        };
+            // Lock if active
+            if (ServiceContainer.VaultSessionManager.IsUnlocked(_registration.Id))
+                ServiceContainer.VaultSessionManager.Lock(_registration.Id);
 
-        var res = await confirmDlg.ShowAsync();
-        if (res == ContentDialogResult.Primary)
+            // Delete directory
+            if (Directory.Exists(_registration.Path))
+                Directory.Delete(_registration.Path, recursive: true);
+
+            // Remove from settings
+            ServiceContainer.Settings.Vault.Vaults.RemoveAll(v => v.Id == _registration.Id);
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+            LogService.LogAction("Vault", $"Vault '{_registration.Name}' deleted.");
+            Hide();
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                // Lock if active
-                if (ServiceContainer.VaultSessionManager.IsUnlocked(_registration.Id))
-                    ServiceContainer.VaultSessionManager.Lock(_registration.Id);
-
-                // Delete directory
-                if (Directory.Exists(_registration.Path))
-                    Directory.Delete(_registration.Path, recursive: true);
-
-                // Remove from settings
-                ServiceContainer.Settings.Vault.Vaults.RemoveAll(v => v.Id == _registration.Id);
-                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
-
-                LogService.LogAction("Vault", $"Vault '{_registration.Name}' deleted.");
-                Hide();
-            }
-            catch (Exception ex)
-            {
-                ShowStatus($"Failed to delete vault files: {ex.Message}", InfoBarSeverity.Error);
-            }
+            ShowStatus($"Failed to delete vault files: {ex.Message}", InfoBarSeverity.Error);
         }
     }
 

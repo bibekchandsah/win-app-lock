@@ -82,6 +82,19 @@
             <ComboBoxItem Content="30 minutes"/>
         </ComboBox>
 
+        <!-- Lock conflict warning & take over button -->
+        <InfoBar x:Name="ConflictInfoBar"
+                 Severity="Warning"
+                 IsOpen="False"
+                 IsClosable="True"
+                 CornerRadius="4">
+            <InfoBar.ActionButton>
+                <Button Content="Take over lock"
+                        Click="TakeOverButton_Click"
+                        CornerRadius="4"/>
+            </InfoBar.ActionButton>
+        </InfoBar>
+
         <!-- Attempt counter / lockout info -->
         <InfoBar x:Name="AttemptInfoBar"
                  Severity="Warning"

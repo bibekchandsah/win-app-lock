@@ -101,6 +101,16 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         ErrorText.Visibility = Visibility.Collapsed;
     }
 
+    private async void TakeOverButton_Click(object sender, RoutedEventArgs e)
+    {
+        ConflictInfoBar.IsOpen = false;
+        bool success = await TryUnlockAsync(forceTakeOver: true);
+        if (success)
+        {
+            Hide();
+        }
+    }
+
     // ---- Windows Hello ------------------------------------------------
 
     private async void HelloButton_Click(object sender, RoutedEventArgs e)
@@ -133,6 +143,14 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         {
             ShowError($"Windows Hello failed: {ex.Message}\nUse password instead.");
             LogService.LogAction("Vault", $"Hello unlock failed: {ex.Message}");
+        }
+        catch (VaultLockConflictException ex)
+        {
+            var ownerInfo = ex.LockInfo != null
+                ? $" (opened by {ex.LockInfo.MachineName} at {ex.LockInfo.LockedAtUtc:g})"
+                : "";
+            ConflictInfoBar.Message = $"{ex.Message}{ownerInfo}\nClick 'Take over lock' to force open.";
+            ConflictInfoBar.IsOpen = true;
         }
         catch (InvalidOperationException ex)
         {
@@ -227,23 +245,8 @@ public sealed partial class UnlockVaultDialog : ContentDialog
             var ownerInfo = ex.LockInfo != null
                 ? $" (opened by {ex.LockInfo.MachineName} at {ex.LockInfo.LockedAtUtc:g})"
                 : "";
-            var conflictDialog = new ContentDialog
-            {
-                Title = "Vault may be open elsewhere",
-                Content = new TextBlock
-                {
-                    Text = ex.Message + ownerInfo + "\n\nDo you want to take over the lock (open in read/write mode anyway)?",
-                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
-                },
-                PrimaryButtonText = "Take over",
-                CloseButtonText = "Cancel",
-                XamlRoot = this.XamlRoot
-            };
-            var conflictResult = await conflictDialog.ShowAsync();
-            if (conflictResult == ContentDialogResult.Primary)
-            {
-                return await TryUnlockAsync(forceTakeOver: true);
-            }
+            ConflictInfoBar.Message = $"{ex.Message}{ownerInfo}\nClick 'Take over lock' to force open.";
+            ConflictInfoBar.IsOpen = true;
             return false;
         }
         catch (System.Security.Cryptography.CryptographicException ex)

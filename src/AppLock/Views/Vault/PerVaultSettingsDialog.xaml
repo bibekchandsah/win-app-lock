@@ -99,6 +99,26 @@
                         Click="DeleteVaultButton_Click"/>
             </StackPanel>
 
+            <!-- Inline Delete Confirmation -->
+            <StackPanel x:Name="DeleteConfirmPanel" Visibility="Collapsed" Spacing="8"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}" Padding="12" CornerRadius="4">
+                <TextBlock Text="Are you sure you want to permanently delete this vault and all its files from disk? This cannot be undone."
+                           TextWrapping="Wrap" Foreground="{ThemeResource SystemErrorTextColor}" FontSize="12"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Yes, delete permanently" Foreground="{ThemeResource SystemErrorTextColor}"
+                            Click="ConfirmDeleteButton_Click" CornerRadius="4"/>
+                    <Button Content="Cancel" Click="CancelDeleteButton_Click" CornerRadius="4"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Inline New Recovery Key Panel -->
+            <StackPanel x:Name="NewKeyPanel" Visibility="Collapsed" Spacing="8"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}" Padding="12" CornerRadius="4">
+                <TextBlock Text="New recovery key generated (old key is now invalid):" FontSize="12" FontWeight="SemiBold"/>
+                <TextBox x:Name="NewKeyText" IsReadOnly="True" FontFamily="Cascadia Code, Consolas" CornerRadius="4"/>
+                <Button Content="Copy key" Click="CopyNewKeyButton_Click" CornerRadius="4"/>
+            </StackPanel>
+
             <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" CornerRadius="4"/>
         </StackPanel>
     </ScrollViewer>

@@ -100,7 +100,7 @@ public static class VaultLockFile
                     try
                     {
                         var proc = Process.GetProcessById(existingInfo.ProcessId);
-                        isProcessAlive = !proc.HasExited;
+                        isProcessAlive = !proc.HasExited && proc.ProcessName.Contains("AppLock", StringComparison.OrdinalIgnoreCase);
                     }
                     catch
                     {
