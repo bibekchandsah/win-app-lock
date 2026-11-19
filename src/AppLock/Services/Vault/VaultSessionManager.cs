@@ -24,6 +24,7 @@ public sealed class VaultSession : IDisposable
     public byte[] ConfigMacKey { get; }
     public DateTime UnlockedAt { get; } = DateTime.UtcNow;
     public VaultIndexData Index { get; set; }
+    public VaultLockHandle? LockHandle { get; set; }
 
     private bool _disposed;
 
@@ -51,6 +52,13 @@ public sealed class VaultSession : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        try
+        {
+            LockHandle?.Dispose();
+            LockHandle = null;
+        }
+        catch { }
+
         CryptographicOperations.ZeroMemory(Vmk);
         CryptographicOperations.ZeroMemory(IndexKey);
         CryptographicOperations.ZeroMemory(FekWrapKey);
@@ -73,52 +81,67 @@ public sealed class VaultSessionManager
 
     /// <summary>
     /// Unlocks a vault with a password. Returns the new session on success.
-    /// Throws CryptographicException on wrong password.
+    /// Throws CryptographicException on wrong password, or VaultLockConflictException if open elsewhere.
     /// </summary>
     public async Task<VaultSession> UnlockWithPasswordAsync(
         VaultRegistration reg,
         string password,
+        bool forceTakeOver = false,
         CancellationToken ct = default)
     {
         return await Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
 
-            var config = VaultStorage.LoadConfig(reg.Path);
-            var kdf = new Argon2Kdf();
+            // 1. Acquire single-writer lock
+            var lockHandle = VaultLockFile.Acquire(reg.Path, forceTakeOver);
 
-            // Try every password slot
-            foreach (var slot in config.Slots)
+            try
             {
-                if (slot.Type != "password") continue;
-                try
+                var config = VaultStorage.LoadConfig(reg.Path);
+                var kdf = new Argon2Kdf();
+
+                // Try every password slot
+                foreach (var slot in config.Slots)
                 {
-                    var vmk = KeySlots.UnlockPasswordSlot(slot, config.VaultId, password, kdf);
-                    ct.ThrowIfCancellationRequested();
+                    if (slot.Type != "password") continue;
+                    try
+                    {
+                        var vmk = KeySlots.UnlockPasswordSlot(slot, config.VaultId, password, kdf);
+                        ct.ThrowIfCancellationRequested();
 
-                    // Verify with verifier
-                    var macKey = VaultCrypto.DeriveConfigMacKey(vmk, config.VaultId);
-                    if (!VaultCrypto.VerifyConfigMac(config, macKey))
-                        throw new CryptographicException("Config MAC mismatch after unlock.");
+                        // Verify with verifier
+                        var macKey = VaultCrypto.DeriveConfigMacKey(vmk, config.VaultId);
+                        if (!VaultCrypto.VerifyConfigMac(config, macKey))
+                            throw new CryptographicException("Config MAC mismatch after unlock.");
 
-                    if (!VaultCrypto.CheckVerifier(vmk, config.VaultId, config.Verifier))
-                        throw new CryptographicException("Verifier check failed.");
+                        if (!VaultCrypto.CheckVerifier(vmk, config.VaultId, config.Verifier))
+                            throw new CryptographicException("Verifier check failed.");
 
-                    var indexKey = VaultCrypto.DeriveIndexKey(vmk, config.VaultId);
-                    var index    = VaultStorage.LoadIndex(reg.Path, indexKey, config.VaultId,
-                                       reg.HighestIndexRevision > 0 ? reg.HighestIndexRevision : null);
+                        var indexKey = VaultCrypto.DeriveIndexKey(vmk, config.VaultId);
+                        var index    = VaultStorage.LoadIndex(reg.Path, indexKey, config.VaultId,
+                                           reg.HighestIndexRevision > 0 ? reg.HighestIndexRevision : null);
 
-                    var session = new VaultSession(config.VaultId, reg.Path, reg.Name, vmk, index);
-                    AddSession(session);
-                    return session;
+                        var session = new VaultSession(config.VaultId, reg.Path, reg.Name, vmk, index)
+                        {
+                            LockHandle = lockHandle
+                        };
+                        AddSession(session);
+                        return session;
+                    }
+                    catch (CryptographicException)
+                    {
+                        // Wrong slot or wrong password — try next slot
+                    }
                 }
-                catch (CryptographicException)
-                {
-                    // Wrong slot or wrong password — try next slot
-                }
+
+                throw new CryptographicException("Invalid password.");
             }
-
-            throw new CryptographicException("Invalid password.");
+            catch
+            {
+                lockHandle.Dispose();
+                throw;
+            }
         }, ct);
     }
 
@@ -128,6 +151,7 @@ public sealed class VaultSessionManager
     public async Task<VaultSession> UnlockWithRecoveryKeyAsync(
         VaultRegistration reg,
         string formattedKey,
+        bool forceTakeOver = false,
         CancellationToken ct = default)
     {
         return await Task.Run(() =>
@@ -137,32 +161,46 @@ public sealed class VaultSessionManager
             if (!RecoveryKey.TryParse(formattedKey, out var rawKey, out var err))
                 throw new CryptographicException(err ?? "Invalid recovery key format.");
 
-            var config = VaultStorage.LoadConfig(reg.Path);
+            // 1. Acquire single-writer lock
+            var lockHandle = VaultLockFile.Acquire(reg.Path, forceTakeOver);
 
-            foreach (var slot in config.Slots)
+            try
             {
-                if (slot.Type != "recovery") continue;
-                try
-                {
-                    var vmk = KeySlots.UnlockRecoverySlot(slot, config.VaultId, rawKey);
-                    ct.ThrowIfCancellationRequested();
+                var config = VaultStorage.LoadConfig(reg.Path);
 
-                    if (!VaultCrypto.CheckVerifier(vmk, config.VaultId, config.Verifier))
-                        throw new CryptographicException("Verifier check failed.");
-
-                    var indexKey = VaultCrypto.DeriveIndexKey(vmk, config.VaultId);
-                    var index    = VaultStorage.LoadIndex(reg.Path, indexKey, config.VaultId);
-                    var session  = new VaultSession(config.VaultId, reg.Path, reg.Name, vmk, index);
-                    AddSession(session);
-                    return session;
-                }
-                catch (CryptographicException)
+                foreach (var slot in config.Slots)
                 {
-                    // Wrong slot — try next
+                    if (slot.Type != "recovery") continue;
+                    try
+                    {
+                        var vmk = KeySlots.UnlockRecoverySlot(slot, config.VaultId, rawKey);
+                        ct.ThrowIfCancellationRequested();
+
+                        if (!VaultCrypto.CheckVerifier(vmk, config.VaultId, config.Verifier))
+                            throw new CryptographicException("Verifier check failed.");
+
+                        var indexKey = VaultCrypto.DeriveIndexKey(vmk, config.VaultId);
+                        var index    = VaultStorage.LoadIndex(reg.Path, indexKey, config.VaultId);
+                        var session  = new VaultSession(config.VaultId, reg.Path, reg.Name, vmk, index)
+                        {
+                            LockHandle = lockHandle
+                        };
+                        AddSession(session);
+                        return session;
+                    }
+                    catch (CryptographicException)
+                    {
+                        // Wrong slot — try next
+                    }
                 }
+
+                throw new CryptographicException("Recovery key did not match any slot.");
             }
-
-            throw new CryptographicException("Recovery key did not match any slot.");
+            catch
+            {
+                lockHandle.Dispose();
+                throw;
+            }
         }, ct);
     }
 
@@ -170,6 +208,12 @@ public sealed class VaultSessionManager
 
     public void Lock(Guid vaultId)
     {
+        try
+        {
+            TempOpenService.CloseAllSessionsForVaultAsync(vaultId).GetAwaiter().GetResult();
+        }
+        catch { }
+
         VaultSession? session;
         lock (_lock)
         {
@@ -183,6 +227,12 @@ public sealed class VaultSessionManager
 
     public void LockAll()
     {
+        try
+        {
+            TempOpenService.CloseAllSessionsAsync().GetAwaiter().GetResult();
+        }
+        catch { }
+
         List<VaultSession> sessions;
         lock (_lock)
         {

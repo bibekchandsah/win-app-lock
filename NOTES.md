@@ -1197,3 +1197,30 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   - Verified temp file creation with generic naming and not-content-indexed attributes.
   - Verified write-back detection and index re-encryption.
   - Total Vault test suite passing: 60 tests.
+
+
+## Vault Feature — Milestone 7 (Auto-lock and AppLock Integration)
+
+- **VaultAutoLockService (`VaultAutoLockService.cs`):**
+  - Hooks `SystemEvents.SessionSwitch` (PC lock, remote disconnect, console disconnect) and `SystemEvents.PowerModeChanged` (suspend/sleep/hibernate) to lock all vaults immediately when `LockOnPcLock` is enabled.
+  - Per-tick idle check (every 5s) using the existing `IdleService.CurrentIdleMinutes`, respecting per-vault `AutoLockMinutes` overrides and the global `DefaultAutoLockMinutes` setting.
+  - Minimize-then-wait: `OnWindowMinimized()` / `OnWindowRestored()` track elapsed minimized time and auto-lock after `LockOnMinimizeMinutes` minutes.
+  - Drive-disconnect detection: if `session.VaultPath` is inaccessible the vault is locked immediately.
+  - `EmergencyLockAllAsync()`: wipes all temp sessions then zeroes all vault keys — wired to `Ctrl+Alt+L` in `MainWindow.OnEmergencyLockHotkey`.
+  - `OnAppExit()`: locks all vaults and wipes temp sessions on application exit when `LockOnExit` is enabled.
+  - Window minimize/restore signals wired via `WM_SIZE` messages in `WndProcSubclass`.
+  - Vault auto-lock service singleton lives in `ServiceContainer.VaultAutoLockService`; lazily started on first vault unlock.
+- **Single-writer Lock (`VaultLockFile.cs`):**
+  - `vault.lock` written with machine name, username, PID, and timestamp when a vault is unlocked.
+  - Stale lock (same machine, dead PID) is silently taken over. Live lock on same machine or any other machine raises `VaultLockConflictException`.
+  - `UnlockVaultDialog` intercepts `VaultLockConflictException`, shows "Vault may be open elsewhere" dialog with owner info, and offers "Take over" for force-open.
+  - Lock file is released (and deleted) in `VaultSession.Dispose()`, which is called on lock or exit.
+- **Admin Password Integration (`VaultManager.cs`):**
+  - `ReWrapAdminPasswordVaultsAsync(old, new)`: iterates all `UsesAdminPassword` vaults, unlocks VMK with old password, creates new password slot with fresh Argon2id salt, re-saves config atomically. Unreachable vaults get `PendingRewrap = true`.
+  - `ChangePasswordDialog.HandleChangePasswordSubmit` now calls `ReWrapAdminPasswordVaultsAsync` after changing the admin password, displaying success/warning counts via `NotificationService`.
+  - `SyncVaultWithAdminPasswordAsync`: called from vault browser when user manually syncs a `PendingRewrap` vault.
+  - Security-questions reset path now shows an `InfoBar` in `ChangePasswordDialog`: "Your vaults are not reset. Unlock them with their previous password or recovery key, then sync."
+- **Create Wizard — Admin Password Option:**
+  - Step 2 now has a "Use my AppLock admin password" checkbox. When checked, the password box re-labels itself and validates against the current admin credential. `VaultRegistration.UsesAdminPassword` is set on creation.
+- **Lock-on-lock temp session flush:**
+  - `VaultSessionManager.Lock()` and `LockAll()` now synchronously flush temp sessions (`TempOpenService.CloseAllSessionsAsync`) before zeroing keys.

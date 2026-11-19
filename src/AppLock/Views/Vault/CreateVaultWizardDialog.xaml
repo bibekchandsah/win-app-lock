@@ -94,6 +94,11 @@
                          Message="Consider using a longer passphrase or choose a separate vault password for sensitive data."
                          CornerRadius="4"/>
 
+                <CheckBox x:Name="UseAdminPasswordCheckBox"
+                          Content="Use my AppLock admin password"
+                          Checked="UseAdminPasswordCheckBox_CheckChanged"
+                          Unchecked="UseAdminPasswordCheckBox_CheckChanged"/>
+
                 <PasswordBox x:Name="PasswordBox"
                              Header="Vault password (minimum 10 characters)"
                              PlaceholderText="Enter a strong password or passphrase"

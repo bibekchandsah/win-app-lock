@@ -1337,6 +1337,18 @@ public sealed partial class MainWindow : Window
             ServiceContainer.HotkeyService.ProcessHotkeyMessage(hotkeyId);
             return 0;
         }
+        const uint WM_SIZE = 0x0005;
+        if (uMsg == WM_SIZE)
+        {
+            if (wParam == 1 /* SIZE_MINIMIZED */)
+            {
+                ServiceContainer.VaultAutoLockService.OnWindowMinimized();
+            }
+            else if (wParam == 0 /* SIZE_RESTORED */ || wParam == 2 /* SIZE_MAXIMIZED */)
+            {
+                ServiceContainer.VaultAutoLockService.OnWindowRestored();
+            }
+        }
         if (uMsg == WM_DISPLAYCHANGE)
         {
             // Dispatch to UI thread — this message arrives on the message thread
@@ -1888,6 +1900,9 @@ public sealed partial class MainWindow : Window
     {
         System.Diagnostics.Debug.WriteLine("Emergency lock hotkey pressed!");
         
+        // Instantly lock all vaults and wipe temp sessions
+        _ = ServiceContainer.VaultAutoLockService.EmergencyLockAllAsync();
+
         DispatcherQueue.TryEnqueue(() =>
         {
             // Stop all overlays
@@ -2145,6 +2160,17 @@ public sealed partial class MainWindow : Window
         _idleWatchdogTimer = null;
         ServiceContainer.IdleService.StopMonitoring();
         ServiceContainer.OverlayManager.Stop();
+
+        // Lock all open vaults and wipe temp files on exit
+        try
+        {
+            ServiceContainer.VaultAutoLockService.OnAppExit();
+            ServiceContainer.VaultAutoLockService.Dispose();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Vault] Shutdown cleanup error: {ex.Message}");
+        }
 
         // CRITICAL: Restore all locked thumbnails before exiting.
         // Without this, the "Locked" DWM bitmap persists in target apps after AppLock exits.

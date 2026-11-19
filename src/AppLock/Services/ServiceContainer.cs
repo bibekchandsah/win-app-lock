@@ -53,6 +53,7 @@ public static class ServiceContainer
     private static AppLock.Services.Network.NetworkScannerService? _networkScannerService;
     private static AppLock.Services.Firewall.PortWatchService? _portWatchService;
     private static AppLock.Services.Vault.VaultSessionManager? _vaultSessionManager;
+    private static AppLock.Services.Vault.VaultAutoLockService? _vaultAutoLockService;
 
     public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
     {
@@ -63,6 +64,19 @@ public static class ServiceContainer
                 _vaultSessionManager = new AppLock.Services.Vault.VaultSessionManager();
             }
             return _vaultSessionManager;
+        }
+    }
+
+    public static AppLock.Services.Vault.VaultAutoLockService VaultAutoLockService
+    {
+        get
+        {
+            if (_vaultAutoLockService == null)
+            {
+                _vaultAutoLockService = new AppLock.Services.Vault.VaultAutoLockService(VaultSessionManager);
+                _vaultAutoLockService.Start();
+            }
+            return _vaultAutoLockService;
         }
     }
 

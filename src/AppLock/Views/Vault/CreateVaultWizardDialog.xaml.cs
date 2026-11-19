@@ -178,6 +178,18 @@ public sealed partial class CreateVaultWizardDialog : ContentDialog
         Step1ErrorText.Visibility = Visibility.Visible;
     }
 
+    private void UseAdminPasswordCheckBox_CheckChanged(object sender, RoutedEventArgs e)
+    {
+        if (UseAdminPasswordCheckBox.IsChecked == true)
+        {
+            PasswordBox.Header = "Enter your AppLock admin password";
+        }
+        else
+        {
+            PasswordBox.Header = "Vault password (minimum 10 characters)";
+        }
+    }
+
     private bool ValidateStep2()
     {
         Step2ErrorText.Visibility = Visibility.Collapsed;
@@ -185,14 +197,26 @@ public sealed partial class CreateVaultWizardDialog : ContentDialog
         var pw  = PasswordBox.Password;
         var pw2 = ConfirmPasswordBox.Password;
 
-        var strength = PasswordStrength.Evaluate(pw);
-        if (!strength.MeetsMinimum)
+        if (UseAdminPasswordCheckBox.IsChecked == true)
         {
-            Step2ErrorText.Text = pw.Length < PasswordStrength.MinLength
-                ? $"Password must be at least {PasswordStrength.MinLength} characters."
-                : strength.Description;
-            Step2ErrorText.Visibility = Visibility.Visible;
-            return false;
+            if (!ServiceContainer.AuthService.VerifyPassword(pw))
+            {
+                Step2ErrorText.Text = "Password does not match your current AppLock admin password.";
+                Step2ErrorText.Visibility = Visibility.Visible;
+                return false;
+            }
+        }
+        else
+        {
+            var strength = PasswordStrength.Evaluate(pw);
+            if (!strength.MeetsMinimum)
+            {
+                Step2ErrorText.Text = pw.Length < PasswordStrength.MinLength
+                    ? $"Password must be at least {PasswordStrength.MinLength} characters."
+                    : strength.Description;
+                Step2ErrorText.Visibility = Visibility.Visible;
+                return false;
+            }
         }
 
         if (pw != pw2)
@@ -445,6 +469,8 @@ public sealed partial class CreateVaultWizardDialog : ContentDialog
                 ct:              _createCts.Token);
 
             CreatedRegistration = reg;
+            reg.UsesAdminPassword = UseAdminPasswordCheckBox.IsChecked == true;
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
             // Clear the password from memory ASAP
             PasswordBox.Password = "";

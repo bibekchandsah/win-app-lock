@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using AppLock.Services;
+using AppLock.Services.Vault;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -63,7 +64,7 @@ public sealed partial class ChangePasswordDialog : ContentDialog
         }
     }
 
-    private void HandleChangePasswordSubmit()
+    private async void HandleChangePasswordSubmit()
     {
         ErrorText.Visibility = Visibility.Collapsed;
 
@@ -119,6 +120,22 @@ public sealed partial class ChangePasswordDialog : ContentDialog
 
             _authService.SetPassword(newPassword);
             PasswordChanged = true;
+
+            // Re-wrap any vaults that use the AppLock admin password
+            var rewrap = await VaultManager.ReWrapAdminPasswordVaultsAsync(currentPassword, newPassword);
+            if (rewrap.UnreachableCount > 0)
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "Password Changed",
+                    $"Master password updated. {rewrap.SuccessCount} vault(s) updated. {rewrap.UnreachableCount} vault(s) were offline and still use your previous password.");
+            }
+            else if (rewrap.SuccessCount > 0)
+            {
+                ServiceContainer.NotificationService.ShowSuccess(
+                    "Password Changed",
+                    $"Master password updated and {rewrap.SuccessCount} vault(s) re-wrapped.");
+            }
+
             Hide();
         }
         catch (Exception ex)

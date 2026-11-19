@@ -72,16 +72,15 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         }
     }
 
-    private async Task<bool> TryUnlockAsync()
+    private async Task<bool> TryUnlockAsync(bool forceTakeOver = false)
     {
         ErrorText.Visibility = Visibility.Collapsed;
         SetUnlockingState(true);
 
         _cts = new CancellationTokenSource();
+        var mgr = ServiceContainer.VaultSessionManager;
         try
         {
-            var mgr = ServiceContainer.VaultSessionManager;
-
             VaultSession session;
             if (_useRecoveryKey)
             {
@@ -91,7 +90,7 @@ public sealed partial class UnlockVaultDialog : ContentDialog
                     ShowError("Please enter your recovery key.");
                     return false;
                 }
-                session = await mgr.UnlockWithRecoveryKeyAsync(_registration, key, _cts.Token);
+                session = await mgr.UnlockWithRecoveryKeyAsync(_registration, key, forceTakeOver, _cts.Token);
             }
             else
             {
@@ -101,12 +100,15 @@ public sealed partial class UnlockVaultDialog : ContentDialog
                     ShowError("Please enter your password.");
                     return false;
                 }
-                session = await mgr.UnlockWithPasswordAsync(_registration, pw, _cts.Token);
+                session = await mgr.UnlockWithPasswordAsync(_registration, pw, forceTakeOver, _cts.Token);
                 // Clear password box immediately
                 PasswordBox.Password = "";
             }
 
             UnlockedSession = session;
+
+            // Ensure auto-lock service is running
+            _ = ServiceContainer.VaultAutoLockService;
 
             // Update highest revision in registration
             _registration.LastOpened = DateTime.UtcNow;
@@ -118,6 +120,31 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         }
         catch (OperationCanceledException)
         {
+            return false;
+        }
+        catch (VaultLockConflictException ex)
+        {
+            SetUnlockingState(false);
+            var ownerInfo = ex.LockInfo != null
+                ? $" (opened by {ex.LockInfo.MachineName} at {ex.LockInfo.LockedAtUtc:g})"
+                : "";
+            var conflictDialog = new ContentDialog
+            {
+                Title = "Vault may be open elsewhere",
+                Content = new TextBlock
+                {
+                    Text = ex.Message + ownerInfo + "\n\nDo you want to take over the lock (open in read/write mode anyway)?",
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Take over",
+                CloseButtonText = "Cancel",
+                XamlRoot = this.XamlRoot
+            };
+            var conflictResult = await conflictDialog.ShowAsync();
+            if (conflictResult == ContentDialogResult.Primary)
+            {
+                return await TryUnlockAsync(forceTakeOver: true);
+            }
             return false;
         }
         catch (System.Security.Cryptography.CryptographicException ex)
