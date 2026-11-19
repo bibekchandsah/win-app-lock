@@ -48,19 +48,9 @@
             <Grid x:Name="NavRail" SizeChanged="NavRail_SizeChanged">
                 <Grid.Resources>
                     <ResourceDictionary>
-                        <!-- Theme-aware nav hover/press fills (the stock ones are invisible on a light pane).
-                             Brushes are declared per theme with literal colours: struct resources such as
-                             <Color>/<CornerRadius> do not survive element syntax here. -->
-                        <ResourceDictionary.ThemeDictionaries>
-                            <ResourceDictionary x:Key="Dark">
-                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26D9A0E8"/>
-                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DD9A0E8"/>
-                            </ResourceDictionary>
-                            <ResourceDictionary x:Key="Light">
-                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26B79BE8"/>
-                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DB79BE8"/>
-                            </ResourceDictionary>
-                        </ResourceDictionary.ThemeDictionaries>
+                        <!-- Dynamic accent-based nav hover/press fills -->
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
                     </ResourceDictionary>
                 </Grid.Resources>
                 <Grid.RowDefinitions>

@@ -18,8 +18,6 @@
                     <Color x:Key="ShellWindowFallbackColor">#FF1B1426</Color>
                     <Color x:Key="ShellCardFillColor">#12FFFFFF</Color>
                     <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
-                    <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
-                    <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
 
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
@@ -33,8 +31,6 @@
                     <Color x:Key="ShellWindowFallbackColor">#FF1B1426</Color>
                     <Color x:Key="ShellCardFillColor">#12FFFFFF</Color>
                     <Color x:Key="ShellCardBorderColor">#1AFFFFFF</Color>
-                    <Color x:Key="ShellNavHoverColor">#26D9A0E8</Color>
-                    <Color x:Key="ShellNavPressedColor">#3DD9A0E8</Color>
 
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#99141414"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#2C2C2C"/>
@@ -48,8 +44,6 @@
                     <Color x:Key="ShellWindowFallbackColor">#FFF6F1FB</Color>
                     <Color x:Key="ShellCardFillColor">#B3FFFFFF</Color>
                     <Color x:Key="ShellCardBorderColor">#14000000</Color>
-                    <Color x:Key="ShellNavHoverColor">#26B79BE8</Color>
-                    <Color x:Key="ShellNavPressedColor">#3DB79BE8</Color>
 
                     <SolidColorBrush x:Key="OverlayBackdropBrush" Color="#66000000"/>
                     <SolidColorBrush x:Key="OverlayCardBackgroundBrush" Color="#FFFFFF"/>
@@ -64,14 +58,11 @@
             <SolidColorBrush x:Key="ShellWindowFallbackBrush" Color="{ThemeResource ShellWindowFallbackColor}"/>
             <SolidColorBrush x:Key="ShellCardFillBrush" Color="{ThemeResource ShellCardFillColor}"/>
             <SolidColorBrush x:Key="ShellCardBorderBrush" Color="{ThemeResource ShellCardBorderColor}"/>
-            <SolidColorBrush x:Key="ShellNavHoverBrush" Color="{ThemeResource ShellNavHoverColor}"/>
-            <SolidColorBrush x:Key="ShellNavPressedBrush" Color="{ThemeResource ShellNavPressedColor}"/>
+            <SolidColorBrush x:Key="ShellNavHoverBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+            <SolidColorBrush x:Key="ShellNavPressedBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
 
-
-            
-            <!-- App-wide accent color -->
-            <Color x:Key="AccentColor">#D9A0E8</Color>
-            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+            <!-- App-wide dynamic accent color -->
+            <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemAccentColor}" />
 
             
             <!-- Tray Icon -->

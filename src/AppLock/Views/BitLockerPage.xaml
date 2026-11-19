@@ -154,22 +154,11 @@
                             <ResourceDictionary>
                                 <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
                                 <CornerRadius x:Key="ListViewItemCornerRadius">8</CornerRadius>
-                                <ResourceDictionary.ThemeDictionaries>
-                                    <ResourceDictionary x:Key="Dark">
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FF2B2438"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#FF352C46"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#FF3A3050"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#FF3A3050"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#FF463A63"/>
-                                    </ResourceDictionary>
-                                    <ResourceDictionary x:Key="Light">
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FFF3EEFB"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="#FFEDE5FA"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#FFE9E1F7"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#FFE9E1F7"/>
-                                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#FFDED4F2"/>
-                                    </ResourceDictionary>
-                                </ResourceDictionary.ThemeDictionaries>
+                                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                                <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="{ThemeResource SystemAccentColor}" Opacity="0.20"/>
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                                <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.30"/>
                             </ResourceDictionary>
                         </ListView.Resources>
                         <ListView.ItemContainerStyle>

@@ -104,9 +104,13 @@ public sealed partial class BitLockerPage : Page
 
     private Brush GetAccentBrush() => GetAccentBrush(IsDarkTheme());
     private static Brush GetAccentBrush(bool isDark) =>
-        isDark
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 217, 160, 232))    // #D9A0E8 (Lilac)
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 142, 68, 173));    // #8E44AD (Purple with high contrast)
+        Application.Current?.Resources.TryGetValue("AccentFillColorDefaultBrush", out var brushObj) == true && brushObj is Brush b
+            ? b
+            : (Application.Current?.Resources.TryGetValue("SystemAccentColor", out var accentObj) == true && accentObj is Windows.UI.Color c
+                ? new SolidColorBrush(c)
+                : (isDark
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 212))
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 103, 192))));
 
     private Brush GetSuccessBrush() => GetSuccessBrush(IsDarkTheme());
     private static Brush GetSuccessBrush(bool isDark) =>

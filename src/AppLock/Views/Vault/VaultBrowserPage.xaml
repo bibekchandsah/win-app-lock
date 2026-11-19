@@ -215,10 +215,21 @@
                       SelectionMode="Extended"
                       IsItemClickEnabled="True"
                       ItemClick="FileListView_ItemClick"
-                      CornerRadius="6"
+                      CornerRadius="8"
                       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                       BorderThickness="1"
                       Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <ListView.Resources>
+                    <ResourceDictionary>
+                        <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+                        <CornerRadius x:Key="ListViewItemCornerRadius">6</CornerRadius>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="{ThemeResource SystemAccentColor}" Opacity="0.20"/>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.30"/>
+                    </ResourceDictionary>
+                </ListView.Resources>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VaultItemViewModel">
                         <Grid ColumnSpacing="12" Padding="8,4"

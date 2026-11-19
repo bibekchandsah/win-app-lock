@@ -358,12 +358,12 @@
                                         <ResourceDictionary>
                                             <ResourceDictionary.ThemeDictionaries>
                                                 <ResourceDictionary x:Key="Dark">
-                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26D9A0E8"/>
-                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DD9A0E8"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
                                                 </ResourceDictionary>
                                                 <ResourceDictionary x:Key="Light">
-                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#26B79BE8"/>
-                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#3DB79BE8"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
                                                 </ResourceDictionary>
                                             </ResourceDictionary.ThemeDictionaries>
                                         </ResourceDictionary>

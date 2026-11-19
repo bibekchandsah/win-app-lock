@@ -121,7 +121,16 @@
             <ListView x:Name="VaultsList"
                       Visibility="{x:Bind ViewModel.HasVaults, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
                       ItemsSource="{x:Bind ViewModel.Vaults, Mode=OneWay}"
-                      SelectionMode="None">
+                      SelectionMode="None"
+                      IsItemClickEnabled="True">
+                <ListView.Resources>
+                    <ResourceDictionary>
+                        <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                        <CornerRadius x:Key="ListViewItemCornerRadius">8</CornerRadius>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{ThemeResource SystemAccentColor}" Opacity="0.15"/>
+                        <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="{ThemeResource SystemAccentColor}" Opacity="0.25"/>
+                    </ResourceDictionary>
+                </ListView.Resources>
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -135,7 +144,11 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VaultCardViewModel">
-                        <Border Padding="16,14">
+                        <!-- Border provides the rounded card outline; ListViewItem underneath provides the rounded card surface and dynamic accent hover -->
+                        <Border Padding="16,14"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
                             <Grid RowSpacing="10">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
