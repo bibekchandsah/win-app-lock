@@ -99,6 +99,9 @@ public class AppSettings
     // PC Checker
     public PcChecker.PcCheckerSettings PcChecker { get; set; } = new();
 
+    // Screen Time (usage history itself lives in screentime.db, not here)
+    public ScreenTimeSettings ScreenTime { get; set; } = new();
+
     // Vault
     public VaultSettings Vault { get; set; } = new();
 

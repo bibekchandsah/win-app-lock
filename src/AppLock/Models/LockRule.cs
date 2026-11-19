@@ -9,6 +9,15 @@ public enum LockRuleType
     PickedWindow
 }
 
+public enum LockRuleMode
+{
+    /// <summary>Locked whenever the app is opened, until it is unlocked.</summary>
+    AlwaysLocked,
+
+    /// <summary>Runs freely; locks only when the quota, schedule or idle rules trigger.</summary>
+    LimitOnly
+}
+
 public class LockRule : ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -19,6 +28,15 @@ public class LockRule : ObservableObject
     public bool IsRegex { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Existing rules migrate to AlwaysLocked; Screen Time's "Set limit" creates LimitOnly rules.</summary>
+    public LockRuleMode Mode { get; set; } = LockRuleMode.AlwaysLocked;
+
+    /// <summary>Screen Time app identity (exe:path or aumid:...). Filled when the image path is known.</summary>
+    public string AppKey { get; set; } = string.Empty;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsLimitOnly => Mode == LockRuleMode.LimitOnly;
 
     // Per-app custom password (optional — falls back to admin password when not set)
     public byte[] CustomPasswordHash { get; set; } = Array.Empty<byte>();

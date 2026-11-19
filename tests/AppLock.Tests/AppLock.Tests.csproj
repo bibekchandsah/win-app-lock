@@ -24,6 +24,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
@@ -37,6 +38,9 @@
   <ItemGroup>
     <Compile Include="..\..\src\AppLock\Models\LockRule.cs" Link="Models\LockRule.cs" />
     <Compile Include="..\..\src\AppLock\Models\SelfDisciplineSettings.cs" Link="Models\SelfDisciplineSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\ScreenTimeSettings.cs" Link="Models\ScreenTimeSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\UsageModels.cs" Link="Models\UsageModels.cs" />
+    <Compile Include="..\..\src\AppLock\Services\ScreenTime\ScreenTimeStore.cs" Link="Services\ScreenTime\ScreenTimeStore.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockReason.cs" Link="Models\LockReason.cs" />
     <Compile Include="..\..\src\AppLock\Models\AppSettings.cs" Link="Models\AppSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\NetworkRuleEntry.cs" Link="Models\NetworkRuleEntry.cs" />
