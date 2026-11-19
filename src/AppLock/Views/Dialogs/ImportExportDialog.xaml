@@ -7,7 +7,12 @@
     PrimaryButtonText="Import selected"
     CloseButtonText="Cancel"
     DefaultButton="Primary"
+    CornerRadius="8"
     IsPrimaryButtonEnabled="{x:Bind ViewModel.HasSelection, Mode=OneWay}">
+
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+    </ContentDialog.Resources>
 
     <Grid RowSpacing="12" MinWidth="600" MinHeight="400">
         <Grid.RowDefinitions>

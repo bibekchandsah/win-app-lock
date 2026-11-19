@@ -9,7 +9,12 @@
     mc:Ignorable="d"
     Title="Known &amp; Allowed Ports"
     CloseButtonText="Close"
-    DefaultButton="Close">
+    DefaultButton="Close"
+    CornerRadius="8">
+
+    <ContentDialog.Resources>
+        <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+    </ContentDialog.Resources>
 
     <Grid MinWidth="480" MaxWidth="560" MaxHeight="520" RowSpacing="12">
         <Grid.RowDefinitions>

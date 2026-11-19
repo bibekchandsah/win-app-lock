@@ -374,7 +374,7 @@ implemented - CPU & RAM test
 implemented - disk HDD/SSD (hardware test drive media detection & details) 
 implemented - Secure folder vault: an encrypted folder that opens only after AppLock authentication.
 
-rounded edge in "import firewall rule, add from installed apps, drive cards in bitlocker page" dialog box
+rounded edge in "import firewall rule, add from installed apps in network access page, drive cards in bitlocker page" dialog box
 eye care sometime don't show the loaded templet and just shows blank screen
 camera brightness slider isn't showing effect everytime in volume mixture overlay 
 

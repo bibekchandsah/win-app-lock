@@ -152,6 +152,8 @@
                              (they used to be drawn behind an opaque card and were invisible in light mode). -->
                         <ListView.Resources>
                             <ResourceDictionary>
+                                <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                                <CornerRadius x:Key="ListViewItemCornerRadius">8</CornerRadius>
                                 <ResourceDictionary.ThemeDictionaries>
                                     <ResourceDictionary x:Key="Dark">
                                         <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FF2B2438"/>
@@ -183,9 +185,11 @@
                         </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:DriveItemViewModel">
-                            <!-- No fill/border here: the ListViewItem underneath provides the card surface,
-                                 which is what changes colour on hover and selection. -->
-                            <Border Padding="16,12">
+                            <!-- Border provides the rounded card outline; ListViewItem underneath provides the rounded card surface and state colors -->
+                            <Border Padding="16,12"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
                                 <Grid RowSpacing="12">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
