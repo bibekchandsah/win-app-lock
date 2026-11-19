@@ -131,6 +131,17 @@ public sealed partial class VaultBrowserPage : Page
         {
             ViewModel.NavigateToFolder(item.Id);
         }
+        else if (!item.IsDirectory && !item.IsTrash && PreviewService.CanPreview(item.Name))
+        {
+            OpenPreview(item);
+        }
+    }
+
+    private void OpenPreview(VaultItemViewModel item)
+    {
+        if (ViewModel == null) return;
+        var win = new SecurePreviewWindow(ViewModel.Session, item.Model);
+        win.Activate();
     }
 
     // ---- Add Files & Folders ------------------------------------------
@@ -518,6 +529,14 @@ public sealed partial class VaultBrowserPage : Page
 
         if (!item.IsTrash)
         {
+            if (!item.IsDirectory && PreviewService.CanPreview(item.Name))
+            {
+                var previewItem = new MenuFlyoutItem { Text = "Preview", Icon = new SymbolIcon(Symbol.View) };
+                previewItem.Click += (s, a) => OpenPreview(item);
+                flyout.Items.Add(previewItem);
+                flyout.Items.Add(new MenuFlyoutSeparator());
+            }
+
             var renameItem = new MenuFlyoutItem { Text = "Rename", Icon = new SymbolIcon(Symbol.Rename) };
             renameItem.Click += async (s, a) =>
             {

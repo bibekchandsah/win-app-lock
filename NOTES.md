@@ -1155,3 +1155,22 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - **Unit Tests (`VaultOperationsTests.cs`):**
   - Added 5 new unit tests covering add file with round-trip verification, verify-before-delete, directory tree preservation, rename/move, trash/restore/permanent delete, and empty trash.
   - Total Vault test suite passing: 44 tests.
+
+
+## Vault Feature — Milestone 5 (Secure Preview)
+
+- **Preview Service (`PreviewService.cs`):**
+  - Category detector (`PreviewCategory`): Image, Text, PDF, Media (Audio/Video), Unsupported.
+  - Zero-disk plaintext: streams decrypted chunks on demand using `ChunkedCryptoStream` with random access.
+  - Text reader (`ReadTextAsync`): decodes text directly in RAM up to 4 MB limit with truncation indicator.
+  - Memory stream loader (`LoadToMemoryStreamAsync`): loads decrypted bytes directly into an `InMemoryRandomAccessStream` for native WinUI 3 media engines without writing any temp file to disk.
+- **Secure Preview Window (`SecurePreviewWindow.xaml/.cs`):**
+  - **Screen capture exclusion:** applies Win32 `SetWindowDisplayAffinity(hWnd, WDA_EXCLUDEFROMCAPTURE)` (`0x00000011`) so window content is hidden from screenshot tools and screen shares.
+  - **Images:** in-memory preview with Zoom In, Zoom Out, 90° rotation, and 1:1 reset controls.
+  - **Text files:** in-memory preview with word-wrap toggle and live text search/selection highlighting.
+  - **PDF documents:** in-memory decoding and page rendering using Windows WinRT `Windows.Data.Pdf.PdfDocument` with previous/next page navigation.
+  - **Audio & Video:** in-memory playback using WinUI `MediaPlayerElement` and `MediaSource.CreateFromStream`.
+  - **Vault auto-lock integration:** preview windows listen to `VaultSessionManager.VaultLocked` and instantly close and dispose when the vault locks.
+- **Unit Tests (`PreviewServiceTests.cs`):**
+  - Added unit tests for format classification, direct in-memory stream reading, and seekable random access.
+  - Total Vault test suite passing: 56 tests.
