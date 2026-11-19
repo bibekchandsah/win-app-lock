@@ -140,6 +140,15 @@
                               Icon="Cancel"
                               Label="Remove Windows Hello"
                               Click="DisableHelloButton_Click"/>
+                <AppBarSeparator/>
+                <AppBarButton Icon="Setting" Label="Vault settings"
+                              Click="VaultSettingsButton_Click"/>
+                <AppBarButton Icon="Admin" Label="Change password…"
+                              Click="ChangePasswordButton_Click"/>
+                <AppBarButton Icon="Accept" Label="Verify vault integrity"
+                              Click="VerifyVaultButton_Click"/>
+                <AppBarButton Icon="Copy" Label="Back up vault…"
+                              Click="BackupVaultButton_Click"/>
             </CommandBar.SecondaryCommands>
         </CommandBar>
 

@@ -1241,3 +1241,22 @@ Milestone 1 of `pc-checker.md`: framework and shell.
   - Added "Enable Windows Hello" / "Remove Windows Hello" secondary commands in the command bar menu.
   - Dynamic button visibility based on Hello hardware availability and current vault enrollment state.
 
+## Vault Feature — Milestone 9 (Management & Safety Tools)
+
+- **Open Existing Vault (`OpenExistingVaultButton_Click` in `VaultPage.xaml.cs`):**
+  - FolderPicker to select an existing vault directory on disk or removable drive.
+  - Validates `vault.config` (with `.bak` fallback), verifies not already registered, adds to `Settings.Vault.Vaults`, and refreshes the vault grid.
+- **Global Vault Settings (`GlobalVaultSettingsDialog.xaml` + `.cs`):**
+  - Full configuration for all settings from spec section 8: default idle timeout (1, 5, 10, 30 min, Never), lock on PC lock/sleep, lock on minimize, lock on exit, require fresh auth, screenshot capture exclusion, secure preview only, delete originals after verify, overwrite originals, generic temp names, temp zero-overwrite, trash retention days, and SendTo shortcut toggle.
+- **Per-Vault Settings (`PerVaultSettingsDialog.xaml` + `.cs`):**
+  - Rename vault, location on disk, per-vault auto-lock override, secure preview only override.
+  - Windows Hello status and quick enroll/remove button.
+  - Action buttons: "Change password…", "Re-generate recovery key…", "Back up vault…", "Verify vault integrity…", "Delete vault…".
+- **Safety Tools & Dialogs:**
+  - `ChangeVaultPasswordDialog`: validates password strength via `PasswordStrength.Evaluate`, re-wraps password slot with Argon2id without touching file objects.
+  - `VerifyVaultDialog`: verifies config MAC, index integrity, presence of all file objects on disk, optional deep verify (decrypting all chunks and validating AES-256-GCM tags), and scanning/deleting orphan objects via `VaultStorage.ScanOrphanObjects`.
+  - Backup operation (`VaultManager.BackupVaultAsync`): copies the encrypted vault directory with SHA-256 integrity verification of every copied file.
+  - SendTo menu shortcut (`SendToShortcutService.cs`): creates/removes "Add to AppLock Vault.lnk" in `%APPDATA%\Microsoft\Windows\SendTo`.
+  - Secondary command bar integration in `VaultBrowserPage`: accessible from both the vault cards and inside an active vault browser.
+
+

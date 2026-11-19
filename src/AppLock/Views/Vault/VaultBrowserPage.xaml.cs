@@ -780,4 +780,73 @@ public sealed partial class VaultBrowserPage : Page
             await dialog.ShowAsync();
         }
     }
+
+    // ---- Secondary commands -------------------------------------------
+
+    private async void VaultSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var reg = ServiceContainer.Settings.Vault.Vaults.Find(v => v.Id == ViewModel.Session.VaultId);
+        if (reg == null) return;
+
+        var dlg = new PerVaultSettingsDialog(reg) { XamlRoot = this.XamlRoot };
+        await dlg.ShowAsync();
+        VaultTitleText.Text = reg.Name;
+    }
+
+    private async void ChangePasswordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var dlg = new ChangeVaultPasswordDialog(ViewModel.Session) { XamlRoot = this.XamlRoot };
+        await dlg.ShowAsync();
+    }
+
+    private async void VerifyVaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var dlg = new VerifyVaultDialog(ViewModel.Session) { XamlRoot = this.XamlRoot };
+        await dlg.ShowAsync();
+    }
+
+    private async void BackupVaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        try
+        {
+            var picker = new FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+
+            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
+            InitializeWithWindow.Initialize(picker, hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder == null) return;
+
+            var backupDest = Path.Combine(folder.Path, $"{ViewModel.Session.VaultName}_Backup_{DateTime.Now:yyyyMMdd_HHmmss}");
+            Directory.CreateDirectory(backupDest);
+
+            await VaultManager.BackupVaultAsync(ViewModel.Session.VaultPath, backupDest);
+
+            var successDlg = new ContentDialog
+            {
+                Title = "Backup Complete",
+                Content = $"Encrypted backup saved to:\n{backupDest}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await successDlg.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var errDlg = new ContentDialog
+            {
+                Title = "Backup Failed",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await errDlg.ShowAsync();
+        }
+    }
 }

@@ -1,13 +1,17 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.Storage.Pickers;
+using AppLock.Models.Vault;
 using AppLock.ViewModels.Vault;
 using AppLock.Services;
 using AppLock.Services.Vault;
 using AppLock.Views.Vault;
+using WinRT.Interop;
 
 namespace AppLock.Views;
 
@@ -93,9 +97,88 @@ public sealed partial class VaultPage : Page
 
     // ---- Open Existing Vault ------------------------------------------
 
-    private void OpenExistingVaultButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenExistingVaultButton_Click(object sender, RoutedEventArgs e)
     {
-        // Handled in Milestone 9 (Open existing vault)
+        try
+        {
+            var picker = new FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+
+            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
+            InitializeWithWindow.Initialize(picker, hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder == null) return;
+
+            var configPath = Path.Combine(folder.Path, "vault.config");
+            var configBakPath = Path.Combine(folder.Path, "vault.config.bak");
+
+            if (!File.Exists(configPath) && !File.Exists(configBakPath))
+            {
+                var errDlg = new ContentDialog
+                {
+                    Title = "Invalid Vault Folder",
+                    Content = "The selected folder does not contain an AppLock vault (missing vault.config).",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await errDlg.ShowAsync();
+                return;
+            }
+
+            var config = VaultStorage.LoadConfig(folder.Path, fallbackToBak: true);
+
+            // Check if already registered
+            var existing = ServiceContainer.Settings.Vault.Vaults.FirstOrDefault(v =>
+                v.Id == config.VaultId || string.Equals(v.Path, folder.Path, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                var existsDlg = new ContentDialog
+                {
+                    Title = "Vault Already Added",
+                    Content = $"The vault '{existing.Name}' is already registered in your vaults list.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await existsDlg.ShowAsync();
+                return;
+            }
+
+            var reg = new VaultRegistration
+            {
+                Id = config.VaultId,
+                Name = config.Name,
+                Path = folder.Path,
+                LastOpened = DateTime.UtcNow
+            };
+
+            ServiceContainer.Settings.Vault.Vaults.Add(reg);
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+            ViewModel.LoadVaults();
+
+            var successDlg = new ContentDialog
+            {
+                Title = "Vault Added",
+                Content = $"Vault '{reg.Name}' has been added to your vaults list.",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await successDlg.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var errDlg = new ContentDialog
+            {
+                Title = "Failed to Open Vault",
+                Content = $"Could not open vault from folder: {ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await errDlg.ShowAsync();
+        }
     }
 
     // ---- Lock All -----------------------------------------------------
@@ -108,9 +191,11 @@ public sealed partial class VaultPage : Page
 
     // ---- Global vault settings ----------------------------------------
 
-    private void VaultSettingsButton_Click(object sender, RoutedEventArgs e)
+    private async void VaultSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        // Global vault settings dialog — Milestone 9
+        var dlg = new GlobalVaultSettingsDialog { XamlRoot = this.XamlRoot };
+        await dlg.ShowAsync();
+        ViewModel.LoadVaults();
     }
 
     // ---- Help dialog --------------------------------------------------
@@ -195,19 +280,79 @@ public sealed partial class VaultPage : Page
         }
     }
 
-    private void CardSettings_Click(object sender, RoutedEventArgs e)
+    private async void CardSettings_Click(object sender, RoutedEventArgs e)
     {
-        // Per-vault settings — Milestone 9
+        if (sender is not Button btn || btn.Tag is not VaultCardViewModel card) return;
+
+        var reg = ServiceContainer.Settings.Vault.Vaults.Find(v => v.Id == card.Id);
+        if (reg == null) return;
+
+        var dlg = new PerVaultSettingsDialog(reg) { XamlRoot = this.XamlRoot };
+        await dlg.ShowAsync();
+        ViewModel.LoadVaults();
     }
 
-    private void CardBackup_Click(object sender, RoutedEventArgs e)
+    private async void CardBackup_Click(object sender, RoutedEventArgs e)
     {
-        // Milestone 9
+        if (sender is not MenuFlyoutItem item || item.Tag is not VaultCardViewModel card) return;
+
+        try
+        {
+            var picker = new FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+
+            var hwnd = WindowNative.GetWindowHandle(App.MainWindowInstance);
+            InitializeWithWindow.Initialize(picker, hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder == null) return;
+
+            var backupDest = Path.Combine(folder.Path, $"{card.Name}_Backup_{DateTime.Now:yyyyMMdd_HHmmss}");
+            Directory.CreateDirectory(backupDest);
+
+            await VaultManager.BackupVaultAsync(card.Path, backupDest);
+
+            var successDlg = new ContentDialog
+            {
+                Title = "Backup Complete",
+                Content = $"Encrypted backup of '{card.Name}' was saved to:\n{backupDest}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await successDlg.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var errDlg = new ContentDialog
+            {
+                Title = "Backup Failed",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await errDlg.ShowAsync();
+        }
     }
 
-    private void CardVerify_Click(object sender, RoutedEventArgs e)
+    private async void CardVerify_Click(object sender, RoutedEventArgs e)
     {
-        // Milestone 9
+        if (sender is not MenuFlyoutItem item || item.Tag is not VaultCardViewModel card) return;
+
+        var reg = ServiceContainer.Settings.Vault.Vaults.Find(v => v.Id == card.Id);
+        if (reg == null) return;
+
+        var session = ServiceContainer.VaultSessionManager.GetSession(card.Id);
+        if (session == null)
+        {
+            var unlockDlg = new UnlockVaultDialog(reg) { XamlRoot = this.XamlRoot };
+            await unlockDlg.ShowAsync();
+            session = unlockDlg.UnlockedSession;
+            if (session == null) return;
+        }
+
+        var verifyDlg = new VerifyVaultDialog(session) { XamlRoot = this.XamlRoot };
+        await verifyDlg.ShowAsync();
     }
 
     private void CardShowExplorer_Click(object sender, RoutedEventArgs e)
@@ -238,8 +383,51 @@ public sealed partial class VaultPage : Page
         ViewModel.LoadVaults();
     }
 
-    private void CardDelete_Click(object sender, RoutedEventArgs e)
+    private async void CardDelete_Click(object sender, RoutedEventArgs e)
     {
-        // Full delete with confirmation — Milestone 9
+        if (sender is not MenuFlyoutItem item || item.Tag is not VaultCardViewModel card) return;
+
+        var confirmDlg = new ContentDialog
+        {
+            Title = $"Permanently Delete '{card.Name}'?",
+            Content = new TextBlock
+            {
+                Text = "WARNING: This will permanently delete the vault and ALL encrypted files within it from your disk.\n\nThis action cannot be undone.",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "Delete permanently",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        var res = await confirmDlg.ShowAsync();
+        if (res == ContentDialogResult.Primary)
+        {
+            try
+            {
+                if (ServiceContainer.VaultSessionManager.IsUnlocked(card.Id))
+                    ServiceContainer.VaultSessionManager.Lock(card.Id);
+
+                if (Directory.Exists(card.Path))
+                    Directory.Delete(card.Path, recursive: true);
+
+                ServiceContainer.Settings.Vault.Vaults.RemoveAll(v => v.Id == card.Id);
+                ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+                ViewModel.LoadVaults();
+            }
+            catch (Exception ex)
+            {
+                var errDlg = new ContentDialog
+                {
+                    Title = "Delete Failed",
+                    Content = $"Failed to delete vault files: {ex.Message}",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await errDlg.ShowAsync();
+            }
+        }
     }
 }

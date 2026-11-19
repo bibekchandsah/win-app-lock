@@ -1,0 +1,105 @@
+<ContentDialog
+    x:Class="AppLock.Views.Vault.PerVaultSettingsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Vault Settings"
+    PrimaryButtonText="Save"
+    CloseButtonText="Close"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="SaveButton_Click">
+
+    <ScrollViewer MaxHeight="520" Padding="0,0,12,0">
+        <StackPanel Spacing="16" MinWidth="420" MaxWidth="500">
+
+            <!-- Name and path -->
+            <TextBox x:Name="VaultNameBox" Header="Vault name" CornerRadius="4"/>
+            <TextBox x:Name="VaultPathBox" Header="Location on disk" IsReadOnly="True" CornerRadius="4"/>
+
+            <!-- Auto-lock override -->
+            <ComboBox x:Name="AutoLockOverrideCombo"
+                      Header="Auto-lock idle override"
+                      HorizontalAlignment="Stretch"
+                      CornerRadius="4">
+                <ComboBoxItem Content="Use global setting"/>
+                <ComboBoxItem Content="Until I lock it (Never)"/>
+                <ComboBoxItem Content="5 minutes"/>
+                <ComboBoxItem Content="15 minutes"/>
+                <ComboBoxItem Content="30 minutes"/>
+                <ComboBoxItem Content="60 minutes"/>
+            </ComboBox>
+
+            <!-- Secure preview override -->
+            <ComboBox x:Name="SecurePreviewOverrideCombo"
+                      Header="External app access"
+                      HorizontalAlignment="Stretch"
+                      CornerRadius="4">
+                <ComboBoxItem Content="Use global setting"/>
+                <ComboBoxItem Content="Allow 'Open with external app'"/>
+                <ComboBoxItem Content="In-memory preview only (Block external apps)"/>
+            </ComboBox>
+
+            <MenuFlyoutSeparator Margin="0,4"/>
+
+            <!-- Windows Hello section -->
+            <TextBlock Text="Windows Hello" FontWeight="SemiBold" FontSize="14"
+                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock x:Name="HelloStatusText" Text="Checking availability…" FontSize="13"/>
+                    <TextBlock Text="Biometric / PIN unlock on this PC" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+                <Button Grid.Column="1" x:Name="HelloActionButton"
+                        VerticalAlignment="Center"
+                        CornerRadius="4"
+                        Click="HelloActionButton_Click"/>
+            </Grid>
+
+            <MenuFlyoutSeparator Margin="0,4"/>
+
+            <!-- Security & Maintenance -->
+            <TextBlock Text="Security &amp; Maintenance" FontWeight="SemiBold" FontSize="14"
+                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+
+            <StackPanel Spacing="8">
+                <Button Content="Change password…"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        CornerRadius="4"
+                        Click="ChangePasswordButton_Click"/>
+
+                <Button Content="Re-generate recovery key…"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        CornerRadius="4"
+                        Click="RegenerateRecoveryKeyButton_Click"/>
+
+                <Button Content="Back up vault…"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        CornerRadius="4"
+                        Click="BackupVaultButton_Click"/>
+
+                <Button Content="Verify vault integrity…"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        CornerRadius="4"
+                        Click="VerifyVaultButton_Click"/>
+
+                <Button Content="Delete vault…"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Foreground="{ThemeResource SystemErrorTextColor}"
+                        CornerRadius="4"
+                        Click="DeleteVaultButton_Click"/>
+            </StackPanel>
+
+            <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" CornerRadius="4"/>
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>
