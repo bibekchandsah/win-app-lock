@@ -19,6 +19,9 @@ public sealed partial class VaultPage : Page
 {
     public VaultListViewModel ViewModel { get; }
 
+    private ElementTheme CurrentActualTheme =>
+        (XamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ServiceContainer.CurrentTheme;
+
     public VaultPage()
     {
         ViewModel = new VaultListViewModel();
@@ -121,7 +124,8 @@ public sealed partial class VaultPage : Page
                     Title = "Invalid Vault Folder",
                     Content = "The selected folder does not contain an AppLock vault (missing vault.config).",
                     CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
+                    XamlRoot = this.XamlRoot,
+                    RequestedTheme = CurrentActualTheme
                 };
                 await errDlg.ShowAsync();
                 return;
@@ -140,7 +144,8 @@ public sealed partial class VaultPage : Page
                     Title = "Vault Already Added",
                     Content = $"The vault '{existing.Name}' is already registered in your vaults list.",
                     CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
+                    XamlRoot = this.XamlRoot,
+                    RequestedTheme = CurrentActualTheme
                 };
                 await existsDlg.ShowAsync();
                 return;
@@ -164,7 +169,8 @@ public sealed partial class VaultPage : Page
                 Title = "Vault Added",
                 Content = $"Vault '{reg.Name}' has been added to your vaults list.",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await successDlg.ShowAsync();
         }
@@ -175,7 +181,8 @@ public sealed partial class VaultPage : Page
                 Title = "Failed to Open Vault",
                 Content = $"Could not open vault from folder: {ex.Message}",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await errDlg.ShowAsync();
         }
@@ -227,7 +234,8 @@ public sealed partial class VaultPage : Page
                 MaxHeight = 400
             },
             CloseButtonText = "Close",
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = CurrentActualTheme
         };
         await dialog.ShowAsync();
     }
@@ -318,7 +326,8 @@ public sealed partial class VaultPage : Page
                 Title = "Backup Complete",
                 Content = $"Encrypted backup of '{card.Name}' was saved to:\n{backupDest}",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await successDlg.ShowAsync();
         }
@@ -329,7 +338,8 @@ public sealed partial class VaultPage : Page
                 Title = "Backup Failed",
                 Content = ex.Message,
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await errDlg.ShowAsync();
         }
@@ -398,7 +408,8 @@ public sealed partial class VaultPage : Page
             PrimaryButtonText = "Delete permanently",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = CurrentActualTheme
         };
 
         var res = await confirmDlg.ShowAsync();
@@ -424,7 +435,8 @@ public sealed partial class VaultPage : Page
                     Title = "Delete Failed",
                     Content = $"Failed to delete vault files: {ex.Message}",
                     CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
+                    XamlRoot = this.XamlRoot,
+                    RequestedTheme = CurrentActualTheme
                 };
                 await errDlg.ShowAsync();
             }

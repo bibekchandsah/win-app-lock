@@ -15,6 +15,20 @@ public sealed partial class ChangeVaultPasswordDialog : ContentDialog
     {
         _session = session;
         InitializeComponent();
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void NewPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)

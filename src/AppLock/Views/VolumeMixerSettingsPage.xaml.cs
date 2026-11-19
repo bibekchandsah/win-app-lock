@@ -657,7 +657,8 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = (XamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ServiceContainer.CurrentTheme
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return null;
@@ -678,7 +679,8 @@ public sealed partial class VolumeMixerSettingsPage : Page, INotifyPropertyChang
             Title = title,
             Content = message,
             CloseButtonText = "OK",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = (XamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ServiceContainer.CurrentTheme
         };
 
         await dialog.ShowAsync();

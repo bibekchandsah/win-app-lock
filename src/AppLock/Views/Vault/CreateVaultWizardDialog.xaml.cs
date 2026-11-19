@@ -40,6 +40,20 @@ public sealed partial class CreateVaultWizardDialog : ContentDialog
     {
         InitializeComponent();
         UpdateStep();
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     // ---- Step navigation ----------------------------------------------

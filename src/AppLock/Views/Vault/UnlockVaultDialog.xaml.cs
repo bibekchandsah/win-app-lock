@@ -34,7 +34,21 @@ public sealed partial class UnlockVaultDialog : ContentDialog
         else if (registration.AutoLockMinutes == 30)
             KeepUnlockedBox.SelectedIndex = 3;
 
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
         Loaded += async (_, _) => await InitHelloButtonAsync();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void ApplyKeepUnlockedSetting()

@@ -3,8 +3,10 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Data.Pdf;
 using Windows.Media.Core;
@@ -53,6 +55,20 @@ public sealed partial class SecurePreviewWindow : Window
         // Set default window size
         var appWindow = AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(960, 680));
+
+        // Apply Mica backdrop (same as MainWindow) so the preview window
+        // blends with the system wallpaper instead of using a flat grey surface.
+        if (MicaController.IsSupported())
+        {
+            SystemBackdrop = new MicaBackdrop { Kind = MicaKind.Base };
+        }
+
+        // Sync theme with the current app theme so controls look correct
+        // in both Light and Dark mode regardless of which window launched us.
+        if (Content is FrameworkElement root)
+        {
+            root.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
 
         // Close immediately when vault locks
         ServiceContainer.VaultSessionManager.VaultLocked += OnVaultLocked;

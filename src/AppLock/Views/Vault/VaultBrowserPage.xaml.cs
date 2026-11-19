@@ -24,6 +24,9 @@ public sealed partial class VaultBrowserPage : Page
 
     private CancellationTokenSource? _opCts;
 
+    private ElementTheme CurrentActualTheme =>
+        (XamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ServiceContainer.CurrentTheme;
+
     public VaultBrowserPage()
     {
         InitializeComponent();
@@ -142,7 +145,8 @@ public sealed partial class VaultBrowserPage : Page
                 PrimaryButtonText = "Lock & save",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             if (await confirm.ShowAsync() != ContentDialogResult.Primary)
                 return;
@@ -174,7 +178,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Secure Preview Only",
                 Content = new TextBlock { Text = "'Open with another app' is disabled in your vault security settings." },
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await denied.ShowAsync();
             return;
@@ -191,7 +196,8 @@ public sealed partial class VaultBrowserPage : Page
             PrimaryButtonText = "Open copy",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = CurrentActualTheme
         };
 
         if (await confirm.ShowAsync() == ContentDialogResult.Primary)
@@ -329,7 +335,8 @@ public sealed partial class VaultBrowserPage : Page
             PrimaryButtonText = "Create",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = CurrentActualTheme
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
@@ -489,7 +496,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Nothing selected",
                 Content = new TextBlock { Text = "Please select one or more items to export." },
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await dialog.ShowAsync();
             return;
@@ -543,7 +551,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Export failed",
                 Content = new TextBlock { Text = ex.Message },
                 CloseButtonText = "Close",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await errDialog.ShowAsync();
         }
@@ -576,7 +585,8 @@ public sealed partial class VaultBrowserPage : Page
                 PrimaryButtonText = "Delete permanently",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
 
             if (await confirm.ShowAsync() == ContentDialogResult.Primary)
@@ -625,7 +635,8 @@ public sealed partial class VaultBrowserPage : Page
             PrimaryButtonText = "Empty trash",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = CurrentActualTheme
         };
 
         if (await confirm.ShowAsync() == ContentDialogResult.Primary)
@@ -676,7 +687,8 @@ public sealed partial class VaultBrowserPage : Page
                     PrimaryButtonText = "Rename",
                     CloseButtonText = "Cancel",
                     DefaultButton = ContentDialogButton.Primary,
-                    XamlRoot = this.XamlRoot
+                    XamlRoot = this.XamlRoot,
+                    RequestedTheme = CurrentActualTheme
                 };
                 if (await d.ShowAsync() == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text))
                 {
@@ -752,7 +764,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Windows Hello Enabled",
                 Content = "You can now unlock this vault using Windows Hello (PIN or biometrics) on this PC.",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await dialog.ShowAsync();
         }
@@ -763,7 +776,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Windows Hello Enrollment Failed",
                 Content = ex.Message,
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await dialog.ShowAsync();
         }
@@ -785,7 +799,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Windows Hello Removed",
                 Content = "Windows Hello unlock has been removed for this vault.",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await dialog.ShowAsync();
         }
@@ -796,7 +811,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Failed to Remove Windows Hello",
                 Content = ex.Message,
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await dialog.ShowAsync();
         }
@@ -854,7 +870,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Backup Complete",
                 Content = $"Encrypted backup saved to:\n{backupDest}",
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await successDlg.ShowAsync();
         }
@@ -865,7 +882,8 @@ public sealed partial class VaultBrowserPage : Page
                 Title = "Backup Failed",
                 Content = ex.Message,
                 CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = CurrentActualTheme
             };
             await errDlg.ShowAsync();
         }

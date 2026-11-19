@@ -23,6 +23,20 @@ public sealed partial class TempSessionRecoveryDialog : ContentDialog
         _sessions = sessions;
         InitializeComponent();
         RecoveredListView.ItemsSource = _sessions;
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private async void PrimaryButton_Click(ContentDialog sender, ContentDialogButtonClickEventArgs args)

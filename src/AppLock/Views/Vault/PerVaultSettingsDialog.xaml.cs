@@ -24,7 +24,21 @@ public sealed partial class PerVaultSettingsDialog : ContentDialog
         _registration = registration;
         InitializeComponent();
         LoadRegistration();
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
         Loaded += async (_, _) => await RefreshHelloStatusAsync();
+    }
+
+    private void ApplyTheme()
+    {
+        if (this.XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            this.RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            this.RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void LoadRegistration()
