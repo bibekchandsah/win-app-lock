@@ -331,19 +331,28 @@ namespace AppLock.Views
 
         // ── Disk ─────────────────────────────────────────────────────────────────
 
+        private readonly List<(DriveInfo Drive, DriveMediaTypeInfo Info)> _driveInfos = new();
+
         private void FillDrives()
         {
+            DiskDriveBox.Items.Clear();
+            _driveInfos.Clear();
+
             foreach (var drive in DriveInfo.GetDrives())
             {
                 try
                 {
                     if (drive.DriveType != DriveType.Fixed || !drive.IsReady) continue;
 
+                    var info = DiskTypeDetector.GetDriveInfo(drive.Name);
+                    _driveInfos.Add((drive, info));
+
                     string label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
                         ? $"{drive.Name.TrimEnd('\\')} ({drive.DriveFormat})"
                         : $"{drive.Name.TrimEnd('\\')} {drive.VolumeLabel} ({drive.DriveFormat})";
 
-                    DiskDriveBox.Items.Add($"{label} — {drive.AvailableFreeSpace / (1024 * 1024 * 1024)} GB free");
+                    string mediaTag = !string.IsNullOrEmpty(info.DisplaySummary) ? $" [{info.DisplaySummary}]" : "";
+                    DiskDriveBox.Items.Add($"{label}{mediaTag} — {drive.AvailableFreeSpace / (1024 * 1024 * 1024)} GB free");
                 }
                 catch
                 {
@@ -351,25 +360,47 @@ namespace AppLock.Views
                 }
             }
 
-            if (DiskDriveBox.Items.Count > 0) DiskDriveBox.SelectedIndex = 0;
-            else DiskDriveBox.PlaceholderText = "No fixed drive available";
+            if (DiskDriveBox.Items.Count > 0)
+            {
+                DiskDriveBox.SelectedIndex = 0;
+            }
+            else
+            {
+                DiskDriveBox.PlaceholderText = "No fixed drive available";
+                DiskTypeDetailsText.Text = "";
+            }
+        }
+
+        private void DiskDriveBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DiskDriveBox.SelectedIndex >= 0 && DiskDriveBox.SelectedIndex < _driveInfos.Count)
+            {
+                var (drive, info) = _driveInfos[DiskDriveBox.SelectedIndex];
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(info.Model)) parts.Add(info.Model);
+                parts.Add(info.DisplaySummary);
+                parts.Add($"Format: {drive.DriveFormat}");
+                DiskTypeDetailsText.Text = string.Join(" • ", parts);
+            }
+            else
+            {
+                DiskTypeDetailsText.Text = "";
+            }
         }
 
         private async void RunDiskTest_Click(object sender, RoutedEventArgs e)
         {
-            if (DiskDriveBox.SelectedIndex < 0)
+            if (DiskDriveBox.SelectedIndex < 0 || DiskDriveBox.SelectedIndex >= _driveInfos.Count)
             {
                 DiskResultText.Text = "Choose a drive first.";
                 return;
             }
 
-            var drives = DriveInfo.GetDrives().Where(d => d.DriveType == DriveType.Fixed && d.IsReady).ToList();
-            if (DiskDriveBox.SelectedIndex >= drives.Count) return;
-
-            var root = drives[DiskDriveBox.SelectedIndex].RootDirectory.FullName;
+            var (selectedDrive, mediaInfo) = _driveInfos[DiskDriveBox.SelectedIndex];
+            var root = selectedDrive.RootDirectory.FullName;
             const long bytes = 256L * 1024 * 1024;
 
-            if (drives[DiskDriveBox.SelectedIndex].AvailableFreeSpace < bytes * 2)
+            if (selectedDrive.AvailableFreeSpace < bytes * 2)
             {
                 DiskResultText.Text = "This drive does not have enough free space for the 256 MB test file.";
                 return;
@@ -380,16 +411,18 @@ namespace AppLock.Views
 
             RunDiskButton.IsEnabled = false;
             DiskProgress.Value = 0;
-            DiskResultText.Text = $"Writing and reading {bytes / (1024 * 1024)} MB on {root}…";
+            DiskResultText.Text = $"Writing and reading {bytes / (1024 * 1024)} MB on {root} ({mediaInfo.DisplaySummary})…";
 
             try
             {
                 var progress = new Progress<double>(value => DiskProgress.Value = value);
                 var result = await HardwareTestService.RunDiskTestAsync(root, bytes, 1024 * 1024, progress, _diskTest.Token);
 
+                string modelPart = !string.IsNullOrEmpty(mediaInfo.Model) ? $" ({mediaInfo.Model})" : "";
                 DiskResultText.Text =
-                    $"Write: {result.WriteMegabytesPerSecond:0.0} MB/s{Environment.NewLine}" +
-                    $"Read : {result.ReadMegabytesPerSecond:0.0} MB/s{Environment.NewLine}" +
+                    $"Write : {result.WriteMegabytesPerSecond:0.0} MB/s{Environment.NewLine}" +
+                    $"Read  : {result.ReadMegabytesPerSecond:0.0} MB/s{Environment.NewLine}" +
+                    $"Media : {mediaInfo.DisplaySummary}{modelPart}{Environment.NewLine}" +
                     $"Tested {result.Bytes / (1024 * 1024)} MB on {result.Folder}{Environment.NewLine}" +
                     "The temporary file was deleted.";
             }

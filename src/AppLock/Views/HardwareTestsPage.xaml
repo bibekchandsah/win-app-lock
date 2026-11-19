@@ -113,8 +113,13 @@
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="Writes a temporary 256 MB file to the selected drive, reads it back, then deletes it. Pick the drive with the disk you want to check."/>
-                                <ComboBox x:Name="DiskDriveBox" Width="320" HorizontalAlignment="Left"
-                                          Header="Drive" AutomationProperties.Name="Drive to test"/>
+                                <ComboBox x:Name="DiskDriveBox" Width="360" HorizontalAlignment="Left"
+                                          Header="Drive" AutomationProperties.Name="Drive to test"
+                                          SelectionChanged="DiskDriveBox_SelectionChanged"/>
+                                <TextBlock x:Name="DiskTypeDetailsText"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontSize="12"
+                                           Margin="0,-4,0,4"/>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Button x:Name="RunDiskButton" Content="Run disk test" Click="RunDiskTest_Click"/>
                                     <ProgressBar x:Name="DiskProgress" Width="220" Minimum="0" Maximum="1" VerticalAlignment="Center"/>
