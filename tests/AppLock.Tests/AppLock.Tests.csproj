@@ -80,6 +80,8 @@
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultSessionManager.cs" Link="Services\Vault\VaultSessionManager.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\VaultOperations.cs" Link="Services\Vault\VaultOperations.cs" />
     <Compile Include="..\..\src\AppLock\Services\Vault\PreviewService.cs" Link="Services\Vault\PreviewService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\SecureDelete.cs" Link="Services\Vault\SecureDelete.cs" />
+    <Compile Include="..\..\src\AppLock\Services\Vault\TempOpenService.cs" Link="Services\Vault\TempOpenService.cs" />
     <Compile Include="..\..\src\AppLock\Services\LogService.cs" Link="Services\LogService.cs" />
     <Compile Include="..\..\src\AppLock\Models\PcChecker\PcCheckerSettings.cs" Link="Models\PcChecker\PcCheckerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\MuteWindow.cs" Link="Models\MuteWindow.cs" />

@@ -1,0 +1,51 @@
+<ContentDialog
+    x:Class="AppLock.Views.Vault.TempSessionRecoveryDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Unsaved Edits from Last Session"
+    PrimaryButtonText="Save back to vault"
+    SecondaryButtonText="Export to folder…"
+    CloseButtonText="Discard"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="PrimaryButton_Click"
+    SecondaryButtonClick="SecondaryButton_Click"
+    CloseButtonClick="CloseButton_Click">
+
+    <StackPanel Spacing="14" MinWidth="420" MaxWidth="520">
+        <InfoBar Severity="Warning" IsOpen="True" IsClosable="False"
+                 Message="AppLock closed while files were open in another application. Choose how to handle your edits."
+                 CornerRadius="4"/>
+
+        <TextBlock Text="Recovered items:" FontWeight="SemiBold" FontSize="13"/>
+
+        <ListView x:Name="RecoveredListView"
+                  MaxHeight="200"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnSpacing="10" Padding="8,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE8A5;" FontFamily="Segoe Fluent Icons"
+                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding OriginalName}" FontWeight="Medium"/>
+                            <TextBlock Text="{Binding ExtractedTimeUtc}" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock x:Name="StatusText"
+                   FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Visibility="Collapsed"/>
+    </StackPanel>
+</ContentDialog>

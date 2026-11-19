@@ -1174,3 +1174,26 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - **Unit Tests (`PreviewServiceTests.cs`):**
   - Added unit tests for format classification, direct in-memory stream reading, and seekable random access.
   - Total Vault test suite passing: 56 tests.
+
+
+## Vault Feature — Milestone 6 (Open with Another App)
+
+- **Temp Open Service (`TempOpenService.cs`):**
+  - Session-scoped temporary storage at `%LOCALAPPDATA%\AppLock\VaultTemp\<sessionId>\` with `FILE_ATTRIBUTE_NOT_CONTENT_INDEXED` and generic `item-<id:4>.<ext>` filenames to prevent filename leakage.
+  - Per-vault "Preview only" policy enforcement blocking external app opening when enabled.
+  - Confirmation warning explaining that plaintext files exist temporarily in a protected folder and could be intercepted by malicious apps.
+  - Win32 `ShellExecuteEx` launch using default registered application.
+  - File system watcher monitoring external modifications with automatic write-back re-encryption into the vault when changed.
+  - Secure cleanup on file close, vault lock, or application exit.
+- **Secure Delete (`SecureDelete.cs`):**
+  - Best-effort multi-pass overwriting with zeros, flush to disk via `FileStream.Flush(flushToDisk: true)`, truncation, and final deletion.
+- **Lock Interception & Open Files InfoBar:**
+  - `VaultBrowserPage` displays an active `InfoBar` when files are currently open externally, with a "Close & flush edits" button.
+  - Vault lock confirmation dialog warning the user if external files are open, offering "Save and lock" or "Cancel".
+- **Crash Recovery (`TempSessionRecoveryDialog.xaml/.cs`):**
+  - Scans for abandoned session folders on startup or vault unlock.
+  - Provides options to save modified files back to the vault, export to an external folder, or securely discard.
+- **Unit Tests (`TempOpenServiceTests.cs`):**
+  - Verified temp file creation with generic naming and not-content-indexed attributes.
+  - Verified write-back detection and index re-encryption.
+  - Total Vault test suite passing: 60 tests.

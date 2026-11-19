@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using AppLock.ViewModels.Vault;
 using AppLock.Services;
+using AppLock.Services.Vault;
 using AppLock.Views.Vault;
 
 namespace AppLock.Views;
@@ -30,6 +31,23 @@ public sealed partial class VaultPage : Page
         ServiceContainer.VaultSessionManager.VaultUnlocked -= OnVaultStateChanged;
         ServiceContainer.VaultSessionManager.VaultLocked   += OnVaultStateChanged;
         ServiceContainer.VaultSessionManager.VaultUnlocked += OnVaultStateChanged;
+
+        CheckCrashRecovery();
+    }
+
+    private async void CheckCrashRecovery()
+    {
+        try
+        {
+            var leftovers = TempOpenService.ScanCrashRecoverySessions();
+            if (leftovers.Count > 0)
+            {
+                var dialog = new TempSessionRecoveryDialog(leftovers) { XamlRoot = this.XamlRoot };
+                await dialog.ShowAsync();
+                ViewModel.LoadVaults();
+            }
+        }
+        catch { }
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)

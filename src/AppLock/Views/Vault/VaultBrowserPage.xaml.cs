@@ -51,18 +51,45 @@ public sealed partial class VaultBrowserPage : Page
         }
 
         ServiceContainer.VaultSessionManager.VaultLocked += OnVaultLocked;
+        TempOpenService.OpenCountChanged += OnTempSessionsChanged;
+        UpdateOpenFilesBanner();
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
         ServiceContainer.VaultSessionManager.VaultLocked -= OnVaultLocked;
+        TempOpenService.OpenCountChanged -= OnTempSessionsChanged;
     }
 
-    private void OnVaultLocked(object? sender, Guid id)
+    private void OnTempSessionsChanged(object? sender, int count)
+    {
+        DispatcherQueue.TryEnqueue(UpdateOpenFilesBanner);
+    }
+
+    private void UpdateOpenFilesBanner()
+    {
+        if (ViewModel == null) return;
+        var count = TempOpenService.GetActiveSessionsForVault(ViewModel.Session.VaultId).Count;
+        OpenFilesInfoBar.IsOpen = count > 0;
+        OpenFilesInfoBar.Message = count == 1
+            ? "1 file currently open outside the vault in another application."
+            : $"{count} files currently open outside the vault in another application.";
+    }
+
+    private async void CloseTempFilesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        await TempOpenService.CloseAllSessionsForVaultAsync(ViewModel.Session.VaultId);
+        UpdateOpenFilesBanner();
+        ViewModel.Refresh();
+    }
+
+    private async void OnVaultLocked(object? sender, Guid id)
     {
         if (ViewModel?.Session.VaultId == id)
         {
+            await TempOpenService.CloseAllSessionsForVaultAsync(id);
             DispatcherQueue.TryEnqueue(() => Frame.Navigate(typeof(VaultPage)));
         }
     }
@@ -97,11 +124,83 @@ public sealed partial class VaultBrowserPage : Page
         }
     }
 
-    private void LockNowButton_Click(object sender, RoutedEventArgs e)
+    private async void LockNowButton_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel == null) return;
+        var openCount = TempOpenService.GetActiveSessionsForVault(ViewModel.Session.VaultId).Count;
+        if (openCount > 0)
+        {
+            var confirm = new ContentDialog
+            {
+                Title = "Files currently open",
+                Content = new TextBlock
+                {
+                    Text = $"You have {openCount} file(s) open in another application. Locking will save your edits back to the vault and securely wipe the temporary copies. Proceed?",
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = "Lock & save",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot
+            };
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+                return;
+        }
+
+        await TempOpenService.CloseAllSessionsForVaultAsync(ViewModel.Session.VaultId);
         ServiceContainer.VaultSessionManager.Lock(ViewModel.Session.VaultId);
         Frame.Navigate(typeof(VaultPage));
+    }
+
+    private async void OpenWithAppButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null) return;
+        var selected = FileListView.SelectedItems.Cast<VaultItemViewModel>().FirstOrDefault(i => !i.IsDirectory);
+        if (selected != null)
+        {
+            await OpenWithAppAsync(selected);
+        }
+    }
+
+    private async Task OpenWithAppAsync(VaultItemViewModel item)
+    {
+        if (ViewModel == null) return;
+
+        if (ServiceContainer.Settings.Vault.SecurePreviewOnly)
+        {
+            var denied = new ContentDialog
+            {
+                Title = "Secure Preview Only",
+                Content = new TextBlock { Text = "'Open with another app' is disabled in your vault security settings." },
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await denied.ShowAsync();
+            return;
+        }
+
+        var confirm = new ContentDialog
+        {
+            Title = "Open with default app?",
+            Content = new TextBlock
+            {
+                Text = "This creates a temporary decrypted copy while the file is open. Any changes you make will be re-encrypted back into the vault when closed. Choose Secure preview where possible.",
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "Open copy",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot
+        };
+
+        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await TempOpenService.OpenWithDefaultAppAsync(
+                ViewModel.Session,
+                item.Model,
+                useGenericName: ServiceContainer.Settings.Vault.TempGenericNames);
+            UpdateOpenFilesBanner();
+        }
     }
 
     private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
@@ -534,6 +633,13 @@ public sealed partial class VaultBrowserPage : Page
                 var previewItem = new MenuFlyoutItem { Text = "Preview", Icon = new SymbolIcon(Symbol.View) };
                 previewItem.Click += (s, a) => OpenPreview(item);
                 flyout.Items.Add(previewItem);
+            }
+
+            if (!item.IsDirectory)
+            {
+                var openWithItem = new MenuFlyoutItem { Text = "Open with default app", Icon = new SymbolIcon(Symbol.OpenFile) };
+                openWithItem.Click += async (s, a) => await OpenWithAppAsync(item);
+                flyout.Items.Add(openWithItem);
                 flyout.Items.Add(new MenuFlyoutSeparator());
             }
 

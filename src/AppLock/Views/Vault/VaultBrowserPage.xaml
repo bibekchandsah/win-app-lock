@@ -111,6 +111,9 @@
                           Click="NewFolderButton_Click"
                           Visibility="{x:Bind GetNormalVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
             <AppBarSeparator Visibility="{x:Bind GetNormalVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
+            <AppBarButton Icon="OpenFile" Label="Open with app"
+                          Click="OpenWithAppButton_Click"
+                          Visibility="{x:Bind GetNormalVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
             <AppBarButton Icon="Share" Label="Export…"
                           Click="ExportButton_Click"/>
             <AppBarButton Icon="Delete" Label="Delete"
@@ -129,13 +132,26 @@
                           Visibility="{x:Bind GetTrashVisibility(ViewModel.IsTrashMode), Mode=OneWay}"/>
         </CommandBar>
 
-        <!-- =================== 3. Encryption InfoBar =================== -->
-        <InfoBar Grid.Row="3"
-                 Severity="Informational"
-                 IsOpen="{x:Bind ViewModel.ShowEncryptionBanner, Mode=TwoWay}"
-                 IsClosable="True"
-                 Message="This vault is encrypted. File contents, file names and folder structure are securely encrypted on disk."
-                 CornerRadius="4"/>
+        <!-- =================== 3. InfoBars =================== -->
+        <StackPanel Grid.Row="3" Spacing="8">
+            <InfoBar x:Name="OpenFilesInfoBar"
+                     Severity="Warning"
+                     IsOpen="False"
+                     IsClosable="False"
+                     CornerRadius="4">
+                <InfoBar.ActionButton>
+                    <Button Content="Close &amp; flush edits"
+                            Click="CloseTempFilesButton_Click"
+                            CornerRadius="4"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+
+            <InfoBar Severity="Informational"
+                     IsOpen="{x:Bind ViewModel.ShowEncryptionBanner, Mode=TwoWay}"
+                     IsClosable="True"
+                     Message="This vault is encrypted. File contents, file names and folder structure are securely encrypted on disk."
+                     CornerRadius="4"/>
+        </StackPanel>
 
         <!-- =================== 4. File List / Empty State =================== -->
         <Grid Grid.Row="4">
