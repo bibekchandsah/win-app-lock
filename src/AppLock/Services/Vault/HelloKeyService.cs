@@ -40,6 +40,9 @@ public static class HelloKeyService
     /// </summary>
     public static async Task<bool> IsAvailableAsync()
     {
+#if APPLOCK_TESTS
+        return await Task.FromResult(false);
+#else
         try
         {
             var helloService = new AppLock.Services.HelloService();
@@ -49,6 +52,7 @@ public static class HelloKeyService
         {
             return false;
         }
+#endif
     }
 
     /// <summary>
@@ -138,8 +142,13 @@ public static class HelloKeyService
             throw new InvalidOperationException("Windows Hello is not enrolled for this vault on this device.");
 
         // 3. Prompt Hello
+#if APPLOCK_TESTS
+        bool verified = true;
+        await Task.CompletedTask;
+#else
         var helloService = new AppLock.Services.HelloService();
         bool verified = await helloService.RequestVerificationAsync(message, ct);
+#endif
         if (!verified)
             throw new CryptographicException("Windows Hello verification failed or was cancelled.");
 
