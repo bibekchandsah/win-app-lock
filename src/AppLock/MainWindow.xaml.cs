@@ -1299,6 +1299,23 @@ public sealed partial class MainWindow : Window
         // Start listening for external "Add to AppLock Vault" IPC requests
         StartVaultAddIpcListener();
 
+        // Ensure Explorer context menu and SendTo shortcut match settings
+        try
+        {
+            if (ServiceContainer.Settings.Vault.ContextMenuEnabled)
+            {
+                AppLock.Services.Vault.ExplorerContextMenuService.Register();
+            }
+            if (ServiceContainer.Settings.Vault.SendToEnabled && !AppLock.Services.Vault.SendToShortcutService.IsEnabled())
+            {
+                AppLock.Services.Vault.SendToShortcutService.SetEnabled(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Shell integration init failed: {ex.Message}");
+        }
+
         // Safety net for an exit that never reached MainWindow_ActualClose. It must stay managed-only:
         // ProcessExit runs while the CLR is shutting down and AppLockHook.dll is detaching, and calling
         // its exported thumbnail-uninstall functions from there made AppLock raise the "stack-based buffer
