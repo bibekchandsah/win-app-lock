@@ -70,6 +70,10 @@ namespace AppLock.Views
 
             Loaded += HardwareTestsPage_Loaded;
             Unloaded += HardwareTestsPage_Unloaded;
+
+            // Arrow keys and Tab are consumed by focus navigation, so listen for handled events too.
+            AddHandler(KeyDownEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler(HardwareTestsPage_KeyDown), true);
+            AddHandler(KeyUpEvent, new Microsoft.UI.Xaml.Input.KeyEventHandler(HardwareTestsPage_KeyUp), true);
         }
 
         private void HardwareTestsPage_Loaded(object sender, RoutedEventArgs e)
@@ -81,24 +85,39 @@ namespace AppLock.Views
             BuildKeyboardLayout();
         }
 
+        private const double KeyGap = 4;
+        private const double NavKeyFactor = 1.35;
+        private const double MouseColumnWidth = 132;
+
+        private double _keyUnit = 24;
+
         private void BuildKeyboardLayout()
         {
-            if (_keyCaps.Count > 0) return;
+            if (_keyCapBackground is not null) return;
 
             _keyCapBackground = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
             _mouseCapBackground = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
             _keyCapForeground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
             _keyCapHighlight = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
 
+            _keyUnit = ChooseKeyUnit(AvailableLayoutWidth());
+            RebuildKeyCaps();
+        }
+
+        /// <summary>The cap size is picked so the whole keyboard and mouse fill the card instead of scrolling.</summary>
+        private void RebuildKeyCaps()
+        {
             KeyboardLayoutHost.Children.Clear();
+            MouseDiagramHost.Children.Clear();
             _keyCaps.Clear();
+            _mouseCaps.Clear();
 
             // label | VirtualKey name | width in key units
             var mainRows = new[]
             {
-                new[] { "Esc|Escape|1.3", "F1|F1|1", "F2|F2|1", "F3|F3|1", "F4|F4|1", "F5|F5|1", "F6|F6|1",
+                new[] { "Esc|Escape|3", "F1|F1|1", "F2|F2|1", "F3|F3|1", "F4|F4|1", "F5|F5|1", "F6|F6|1",
                         "F7|F7|1", "F8|F8|1", "F9|F9|1", "F10|F10|1", "F11|F11|1", "F12|F12|1" },
-                new[] { "\u0060|OemTilde|1", "1|Number1|1", "2|Number2|1", "3|Number3|1", "4|Number4|1", "5|Number5|1",
+                new[] { "`|OemTilde|1", "1|Number1|1", "2|Number2|1", "3|Number3|1", "4|Number4|1", "5|Number5|1",
                         "6|Number6|1", "7|Number7|1", "8|Number8|1", "9|Number9|1", "0|Number0|1", "-|OemMinus|1",
                         "=|OemPlus|1", "Backspace|Back|2" },
                 new[] { "Tab|Tab|1.5", "Q|Q|1", "W|W|1", "E|E|1", "R|R|1", "T|T|1", "Y|Y|1", "U|U|1", "I|I|1",
@@ -107,36 +126,160 @@ namespace AppLock.Views
                         "K|K|1", "L|L|1", ";|OemSemicolon|1", "'|OemQuotes|1", "Enter|Enter|2.2" },
                 new[] { "Shift|LeftShift|2.3", "Z|Z|1", "X|X|1", "C|C|1", "V|V|1", "B|B|1", "N|N|1", "M|M|1",
                         ",|OemComma|1", ".|OemPeriod|1", "/|OemQuestion|1", "Shift|RightShift|2.7" },
-                new[] { "Ctrl|Control|1.3", "Win|LeftWindows|1.1", "Alt|Menu|1.1", "Space|Space|6.3",
-                        "Alt|RightMenu|1.1", "Win|RightWindows|1.1", "Menu|Application|1.1", "Ctrl|RightControl|1.3" }
+                new[] { "Ctrl|Control|1.3", "Win|LeftWindows|1.2", "Alt|Menu|1.2", "Space|Space|6.4",
+                        "Alt|RightMenu|1.2", "Win|RightWindows|1.2", "Menu|Application|1.2", "Ctrl|RightControl|1.3" }
             };
 
+            // Six rows to match the main block: the arrows sit in the last two, below a blank row.
             var navigationRows = new[]
             {
                 new[] { "PrtSc|Snapshot|1", "ScrLk|Scroll|1", "Pause|Pause|1" },
                 new[] { "Ins|Insert|1", "Home|Home|1", "PgUp|PageUp|1" },
                 new[] { "Del|Delete|1", "End|End|1", "PgDn|PageDown|1" },
+                new[] { "|None|1", "|None|1", "|None|1" },
                 new[] { "|None|1", "\u2191|Up|1", "|None|1" },
                 new[] { "\u2190|Left|1", "\u2193|Down|1", "\u2192|Right|1" }
             };
 
-            var numpadRows = new[]
-            {
-                new[] { "Num|NumberKeyLock|1", "/|Divide|1", "*|Multiply|1", "-|Subtract|1" },
-                new[] { "7|NumberPad7|1", "8|NumberPad8|1", "9|NumberPad9|1", "+|Add|1" },
-                new[] { "4|NumberPad4|1", "5|NumberPad5|1", "6|NumberPad6|1", "|None|1" },
-                new[] { "1|NumberPad1|1", "2|NumberPad2|1", "3|NumberPad3|1", "Enter|NumberPadEnter|1" },
-                new[] { "0|NumberPad0|1.6", ".|Decimal|1", "|None|1.4" }
-            };
-
             KeyboardLayoutHost.Children.Add(BuildCluster(mainRows));
-            KeyboardLayoutHost.Children.Add(BuildCluster(navigationRows));
-            KeyboardLayoutHost.Children.Add(BuildCluster(numpadRows));
+            KeyboardLayoutHost.Children.Add(BuildCluster(navigationRows, NavKeyFactor));
+            KeyboardLayoutHost.Children.Add(BuildNumpad());
 
             BuildMouseDiagram();
 
             foreach (var cap in _keyCaps.Values) ApplyKeyCapState(cap);
             UpdateCoverage();
+        }
+
+        private double AvailableLayoutWidth()
+        {
+            double width = InputPad.ActualWidth - InputPad.Padding.Left - InputPad.Padding.Right;
+            return width > 240 ? width : 740;
+        }
+
+        private static double ChooseKeyUnit(double available)
+        {
+            for (double unit = 26; unit >= 15; unit -= 0.5)
+            {
+                if (EstimatedWidth(unit) <= available) return unit;
+            }
+            return 15;
+        }
+
+        /// <summary>Width of a row of caps: each cap is <paramref name="factor"/> units plus the gaps between them.</summary>
+        private static double ClusterWidth(int keyCount, double unit, double factor = 1) =>
+            keyCount * factor * (unit + KeyGap) - KeyGap;
+
+        private static double EstimatedWidth(double unit) =>
+            ClusterWidth(14, unit) + 10 +
+            ClusterWidth(3, unit, NavKeyFactor) + 10 +
+            ClusterWidth(4, unit, NavKeyFactor) + 16 + MouseColumnWidth;
+
+        private void InputPad_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_keyCaps.Count == 0) return;
+
+            double unit = ChooseKeyUnit(AvailableLayoutWidth());
+            if (Math.Abs(unit - _keyUnit) < 0.5) return;
+
+            _keyUnit = unit;
+            RebuildKeyCaps();
+        }
+
+        private StackPanel BuildCluster(string[][] rows, double factor = 1)
+        {
+            var cluster = new StackPanel { Spacing = KeyGap };
+
+            foreach (var row in rows)
+            {
+                var rowPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = KeyGap };
+                foreach (var definition in row)
+                {
+                    var parts = definition.Split('|');
+                    string label = parts[0];
+                    string keyName = parts.Length > 1 ? parts[1] : string.Empty;
+                    double units = parts.Length > 2 && double.TryParse(parts[2], out var value) ? value : 1;
+
+                    rowPanel.Children.Add(CreateCap(label, keyName,
+                        units * factor * (_keyUnit + KeyGap) - KeyGap, _keyUnit + KeyGap));
+                }
+                cluster.Children.Add(rowPanel);
+            }
+
+            return cluster;
+        }
+
+        /// <summary>
+        /// The numpad uses a grid so Enter can span two rows and 0 can span two columns, like a real tenkey.
+        /// </summary>
+        private Grid BuildNumpad()
+        {
+            double cell = Math.Round(NavKeyFactor * (_keyUnit + KeyGap) - KeyGap);
+            double height = Math.Round(_keyUnit + KeyGap);
+
+            var grid = new Grid { RowSpacing = KeyGap, ColumnSpacing = KeyGap };
+            for (int i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(cell) });
+            for (int i = 0; i < 6; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(height) });
+
+            void Place(string definition, int row, int column, int columnSpan = 1, int rowSpan = 1)
+            {
+                var parts = definition.Split('|');
+                var cap = CreateCap(parts[0], parts[1],
+                    cell * columnSpan + KeyGap * (columnSpan - 1),
+                    height * rowSpan + KeyGap * (rowSpan - 1));
+
+                Grid.SetRow(cap, row);
+                Grid.SetColumn(cap, column);
+                Grid.SetColumnSpan(cap, columnSpan);
+                Grid.SetRowSpan(cap, rowSpan);
+                grid.Children.Add(cap);
+            }
+
+            Place("Num|NumberKeyLock", 0, 0);
+            Place("/|Divide", 0, 1);
+            Place("*|Multiply", 0, 2);
+            Place("-|Subtract", 0, 3);
+            Place("7|NumberPad7", 1, 0);
+            Place("8|NumberPad8", 1, 1);
+            Place("9|NumberPad9", 1, 2);
+            Place("+|Add", 1, 3);
+            Place("4|NumberPad4", 2, 0);
+            Place("5|NumberPad5", 2, 1);
+            Place("6|NumberPad6", 2, 2);
+            Place("1|NumberPad1", 3, 0);
+            Place("2|NumberPad2", 3, 1);
+            Place("3|NumberPad3", 3, 2);
+            Place("Enter|NumberPadEnter", 3, 3, rowSpan: 2);
+            Place("0|NumberPad0", 4, 0, columnSpan: 2);
+            Place(".|Decimal", 4, 2);
+
+            return grid;
+        }
+
+        private Border CreateCap(string label, string keyName, double width, double height)
+        {
+            bool blank = keyName == "None";
+            var cap = new Border
+            {
+                Width = Math.Round(width),
+                Height = Math.Round(height),
+                CornerRadius = new CornerRadius(5),
+                Tag = keyName,
+                Background = blank ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : _keyCapBackground,
+                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(blank ? 0 : 1),
+                Child = new TextBlock
+                {
+                    Text = label,
+                    FontSize = Math.Clamp(Math.Round(_keyUnit * 0.42), 8, 11),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = _keyCapForeground
+                }
+            };
+
+            if (!blank && !string.IsNullOrEmpty(keyName)) _keyCaps[keyName] = cap;
+            return cap;
         }
 
         /// <summary>
@@ -145,13 +288,10 @@ namespace AppLock.Views
         /// </summary>
         private void BuildMouseDiagram()
         {
-            MouseDiagramHost.Children.Clear();
-            _mouseCaps.Clear();
-
             var body = new Border
             {
-                Width = 150,
-                CornerRadius = new CornerRadius(56, 56, 30, 30),
+                Width = MouseColumnWidth,
+                CornerRadius = new CornerRadius(50, 50, 26, 26),
                 Background = _keyCapBackground,
                 BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
                 BorderThickness = new Thickness(1),
@@ -161,9 +301,9 @@ namespace AppLock.Views
             var layout = new StackPanel { Spacing = 6 };
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-            buttons.Children.Add(MouseCap("left", "Left", 52, 42));
-            buttons.Children.Add(MouseCap("middle", "\u22EE", 20, 42));
-            buttons.Children.Add(MouseCap("right", "Right", 52, 42));
+            buttons.Children.Add(MouseCap("left", "Left", 44, 40));
+            buttons.Children.Add(MouseCap("middle", "\u22EE", 16, 40));
+            buttons.Children.Add(MouseCap("right", "Right", 44, 40));
             layout.Children.Add(buttons);
 
             var bodyArea = new Grid { Height = 92 };
@@ -174,8 +314,8 @@ namespace AppLock.Views
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top
             };
-            sideButtons.Children.Add(MouseCap("back", "Back", 40, 26));
-            sideButtons.Children.Add(MouseCap("forward", "Fwd", 40, 26));
+            sideButtons.Children.Add(MouseCap("back", "Back", 36, 24));
+            sideButtons.Children.Add(MouseCap("forward", "Fwd", 36, 24));
             bodyArea.Children.Add(sideButtons);
 
             bodyArea.Children.Add(new TextBlock
@@ -193,7 +333,7 @@ namespace AppLock.Views
 
             MouseDiagramHost.Children.Add(new TextBlock
             {
-                Text = "Tap the pad first, then press\na button to see it light up.",
+                Text = "Click a button here to\nsee it light up.",
                 FontSize = 9.5,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
@@ -222,52 +362,6 @@ namespace AppLock.Views
 
             _mouseCaps[key] = cap;
             return cap;
-        }
-
-        private StackPanel BuildCluster(string[][] rows)
-        {
-            var cluster = new StackPanel { Spacing = 4 };
-
-            foreach (var row in rows)
-            {
-                var rowPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-                foreach (var definition in row)
-                {
-                    var parts = definition.Split('|');
-                    string label = parts[0];
-                    string keyName = parts.Length > 1 ? parts[1] : string.Empty;
-                    double units = parts.Length > 2 && double.TryParse(parts[2], out var value) ? value : 1;
-
-                    var cap = new Border
-                    {
-                        Width = Math.Round(24 * units) + Math.Max(0, (int)Math.Round(units) - 1) * 4,
-                        Height = 28,
-                        CornerRadius = new CornerRadius(5),
-                        Tag = keyName,
-                        Background = parts.Length > 1 && keyName == "None" ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : _keyCapBackground,
-                        BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                        BorderThickness = new Thickness(keyName == "None" ? 0 : 1),
-                        Child = new TextBlock
-                        {
-                            Text = label,
-                            FontSize = 10,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Foreground = _keyCapForeground
-                        }
-                    };
-
-                    if (!string.IsNullOrEmpty(keyName) && keyName != "None")
-                    {
-                        _keyCaps[keyName] = cap;
-                    }
-
-                    rowPanel.Children.Add(cap);
-                }
-                cluster.Children.Add(rowPanel);
-            }
-
-            return cluster;
         }
 
         private void HardwareTestsPage_Unloaded(object sender, RoutedEventArgs e)
@@ -707,8 +801,10 @@ namespace AppLock.Views
             LastInputText.Text = $"Dragging at {point.Position.X:0}, {point.Position.Y:0}";
         }
 
-        private void InputPad_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        private void HardwareTestsPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            if (TestsTabs.SelectedItem != KeyboardTab) return;
+
             string name = e.Key.ToString();
             _keyCount++;
 
@@ -723,8 +819,10 @@ namespace AppLock.Views
             UpdateCoverage();
         }
 
-        private void InputPad_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        private void HardwareTestsPage_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            if (TestsTabs.SelectedItem != KeyboardTab) return;
+
             string name = e.Key.ToString();
             _heldKeys.Remove(name);
 

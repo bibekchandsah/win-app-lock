@@ -62,7 +62,7 @@
             </StackPanel>
         </StackPanel>
 
-        <TabView Grid.Row="1" IsAddTabButtonVisible="False" TabWidthMode="SizeToContent">
+        <TabView x:Name="TestsTabs" Grid.Row="1" IsAddTabButtonVisible="False" TabWidthMode="SizeToContent">
             <!-- ══ CPU & RAM ══ -->
             <TabViewItem IsClosable="False" Header="CPU &amp; RAM">
                 <TabViewItem.IconSource>
@@ -234,7 +234,7 @@
             </TabViewItem>
 
             <!-- ══ Keyboard & mouse ══ -->
-            <TabViewItem IsClosable="False" Header="Keyboard &amp; mouse">
+            <TabViewItem x:Name="KeyboardTab" IsClosable="False" Header="Keyboard &amp; mouse">
                 <TabViewItem.IconSource>
                     <FontIconSource Glyph="&#xE765;"/>
                 </TabViewItem.IconSource>
@@ -256,8 +256,7 @@
                                         BorderThickness="1"
                                         CornerRadius="6"
                                         Padding="10"
-                                        KeyDown="InputPad_KeyDown"
-                                        KeyUp="InputPad_KeyUp"
+                                        SizeChanged="InputPad_SizeChanged"
                                         LostFocus="InputPad_LostFocus"
                                         PointerPressed="InputPad_PointerPressed"
                                         PointerMoved="InputPad_PointerMoved"
@@ -266,26 +265,21 @@
                                         AutomationProperties.Name="Keyboard and mouse test pad">
                                     <StackPanel Spacing="8">
                                         <TextBlock x:Name="InputPadHint"
-                                                   Text="Click anywhere in this pad, then press keys or mouse buttons — each key and button lights up while it is held."
+                                                   Text="Press any key, or click a mouse button in this pad. Keys light up while held and stay bright once tested; faint keys have never been pressed."
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                         <!-- Laid out like a real keyboard and mouse, built in code so every cap can be looked up -->
-                                        <!-- Scrolls sideways on a narrow window instead of clipping the layout -->
-                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                                      HorizontalScrollMode="Auto"
-                                                      VerticalScrollBarVisibility="Disabled"
-                                                      VerticalScrollMode="Disabled">
-                                            <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Left">
-                                                <StackPanel x:Name="KeyboardLayoutHost"
-                                                            Orientation="Horizontal"
-                                                            Spacing="10"
-                                                            VerticalAlignment="Top"/>
-                                                <StackPanel x:Name="MouseDiagramHost"
-                                                            Spacing="6"
-                                                            VerticalAlignment="Top"/>
-                                            </StackPanel>
-                                        </ScrollViewer>
+                                        <!-- Fills the card width; the cap size is recomputed when the card resizes -->
+                                        <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Left">
+                                            <StackPanel x:Name="KeyboardLayoutHost"
+                                                        Orientation="Horizontal"
+                                                        Spacing="10"
+                                                        VerticalAlignment="Top"/>
+                                            <StackPanel x:Name="MouseDiagramHost"
+                                                        Spacing="6"
+                                                        VerticalAlignment="Top"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock x:Name="LastInputText"

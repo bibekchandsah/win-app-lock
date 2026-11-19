@@ -373,13 +373,14 @@ implemented - camera test
 implemented - CPU & RAM test
 implemented - disk HDD/SSD (hardware test drive media detection & details) 
 implemented - Secure folder vault: an encrypted folder that opens only after AppLock authentication.
+fixed - rounded edge in "import firewall rule, add from installed apps in network access page, drive cards in bitlocker page" dialog box
+fixed - n wifi password page, sync the theme of qr code dialog
+fixed - volume mixture "edit mute range" dialog box theme sync
+fixed- vault setting, unlock vault, verify vault integrity, new folder, rename, empty trash, change vault password  and remaining all vault page dialog box theme sync
 
-rounded edge in "import firewall rule, add from installed apps in network access page, drive cards in bitlocker page" dialog box
 eye care sometime don't show the loaded templet and just shows blank screen
 camera brightness slider isn't showing effect everytime in volume mixture overlay 
-in wifi password page, sync the theme of qr code dialog
-volume mixture "edit mute range" dialog box theme sync
-valut setting, unlock vault, verify vault integrity, new folder, rename, empty trash, change vault password  and remaining all vault page dialog box theme sync
+optimize volume mixture overlay so that user don't feel lagged
 
 
 when the appearance theme is set to "follows window" then show mica background effect instead of black background

@@ -218,7 +218,8 @@ public sealed partial class WifiPasswordsPage : Page
             PrimaryButtonText = "Copy password",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = (XamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ServiceContainer.CurrentTheme
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
