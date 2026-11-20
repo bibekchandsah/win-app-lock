@@ -382,6 +382,19 @@ eye care sometime don't show the loaded templet and just shows blank screen
 camera brightness slider isn't showing effect everytime in volume mixture overlay 
 optimize volume mixture overlay so that user don't feel lagged
 
+keyboard keys not detected:
+`-=[]\;',./
+left & right shift
+right alt, win, menu, ctrl
+PrtSc, ScrLk, Ins
+num pad enter
+
+fixed - theme sync:
+screen time settings
+clear all screen time data
+daily limit for appname
+
+
 
 when the appearance theme is set to "follows window" then show mica background effect instead of black background
 remember the position of widget 
@@ -430,3 +443,34 @@ Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
 startup check: "D:\programming exercise\winUI\win app lock\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" --startup
 
 dotnet build "src\AppLock\AppLock.csproj" -c Release -p:Platform=x64
+
+
+
+### fix long build duration issue:
+Open PowerShell and run:
+1. Kill the stuck build processes
+taskkill /F /IM MSBuild.exe /IM makepri.exe /IM AppLock.exe
+
+2. Check for unexpected folders inside src\AppLock\
+Get-ChildItem -Path "src\AppLock" -Directory | Select-Object Name
+
+Inside src\AppLock\, you should only see standard source folders:
+  Models
+  Services
+  ViewModels
+  Views
+  icons
+
+If you see any extra folders (like bin-verify, backup, temp-bin, etc.), delete them immediately:
+cmd /c "rmdir /s /q src\AppLock\EXTRA_FOLDER_NAME"
+
+3. Clean bin and obj
+Wipe the generated binaries so MSBuild starts with a clean slate:
+cmd /c "rmdir /s /q src\AppLock\bin & rmdir /s /q src\AppLock\obj"
+
+4. Rebuild
+.\build-with-msbuild.ps1
+or:
+dotnet build src/AppLock/AppLock.csproj -c Release
+
+# It should now finish in 1 to 2 minutes (and subsequent incremental builds will take just 10–15 seconds).

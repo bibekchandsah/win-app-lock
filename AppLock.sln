@@ -14,6 +14,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1235E840
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppLock.Tests", "tests\AppLock.Tests\AppLock.Tests.csproj", "{938B7088-2DB8-44B5-8179-EA18FB92CAFC}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7C6F7ED9-F820-4E03-999E-1C74B77404CF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppLock.WebFilter.Engine", "src\AppLock.WebFilter.Engine\AppLock.WebFilter.Engine.csproj", "{722E299E-3573-4456-B89B-D8211859E456}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -32,8 +36,13 @@ Global
 		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Debug|x64.Build.0 = Debug|x64
 		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Release|x64.ActiveCfg = Release|x64
 		{938B7088-2DB8-44B5-8179-EA18FB92CAFC}.Release|x64.Build.0 = Release|x64
+		{722E299E-3573-4456-B89B-D8211859E456}.Debug|x64.ActiveCfg = Debug|x64
+		{722E299E-3573-4456-B89B-D8211859E456}.Debug|x64.Build.0 = Debug|x64
+		{722E299E-3573-4456-B89B-D8211859E456}.Release|x64.ActiveCfg = Release|x64
+		{722E299E-3573-4456-B89B-D8211859E456}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{938B7088-2DB8-44B5-8179-EA18FB92CAFC} = {1235E840-3FE8-4E84-9499-8CF9902F0CA0}
+		{722E299E-3573-4456-B89B-D8211859E456} = {7C6F7ED9-F820-4E03-999E-1C74B77404CF}
 	EndGlobalSection
 EndGlobal

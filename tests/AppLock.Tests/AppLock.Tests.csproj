@@ -72,6 +72,7 @@
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\WebFilterSettings.cs" Link="Models\WebFilterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultSettings.cs" Link="Models\Vault\VaultSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\KeySlot.cs" Link="Models\Vault\KeySlot.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultConfig.cs" Link="Models\Vault\VaultConfig.cs" />
@@ -146,6 +147,10 @@
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerLogger.cs" Link="Services\BitLocker\BitLockerLogger.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\DriveItemViewModel.cs" Link="ViewModels\DriveItemViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\BitLockerViewModel.cs" Link="ViewModels\BitLockerViewModel.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AppLock.WebFilter.Engine\AppLock.WebFilter.Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

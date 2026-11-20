@@ -59,6 +59,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- DNS filter engine: no UI dependencies, so it can move into a service later. -->
+    <ProjectReference Include="..\AppLock.WebFilter.Engine\AppLock.WebFilter.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 
