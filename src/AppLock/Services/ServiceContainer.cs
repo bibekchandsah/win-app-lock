@@ -58,6 +58,9 @@ public static class ServiceContainer
     private static AppLock.Services.Vault.VaultAutoLockService? _vaultAutoLockService;
     private static WebFilterListService? _webFilterListService;
     private static WebFilterLogService? _webFilterLogService;
+    private static WebFilterFirewallService? _webFilterFirewallService;
+    private static BrowserPolicyService? _browserPolicyService;
+    private static VpnAndProxyDetector? _vpnAndProxyDetector;
     private static WebFilterService? _webFilterService;
 
     public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
@@ -149,13 +152,29 @@ public static class ServiceContainer
         }
     }
 
+    public static WebFilterFirewallService WebFilterFirewallService =>
+        _webFilterFirewallService ??= new WebFilterFirewallService();
+
+    public static BrowserPolicyService BrowserPolicyService =>
+        _browserPolicyService ??= new BrowserPolicyService();
+
+    public static VpnAndProxyDetector VpnAndProxyDetector =>
+        _vpnAndProxyDetector ??= new VpnAndProxyDetector();
+
     public static WebFilterService WebFilterService
     {
         get
         {
             if (_webFilterService == null)
             {
-                _webFilterService = new WebFilterService(Settings, SettingsStore.Save, WebFilterListService, logService: WebFilterLogService);
+                _webFilterService = new WebFilterService(
+                    Settings,
+                    SettingsStore.Save,
+                    WebFilterListService,
+                    logService: WebFilterLogService,
+                    firewallService: WebFilterFirewallService,
+                    browserPolicyService: BrowserPolicyService,
+                    vpnDetector: VpnAndProxyDetector);
             }
             return _webFilterService;
         }
@@ -370,6 +389,10 @@ public static class ServiceContainer
         _webFilterListService = null;
         _webFilterLogService?.Dispose();
         _webFilterLogService = null;
+        _vpnAndProxyDetector?.Dispose();
+        _vpnAndProxyDetector = null;
+        _webFilterFirewallService = null;
+        _browserPolicyService = null;
 
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();

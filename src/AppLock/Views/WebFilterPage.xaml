@@ -525,6 +525,20 @@
                      Message="Original DNS settings have been restored on all network adapters."
                      IsOpen="False"
                      IsClosable="True"/>
+
+            <InfoBar x:Name="VpnInfoBar"
+                     Severity="Informational"
+                     Title="VPN or proxy active"
+                     Message="{x:Bind ViewModel.VpnOrProxyMessage, Mode=OneWay}"
+                     IsOpen="{x:Bind ViewModel.IsVpnOrProxyActive, Mode=OneWay}"
+                     IsClosable="True"/>
+
+            <InfoBar x:Name="DomainJoinedInfoBar"
+                     Severity="Warning"
+                     Title="Domain-joined PC detected"
+                     Message="This PC is joined to an organization domain. DNS and browser policies may be managed by policy."
+                     IsOpen="{x:Bind ViewModel.IsDomainJoined, Mode=OneWay}"
+                     IsClosable="True"/>
         </StackPanel>
 
         <!-- Honest scope note -->
@@ -858,18 +872,80 @@
 
             <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="12">
+                    <!-- Bypass protection card (M9) -->
                     <Border Style="{StaticResource WebFilterCard}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Settings"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                            <TextBlock Text="Mode, upstream DNS, block list updates, bypass protection and the emergency restore will be configured here."
-                                       Style="{StaticResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock Text="Restoring the original DNS settings will always be available without a password."
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                       TextWrapping="Wrap"/>
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Bypass protection"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="Prevent apps and browsers from routing around Web Filter using alternate DNS or encrypted DNS."
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <!-- Block other DNS servers -->
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Block other DNS servers"
+                                               Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <TextBlock Text="Blocks outbound UDP/TCP port 53 and TCP port 853 (DNS over TLS) to external servers, stopping apps with hard-coded DNS."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              x:Name="BlockOtherDnsToggle"
+                                              IsOn="{x:Bind ViewModel.BlockOtherDns, Mode=OneWay}"
+                                              Toggled="BlockOtherDns_Toggled"
+                                              OnContent="" OffContent="" MinWidth="0"/>
+                            </Grid>
+
+                            <!-- Block known public DoH servers -->
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Block known public DoH servers"
+                                               Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <TextBlock Text="Blocks outbound connections to known public DNS-over-HTTPS resolver addresses (Cloudflare, Google, Quad9, AdGuard, etc.). The currently chosen upstream resolver is excluded."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              x:Name="BlockKnownDohToggle"
+                                              IsOn="{x:Bind ViewModel.BlockKnownDoh, Mode=OneWay}"
+                                              Toggled="BlockKnownDoh_Toggled"
+                                              OnContent="" OffContent="" MinWidth="0"/>
+                            </Grid>
+
+                            <!-- Turn off browser Secure DNS -->
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Turn off browser Secure DNS (policy)"
+                                               Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <TextBlock Text="Sets machine policies in Chrome, Edge, Brave, and Firefox to disable internal DNS-over-HTTPS. Browsers will indicate they are managed by policy."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              x:Name="BrowserPoliciesToggle"
+                                              IsOn="{x:Bind ViewModel.BrowserPolicies, Mode=OneWay}"
+                                              Toggled="BrowserPolicies_Toggled"
+                                              OnContent="" OffContent="" MinWidth="0"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

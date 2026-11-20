@@ -24,12 +24,77 @@ public partial class WebFilterViewModel : ObservableObject
 
     public WebFilterActivityViewModel Activity { get; }
 
+    [ObservableProperty] private bool _isVpnOrProxyActive;
+    [ObservableProperty] private string _vpnOrProxyMessage = "A VPN or proxy is active. Web Filter may not apply to traffic that goes through it.";
+    [ObservableProperty] private bool _isDomainJoined;
+
     public WebFilterViewModel(AppSettings settings, SettingsStore settingsStore, WebFilterListService lists, WebFilterLogService? logService = null)
     {
         _settings = settings;
         _settingsStore = settingsStore;
         _lists = lists;
         Activity = new WebFilterActivityViewModel(settings, logService ?? ServiceContainer.WebFilterLogService);
+
+        _isDomainJoined = BrowserPolicyService.IsDomainJoined();
+        _isVpnOrProxyActive = ServiceContainer.VpnAndProxyDetector.IsVpnOrProxyActive;
+        if (!string.IsNullOrEmpty(ServiceContainer.VpnAndProxyDetector.StatusSummary))
+        {
+            _vpnOrProxyMessage = ServiceContainer.VpnAndProxyDetector.StatusSummary;
+        }
+
+        ServiceContainer.VpnAndProxyDetector.StatusChanged += (s, active) =>
+        {
+            IsVpnOrProxyActive = active;
+            if (!string.IsNullOrEmpty(ServiceContainer.VpnAndProxyDetector.StatusSummary))
+            {
+                VpnOrProxyMessage = ServiceContainer.VpnAndProxyDetector.StatusSummary;
+            }
+        };
+    }
+
+    public bool BlockOtherDns
+    {
+        get => Filter.Bypass.BlockOtherDns;
+        set
+        {
+            if (Filter.Bypass.BlockOtherDns != value)
+            {
+                Filter.Bypass.BlockOtherDns = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                _ = ServiceContainer.WebFilterService.UpdateBypassProtectionAsync();
+            }
+        }
+    }
+
+    public bool BlockKnownDoh
+    {
+        get => Filter.Bypass.BlockKnownDoh;
+        set
+        {
+            if (Filter.Bypass.BlockKnownDoh != value)
+            {
+                Filter.Bypass.BlockKnownDoh = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                _ = ServiceContainer.WebFilterService.UpdateBypassProtectionAsync();
+            }
+        }
+    }
+
+    public bool BrowserPolicies
+    {
+        get => Filter.Bypass.BrowserPolicies;
+        set
+        {
+            if (Filter.Bypass.BrowserPolicies != value)
+            {
+                Filter.Bypass.BrowserPolicies = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                _ = ServiceContainer.WebFilterService.UpdateBypassProtectionAsync();
+            }
+        }
     }
 
     public WebFilterSettings Filter => _settings.WebFilter;

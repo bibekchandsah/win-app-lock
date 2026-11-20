@@ -264,7 +264,17 @@ public sealed class DnsConfigurator
     /// <summary>Headless restore helper used by --restore-dns.</summary>
     public static void RestoreDnsHeadless(WebFilterSettings? settings = null)
     {
+        var cfg = settings ?? new WebFilterSettings();
         var configurator = new DnsConfigurator();
-        configurator.RestoreOriginalDns(settings ?? new WebFilterSettings());
+        configurator.RestoreOriginalDns(cfg);
+
+        try
+        {
+            var fw = new WebFilterFirewallService();
+            fw.RemoveRulesAsync(cfg).GetAwaiter().GetResult();
+            var bp = new BrowserPolicyService();
+            bp.RemoveBrowserPolicies(cfg);
+        }
+        catch { }
     }
 }

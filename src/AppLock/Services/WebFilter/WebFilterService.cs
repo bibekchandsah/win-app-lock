@@ -27,6 +27,9 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     private readonly DnsConfigurator _configurator;
     private readonly DnsVerifier _verifier;
     private readonly WebFilterLogService? _logService;
+    private readonly WebFilterFirewallService _firewallService;
+    private readonly BrowserPolicyService _browserPolicyService;
+    private readonly VpnAndProxyDetector _vpnDetector;
     private readonly ConcurrentDictionary<string, DateTime> _notificationThrottle = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -46,13 +49,19 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         Action<AppSettings> saveSettings,
         WebFilterListService listService,
         DnsConfigurator? configurator = null,
-        WebFilterLogService? logService = null)
+        WebFilterLogService? logService = null,
+        WebFilterFirewallService? firewallService = null,
+        BrowserPolicyService? browserPolicyService = null,
+        VpnAndProxyDetector? vpnDetector = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _saveSettings = saveSettings ?? throw new ArgumentNullException(nameof(saveSettings));
         _listService = listService ?? throw new ArgumentNullException(nameof(listService));
         _configurator = configurator ?? new DnsConfigurator();
         _logService = logService;
+        _firewallService = firewallService ?? new WebFilterFirewallService();
+        _browserPolicyService = browserPolicyService ?? new BrowserPolicyService();
+        _vpnDetector = vpnDetector ?? new VpnAndProxyDetector();
 
         _verifier = new DnsVerifier(
             _configurator,
@@ -66,6 +75,9 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     }
 
     public DnsConfigurator Configurator => _configurator;
+    public WebFilterFirewallService FirewallService => _firewallService;
+    public BrowserPolicyService BrowserPolicyService => _browserPolicyService;
+    public VpnAndProxyDetector VpnDetector => _vpnDetector;
 
     public bool IsRunning => _server is { IsRunning: true };
 
@@ -181,10 +193,13 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
                 Debug.WriteLine("[WebFilter] Warning: Failed to apply DNS to all network adapters.");
             }
 
+            // 5. Apply bypass protection (firewall rules and browser policies)
+            await ApplyBypassProtectionInternalAsync().ConfigureAwait(false);
+
             // Save settings with updated loopback address
             _saveSettings(_settings);
 
-            // 5. Start DNS verifier and self-test watchdog
+            // 6. Start DNS verifier and self-test watchdog
             _verifier.Start();
             StartWatchdog();
 
@@ -235,6 +250,15 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             {
                 Debug.WriteLine($"[WebFilter] RestoreOriginalDns error on stop: {ex.Message}");
             }
+
+            try
+            {
+                await RemoveBypassProtectionInternalAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WebFilter] RemoveBypassProtection error on stop: {ex.Message}");
+            }
         }
 
         if (_server != null)
@@ -259,6 +283,14 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         {
             _settings.WebFilter.Enabled = false;
             _configurator.RestoreOriginalDns(_settings.WebFilter);
+
+            try
+            {
+                _firewallService.RemoveRulesAsync(_settings.WebFilter).GetAwaiter().GetResult();
+                _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
+            }
+            catch { }
+
             _ = Task.Run(async () =>
             {
                 await _gate.WaitAsync().ConfigureAwait(false);
@@ -291,6 +323,13 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             if (_settings.WebFilter.Enabled)
             {
                 _configurator.RestoreOriginalDns(_settings.WebFilter);
+
+                try
+                {
+                    _firewallService.RemoveRulesAsync(_settings.WebFilter).GetAwaiter().GetResult();
+                    _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
+                }
+                catch { }
             }
 
             if (_server != null)
@@ -302,6 +341,99 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         {
             Debug.WriteLine($"[WebFilter] OnAppExit error: {ex.Message}");
         }
+    }
+
+    // ── Bypass Protection Helpers ─────────────────────────────────────────────
+
+    public async Task UpdateBypassProtectionAsync()
+    {
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (IsRunning)
+            {
+                await ApplyBypassProtectionInternalAsync().ConfigureAwait(false);
+                _saveSettings(_settings);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task ApplyBypassProtectionInternalAsync()
+    {
+        try
+        {
+            var allowedUpstreamIps = GetAllowedUpstreamIps();
+            await _firewallService.ApplyRulesAsync(_settings.WebFilter, allowedUpstreamIps).ConfigureAwait(false);
+
+            if (_settings.WebFilter.Bypass.BrowserPolicies)
+            {
+                _browserPolicyService.ApplyBrowserPolicies(_settings.WebFilter);
+            }
+            else
+            {
+                _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WebFilter] ApplyBypassProtectionInternalAsync failed: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveBypassProtectionInternalAsync()
+    {
+        try
+        {
+            await _firewallService.RemoveRulesAsync(_settings.WebFilter).ConfigureAwait(false);
+            _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WebFilter] RemoveBypassProtectionInternalAsync failed: {ex.Message}");
+        }
+    }
+
+    private List<string> GetAllowedUpstreamIps()
+    {
+        var ips = new List<string>();
+
+        // Include original DNS IPs from SavedDnsConfig
+        foreach (var adapter in _settings.WebFilter.OriginalDns.Adapters)
+        {
+            ips.AddRange(adapter.Ipv4Servers);
+            ips.AddRange(adapter.Ipv6Servers);
+        }
+
+        // Include upstream IPs if known or custom
+        if (_settings.WebFilter.Upstream == UpstreamKind.CloudflareDoh)
+        {
+            ips.Add("1.1.1.1");
+            ips.Add("1.0.0.1");
+        }
+        else if (_settings.WebFilter.Upstream == UpstreamKind.GoogleDoh)
+        {
+            ips.Add("8.8.8.8");
+            ips.Add("8.8.4.4");
+        }
+        else if (_settings.WebFilter.Upstream == UpstreamKind.Quad9Doh)
+        {
+            ips.Add("9.9.9.9");
+            ips.Add("149.112.112.112");
+        }
+        else if (_settings.WebFilter.Upstream == UpstreamKind.Custom &&
+                 !string.IsNullOrWhiteSpace(_settings.WebFilter.CustomUpstream))
+        {
+            if (IPAddress.TryParse(_settings.WebFilter.CustomUpstream.Trim(), out var customIp))
+            {
+                ips.Add(customIp.ToString());
+            }
+        }
+
+        return ips.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>ProcessExit safety net: ensures DNS is never left dead during abnormal CLR shutdown.</summary>

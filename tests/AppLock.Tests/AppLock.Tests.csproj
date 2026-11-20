@@ -153,6 +153,9 @@
     <Compile Include="..\..\src\AppLock\Services\WebFilter\INetworkAdapterService.cs" Link="Services\WebFilter\INetworkAdapterService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\RealNetworkAdapterService.cs" Link="Services\WebFilter\RealNetworkAdapterService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\DnsConfigurator.cs" Link="Services\WebFilter\DnsConfigurator.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterFirewallService.cs" Link="Services\WebFilter\WebFilterFirewallService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\BrowserPolicyService.cs" Link="Services\WebFilter\BrowserPolicyService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\VpnAndProxyDetector.cs" Link="Services\WebFilter\VpnAndProxyDetector.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -826,4 +826,57 @@ public sealed partial class WebFilterPage : Page
         if (sender is FrameworkElement fe)
             flyout.ShowAt(fe);
     }
+
+    // ── Bypass Protection Toggles (M9) ────────────────────────────────────────
+
+    private async void BlockOtherDns_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        if (ts.IsOn == ViewModel.BlockOtherDns) return;
+
+        if (!ts.IsOn && ViewModel.IsEnabled)
+        {
+            if (!await RequestAuthAsync("Enter your password to disable DNS server blocking"))
+            {
+                ts.IsOn = true;
+                return;
+            }
+        }
+
+        ViewModel.BlockOtherDns = ts.IsOn;
+    }
+
+    private async void BlockKnownDoh_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        if (ts.IsOn == ViewModel.BlockKnownDoh) return;
+
+        if (!ts.IsOn && ViewModel.IsEnabled)
+        {
+            if (!await RequestAuthAsync("Enter your password to disable public DoH blocking"))
+            {
+                ts.IsOn = true;
+                return;
+            }
+        }
+
+        ViewModel.BlockKnownDoh = ts.IsOn;
+    }
+
+    private async void BrowserPolicies_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        if (ts.IsOn == ViewModel.BrowserPolicies) return;
+
+        if (!ts.IsOn && ViewModel.IsEnabled)
+        {
+            if (!await RequestAuthAsync("Enter your password to disable browser Secure DNS policies"))
+            {
+                ts.IsOn = true;
+                return;
+            }
+        }
+
+        ViewModel.BrowserPolicies = ts.IsOn;
+    }
 }
