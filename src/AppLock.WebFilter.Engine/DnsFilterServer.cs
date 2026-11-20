@@ -107,6 +107,8 @@ public sealed class DnsFilterServer : IAsyncDisposable
 
     public bool IsRunning => _cts is { IsCancellationRequested: false };
 
+    public void ClearCache() => _cache?.Clear();
+
     public event EventHandler<BlockedQueryEventArgs>? QueryBlocked;
     public event EventHandler<QueryEventArgs>? QueryProcessed;
 

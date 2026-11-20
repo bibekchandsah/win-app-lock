@@ -555,17 +555,23 @@
                     Content="Categories"
                     Tag="categories"
                     Click="Tab_Click"
+                    IsEnabled="{x:Bind ViewModel.IsLocalMode, Mode=OneWay}"
+                    ToolTipService.ToolTip="{x:Bind GetTabToolTip(ViewModel.IsLocalMode), Mode=OneWay}"
                     Style="{StaticResource AccentButtonStyle}"
                     Padding="16,8"/>
             <Button x:Name="SitesTabButton"
                     Content="Sites"
                     Tag="sites"
                     Click="Tab_Click"
+                    IsEnabled="{x:Bind ViewModel.IsLocalMode, Mode=OneWay}"
+                    ToolTipService.ToolTip="{x:Bind GetTabToolTip(ViewModel.IsLocalMode), Mode=OneWay}"
                     Padding="16,8"/>
             <Button x:Name="ActivityTabButton"
                     Content="Activity"
                     Tag="activity"
                     Click="Tab_Click"
+                    IsEnabled="{x:Bind ViewModel.IsLocalMode, Mode=OneWay}"
+                    ToolTipService.ToolTip="{x:Bind GetTabToolTip(ViewModel.IsLocalMode), Mode=OneWay}"
                     Padding="16,8"/>
             <Button x:Name="SettingsTabButton"
                     Content="Settings"
@@ -579,14 +585,26 @@
 
             <!-- Categories tab: real category cards -->
             <ScrollViewer x:Name="CategoriesPanel" VerticalScrollBarVisibility="Auto">
-                <ItemsRepeater x:Name="CategoryRepeater"
-                               ItemsSource="{x:Bind ViewModel.CategoryCards, Mode=OneWay}"
-                               ItemTemplate="{StaticResource CategoryCardTemplate}"/>
+                <StackPanel Spacing="12">
+                    <InfoBar Severity="Informational"
+                             IsOpen="{x:Bind ViewModel.IsProviderMode, Mode=OneWay}"
+                             Title="Available in Local filter mode"
+                             Message="Filtered DNS provider mode sets Windows DNS directly to a family filter. Custom category rules only apply in Local filter mode."
+                             IsClosable="False"/>
+                    <ItemsRepeater x:Name="CategoryRepeater"
+                                   ItemsSource="{x:Bind ViewModel.CategoryCards, Mode=OneWay}"
+                                   ItemTemplate="{StaticResource CategoryCardTemplate}"/>
+                </StackPanel>
             </ScrollViewer>
 
             <!-- Sites tab: Services, Always Block, Always Allow -->
             <ScrollViewer x:Name="SitesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="16">
+                    <InfoBar Severity="Informational"
+                             IsOpen="{x:Bind ViewModel.IsProviderMode, Mode=OneWay}"
+                             Title="Available in Local filter mode"
+                             Message="Filtered DNS provider mode sets Windows DNS directly to a family filter. Custom service toggles, always block/allow lists, and temporary allows only apply in Local filter mode."
+                             IsClosable="False"/>
                     <Pivot x:Name="SitesPivot">
                         <!-- Services catalog -->
                         <PivotItem Header="Services">
@@ -725,6 +743,11 @@
 
             <ScrollViewer x:Name="ActivityPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="12" Margin="0,0,0,16">
+                    <InfoBar Severity="Informational"
+                             IsOpen="{x:Bind ViewModel.IsProviderMode, Mode=OneWay}"
+                             Title="Available in Local filter mode"
+                             Message="Filtered DNS provider mode sets Windows DNS directly to a family filter without running a local DNS server. Query logging and activity stats only apply in Local filter mode."
+                             IsClosable="False"/>
 
                     <!-- Summary row -->
                     <Border Style="{StaticResource WebFilterCard}" Padding="16">
@@ -872,6 +895,289 @@
 
             <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="12">
+                    <!-- Filter Mode card (M10) -->
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Filtering mode"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="Choose how AppLock filters web traffic on this PC."
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="12">
+                                <RadioButton x:Name="LocalFilterModeRadio"
+                                             GroupName="WebFilterModeGroup"
+                                             Checked="ModeRadio_Checked"
+                                             Tag="local">
+                                    <StackPanel Spacing="2" Margin="0,-2,0,0">
+                                        <TextBlock Text="Local filter (recommended)"
+                                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                        <TextBlock Text="A lightweight DNS filter runs on this PC and Windows points at it. Supports custom categories, block/allow lists, services, schedules, and query logs."
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </RadioButton>
+
+                                <RadioButton x:Name="ProviderModeRadio"
+                                             GroupName="WebFilterModeGroup"
+                                             Checked="ModeRadio_Checked"
+                                             Tag="provider">
+                                    <StackPanel Spacing="2" Margin="0,-2,0,0">
+                                        <TextBlock Text="Filtered DNS provider (simple)"
+                                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                        <TextBlock Text="AppLock points Windows DNS directly to a family-filtering DNS provider. Simple and lightweight; protects against adult content and malware without running a local service."
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Filtered DNS provider options card (M10, visible in Provider mode) -->
+                    <Border x:Name="ProviderOptionsCard"
+                            Style="{StaticResource WebFilterCard}"
+                            Visibility="{x:Bind GetProviderOptionsVisibility(ViewModel.IsProviderMode), Mode=OneWay}">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Filtered DNS provider options"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="Select which family-filter DNS provider to point Windows to."
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="10">
+                                <!-- Cloudflare Family -->
+                                <Border Padding="14,12"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     x:Name="CloudflareFamilyRadio"
+                                                     GroupName="DnsProviderGroup"
+                                                     Tag="cloudflare-family"
+                                                     Checked="ProviderRadio_Checked"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,2,0,0"/>
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="Cloudflare Family" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                            <TextBlock Text="Blocks malware and adult content." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="1.1.1.3, 1.0.0.3 · 2606:4700:4700::1113, 2606:4700:4700::1003" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" Content="Website" NavigateUri="https://one.one.one.one/family/" VerticalAlignment="Top"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- CleanBrowsing Family -->
+                                <Border Padding="14,12"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     x:Name="CleanBrowsingFamilyRadio"
+                                                     GroupName="DnsProviderGroup"
+                                                     Tag="cleanbrowsing-family"
+                                                     Checked="ProviderRadio_Checked"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,2,0,0"/>
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="CleanBrowsing Family Filter" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                            <TextBlock Text="Blocks adult content, malicious domains, and enforces SafeSearch." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="185.228.168.168, 185.228.169.168 · 2a0d:2a00:1::, 2a0d:2a00:2::" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" Content="Website" NavigateUri="https://cleanbrowsing.org/filters/" VerticalAlignment="Top"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- CleanBrowsing Adult -->
+                                <Border Padding="14,12"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     x:Name="CleanBrowsingAdultRadio"
+                                                     GroupName="DnsProviderGroup"
+                                                     Tag="cleanbrowsing-adult"
+                                                     Checked="ProviderRadio_Checked"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,2,0,0"/>
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="CleanBrowsing Adult Filter" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                            <TextBlock Text="Blocks adult content and malicious domains." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="185.228.168.10, 185.228.169.11 · 2a0d:2a00:1::1, 2a0d:2a00:2::1" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" Content="Website" NavigateUri="https://cleanbrowsing.org/filters/" VerticalAlignment="Top"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- OpenDNS FamilyShield -->
+                                <Border Padding="14,12"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     x:Name="OpenDnsFamilyRadio"
+                                                     GroupName="DnsProviderGroup"
+                                                     Tag="opendns-familyshield"
+                                                     Checked="ProviderRadio_Checked"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,2,0,0"/>
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="OpenDNS FamilyShield" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                            <TextBlock Text="Pre-configured to block adult websites and phishing." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="208.67.222.123, 208.67.220.123 · 2620:119:35::123, 2620:119:53::123" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" Content="Website" NavigateUri="https://www.opendns.com/setupguide/#familyshield" VerticalAlignment="Top"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- AdGuard Family Protection -->
+                                <Border Padding="14,12"
+                                        Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     x:Name="AdGuardFamilyRadio"
+                                                     GroupName="DnsProviderGroup"
+                                                     Tag="adguard-family"
+                                                     Checked="ProviderRadio_Checked"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,2,0,0"/>
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="AdGuard Family Protection" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                            <TextBlock Text="Blocks adult websites, ads, trackers, and enforces SafeSearch." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                            <TextBlock Text="94.140.14.15, 94.140.15.16 · 2a10:50c0::bad1:ff, 2a10:50c0::bad2:ff" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                        </StackPanel>
+                                        <HyperlinkButton Grid.Column="2" Content="Website" NavigateUri="https://adguard-dns.io/en/public-dns.html" VerticalAlignment="Top"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <TextBlock Text="💡 Filtered DNS providers primarily block adult content and malware, not gambling or social media. To block gambling, social media, or specific sites, switch to Local filter mode."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Local filter options card (M10, visible in Local mode) -->
+                    <Border x:Name="LocalOptionsCard"
+                            Style="{StaticResource WebFilterCard}"
+                            Visibility="{x:Bind GetLocalOptionsVisibility(ViewModel.IsLocalMode), Mode=OneWay}">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Local filter options"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="Configure upstream DNS forwarder, caching, and block responses."
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <!-- Upstream DNS -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Upstream DNS (where allowed lookups go)"
+                                           Style="{StaticResource BodyTextBlockStyle}"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0"
+                                              x:Name="UpstreamComboBox"
+                                              HorizontalAlignment="Stretch"
+                                              SelectedIndex="{x:Bind ViewModel.UpstreamIndex, Mode=TwoWay}"
+                                              SelectionChanged="UpstreamComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Cloudflare (DoH, default)"/>
+                                        <ComboBoxItem Content="Google (DoH)"/>
+                                        <ComboBoxItem Content="Quad9 (DoH)"/>
+                                        <ComboBoxItem Content="My network's original DNS"/>
+                                        <ComboBoxItem Content="Custom (DoH URL or IP)"/>
+                                    </ComboBox>
+                                    <Button Grid.Column="1"
+                                            Content="Test upstream"
+                                            Click="TestUpstreamButton_Click"/>
+                                </Grid>
+                                <TextBox x:Name="CustomUpstreamBox"
+                                         Header="Custom upstream address (DoH URL or IP)"
+                                         Text="{x:Bind ViewModel.CustomUpstream, Mode=TwoWay}"
+                                         Visibility="{x:Bind ViewModel.IsCustomUpstream, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                                         PlaceholderText="https://example.com/dns-query or 192.168.1.1"/>
+                                <TextBlock x:Name="TestUpstreamResultText"
+                                           Visibility="Collapsed"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <!-- DNS Cache & Block Response -->
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <ToggleSwitch Header="DNS cache"
+                                                  IsOn="{x:Bind ViewModel.CacheEnabled, Mode=TwoWay}"
+                                                  MinWidth="0"/>
+                                    <Button Content="Clear cache"
+                                            Click="ClearCacheButton_Click"
+                                            Padding="12,4"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="Block response" Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <ComboBox x:Name="BlockResponseComboBox"
+                                              HorizontalAlignment="Stretch"
+                                              SelectedIndex="{x:Bind ViewModel.BlockResponseIndex, Mode=TwoWay}">
+                                        <ComboBoxItem Content="Not found (NXDOMAIN, default)"/>
+                                        <ComboBoxItem Content="0.0.0.0 / :: (Null address)"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Bypass protection card (M9) -->
                     <Border Style="{StaticResource WebFilterCard}">
                         <StackPanel Spacing="14">

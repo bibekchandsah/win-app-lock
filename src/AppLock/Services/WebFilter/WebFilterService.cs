@@ -38,6 +38,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     private Timer? _watchdogTimer;
     private int _watchdogFailures;
     private bool _isDisposed;
+    private bool _isProviderModeActive;    // true when running in Filtered DNS Provider mode
 
     public event EventHandler? StatusChanged;
     public event EventHandler<string>? TamperDetected;
@@ -66,7 +67,8 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         _verifier = new DnsVerifier(
             _configurator,
             () => _settings.WebFilter,
-            () => BoundAddress);
+            GetExpectedDnsAddress,
+            GetProviderIps);
 
         _verifier.DnsDriftDetected += (s, adapters) =>
         {
@@ -81,6 +83,9 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
 
     public bool IsRunning => _server is { IsRunning: true };
 
+    /// <summary>True while the filter is active in any mode (local server or provider DNS).</summary>
+    public bool IsActive => IsRunning || _isProviderModeActive;
+
     public string? BoundAddress => _server?.BoundEndPoint?.Address.ToString();
 
     public int? BoundPort => _server?.BoundEndPoint?.Port;
@@ -88,6 +93,9 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     public string? LastError { get; private set; }
 
     public DnsServerStats? Stats => _server?.Stats;
+
+    /// <summary>Clears the DNS cache of the running filter server.</summary>
+    public void ClearCache() => _server?.ClearCache();
 
     /// <summary>
     /// Checks on startup whether DNS is currently pointing to loopback from an unexpected
@@ -131,9 +139,17 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (IsRunning) return true;
+            if (IsActive) return true;
 
             LastError = null;
+
+            // ── Provider mode: no local server, just point DNS at the provider ─────────
+            if (_settings.WebFilter.Mode == WebFilterMode.Provider)
+            {
+                return await StartProviderModeAsync().ConfigureAwait(false);
+            }
+
+            // ── Local filter mode ─────────────────────────────────────────────────────
             await _listService.InitializeAsync().ConfigureAwait(false);
 
             // 1. Create upstream forwarder
@@ -220,6 +236,49 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         }
     }
 
+    private async Task<bool> StartProviderModeAsync()
+    {
+        // Already inside the gate lock
+        try
+        {
+            var provider = _listService.Catalog.FindProvider(_settings.WebFilter.ProviderId);
+            if (provider == null || (provider.Ipv4.Count == 0 && provider.Ipv6.Count == 0))
+            {
+                LastError = "The selected DNS provider has no IP addresses configured.";
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+                return false;
+            }
+
+            // Apply provider DNS to all eligible adapters
+            bool dnsApplied = _configurator.ApplyProviderDns(_settings.WebFilter, provider.Ipv4, provider.Ipv6);
+            if (!dnsApplied)
+            {
+                Debug.WriteLine("[WebFilter] Warning: Provider DNS could not be applied to all adapters.");
+            }
+
+            // Apply bypass protection (same as local mode — provider IPs excluded from DoH block list)
+            await ApplyBypassProtectionInternalAsync().ConfigureAwait(false);
+
+            _isProviderModeActive = true;
+            _saveSettings(_settings);
+
+            // Start the verifier to watch for DNS drift
+            _verifier.Start();
+
+            StatusChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            Debug.WriteLine($"[WebFilter] StartProviderModeAsync failed: {ex}");
+            _configurator.RestoreOriginalDns(_settings.WebFilter);
+            _isProviderModeActive = false;
+            StatusChanged?.Invoke(this, EventArgs.Empty);
+            return false;
+        }
+    }
+
     /// <summary>Stops the filter server and restores the PC's original DNS settings.</summary>
     public async Task StopAsync()
     {
@@ -272,6 +331,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             _server = null;
         }
 
+        _isProviderModeActive = false;
         _forwarder?.Dispose();
         _forwarder = null;
     }
@@ -408,32 +468,73 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             ips.AddRange(adapter.Ipv6Servers);
         }
 
-        // Include upstream IPs if known or custom
-        if (_settings.WebFilter.Upstream == UpstreamKind.CloudflareDoh)
+        // In Provider mode: the provider's own IPs must not be blocked
+        if (_settings.WebFilter.Mode == WebFilterMode.Provider)
         {
-            ips.Add("1.1.1.1");
-            ips.Add("1.0.0.1");
-        }
-        else if (_settings.WebFilter.Upstream == UpstreamKind.GoogleDoh)
-        {
-            ips.Add("8.8.8.8");
-            ips.Add("8.8.4.4");
-        }
-        else if (_settings.WebFilter.Upstream == UpstreamKind.Quad9Doh)
-        {
-            ips.Add("9.9.9.9");
-            ips.Add("149.112.112.112");
-        }
-        else if (_settings.WebFilter.Upstream == UpstreamKind.Custom &&
-                 !string.IsNullOrWhiteSpace(_settings.WebFilter.CustomUpstream))
-        {
-            if (IPAddress.TryParse(_settings.WebFilter.CustomUpstream.Trim(), out var customIp))
+            var provider = _listService.Catalog.FindProvider(_settings.WebFilter.ProviderId);
+            if (provider != null)
             {
-                ips.Add(customIp.ToString());
+                ips.AddRange(provider.Ipv4);
+                ips.AddRange(provider.Ipv6);
+            }
+        }
+        else
+        {
+            // Include upstream IPs if known or custom
+            if (_settings.WebFilter.Upstream == UpstreamKind.CloudflareDoh)
+            {
+                ips.Add("1.1.1.1");
+                ips.Add("1.0.0.1");
+            }
+            else if (_settings.WebFilter.Upstream == UpstreamKind.GoogleDoh)
+            {
+                ips.Add("8.8.8.8");
+                ips.Add("8.8.4.4");
+            }
+            else if (_settings.WebFilter.Upstream == UpstreamKind.Quad9Doh)
+            {
+                ips.Add("9.9.9.9");
+                ips.Add("149.112.112.112");
+            }
+            else if (_settings.WebFilter.Upstream == UpstreamKind.Custom &&
+                     !string.IsNullOrWhiteSpace(_settings.WebFilter.CustomUpstream))
+            {
+                if (IPAddress.TryParse(_settings.WebFilter.CustomUpstream.Trim(), out var customIp))
+                {
+                    ips.Add(customIp.ToString());
+                }
             }
         }
 
         return ips.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Returns the first expected DNS address for the DnsVerifier.
+    /// In Local mode: the loopback address the server is bound to.
+    /// In Provider mode: the provider's first IPv4 address.
+    /// </summary>
+    private string? GetExpectedDnsAddress()
+    {
+        if (_settings.WebFilter.Mode == WebFilterMode.Provider)
+        {
+            var provider = _listService.Catalog.FindProvider(_settings.WebFilter.ProviderId);
+            return provider?.Ipv4.Count > 0 ? provider.Ipv4[0] : null;
+        }
+        return BoundAddress;
+    }
+
+    /// <summary>
+    /// Returns all provider IP addresses for the DnsVerifier (used in Provider mode).
+    /// </summary>
+    private IReadOnlyList<string>? GetProviderIps()
+    {
+        if (_settings.WebFilter.Mode != WebFilterMode.Provider) return null;
+        var provider = _listService.Catalog.FindProvider(_settings.WebFilter.ProviderId);
+        if (provider == null) return null;
+        var all = new List<string>(provider.Ipv4);
+        all.AddRange(provider.Ipv6);
+        return all;
     }
 
     /// <summary>ProcessExit safety net: ensures DNS is never left dead during abnormal CLR shutdown.</summary>

@@ -14,6 +14,7 @@ public sealed class DnsVerifier : IDisposable
     private readonly DnsConfigurator _configurator;
     private readonly Func<WebFilterSettings> _getSettings;
     private readonly Func<string?> _getExpectedAddress;
+    private readonly Func<IReadOnlyList<string>?>? _getProviderIps;
     private readonly Timer _timer;
     private readonly object _gate = new();
 
@@ -26,11 +27,13 @@ public sealed class DnsVerifier : IDisposable
     public DnsVerifier(
         DnsConfigurator configurator,
         Func<WebFilterSettings> getSettings,
-        Func<string?> getExpectedAddress)
+        Func<string?> getExpectedAddress,
+        Func<IReadOnlyList<string>?>? getProviderIps = null)
     {
         _configurator = configurator ?? throw new ArgumentNullException(nameof(configurator));
         _getSettings = getSettings ?? throw new ArgumentNullException(nameof(getSettings));
         _getExpectedAddress = getExpectedAddress ?? throw new ArgumentNullException(nameof(getExpectedAddress));
+        _getProviderIps = getProviderIps;
 
         _timer = new Timer(OnTimerTick, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
@@ -120,25 +123,55 @@ public sealed class DnsVerifier : IDisposable
             var adapters = _configurator.AdapterService.GetEligibleAdapters();
             var drifted = new List<string>();
 
-            foreach (var adapter in adapters)
+            if (settings.Mode == WebFilterMode.Provider)
             {
-                bool hasExpectedIpv4 = adapter.Ipv4Servers.Any(s =>
-                    string.Equals(s.Trim(), expectedAddress.Trim(), StringComparison.OrdinalIgnoreCase));
+                // In Provider mode: verify that at least one of the provider's IPs is set
+                var providerIps = _getProviderIps?.Invoke();
+                if (providerIps == null || providerIps.Count == 0) return;
 
-                bool hasExpectedIpv6 = adapter.Ipv6Servers.Any(s =>
-                    string.Equals(s.Trim(), "::1", StringComparison.OrdinalIgnoreCase));
-
-                if (!hasExpectedIpv4 || (!adapter.Ipv6FromDhcp && !hasExpectedIpv6 && adapter.Ipv6Servers.Count > 0))
+                foreach (var adapter in adapters)
                 {
-                    drifted.Add(adapter.Name);
+                    bool hasProviderIpv4 = adapter.Ipv4Servers.Any(s =>
+                        providerIps.Any(p => string.Equals(s.Trim(), p.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+                    if (!hasProviderIpv4)
+                    {
+                        drifted.Add(adapter.Name);
+                    }
+                }
+
+                if (drifted.Count > 0)
+                {
+                    Debug.WriteLine($"[WebFilter] Provider DNS drifted on {string.Join(", ", drifted)}. Re-applying...");
+                    var ipv4 = providerIps.Where(ip => !ip.Contains(':')).ToList();
+                    var ipv6 = providerIps.Where(ip => ip.Contains(':')).ToList();
+                    _configurator.ApplyProviderDns(settings, ipv4, ipv6);
+                    DnsDriftDetected?.Invoke(this, drifted);
                 }
             }
-
-            if (drifted.Count > 0)
+            else
             {
-                Debug.WriteLine($"[WebFilter] DNS settings drifted on {string.Join(", ", drifted)}. Re-applying...");
-                _configurator.ApplyFilterDns(settings, expectedAddress, "::1");
-                DnsDriftDetected?.Invoke(this, drifted);
+                // Local filter mode: verify loopback address
+                foreach (var adapter in adapters)
+                {
+                    bool hasExpectedIpv4 = adapter.Ipv4Servers.Any(s =>
+                        string.Equals(s.Trim(), expectedAddress.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                    bool hasExpectedIpv6 = adapter.Ipv6Servers.Any(s =>
+                        string.Equals(s.Trim(), "::1", StringComparison.OrdinalIgnoreCase));
+
+                    if (!hasExpectedIpv4 || (!adapter.Ipv6FromDhcp && !hasExpectedIpv6 && adapter.Ipv6Servers.Count > 0))
+                    {
+                        drifted.Add(adapter.Name);
+                    }
+                }
+
+                if (drifted.Count > 0)
+                {
+                    Debug.WriteLine($"[WebFilter] DNS settings drifted on {string.Join(", ", drifted)}. Re-applying...");
+                    _configurator.ApplyFilterDns(settings, expectedAddress, "::1");
+                    DnsDriftDetected?.Invoke(this, drifted);
+                }
             }
         }
         catch (Exception ex)

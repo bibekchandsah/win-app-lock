@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using AppLock.Models;
 using AppLock.Services;
 using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
@@ -47,7 +48,8 @@ public sealed partial class WebFilterPage : Page
 
         SetToggleWithoutEvent(ViewModel.IsEnabled);
         PopulateStatus();
-        ShowTab("categories");
+        InitializeSettingsControls();
+        ShowTab(ViewModel.IsProviderMode ? "settings" : "categories");
 
         // Build initial (empty) cards immediately so the repeater is visible
         ViewModel.BuildCategoryCards();
@@ -261,6 +263,29 @@ public sealed partial class WebFilterPage : Page
         string preview = ViewModel.IsEnabled
             ? string.Empty
             : " Web Filter is off; this shows what it will block when it is on.";
+
+        if (ViewModel.IsProviderMode)
+        {
+            if (result.IsBlocked)
+            {
+                _lastCheckedHost = result.Host;
+                CheckBlockedActionPanel.Visibility = Visibility.Collapsed;
+                ShowCheckResult(
+                    InfoBarSeverity.Error,
+                    $"Blocked \u2014 {result.Reason}",
+                    $"{result.Host} is blocked by {result.SourceName ?? "the provider"}. Verdict is from the DNS provider.{preview}");
+            }
+            else
+            {
+                _lastCheckedHost = string.Empty;
+                CheckBlockedActionPanel.Visibility = Visibility.Collapsed;
+                ShowCheckResult(
+                    InfoBarSeverity.Success,
+                    "Allowed",
+                    $"{result.Host} is allowed by {result.SourceName ?? "the provider"}. Verdict is from the DNS provider.{preview}");
+            }
+            return;
+        }
 
         if (result.IsBlocked)
         {
@@ -878,5 +903,101 @@ public sealed partial class WebFilterPage : Page
         }
 
         ViewModel.BrowserPolicies = ts.IsOn;
+    }
+
+    // ── Helper functions for XAML bindings (M10) ─────────────────────────────
+
+    public Visibility GetProviderOptionsVisibility(bool isProvider) => isProvider ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility GetLocalOptionsVisibility(bool isLocal) => isLocal ? Visibility.Visible : Visibility.Collapsed;
+
+    public string GetTabToolTip(bool isLocal) => isLocal ? string.Empty : "Available in Local filter mode";
+
+    // ── Milestone 10: Filtering Mode & Provider Selection ────────────────────
+
+    private bool _isUpdatingModeUi;
+
+    private void InitializeSettingsControls()
+    {
+        _isUpdatingModeUi = true;
+        try
+        {
+            LocalFilterModeRadio.IsChecked = ViewModel.IsLocalMode;
+            ProviderModeRadio.IsChecked = ViewModel.IsProviderMode;
+
+            string pid = ViewModel.Filter.ProviderId;
+            CloudflareFamilyRadio.IsChecked = string.Equals(pid, "cloudflare-family", StringComparison.OrdinalIgnoreCase);
+            CleanBrowsingFamilyRadio.IsChecked = string.Equals(pid, "cleanbrowsing-family", StringComparison.OrdinalIgnoreCase);
+            CleanBrowsingAdultRadio.IsChecked = string.Equals(pid, "cleanbrowsing-adult", StringComparison.OrdinalIgnoreCase);
+            OpenDnsFamilyRadio.IsChecked = string.Equals(pid, "opendns-familyshield", StringComparison.OrdinalIgnoreCase);
+            AdGuardFamilyRadio.IsChecked = string.Equals(pid, "adguard-family", StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            _isUpdatingModeUi = false;
+        }
+    }
+
+    private async void ModeRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingModeUi) return;
+        if (sender is not RadioButton rb || rb.Tag is not string tag) return;
+
+        var targetMode = tag == "provider" ? WebFilterMode.Provider : WebFilterMode.LocalFilter;
+        if (targetMode == ViewModel.Filter.Mode) return;
+
+        bool switched = await ViewModel.SetModeAsync(targetMode, () =>
+            RequestAuthAsync($"Enter your password to switch to {(targetMode == WebFilterMode.Provider ? "Filtered DNS provider" : "Local filter")} mode"));
+
+        if (!switched)
+        {
+            _isUpdatingModeUi = true;
+            try
+            {
+                LocalFilterModeRadio.IsChecked = ViewModel.IsLocalMode;
+                ProviderModeRadio.IsChecked = ViewModel.IsProviderMode;
+            }
+            finally
+            {
+                _isUpdatingModeUi = false;
+            }
+            return;
+        }
+
+        if (ViewModel.IsProviderMode)
+        {
+            ShowTab("settings");
+        }
+
+        PopulateStatus();
+    }
+
+    private async void ProviderRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingModeUi) return;
+        if (sender is not RadioButton rb || rb.Tag is not string providerId) return;
+
+        await ViewModel.SetProviderAsync(providerId);
+        PopulateStatus();
+    }
+
+    private void UpstreamComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (UpstreamComboBox == null) return;
+        ViewModel.UpstreamIndex = UpstreamComboBox.SelectedIndex;
+    }
+
+    private async void TestUpstreamButton_Click(object sender, RoutedEventArgs e)
+    {
+        TestUpstreamResultText.Visibility = Visibility.Visible;
+        TestUpstreamResultText.Text = "Testing upstream DNS...";
+        string result = await ViewModel.TestUpstreamAsync();
+        TestUpstreamResultText.Text = result;
+    }
+
+    private void ClearCacheButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ClearCache();
+        ServiceContainer.NotificationService.ShowSuccess("Web Filter", "DNS cache cleared.");
     }
 }

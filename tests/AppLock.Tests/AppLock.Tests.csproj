@@ -73,6 +73,7 @@
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\WebFilterSettings.cs" Link="Models\WebFilterSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\FilteredDnsProvider.cs" Link="Models\FilteredDnsProvider.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterCatalog.cs" Link="Services\WebFilter\WebFilterCatalog.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterListService.cs" Link="Services\WebFilter\WebFilterListService.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultSettings.cs" Link="Models\Vault\VaultSettings.cs" />
@@ -153,6 +154,7 @@
     <Compile Include="..\..\src\AppLock\Services\WebFilter\INetworkAdapterService.cs" Link="Services\WebFilter\INetworkAdapterService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\RealNetworkAdapterService.cs" Link="Services\WebFilter\RealNetworkAdapterService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\DnsConfigurator.cs" Link="Services\WebFilter\DnsConfigurator.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\DnsVerifier.cs" Link="Services\WebFilter\DnsVerifier.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterFirewallService.cs" Link="Services\WebFilter\WebFilterFirewallService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\BrowserPolicyService.cs" Link="Services\WebFilter\BrowserPolicyService.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\VpnAndProxyDetector.cs" Link="Services\WebFilter\VpnAndProxyDetector.cs" />

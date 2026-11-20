@@ -101,6 +101,184 @@ public partial class WebFilterViewModel : ObservableObject
 
     public bool IsEnabled => Filter.Enabled;
 
+    // ── Mode (Local / Provider) ───────────────────────────────────────────────
+
+    /// <summary>True when the filter is running in Filtered DNS Provider mode.</summary>
+    public bool IsProviderMode => Filter.Mode == WebFilterMode.Provider;
+
+    /// <summary>True when the filter is running in Local Filter mode (the default).</summary>
+    public bool IsLocalMode => Filter.Mode == WebFilterMode.LocalFilter;
+
+    /// <summary>Provider list built from the catalog.</summary>
+    public IReadOnlyList<FilteredDnsProvider> Providers => _lists.Catalog.Providers;
+
+    /// <summary>The currently selected provider (never null; falls back to first).</summary>
+    public FilteredDnsProvider? SelectedProvider
+    {
+        get => _lists.Catalog.FindProvider(Filter.ProviderId);
+        set
+        {
+            if (value == null) return;
+            if (string.Equals(Filter.ProviderId, value.Id, StringComparison.OrdinalIgnoreCase)) return;
+            Filter.ProviderId = value.Id;
+            _settingsStore.Save(_settings);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Switches between Local filter and Provider mode.
+    /// Requires authentication when the filter is on; returns false if auth was denied.
+    /// </summary>
+    public async Task<bool> SetModeAsync(WebFilterMode newMode, Func<Task<bool>> requestAuth)
+    {
+        if (Filter.Mode == newMode) return true;
+
+        if (Filter.Enabled)
+        {
+            bool ok = await requestAuth().ConfigureAwait(true);
+            if (!ok) return false;
+        }
+
+        Filter.Mode = newMode;
+        _settingsStore.Save(_settings);
+
+        if (Filter.Enabled)
+        {
+            await ServiceContainer.WebFilterService.StopAsync().ConfigureAwait(true);
+            await ServiceContainer.WebFilterService.StartAsync().ConfigureAwait(true);
+        }
+
+        OnPropertyChanged(nameof(IsProviderMode));
+        OnPropertyChanged(nameof(IsLocalMode));
+        OnPropertyChanged(nameof(StatusDetail));
+        OnPropertyChanged(nameof(StatusTitle));
+
+        return true;
+    }
+
+    public async Task SetProviderAsync(string providerId)
+    {
+        if (string.Equals(Filter.ProviderId, providerId, StringComparison.OrdinalIgnoreCase)) return;
+        Filter.ProviderId = providerId;
+        _settingsStore.Save(_settings);
+        OnPropertyChanged(nameof(SelectedProvider));
+        OnPropertyChanged(nameof(StatusDetail));
+
+        if (Filter.Enabled && IsProviderMode)
+        {
+            await ServiceContainer.WebFilterService.StopAsync().ConfigureAwait(true);
+            await ServiceContainer.WebFilterService.StartAsync().ConfigureAwait(true);
+        }
+    }
+
+    // ── Local filter settings ─────────────────────────────────────────────────
+
+    public int UpstreamIndex
+    {
+        get => (int)Filter.Upstream;
+        set
+        {
+            if ((int)Filter.Upstream != value)
+            {
+                Filter.Upstream = (UpstreamKind)value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsCustomUpstream));
+                if (Filter.Enabled && IsLocalMode)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await ServiceContainer.WebFilterService.StopAsync();
+                        await ServiceContainer.WebFilterService.StartAsync();
+                    });
+                }
+            }
+        }
+    }
+
+    public bool IsCustomUpstream => Filter.Upstream == UpstreamKind.Custom;
+
+    public string CustomUpstream
+    {
+        get => Filter.CustomUpstream;
+        set
+        {
+            if (Filter.CustomUpstream != value)
+            {
+                Filter.CustomUpstream = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool CacheEnabled
+    {
+        get => Filter.CacheEnabled;
+        set
+        {
+            if (Filter.CacheEnabled != value)
+            {
+                Filter.CacheEnabled = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public int BlockResponseIndex
+    {
+        get => (int)Filter.BlockResponse;
+        set
+        {
+            if ((int)Filter.BlockResponse != value)
+            {
+                Filter.BlockResponse = (BlockResponse)value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public void ClearCache()
+    {
+        ServiceContainer.WebFilterService.ClearCache();
+    }
+
+    public async Task<string> TestUpstreamAsync()
+    {
+        try
+        {
+            var resolver = new UpstreamForwarder(new DnsUpstreamOptions
+            {
+                DohEndpoints = Filter.Upstream switch
+                {
+                    UpstreamKind.GoogleDoh => new[] { UpstreamForwarder.Google },
+                    UpstreamKind.Quad9Doh => new[] { UpstreamForwarder.Quad9 },
+                    UpstreamKind.Custom when Uri.TryCreate(Filter.CustomUpstream, UriKind.Absolute, out var uri) =>
+                        new[] { new DohEndpoint("Custom", uri, null) },
+                    _ => new[] { UpstreamForwarder.Cloudflare }
+                },
+                Timeout = TimeSpan.FromSeconds(3)
+            });
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            byte[] queryBytes = DnsPacket.BuildQuery("one.one.one.one", DnsPacket.TypeA);
+            DnsPacket.TryParseQuery(queryBytes, out var q);
+            var response = await resolver.ResolveAsync(q, queryBytes, cts.Token);
+            if (response != null && response.Length >= DnsPacket.HeaderLength)
+            {
+                return "Upstream DNS responded successfully.";
+            }
+            return "No valid response from upstream DNS.";
+        }
+        catch (Exception ex)
+        {
+            return $"Upstream DNS test failed: {ex.Message}";
+        }
+    }
+
     public int EnabledCategoryCount => Filter.Categories.Values.Count(c => c.Enabled);
 
     public string StatusTitle => Filter.Enabled
@@ -121,7 +299,14 @@ public partial class WebFilterViewModel : ObservableObject
                 return "No websites are blocked. The filter isn't set up yet.";
             }
 
-            var mode = Filter.Mode == WebFilterMode.Provider ? "Filtered DNS provider" : "Local filter";
+            if (Filter.Mode == WebFilterMode.Provider)
+            {
+                var provider = _lists.Catalog.FindProvider(Filter.ProviderId);
+                var name = provider?.Name ?? "Unknown provider";
+                return $"Filtered DNS provider \u00b7 {name}";
+            }
+
+            var mode = "Local filter";
             var categories = EnabledCategoryCount == 1 ? "1 category" : $"{EnabledCategoryCount} categories";
             return $"{mode} \u00b7 {categories} \u00b7 {TotalDomains:N0} domains";
         }
@@ -645,11 +830,115 @@ public partial class WebFilterViewModel : ObservableObject
         IsChecking = true;
         try
         {
+            // In Provider mode: do a live DNS lookup through the provider's IPs
+            if (Filter.Mode == WebFilterMode.Provider)
+            {
+                return await CheckProviderModeAsync(CheckInput, cancellationToken).ConfigureAwait(true);
+            }
             return await _lists.CheckAsync(CheckInput, cancellationToken).ConfigureAwait(true);
         }
         finally
         {
             IsChecking = false;
         }
+    }
+
+    private async Task<WebFilterCheckResult> CheckProviderModeAsync(string input, CancellationToken cancellationToken)
+    {
+        if (!AppLock.WebFilter.Engine.DomainName.TryExtractHost(input, out var host))
+        {
+            return new WebFilterCheckResult(input, string.Empty, false, false, null, null, null, null);
+        }
+
+        var provider = _lists.Catalog.FindProvider(Filter.ProviderId);
+        if (provider == null || provider.Ipv4.Count == 0)
+        {
+            return new WebFilterCheckResult(input, host, true, false, "No provider configured", null, null, null);
+        }
+
+        try
+        {
+            // Send a DNS query directly to the provider's first IPv4 server
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            using var udp = new System.Net.Sockets.UdpClient();
+            udp.Client.ReceiveTimeout = 5000;
+            udp.Client.SendTimeout = 5000;
+
+            var target = new System.Net.IPEndPoint(System.Net.IPAddress.Parse(provider.Ipv4[0]), 53);
+            byte[] query = AppLock.WebFilter.Engine.DnsPacket.BuildQuery(host, AppLock.WebFilter.Engine.DnsPacket.TypeA);
+
+            await udp.SendAsync(query, query.Length, target).ConfigureAwait(false);
+            var received = await udp.ReceiveAsync(cts.Token).AsTask().ConfigureAwait(false);
+
+            // Parse out the A record IPs
+            bool blocked = IsBlockedByProvider(received.Buffer, provider);
+            string reason = blocked ? $"Blocked by {provider.Name}" : $"Allowed by {provider.Name}";
+
+            return new WebFilterCheckResult(input, host, true, blocked, reason, provider.Name, null, null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new WebFilterCheckResult(input, host, true, false, "Query timed out", null, null, null);
+        }
+        catch (Exception ex)
+        {
+            return new WebFilterCheckResult(input, host, true, false, $"Check failed: {ex.Message}", null, null, null);
+        }
+    }
+
+    private static bool IsBlockedByProvider(byte[] response, FilteredDnsProvider provider)
+    {
+        if (response.Length < AppLock.WebFilter.Engine.DnsPacket.HeaderLength) return false;
+
+        // NXDOMAIN (RCODE 3)
+        int rcode = response[3] & 0x0F;
+        if (rcode == 3) return true;
+
+        int answerCount = AppLock.WebFilter.Engine.DnsPacket.ReadU16(response, 6);
+        if (answerCount == 0) return true;  // empty answer = blocked
+
+        // Parse answer records to extract A record IPs and compare to blockIps
+        int offset = AppLock.WebFilter.Engine.DnsPacket.HeaderLength;
+        int questionCount = AppLock.WebFilter.Engine.DnsPacket.ReadU16(response, 4);
+
+        // Skip questions
+        for (int i = 0; i < questionCount; i++)
+        {
+            while (offset < response.Length)
+            {
+                int len = response[offset];
+                if (len == 0) { offset += 5; break; }
+                if ((len & 0xC0) == 0xC0) { offset += 7; break; }
+                offset += len + 1;
+            }
+        }
+
+        for (int i = 0; i < answerCount && offset + 10 < response.Length; i++)
+        {
+            // Skip name
+            if ((response[offset] & 0xC0) == 0xC0) offset += 2;
+            else { while (offset < response.Length && response[offset] != 0) offset++; offset++; }
+
+            if (offset + 10 > response.Length) break;
+
+            ushort rtype = AppLock.WebFilter.Engine.DnsPacket.ReadU16(response, offset);
+            int rdLength = AppLock.WebFilter.Engine.DnsPacket.ReadU16(response, offset + 8);
+            offset += 10;
+
+            if (rtype == 1 && rdLength == 4 && offset + 4 <= response.Length)  // A record
+            {
+                string ip = $"{response[offset]}.{response[offset+1]}.{response[offset+2]}.{response[offset+3]}";
+                if (provider.BlockIps.Any(b => string.Equals(b, ip, StringComparison.OrdinalIgnoreCase) || b == "0.0.0.0"))
+                {
+                    return true;
+                }
+            }
+
+            offset += rdLength;
+        }
+
+        return false;
     }
 }
