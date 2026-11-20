@@ -7,6 +7,56 @@
     mc:Ignorable="d"
     Background="Transparent">
 
+    <!--
+        Key caps are programmatically built, so their colours come from styles with ThemeResource
+        setters instead of brushes captured in code: a brush read out of Application.Resources keeps
+        the theme it was read in, which made every cap white-on-white after switching to light mode.
+    -->
+    <Page.Resources>
+        <Style x:Key="KeyCapStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+        <Style x:Key="KeyCapHeldStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+        <Style x:Key="BlankKeyCapStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+        <Style x:Key="MouseCapStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+        </Style>
+        <Style x:Key="MouseCapHeldStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+        </Style>
+        <Style x:Key="KeyCapTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="KeyCapHeldTextStyle" TargetType="TextBlock" BasedOn="{StaticResource KeyCapTextStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+        <Style x:Key="CapHintTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="FontSize" Value="9.5"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Page.Resources>
+
     <Grid Padding="24,20,24,24" RowSpacing="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -239,7 +289,8 @@
                     <FontIconSource Glyph="&#xE765;"/>
                 </TabViewItem.IconSource>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="12" MaxWidth="820" HorizontalAlignment="Left" Padding="0,16,0,0">
+                    <!-- No width cap here: the keyboard and mouse are sized from the space they get. -->
+                    <StackPanel Spacing="12" HorizontalAlignment="Stretch" Padding="0,16,0,0">
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="20">

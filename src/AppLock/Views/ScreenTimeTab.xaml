@@ -92,7 +92,11 @@
                         </MenuFlyoutItem>
                         <ToggleMenuFlyoutItem x:Name="ShowHiddenMenuItem"
                                               Text="Show hidden apps"
-                                              Click="ShowHidden_Click"/>
+                                              Click="ShowHidden_Click">
+                            <ToggleMenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE7B3;"/>
+                            </ToggleMenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
                         <MenuFlyoutSeparator/>
                         <MenuFlyoutItem Text="Clear all screen time data…" Click="ClearData_Click">
                             <MenuFlyoutItem.Icon>
@@ -131,6 +135,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0"
@@ -142,7 +147,8 @@
                 <StackPanel Spacing="4">
                     <TextBlock Text="Total screen time"
                                FontSize="12"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}"
                                FontSize="24"
                                FontWeight="SemiBold"/>
@@ -153,7 +159,29 @@
                 </StackPanel>
             </Border>
 
+            <!-- How often the PC was unlocked: the wellbeing "pickups" number, from session events. -->
             <Border Grid.Column="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Unlocks"
+                               FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{x:Bind ViewModel.UnlockValue, Mode=OneWay}"
+                               FontSize="24"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{x:Bind ViewModel.UnlockSubtext, Mode=OneWay}"
+                               FontSize="11"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
@@ -162,17 +190,19 @@
                 <StackPanel Spacing="4">
                     <TextBlock Text="{x:Bind ViewModel.SecondTitle, Mode=OneWay}"
                                FontSize="12"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{x:Bind ViewModel.SecondValue, Mode=OneWay}"
                                FontSize="24"
                                FontWeight="SemiBold"/>
                     <TextBlock Text="{x:Bind ViewModel.SecondSubtext, Mode=OneWay}"
                                FontSize="11"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="2"
+            <Border Grid.Column="3"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
@@ -204,7 +234,8 @@
                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                         <TextBlock Text="Most used app"
                                    FontSize="12"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{x:Bind ViewModel.MostUsedName, Mode=OneWay}"
                                    FontWeight="SemiBold"
                                    FontSize="14"
@@ -217,32 +248,98 @@
             </Border>
         </Grid>
 
-        <!-- Chart -->
-        <Border Grid.Row="3"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16">
-            <StackPanel Spacing="8">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Activity"
-                               FontWeight="SemiBold"/>
-                    <TextBlock x:Name="ChartSubtitle"
-                               Grid.Column="1"
-                               FontSize="11"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               VerticalAlignment="Center"/>
-                </Grid>
+        <!-- Chart and donut sit side by side and share the width, so neither is clipped when the window shrinks -->
+        <Grid Grid.Row="3" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <controls:UsageBarChart x:Name="BarChart" Height="190"/>
-                <controls:UsageCalendarHeat x:Name="MonthHeat" Height="220" Visibility="Collapsed"/>
-            </StackPanel>
-        </Border>
+            <Border Grid.Column="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Activity"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="ChartSubtitle"
+                                   Grid.Column="1"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- The chart grows with the card, so the donut beside it does not leave an empty gap -->
+                    <Grid Grid.Row="1">
+                        <controls:UsageBarChart x:Name="BarChart" MinHeight="190"/>
+                        <controls:UsageCalendarHeat x:Name="MonthHeat" MinHeight="200" Visibility="Collapsed"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="App share"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="Most used first"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <controls:UsageDonutChart x:Name="DonutChart" Width="200" Height="200" HorizontalAlignment="Center"/>
+
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.DonutLegend, Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DonutLegendItem">
+                                <Grid ColumnSpacing="8" Padding="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="8" Height="8" CornerRadius="4"
+                                            Background="{x:Bind Brush}"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{x:Bind Label}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{x:Bind ShareText}"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- App list header -->
         <Grid Grid.Row="4" ColumnSpacing="8">
@@ -283,6 +380,7 @@
                           ItemClick="AppList_ItemClick"
                           ScrollViewer.VerticalScrollMode="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                          ScrollViewer.BringIntoViewOnFocusChange="False"
                           Visibility="{x:Bind ViewModel.HasData, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                     <!-- Only added/removed rows animate, so a refresh updates numbers without
                          replaying an entrance animation over the whole list. -->

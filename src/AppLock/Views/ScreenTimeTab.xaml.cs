@@ -87,6 +87,8 @@ public sealed partial class ScreenTimeTab : UserControl
         else
             BarChart.SetBars(ViewModel.Bars, ViewModel.ChartMax, ViewModel.AverageLine);
 
+        DonutChart.SetSlices(ViewModel.DonutSlices, ViewModel.DonutCenterValue, ViewModel.DonutCenterLabel);
+
         NextButton.IsEnabled = ViewModel.CanGoNext;
         ShowHiddenMenuItem.IsChecked = ViewModel.ShowHidden;
 

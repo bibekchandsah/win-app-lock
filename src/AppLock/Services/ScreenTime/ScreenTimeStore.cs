@@ -21,7 +21,7 @@ namespace AppLock.Services.ScreenTime;
 /// </summary>
 public sealed class ScreenTimeStore : IAsyncDisposable
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
 
     private readonly string _dbPath;
     private readonly string _connectionString;
@@ -177,6 +177,21 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         return Convert.ToInt64(id.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Counts one unlock of the session, so the summary can show how often the PC was unlocked.</summary>
+    public void RecordUnlock(DateOnly day)
+    {
+        EnsureInitialized();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO unlock_day (day, count) VALUES ($day, 1)
+            ON CONFLICT(day) DO UPDATE SET count = count + 1;
+            """;
+        command.Parameters.AddWithValue("$day", day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        command.ExecuteNonQuery();
+    }
+
     /// <summary>Records how many seconds of an hour tracking actually ran (idle time included).</summary>
     public void RecordCoverage(DateOnly day, int hour, int trackedSeconds)
     {
@@ -277,6 +292,21 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         }
 
         return days;
+    }
+
+    /// <summary>How many times the session was unlocked inside the range.</summary>
+    public int GetUnlocks(DateOnly from, DateOnly to)
+    {
+        EnsureInitialized();
+        Flush();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(SUM(count), 0) FROM unlock_day WHERE day BETWEEN $from AND $to;";
+        command.Parameters.AddWithValue("$from", from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$to", to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
     public IReadOnlyList<CoverageHour> GetCoverage(DateOnly day)
@@ -419,7 +449,7 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         using var transaction = connection.BeginTransaction();
 
         int removed = 0;
-        foreach (var table in new[] { "usage_hour", "coverage_hour", "window_title" })
+        foreach (var table in new[] { "usage_hour", "coverage_hour", "window_title", "unlock_day" })
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -461,7 +491,7 @@ public sealed class ScreenTimeStore : IAsyncDisposable
 
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
-        foreach (var table in new[] { "usage_hour", "coverage_hour", "window_title", "app" })
+        foreach (var table in new[] { "usage_hour", "coverage_hour", "window_title", "unlock_day", "app" })
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -588,8 +618,13 @@ public sealed class ScreenTimeStore : IAsyncDisposable
               PRIMARY KEY (day, app_id, title)
             );
 
+            CREATE TABLE IF NOT EXISTS unlock_day (
+              day   TEXT    NOT NULL PRIMARY KEY,
+              count INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS ix_usage_day ON usage_hour(day);
-            PRAGMA user_version = 1;
+            PRAGMA user_version = 2;
             """;
         command.ExecuteNonQuery();
     }

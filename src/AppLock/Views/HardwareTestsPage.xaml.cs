@@ -97,10 +97,7 @@ namespace AppLock.Views
         private readonly Dictionary<string, Border> _mouseCaps = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _heldKeys = new();
         private readonly HashSet<string> _testedKeys = new(StringComparer.OrdinalIgnoreCase);
-        private Brush? _keyCapBackground;
-        private Brush? _mouseCapBackground;
-        private Brush? _keyCapForeground;
-        private Brush? _keyCapHighlight;
+        private bool _layoutBuilt;
 
         public HardwareTestsPage()
         {
@@ -241,20 +238,19 @@ namespace AppLock.Views
 
         private const double KeyGap = 4;
         private const double NavKeyFactor = 1.35;
-        private const double MouseColumnWidth = 132;
+        private const double MouseMaxWidth = 136;
+        private const double GapBeforeMouse = 16;
 
         private double _keyUnit = 24;
+        private double _mouseWidth = MouseMaxWidth;
 
         private void BuildKeyboardLayout()
         {
-            if (_keyCapBackground is not null) return;
-
-            _keyCapBackground = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
-            _mouseCapBackground = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
-            _keyCapForeground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
-            _keyCapHighlight = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            if (_layoutBuilt) return;
+            _layoutBuilt = true;
 
             _keyUnit = ChooseKeyUnit(AvailableLayoutWidth());
+            _mouseWidth = MouseWidth(AvailableLayoutWidth(), _keyUnit);
             RebuildKeyCaps();
         }
 
@@ -265,6 +261,10 @@ namespace AppLock.Views
             MouseDiagramHost.Children.Clear();
             _keyCaps.Clear();
             _mouseCaps.Clear();
+
+            double available = AvailableLayoutWidth();
+            _keyUnit = ChooseKeyUnit(available);
+            _mouseWidth = MouseWidth(available, _keyUnit);
 
             // label | VirtualKey name | width in key units
             var mainRows = new[]
@@ -324,19 +324,31 @@ namespace AppLock.Views
         private static double ClusterWidth(int keyCount, double unit, double factor = 1) =>
             keyCount * factor * (unit + KeyGap) - KeyGap;
 
-        private static double EstimatedWidth(double unit) =>
+        /// <summary>Width of the main block, navigation block and numpad, including the gaps between them.</summary>
+        private static double KeyboardWidth(double unit) =>
             ClusterWidth(14, unit) + 10 +
             ClusterWidth(3, unit, NavKeyFactor) + 10 +
-            ClusterWidth(4, unit, NavKeyFactor) + 16 + MouseColumnWidth;
+            ClusterWidth(4, unit, NavKeyFactor);
+
+        /// <summary>The plan reserves the widest mouse; the real column then takes whatever is left.</summary>
+        private static double EstimatedWidth(double unit) => KeyboardWidth(unit) + GapBeforeMouse + MouseMaxWidth;
+
+        /// <summary>Mouse column: never narrower than a usable mouse, never wider than the free space.</summary>
+        private static double MouseWidth(double available, double unit) =>
+            Math.Clamp(Math.Round(available - KeyboardWidth(unit) - GapBeforeMouse), 112, MouseMaxWidth);
 
         private void InputPad_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (_keyCaps.Count == 0) return;
 
-            double unit = ChooseKeyUnit(AvailableLayoutWidth());
-            if (Math.Abs(unit - _keyUnit) < 0.5) return;
+            double available = AvailableLayoutWidth();
+            double unit = ChooseKeyUnit(available);
+            double mouse = MouseWidth(available, unit);
+
+            if (Math.Abs(unit - _keyUnit) < 0.5 && Math.Abs(mouse - _mouseWidth) < 1) return;
 
             _keyUnit = unit;
+            _mouseWidth = mouse;
             RebuildKeyCaps();
         }
 
@@ -417,18 +429,13 @@ namespace AppLock.Views
             {
                 Width = Math.Round(width),
                 Height = Math.Round(height),
-                CornerRadius = new CornerRadius(5),
                 Tag = keyName,
-                Background = blank ? new SolidColorBrush(Microsoft.UI.Colors.Transparent) : _keyCapBackground,
-                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(blank ? 0 : 1),
+                Style = (Style)Resources[blank ? "BlankKeyCapStyle" : "KeyCapStyle"],
                 Child = new TextBlock
                 {
                     Text = label,
                     FontSize = Math.Clamp(Math.Round(_keyUnit * 0.42), 8, 11),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = _keyCapForeground
+                    Style = (Style)Resources["KeyCapTextStyle"]
                 }
             };
 
@@ -442,25 +449,34 @@ namespace AppLock.Views
         /// </summary>
         private void BuildMouseDiagram()
         {
+            // Everything is derived from the column that is actually free, so the mouse and its caps
+            // never run past the pad when the window gets narrower.
+            double column = _mouseWidth;
+            const double bodyPadding = 8;
+            double inner = column - bodyPadding * 2 - 2; // minus padding and the 1px border each side
+            double buttonWidth = Math.Max(22, Math.Round((inner - 14 - 10) / 2));
+            double buttonHeight = Math.Round(Math.Clamp(column * 0.30, 28, 40));
+            double sideWidth = Math.Round(Math.Clamp(inner * 0.32, 26, 40));
+            double sideHeight = Math.Round(Math.Clamp(column * 0.18, 18, 24));
+
+            // A gentle corner keeps the outline a mouse shape without the rounding eating the buttons.
             var body = new Border
             {
-                Width = MouseColumnWidth,
-                CornerRadius = new CornerRadius(50, 50, 26, 26),
-                Background = _keyCapBackground,
-                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(6)
+                Width = column,
+                CornerRadius = new CornerRadius(14, 14, 22, 22),
+                Style = (Style)Resources["KeyCapStyle"],
+                Padding = new Thickness(bodyPadding)
             };
 
             var layout = new StackPanel { Spacing = 6 };
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-            buttons.Children.Add(MouseCap("left", "Left", 44, 40));
-            buttons.Children.Add(MouseCap("middle", "\u22EE", 16, 40));
-            buttons.Children.Add(MouseCap("right", "Right", 44, 40));
+            buttons.Children.Add(MouseCap("left", "Left", buttonWidth, buttonHeight));
+            buttons.Children.Add(MouseCap("middle", "\u22EE", 14, buttonHeight));
+            buttons.Children.Add(MouseCap("right", "Right", buttonWidth, buttonHeight));
             layout.Children.Add(buttons);
 
-            var bodyArea = new Grid { Height = 92 };
+            var bodyArea = new Grid { Height = Math.Round(Math.Clamp(column * 0.70, 62, 92)) };
 
             var sideButtons = new StackPanel
             {
@@ -468,17 +484,15 @@ namespace AppLock.Views
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top
             };
-            sideButtons.Children.Add(MouseCap("back", "Back", 36, 24));
-            sideButtons.Children.Add(MouseCap("forward", "Fwd", 36, 24));
+            sideButtons.Children.Add(MouseCap("back", "Back", sideWidth, sideHeight));
+            sideButtons.Children.Add(MouseCap("forward", "Fwd", sideWidth, sideHeight));
             bodyArea.Children.Add(sideButtons);
 
             bodyArea.Children.Add(new TextBlock
             {
                 Text = "Mouse",
                 FontSize = 10,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = _keyCapForeground
+                Style = (Style)Resources["KeyCapTextStyle"]
             });
 
             layout.Children.Add(bodyArea);
@@ -487,10 +501,9 @@ namespace AppLock.Views
 
             MouseDiagramHost.Children.Add(new TextBlock
             {
-                Text = "Click a button here to\nsee it light up.",
-                FontSize = 9.5,
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"]
+                Text = "Click a button here to see it light up.",
+                Width = column,
+                Style = (Style)Resources["CapHintTextStyle"]
             });
         }
 
@@ -500,17 +513,13 @@ namespace AppLock.Views
             {
                 Width = width,
                 Height = height,
-                CornerRadius = new CornerRadius(10),
-                Background = _mouseCapBackground,
-                BorderBrush = (Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
-                BorderThickness = new Thickness(1),
+                Style = (Style)Resources["MouseCapStyle"],
                 Child = new TextBlock
                 {
                     Text = label,
-                    FontSize = 9.5,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = _keyCapForeground
+                    // Shrink the label with the cap so a narrow column never clips "Right".
+                    FontSize = Math.Clamp(Math.Round(width * 0.26), 7, 9.5),
+                    Style = (Style)Resources["KeyCapTextStyle"]
                 }
             };
 
@@ -1022,13 +1031,9 @@ namespace AppLock.Views
             bool tested = name.Length > 0 && _testedKeys.Contains(name);
 
             if (cap.Child is TextBlock text)
-            {
-                text.Foreground = held
-                    ? (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
-                    : _keyCapForeground;
-            }
+                text.Style = (Style)Resources[held ? "KeyCapHeldTextStyle" : "KeyCapTextStyle"];
 
-            cap.Background = held ? _keyCapHighlight : _keyCapBackground;
+            cap.Style = (Style)Resources[held ? "KeyCapHeldStyle" : "KeyCapStyle"];
             cap.Opacity = held || tested ? 1 : 0.42;
         }
 
@@ -1055,15 +1060,9 @@ namespace AppLock.Views
         {
             if (!_mouseCaps.TryGetValue(key, out var cap)) return;
 
-            if (!down)
-            {
-                cap.Background = _mouseCapBackground;
-                if (cap.Child is TextBlock released) released.Foreground = _keyCapForeground;
-                return;
-            }
-
-            cap.Background = _keyCapHighlight;
-            if (cap.Child is TextBlock text) text.Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
+            cap.Style = (Style)Resources[down ? "MouseCapHeldStyle" : "MouseCapStyle"];
+            if (cap.Child is TextBlock text)
+                text.Style = (Style)Resources[down ? "KeyCapHeldTextStyle" : "KeyCapTextStyle"];
         }
 
         private void ResetMouseCaps()

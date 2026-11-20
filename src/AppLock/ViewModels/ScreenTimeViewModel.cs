@@ -36,6 +36,10 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
     [ObservableProperty] private string _secondTitle = "First active";
     [ObservableProperty] private string _secondValue = "—";
     [ObservableProperty] private string _secondSubtext = "Last active —";
+    [ObservableProperty] private string _unlockValue = "0";
+    [ObservableProperty] private string _unlockSubtext = "Not counted yet";
+    [ObservableProperty] private string _donutCenterValue = "0m";
+    [ObservableProperty] private string _donutCenterLabel = "screen time";
     [ObservableProperty] private string _mostUsedName = "—";
     [ObservableProperty] private string _mostUsedTime = string.Empty;
     [ObservableProperty] private int _mostUsedColorIndex;
@@ -61,6 +65,11 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
     }
 
     public ObservableCollection<AppUsageRowViewModel> Rows { get; } = new();
+
+    /// <summary>Legend under the donut: the biggest apps of the selected range.</summary>
+    public ObservableCollection<DonutLegendItem> DonutLegend { get; } = new();
+
+    public IReadOnlyList<DonutSlice> DonutSlices { get; private set; } = Array.Empty<DonutSlice>();
 
     public IReadOnlyList<UsageBar> Bars { get; private set; } = Array.Empty<UsageBar>();
     public IReadOnlyList<DayUsage> MonthDays { get; private set; } = Array.Empty<DayUsage>();
@@ -108,6 +117,7 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
     public void ToggleShowHidden()
     {
         ShowHidden = !ShowHidden;
+        ApplyFilter();
     }
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
@@ -180,6 +190,8 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
 
         BuildSecondCard(range, today);
         BuildChart(range, visible, today);
+        BuildUnlocksCard(range);
+        BuildDonut(allRows, total);
 
         string retention = settings.RetentionDays <= 0 ? "History kept forever" : $"{settings.RetentionDays} days kept";
         StatusText = settings.TrackingEnabled
@@ -214,6 +226,45 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
 
         // Section 6.2: no average line when any listed app already has a limit.
         AverageLine = null;
+    }
+
+    private void BuildUnlocksCard(UsageRange range)
+    {
+        int unlocks = _store.GetUnlocks(range.From, range.To);
+        int previous = _store.GetUnlocks(range.PreviousFrom, range.PreviousTo);
+
+        UnlockValue = unlocks.ToString();
+        UnlockSubtext = previous > 0
+            ? $"vs {previous} {range.Kind switch { UsageRangeKind.Today => "yesterday", UsageRangeKind.Week => "last week", _ => "last month" }}"
+            : "Not counted yet";
+    }
+
+    /// <summary>Top apps as ring segments; everything past the fifth app is folded into "Other".</summary>
+    private void BuildDonut(IReadOnlyList<AppUsageRowViewModel> rows, long total)
+    {
+        const int topCount = 5;
+
+        DonutLegend.Clear();
+        var slices = new List<DonutSlice>(topCount + 1);
+        long listed = 0;
+
+        foreach (var row in rows.Where(r => r.Seconds > 0).Take(topCount))
+        {
+            var brush = UsagePalette.BrushFor(row.ColorIndex);
+            slices.Add(new DonutSlice(row.DisplayName, row.Seconds, brush));
+            listed += row.Seconds;
+
+            string share = total > 0 ? $"{Math.Round(row.Seconds / (double)total * 100):0}%" : "0%";
+            DonutLegend.Add(new DonutLegendItem(row.DisplayName, share, brush));
+        }
+
+        long other = total - listed;
+        if (other > 0)
+            slices.Add(new DonutSlice("Other", other, UsagePalette.Neutral));
+
+        DonutSlices = slices;
+        DonutCenterValue = UsageFormat.Duration(total);
+        DonutCenterLabel = total > 0 ? "in total" : "no data";
     }
 
     private void BuildChart(UsageRange range, IReadOnlyList<AppUsageRowViewModel> visibleRows, DateOnly today)

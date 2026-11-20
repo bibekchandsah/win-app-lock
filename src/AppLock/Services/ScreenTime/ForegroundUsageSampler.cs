@@ -268,10 +268,27 @@ public sealed class ForegroundUsageSampler : IDisposable
                 FlushCoverage();
                 break;
             case SessionSwitchReason.SessionUnlock:
+                RecordUnlock();
+                _sessionAvailable = true;
+                break;
             case SessionSwitchReason.ConsoleConnect:
             case SessionSwitchReason.RemoteConnect:
                 _sessionAvailable = true;
                 break;
+        }
+    }
+
+    /// <summary>Counted so the summary can show how many times the PC was unlocked today.</summary>
+    private void RecordUnlock()
+    {
+        try
+        {
+            if (CurrentSettings.TrackingEnabled && _store != null)
+                _store.RecordUnlock(DateOnly.FromDateTime(DateTime.Now));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ScreenTime] unlock record failed: {ex.Message}");
         }
     }
 
