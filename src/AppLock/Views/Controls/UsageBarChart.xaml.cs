@@ -81,7 +81,7 @@ public sealed partial class UsageBarChart : UserControl
                 {
                     Height = 3,
                     VerticalAlignment = VerticalAlignment.Bottom,
-                    Background = UsagePalette.Warning,
+                    Style = (Style)Resources["ChartWarningBar"],
                     Opacity = 0.8
                 };
                 ToolTipService.SetToolTip(coverageStrip, "AppLock was not running for part of this hour.");
@@ -118,10 +118,7 @@ public sealed partial class UsageBarChart : UserControl
             var label = new TextBlock
             {
                 Text = bar.Label,
-                FontSize = 10,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = UsagePalette.SecondaryText,
-                TextTrimming = TextTrimming.CharacterEllipsis,
+                Style = (Style)Resources["ChartAxisLabel"],
                 Margin = new Thickness(0, 3, 0, 0)
             };
             Grid.SetRow(label, 1);
@@ -143,9 +140,8 @@ public sealed partial class UsageBarChart : UserControl
             {
                 Height = 2,
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Background = UsagePalette.Neutral,
-                Opacity = 0.35,
-                CornerRadius = new CornerRadius(1)
+                Style = (Style)Resources["ChartNeutralBar"],
+                Opacity = 0.35
             });
             return host;
         }
@@ -162,14 +158,17 @@ public sealed partial class UsageBarChart : UserControl
             double share = bar.Value > 0 ? segment.Seconds / bar.Value : 0;
             double height = Math.Max(1, barHeight * share);
 
-            var part = new Border
+            var part = new Border { Height = height };
+
+            if (segment.ColorIndex < 0)
             {
-                Height = height,
-                Background = segment.ColorIndex < 0
-                    ? UsagePalette.Neutral
-                    : UsagePalette.BrushFor(segment.ColorIndex),
-                CornerRadius = new CornerRadius(1)
-            };
+                part.Style = (Style)Resources["ChartNeutralBar"];
+            }
+            else
+            {
+                part.Background = UsagePalette.BrushFor(segment.ColorIndex);
+                part.CornerRadius = new CornerRadius(1);
+            }
 
             ToolTipService.SetToolTip(part, segment.Tooltip);
             stack.Children.Add(part);
@@ -225,10 +224,7 @@ public sealed partial class UsageBarChart : UserControl
             X2 = width,
             Y1 = y,
             Y2 = y,
-            Stroke = UsagePalette.SecondaryText,
-            StrokeThickness = 1,
-            StrokeDashArray = new DoubleCollection { 4, 4 },
-            Opacity = 0.7
+            Style = (Style)Resources["ChartAverageLine"]
         });
     }
 }

@@ -2,8 +2,9 @@ using Microsoft.UI.Xaml.Media;
 
 namespace AppLock.ViewModels;
 
-/// <summary>One ring segment of the "App share" donut: an app's slice of the range's screen time.</summary>
-public readonly record struct DonutSlice(string Label, long Seconds, Brush Brush);
+/// <summary>One ring segment of the "App share" donut: an app's slice of the range's screen time.
+/// A null brush means the neutral "Other" slice, which follows the theme instead of the palette.</summary>
+public readonly record struct DonutSlice(string Label, long Seconds, Brush? Brush);
 
 /// <summary>One line of the donut legend, rebuilt on each refresh.</summary>
 public sealed class DonutLegendItem

@@ -6,7 +6,17 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid x:Name="RootGrid" MinHeight="120" MinWidth="120">
+    <UserControl.Resources>
+        <Style x:Key="DonutNeutralSlice" TargetType="Path">
+            <Setter Property="Stroke" Value="{ThemeResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="StrokeStartLineCap" Value="Flat"/>
+            <Setter Property="StrokeEndLineCap" Value="Flat"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- The transparent background makes the whole donut a pointer target, so hovering a segment
+         can report how long that app was used. -->
+    <Grid x:Name="RootGrid" MinHeight="120" MinWidth="120" Background="Transparent">
         <Canvas x:Name="SliceHost" IsHitTestVisible="False"/>
         <!-- The ring is stroked, so its middle is naturally empty; painting a hole here would
              show a second translucent layer over the card. -->
@@ -22,6 +32,8 @@
             <TextBlock x:Name="CenterLabel"
                        Text="screen time"
                        FontSize="10"
+                       MaxWidth="96"
+                       TextTrimming="CharacterEllipsis"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        HorizontalAlignment="Center"/>
         </StackPanel>

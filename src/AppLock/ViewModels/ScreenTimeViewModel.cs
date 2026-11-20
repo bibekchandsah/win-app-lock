@@ -260,7 +260,7 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
 
         long other = total - listed;
         if (other > 0)
-            slices.Add(new DonutSlice("Other", other, UsagePalette.Neutral));
+            slices.Add(new DonutSlice("Other", other, null));
 
         DonutSlices = slices;
         DonutCenterValue = UsageFormat.Duration(total);
@@ -318,8 +318,9 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
             var bars = new List<UsageBar>(days.Count);
             foreach (var day in days)
             {
+                // The accent color, not the neutral one: a daily total has to stay visible in light mode.
                 var segments = day.Seconds > 0
-                    ? new List<BarSegment> { new("day", "Total", day.Seconds, -1, UsageFormat.Duration(day.Seconds)) }
+                    ? new List<BarSegment> { new("day", "Total", day.Seconds, 0, UsageFormat.Duration(day.Seconds)) }
                     : new List<BarSegment>();
 
                 string tooltip = day.Seconds > 0

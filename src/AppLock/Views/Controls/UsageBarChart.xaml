@@ -6,6 +6,31 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
+    <!-- Labels and neutral marks are styled so their brushes follow the theme; a brush read in
+         code from Application.Resources would stay in the theme it was read in. -->
+    <UserControl.Resources>
+        <Style x:Key="ChartAxisLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style x:Key="ChartNeutralBar" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource TextFillColorTertiaryBrush}"/>
+            <Setter Property="CornerRadius" Value="1"/>
+        </Style>
+        <Style x:Key="ChartWarningBar" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SystemFillColorCautionBrush}"/>
+            <Setter Property="CornerRadius" Value="1"/>
+        </Style>
+        <Style x:Key="ChartAverageLine" TargetType="Line">
+            <Setter Property="Stroke" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="StrokeDashArray" Value="4,4"/>
+            <Setter Property="Opacity" Value="0.7"/>
+        </Style>
+    </UserControl.Resources>
+
     <Grid x:Name="ChartRoot" MinHeight="140" SizeChanged="ChartRoot_SizeChanged">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="40"/>

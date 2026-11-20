@@ -38,9 +38,7 @@ public sealed partial class UsageCalendarHeat : UserControl
             var header = new TextBlock
             {
                 Text = WeekdayLetters[i],
-                FontSize = 10,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = UsagePalette.SecondaryText
+                Style = (Style)Resources["HeatWeekdayLabel"]
             };
             Grid.SetColumn(header, i);
             HostGrid.Children.Add(header);

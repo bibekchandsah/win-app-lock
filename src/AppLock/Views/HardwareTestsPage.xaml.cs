@@ -408,7 +408,8 @@ namespace AppLock.Views
             Place("7|NumberPad7", 1, 0);
             Place("8|NumberPad8", 1, 1);
             Place("9|NumberPad9", 1, 2);
-            Place("+|Add", 1, 3);
+            // The plus key is two rows tall on a real tenkey.
+            Place("+|Add", 1, 3, rowSpan: 2);
             Place("4|NumberPad4", 2, 0);
             Place("5|NumberPad5", 2, 1);
             Place("6|NumberPad6", 2, 2);

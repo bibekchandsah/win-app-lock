@@ -36,6 +36,14 @@ public sealed partial class ScreenTimeTab : UserControl
             RefreshView();
         };
 
+        // A day in the month heat map opens that day, the same way a week bar does.
+        MonthHeat.DaySelected += (_, day) =>
+        {
+            ViewModel.SelectDay(day);
+            RangeSelector.SelectedIndex = 0;
+            RefreshView();
+        };
+
         Loaded += (_, _) =>
         {
             RefreshView();
