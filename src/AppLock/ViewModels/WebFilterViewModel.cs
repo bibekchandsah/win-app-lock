@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.WebFilter;
+using AppLock.WebFilter.Engine;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AppLock.ViewModels;
@@ -236,6 +238,7 @@ public partial class WebFilterViewModel : ObservableObject
             // Build/refresh category cards now that counts are available
             BuildCategoryCards();
             RefreshCategoryDomainCounts();
+            BuildServicesAndSites();
         }
         catch (OperationCanceledException)
         {
@@ -247,6 +250,266 @@ public partial class WebFilterViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(StatusDetail));
+    }
+
+    // ── Sites Tab: Services, Always Block, Always Allow ───────────────────────
+
+    private readonly ObservableCollection<ServiceCardViewModel> _serviceItems = new();
+    public ObservableCollection<ServiceCardViewModel> ServiceItems => _serviceItems;
+
+    private readonly ObservableCollection<DomainItemViewModel> _alwaysBlockItems = new();
+    public ObservableCollection<DomainItemViewModel> AlwaysBlockItems => _alwaysBlockItems;
+
+    private readonly ObservableCollection<DomainItemViewModel> _alwaysAllowItems = new();
+    public ObservableCollection<DomainItemViewModel> AlwaysAllowItems => _alwaysAllowItems;
+
+    public void BuildServicesAndSites()
+    {
+        var catalog = _lists.Catalog;
+        _serviceItems.Clear();
+
+        var serviceMap = new Dictionary<string, ServiceCardViewModel>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var svc in catalog.Services)
+        {
+            var categoryName = catalog.Find(svc.Category)?.Name ?? svc.Category;
+            var vm = new ServiceCardViewModel(_settings, _settingsStore, svc, categoryName);
+            _serviceItems.Add(vm);
+            serviceMap[svc.Id] = vm;
+        }
+
+        // Link social media sub-services to the social CategoryCardViewModel
+        var socialCard = _categoryCards.FirstOrDefault(c => c.Id.Equals("social", StringComparison.OrdinalIgnoreCase));
+        if (socialCard != null)
+        {
+            socialCard.SubServices.Clear();
+            foreach (var svc in catalog.Services.Where(s => s.Category.Equals("social", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (serviceMap.TryGetValue(svc.Id, out var vm))
+                {
+                    socialCard.SubServices.Add(vm);
+                }
+            }
+        }
+
+        // Populate Always Block & Always Allow
+        _alwaysBlockItems.Clear();
+        foreach (var entry in Filter.AlwaysBlock)
+        {
+            _alwaysBlockItems.Add(new DomainItemViewModel(entry, RemoveAlwaysBlock, SaveSettings));
+        }
+
+        _alwaysAllowItems.Clear();
+        foreach (var entry in Filter.AlwaysAllow)
+        {
+            _alwaysAllowItems.Add(new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
+        }
+
+        OnPropertyChanged(nameof(AlwaysBlockCountLabel));
+        OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+    }
+
+    public string AlwaysBlockCountLabel => $"{Filter.AlwaysBlock.Count} domains";
+    public string AlwaysAllowCountLabel => $"{Filter.AlwaysAllow.Count} domains";
+
+    public bool AddAlwaysBlock(string input, string note, out string message)
+    {
+        message = string.Empty;
+        if (!DomainName.TryExtractHost(input, out var host))
+        {
+            message = "Enter a valid domain name or website URL (e.g. example.com).";
+            return false;
+        }
+
+        if (Filter.AlwaysBlock.Any(e => e.Domain.Equals(host, StringComparison.OrdinalIgnoreCase)))
+        {
+            message = $"{host} is already in the Always Block list.";
+            return false;
+        }
+
+        if (Filter.AlwaysBlock.Count >= 5000)
+        {
+            message = "Always Block list has reached the maximum of 5,000 entries.";
+            return false;
+        }
+
+        var entry = new DomainEntry
+        {
+            Domain = host,
+            Note = note?.Trim() ?? string.Empty,
+            AddedUtc = DateTime.UtcNow
+        };
+        Filter.AlwaysBlock.Add(entry);
+        SaveSettings();
+
+        _alwaysBlockItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysBlock, SaveSettings));
+        OnPropertyChanged(nameof(AlwaysBlockCountLabel));
+        return true;
+    }
+
+    public bool AddAlwaysAllow(string input, string note, out string message, out bool isNeverBlockInfo)
+    {
+        message = string.Empty;
+        isNeverBlockInfo = false;
+
+        if (!DomainName.TryExtractHost(input, out var host))
+        {
+            message = "Enter a valid domain name or website URL (e.g. example.com).";
+            return false;
+        }
+
+        // Check if matched by Never-block list
+        var neverBlockSuffixes = DomainName.EnumerateSuffixes(host);
+        if (_lists.Catalog.NeverBlock.Any(nb => neverBlockSuffixes.Contains(nb, StringComparer.OrdinalIgnoreCase)))
+        {
+            isNeverBlockInfo = true;
+            message = $"{host} is on the built-in system Never-block list (Windows essentials, update, certificates) and is always allowed automatically.";
+            return false;
+        }
+
+        if (Filter.AlwaysAllow.Any(e => e.Domain.Equals(host, StringComparison.OrdinalIgnoreCase)))
+        {
+            message = $"{host} is already in the Always Allow list.";
+            return false;
+        }
+
+        if (Filter.AlwaysAllow.Count >= 5000)
+        {
+            message = "Always Allow list has reached the maximum of 5,000 entries.";
+            return false;
+        }
+
+        var entry = new DomainEntry
+        {
+            Domain = host,
+            Note = note?.Trim() ?? string.Empty,
+            AddedUtc = DateTime.UtcNow
+        };
+        Filter.AlwaysAllow.Add(entry);
+        SaveSettings();
+
+        _alwaysAllowItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
+        OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+        return true;
+    }
+
+    public void RemoveAlwaysBlock(DomainItemViewModel item)
+    {
+        Filter.AlwaysBlock.Remove(item.Entry);
+        _alwaysBlockItems.Remove(item);
+        SaveSettings();
+        OnPropertyChanged(nameof(AlwaysBlockCountLabel));
+    }
+
+    public void RemoveAlwaysAllow(DomainItemViewModel item)
+    {
+        Filter.AlwaysAllow.Remove(item.Entry);
+        _alwaysAllowItems.Remove(item);
+        SaveSettings();
+        OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+    }
+
+    public int ImportAlwaysBlock(string text)
+    {
+        int added = 0;
+        var existing = new HashSet<string>(Filter.AlwaysBlock.Select(e => e.Domain), StringComparer.OrdinalIgnoreCase);
+
+        var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+
+            if (DomainName.TryExtractHost(trimmed, out var host) && !existing.Contains(host))
+            {
+                if (Filter.AlwaysBlock.Count >= 5000) break;
+                existing.Add(host);
+                var entry = new DomainEntry { Domain = host, AddedUtc = DateTime.UtcNow };
+                Filter.AlwaysBlock.Add(entry);
+                _alwaysBlockItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysBlock, SaveSettings));
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            SaveSettings();
+            OnPropertyChanged(nameof(AlwaysBlockCountLabel));
+        }
+        return added;
+    }
+
+    public string ExportAlwaysBlock()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# AppLock Web Filter - Always Block List");
+        sb.AppendLine($"# Exported {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        foreach (var entry in Filter.AlwaysBlock)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Note))
+            {
+                sb.AppendLine($"{entry.Domain} # {entry.Note}");
+            }
+            else
+            {
+                sb.AppendLine(entry.Domain);
+            }
+        }
+        return sb.ToString();
+    }
+
+    public int ImportAlwaysAllow(string text)
+    {
+        int added = 0;
+        var existing = new HashSet<string>(Filter.AlwaysAllow.Select(e => e.Domain), StringComparer.OrdinalIgnoreCase);
+
+        var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+
+            if (DomainName.TryExtractHost(trimmed, out var host) && !existing.Contains(host))
+            {
+                if (Filter.AlwaysAllow.Count >= 5000) break;
+                existing.Add(host);
+                var entry = new DomainEntry { Domain = host, AddedUtc = DateTime.UtcNow };
+                Filter.AlwaysAllow.Add(entry);
+                _alwaysAllowItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            SaveSettings();
+            OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+        }
+        return added;
+    }
+
+    public string ExportAlwaysAllow()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# AppLock Web Filter - Always Allow List");
+        sb.AppendLine($"# Exported {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        foreach (var entry in Filter.AlwaysAllow)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Note))
+            {
+                sb.AppendLine($"{entry.Domain} # {entry.Note}");
+            }
+            else
+            {
+                sb.AppendLine(entry.Domain);
+            }
+        }
+        return sb.ToString();
+    }
+
+    private void SaveSettings()
+    {
+        _settingsStore.Save(_settings);
     }
 
     /// <summary>Runs the check tool. Returns null while another check is in progress.</summary>

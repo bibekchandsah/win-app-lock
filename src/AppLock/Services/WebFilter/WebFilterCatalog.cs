@@ -52,14 +52,38 @@ public sealed class NeverBlockFile
     public List<string> Domains { get; set; } = new();
 }
 
+/// <summary>One service from <c>Assets/web-filter/services.json</c>.</summary>
+public sealed class WebServiceSource
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Category { get; set; } = string.Empty;
+
+    public string Icon { get; set; } = string.Empty;
+
+    public List<string> Domains { get; set; } = new();
+}
+
+public sealed class WebServicesFile
+{
+    public int Version { get; set; } = 1;
+
+    public List<WebServiceSource> Services { get; set; } = new();
+}
+
 /// <summary>
-/// The data-driven category catalogue. Everything a user sees about a category (name, description,
-/// default, sources, licences) comes from the JSON asset, so a list source can be fixed without
-/// rebuilding the code.
+/// The data-driven category and service catalogue.
 /// </summary>
 public sealed class WebFilterCatalog
 {
-    public static readonly WebFilterCatalog Empty = new(Array.Empty<WebFilterCategorySource>(), Array.Empty<string>(), string.Empty, null);
+    public static readonly WebFilterCatalog Empty = new(
+        Array.Empty<WebFilterCategorySource>(),
+        Array.Empty<WebServiceSource>(),
+        Array.Empty<string>(),
+        string.Empty,
+        null);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -69,21 +93,26 @@ public sealed class WebFilterCatalog
     };
 
     private readonly List<WebFilterCategorySource> _categories;
+    private readonly List<WebServiceSource> _services;
     private readonly List<string> _neverBlock;
 
     private WebFilterCatalog(
         IEnumerable<WebFilterCategorySource> categories,
+        IEnumerable<WebServiceSource> services,
         IEnumerable<string> neverBlock,
         string assetsDirectory,
         string? loadError)
     {
         _categories = categories.ToList();
+        _services = services.ToList();
         _neverBlock = neverBlock.ToList();
         AssetsDirectory = assetsDirectory;
         LoadError = loadError;
     }
 
     public IReadOnlyList<WebFilterCategorySource> Categories => _categories;
+
+    public IReadOnlyList<WebServiceSource> Services => _services;
 
     public IReadOnlyList<string> NeverBlock => _neverBlock;
 
@@ -93,6 +122,9 @@ public sealed class WebFilterCatalog
 
     public WebFilterCategorySource? Find(string? id)
         => string.IsNullOrEmpty(id) ? null : _categories.FirstOrDefault(c => c.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+
+    public WebServiceSource? FindService(string? id)
+        => string.IsNullOrEmpty(id) ? null : _services.FirstOrDefault(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Full path of a bundled list, or null when the source has no bundle.</summary>
     public string? GetBundledPath(WebFilterListSource source)
@@ -111,6 +143,7 @@ public sealed class WebFilterCatalog
         {
             return new WebFilterCatalog(
                 Array.Empty<WebFilterCategorySource>(),
+                Array.Empty<WebServiceSource>(),
                 Array.Empty<string>(),
                 assetsDirectory,
                 "Block list catalogue (sources.json) is missing");
@@ -133,12 +166,24 @@ public sealed class WebFilterCatalog
                 }
             }
 
-            return new WebFilterCatalog(categories, neverBlock, assetsDirectory, null);
+            var services = new List<WebServiceSource>();
+            string servicesPath = Path.Combine(assetsDirectory, "services.json");
+            if (File.Exists(servicesPath))
+            {
+                var sf = JsonSerializer.Deserialize<WebServicesFile>(File.ReadAllText(servicesPath), JsonOptions);
+                if (sf?.Services != null)
+                {
+                    services.AddRange(sf.Services);
+                }
+            }
+
+            return new WebFilterCatalog(categories, services, neverBlock, assetsDirectory, null);
         }
         catch (Exception ex)
         {
             return new WebFilterCatalog(
                 Array.Empty<WebFilterCategorySource>(),
+                Array.Empty<WebServiceSource>(),
                 Array.Empty<string>(),
                 assetsDirectory,
                 "Block list catalogue could not be read: " + ex.Message);

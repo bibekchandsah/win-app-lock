@@ -147,6 +147,12 @@ public sealed partial class CategoryCardViewModel : ObservableObject
 
     public void DismissHint() => FirstEnableHintVisible = false;
 
+    // ── Sub-services (e.g. for Social media) ──────────────────────────────────
+
+    public System.Collections.ObjectModel.ObservableCollection<ServiceCardViewModel> SubServices { get; } = new();
+
+    public bool HasSubServices => SubServices.Count > 0;
+
     // ── Schedule label ────────────────────────────────────────────────────────
 
     public string ScheduleLabel

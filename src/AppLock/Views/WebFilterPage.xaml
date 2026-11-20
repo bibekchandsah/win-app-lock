@@ -18,6 +18,20 @@
             <Setter Property="Padding" Value="20"/>
         </Style>
 
+        <!-- Sub-service row (for Social media expander) -->
+        <DataTemplate x:Key="ServiceSubRowTemplate" x:DataType="vm:ServiceCardViewModel">
+            <Grid Padding="12,6" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="{x:Bind IconGlyph}" FontSize="14" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextBlockStyle}" VerticalAlignment="Center"/>
+                <ToggleSwitch Grid.Column="2" IsOn="{x:Bind IsEnabled, Mode=TwoWay}" OnContent="Blocked" OffContent="Allowed" MinWidth="0" VerticalAlignment="Center"/>
+            </Grid>
+        </DataTemplate>
+
         <!-- Category card template -->
         <DataTemplate x:Key="CategoryCardTemplate" x:DataType="vm:CategoryCardViewModel">
             <Border Style="{StaticResource WebFilterCard}" Margin="0,0,0,10">
@@ -83,7 +97,112 @@
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                TextWrapping="Wrap"/>
+
+                    <!-- Sub-services expander (e.g. for Social Media) -->
+                    <Expander Header="Individual services"
+                              IsExpanded="False"
+                              Visibility="{x:Bind HasSubServices}"
+                              HorizontalAlignment="Stretch">
+                        <ItemsRepeater ItemsSource="{x:Bind SubServices, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource ServiceSubRowTemplate}"/>
+                    </Expander>
                 </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Standalone Service Card Template -->
+        <DataTemplate x:Key="ServiceCardTemplate" x:DataType="vm:ServiceCardViewModel">
+            <Border Style="{StaticResource WebFilterCard}" Margin="0,0,0,10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="36" Height="36"
+                            CornerRadius="6"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            VerticalAlignment="Center">
+                        <FontIcon Glyph="{x:Bind IconGlyph}"
+                                  FontSize="16"
+                                  Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{x:Bind Name}"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                    CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind CategoryDisplayName}"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind DomainsSummary}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind ScheduleLabel, Mode=OneWay}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    </StackPanel>
+
+                    <ToggleSwitch Grid.Column="2"
+                                  IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
+                                  OnContent="Blocked"
+                                  OffContent="Allowed"
+                                  MinWidth="0"
+                                  VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Domain Row Template (for Always Block and Always Allow) -->
+        <DataTemplate x:Key="DomainRowTemplate" x:DataType="vm:DomainItemViewModel">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,10"
+                    Margin="0,0,0,6">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{x:Bind Domain}"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="{x:Bind Note}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Visibility="{x:Bind HasNote}"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{x:Bind AddedDateFormatted}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <Button Grid.Column="2"
+                            Tag="{x:Bind}"
+                            Click="DeleteDomain_Click"
+                            ToolTipService.ToolTip="Delete"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="8,6"
+                            VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
+                    </Button>
+                </Grid>
             </Border>
         </DataTemplate>
     </Page.Resources>
@@ -294,18 +413,126 @@
                                ItemTemplate="{StaticResource CategoryCardTemplate}"/>
             </ScrollViewer>
 
+            <!-- Sites tab: Services, Always Block, Always Allow -->
             <ScrollViewer x:Name="SitesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="12">
-                    <Border Style="{StaticResource WebFilterCard}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Sites"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                            <TextBlock Text="Always block and always allow lists, plus switches for individual services such as YouTube, Instagram or Steam, will live here."
-                                       Style="{StaticResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
+                <StackPanel Spacing="16">
+                    <Pivot x:Name="SitesPivot">
+                        <!-- Services catalog -->
+                        <PivotItem Header="Services">
+                            <StackPanel Spacing="12" Margin="0,12,0,0">
+                                <TextBlock Text="Block specific services without blocking a whole category. Each service has its own toggle."
+                                           Style="{StaticResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                                <ItemsRepeater ItemsSource="{x:Bind ViewModel.ServiceItems, Mode=OneWay}"
+                                               ItemTemplate="{StaticResource ServiceCardTemplate}"/>
+                            </StackPanel>
+                        </PivotItem>
+
+                        <!-- Always Block -->
+                        <PivotItem Header="Always Block">
+                            <StackPanel Spacing="12" Margin="0,12,0,0">
+                                <TextBlock Text="These websites are always blocked on this PC, regardless of categories or schedules."
+                                           Style="{StaticResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+
+                                <!-- Add form card -->
+                                <Border Style="{StaticResource WebFilterCard}" Padding="16">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Add a domain to always block" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     x:Name="AlwaysBlockDomainBox"
+                                                     PlaceholderText="example.com, *.site.com or URL"
+                                                     KeyDown="AlwaysBlockInput_KeyDown"/>
+                                            <TextBox Grid.Column="1"
+                                                     x:Name="AlwaysBlockNoteBox"
+                                                     PlaceholderText="Optional note (e.g. distracting)"
+                                                     KeyDown="AlwaysBlockInput_KeyDown"/>
+                                            <Button Grid.Column="2"
+                                                    Content="Add"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    Click="AddAlwaysBlockButton_Click"/>
+                                        </Grid>
+                                        <InfoBar x:Name="AlwaysBlockInfoBar" IsOpen="False" IsClosable="True"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Header actions: count + Import / Export -->
+                                <Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.AlwaysBlockCountLabel, Mode=OneWay}"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                        <Button Content="Import..." Click="ImportAlwaysBlockButton_Click"/>
+                                        <Button Content="Export..." Click="ExportAlwaysBlockButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Items list -->
+                                <ItemsRepeater ItemsSource="{x:Bind ViewModel.AlwaysBlockItems, Mode=OneWay}"
+                                               ItemTemplate="{StaticResource DomainRowTemplate}"/>
+                            </StackPanel>
+                        </PivotItem>
+
+                        <!-- Always Allow -->
+                        <PivotItem Header="Always Allow">
+                            <StackPanel Spacing="12" Margin="0,12,0,0">
+                                <TextBlock Text="These websites are always allowed, bypassing all category and service block rules. Adding or removing requires authentication."
+                                           Style="{StaticResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+
+                                <!-- Add form card -->
+                                <Border Style="{StaticResource WebFilterCard}" Padding="16">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Add a domain to always allow" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     x:Name="AlwaysAllowDomainBox"
+                                                     PlaceholderText="example.com, *.site.com or URL"
+                                                     KeyDown="AlwaysAllowInput_KeyDown"/>
+                                            <TextBox Grid.Column="1"
+                                                     x:Name="AlwaysAllowNoteBox"
+                                                     PlaceholderText="Optional note (e.g. work requirement)"
+                                                     KeyDown="AlwaysAllowInput_KeyDown"/>
+                                            <Button Grid.Column="2"
+                                                    Content="Add"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    Click="AddAlwaysAllowButton_Click"/>
+                                        </Grid>
+                                        <InfoBar x:Name="AlwaysAllowInfoBar" IsOpen="False" IsClosable="True"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Header actions: count + Import / Export -->
+                                <Grid>
+                                    <TextBlock Text="{x:Bind ViewModel.AlwaysAllowCountLabel, Mode=OneWay}"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                        <Button Content="Import..." Click="ImportAlwaysAllowButton_Click"/>
+                                        <Button Content="Export..." Click="ExportAlwaysAllowButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Items list -->
+                                <ItemsRepeater ItemsSource="{x:Bind ViewModel.AlwaysAllowItems, Mode=OneWay}"
+                                               ItemTemplate="{StaticResource DomainRowTemplate}"/>
+                            </StackPanel>
+                        </PivotItem>
+                    </Pivot>
                 </StackPanel>
             </ScrollViewer>
 

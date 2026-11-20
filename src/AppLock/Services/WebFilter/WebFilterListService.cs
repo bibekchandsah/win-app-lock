@@ -373,6 +373,24 @@ public sealed class WebFilterListService : IDisposable
             });
         }
 
+        var services = new List<ServiceRuleSet>();
+        foreach (var svc in _catalog.Services)
+        {
+            if (!filter.Services.TryGetValue(svc.Id, out var rule) || !rule.Enabled)
+            {
+                continue;
+            }
+
+            services.Add(new ServiceRuleSet
+            {
+                Id = svc.Id,
+                DisplayName = svc.Name,
+                CategoryDisplayName = _catalog.Find(svc.Category)?.Name ?? svc.Category,
+                Domains = new SuffixSet(svc.Domains),
+                ActiveWindows = ToWindows(rule.ActiveBlocks)
+            });
+        }
+
         return new DomainRuleSet
         {
             Enabled = enabled,
@@ -385,7 +403,7 @@ public sealed class WebFilterListService : IDisposable
             AlwaysAllow = new SuffixSet(filter.AlwaysAllow.Select(e => e.Domain)),
             AlwaysBlock = new SuffixSet(filter.AlwaysBlock.Select(e => e.Domain)),
             Categories = categories,
-            Services = Array.Empty<ServiceRuleSet>()
+            Services = services
         };
     }
 

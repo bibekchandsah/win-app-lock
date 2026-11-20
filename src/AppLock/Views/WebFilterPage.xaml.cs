@@ -49,11 +49,13 @@ public sealed partial class WebFilterPage : Page
 
         // Build initial (empty) cards immediately so the repeater is visible
         ViewModel.BuildCategoryCards();
+        ViewModel.BuildServicesAndSites();
 
         await ViewModel.InitializeListsAsync();
 
         // Refresh cards with real domain counts after lists are loaded
         ViewModel.RefreshCategoryDomainCounts();
+        ViewModel.BuildServicesAndSites();
         PopulateStatus();
     }
 
@@ -332,5 +334,215 @@ public sealed partial class WebFilterPage : Page
     private void UpdatePauseButtonLabel()
     {
         PauseButton.Content = ViewModel.IsPaused ? "Resume" : "Pause";
+    }
+
+    // ── Authentication Helper ─────────────────────────────────────────────────
+
+    private async Task<bool> RequestAuthAsync(string prompt = "Authentication required")
+    {
+        if (ServiceContainer.AuthService.IsFirstRun) return true;
+        var dialog = new AuthDialog(ServiceContainer.AuthService)
+        {
+            XamlRoot = this.Content.XamlRoot,
+            IntroText = prompt
+        };
+        await dialog.ShowAsync();
+        return dialog.IsAuthenticated;
+    }
+
+    // ── Always Block Actions ──────────────────────────────────────────────────
+
+    private void AddAlwaysBlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        PerformAddAlwaysBlock();
+    }
+
+    private void AlwaysBlockInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            PerformAddAlwaysBlock();
+        }
+    }
+
+    private void PerformAddAlwaysBlock()
+    {
+        string domain = AlwaysBlockDomainBox.Text;
+        string note = AlwaysBlockNoteBox.Text;
+
+        if (ViewModel.AddAlwaysBlock(domain, note, out var message))
+        {
+            AlwaysBlockDomainBox.Text = string.Empty;
+            AlwaysBlockNoteBox.Text = string.Empty;
+            AlwaysBlockInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysBlockInfoBar.Title = "Added";
+            AlwaysBlockInfoBar.Message = $"{domain} will always be blocked.";
+            AlwaysBlockInfoBar.IsOpen = true;
+        }
+        else
+        {
+            AlwaysBlockInfoBar.Severity = InfoBarSeverity.Error;
+            AlwaysBlockInfoBar.Title = "Could not add";
+            AlwaysBlockInfoBar.Message = message;
+            AlwaysBlockInfoBar.IsOpen = true;
+        }
+    }
+
+    private async void ImportAlwaysBlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new WebFilter.Dialogs.ImportDomainsDialog("Always Block")
+        {
+            XamlRoot = this.Content.XamlRoot
+        };
+        await dialog.ShowAsync();
+        if (!string.IsNullOrWhiteSpace(dialog.ImportedText))
+        {
+            int added = ViewModel.ImportAlwaysBlock(dialog.ImportedText);
+            AlwaysBlockInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysBlockInfoBar.Title = "Imported";
+            AlwaysBlockInfoBar.Message = $"Added {added} new domain(s) to Always Block.";
+            AlwaysBlockInfoBar.IsOpen = true;
+        }
+    }
+
+    private async void ExportAlwaysBlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ExportTextFileAsync("AlwaysBlock_Domains.txt", ViewModel.ExportAlwaysBlock());
+    }
+
+    // ── Always Allow Actions ──────────────────────────────────────────────────
+
+    private async void AddAlwaysAllowButton_Click(object sender, RoutedEventArgs e)
+    {
+        await PerformAddAlwaysAllowAsync();
+    }
+
+    private async void AlwaysAllowInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            await PerformAddAlwaysAllowAsync();
+        }
+    }
+
+    private async Task PerformAddAlwaysAllowAsync()
+    {
+        string domain = AlwaysAllowDomainBox.Text;
+        string note = AlwaysAllowNoteBox.Text;
+
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            AlwaysAllowInfoBar.Severity = InfoBarSeverity.Error;
+            AlwaysAllowInfoBar.Title = "Enter a domain";
+            AlwaysAllowInfoBar.Message = "Please type a domain name or URL to allow.";
+            AlwaysAllowInfoBar.IsOpen = true;
+            return;
+        }
+
+        // Authenticate before allowing a domain
+        if (!await RequestAuthAsync("Enter your password to add a domain to Always Allow"))
+        {
+            return;
+        }
+
+        if (ViewModel.AddAlwaysAllow(domain, note, out var message, out bool isNeverBlock))
+        {
+            AlwaysAllowDomainBox.Text = string.Empty;
+            AlwaysAllowNoteBox.Text = string.Empty;
+            AlwaysAllowInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysAllowInfoBar.Title = "Added";
+            AlwaysAllowInfoBar.Message = $"{domain} will always be allowed.";
+            AlwaysAllowInfoBar.IsOpen = true;
+        }
+        else
+        {
+            AlwaysAllowInfoBar.Severity = isNeverBlock ? InfoBarSeverity.Informational : InfoBarSeverity.Error;
+            AlwaysAllowInfoBar.Title = isNeverBlock ? "Already protected" : "Could not add";
+            AlwaysAllowInfoBar.Message = message;
+            AlwaysAllowInfoBar.IsOpen = true;
+        }
+    }
+
+    private async void ImportAlwaysAllowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await RequestAuthAsync("Enter your password to import domains into Always Allow"))
+        {
+            return;
+        }
+
+        var dialog = new WebFilter.Dialogs.ImportDomainsDialog("Always Allow")
+        {
+            XamlRoot = this.Content.XamlRoot
+        };
+        await dialog.ShowAsync();
+        if (!string.IsNullOrWhiteSpace(dialog.ImportedText))
+        {
+            int added = ViewModel.ImportAlwaysAllow(dialog.ImportedText);
+            AlwaysAllowInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysAllowInfoBar.Title = "Imported";
+            AlwaysAllowInfoBar.Message = $"Added {added} new domain(s) to Always Allow.";
+            AlwaysAllowInfoBar.IsOpen = true;
+        }
+    }
+
+    private async void ExportAlwaysAllowButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ExportTextFileAsync("AlwaysAllow_Domains.txt", ViewModel.ExportAlwaysAllow());
+    }
+
+    // ── Delete Domain Action ──────────────────────────────────────────────────
+
+    private async void DeleteDomain_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: DomainItemViewModel item }) return;
+
+        bool isBlock = ViewModel.AlwaysBlockItems.Contains(item);
+        string listName = isBlock ? "Always Block" : "Always Allow";
+
+        // Removing from either list requires authentication
+        if (!await RequestAuthAsync($"Enter your password to remove {item.Domain} from {listName}"))
+        {
+            return;
+        }
+
+        if (isBlock)
+        {
+            ViewModel.RemoveAlwaysBlock(item);
+        }
+        else
+        {
+            ViewModel.RemoveAlwaysAllow(item);
+        }
+    }
+
+    // ── Export helper ─────────────────────────────────────────────────────────
+
+    private async Task ExportTextFileAsync(string suggestedName, string text)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileSavePicker();
+            var targetWin = App.MainWindowInstance ?? MainWindow.Instance;
+            if (targetWin != null)
+            {
+                nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWin);
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Text document", new List<string> { ".txt" });
+            picker.SuggestedFileName = suggestedName;
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await Windows.Storage.FileIO.WriteTextAsync(file, text);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WebFilter] Export failed: {ex.Message}");
+        }
     }
 }

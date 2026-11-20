@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "category": "streaming",
+      "icon": "\uE786",
+      "domains": [
+        "youtube.com",
+        "youtu.be",
+        "googlevideo.com",
+        "ytimg.com",
+        "youtubei.googleapis.com"
+      ]
+    },
+    {
+      "id": "netflix",
+      "name": "Netflix",
+      "category": "streaming",
+      "icon": "\uE786",
+      "domains": [
+        "netflix.com",
+        "nflxvideo.net",
+        "nflxext.com",
+        "nflxso.net",
+        "nflximg.net"
+      ]
+    },
+    {
+      "id": "twitch",
+      "name": "Twitch",
+      "category": "streaming",
+      "icon": "\uE786",
+      "domains": [
+        "twitch.tv",
+        "ttvnw.net",
+        "jtvnw.net"
+      ]
+    },
+    {
+      "id": "facebook",
+      "name": "Facebook",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "facebook.com",
+        "fbcdn.net",
+        "fbsbx.com",
+        "fb.com",
+        "fb.watch"
+      ]
+    },
+    {
+      "id": "instagram",
+      "name": "Instagram",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "instagram.com",
+        "cdninstagram.com",
+        "ig.me"
+      ]
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp Web",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "whatsapp.com",
+        "whatsapp.net",
+        "web.whatsapp.com"
+      ]
+    },
+    {
+      "id": "messenger",
+      "name": "Messenger",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "messenger.com",
+        "m.me"
+      ]
+    },
+    {
+      "id": "tiktok",
+      "name": "TikTok",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "tiktok.com",
+        "byteoversea.com",
+        "ibyteimg.com",
+        "musical.ly",
+        "tiktokcdn.com"
+      ]
+    },
+    {
+      "id": "twitter",
+      "name": "X (Twitter)",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "x.com",
+        "twitter.com",
+        "twimg.com",
+        "t.co"
+      ]
+    },
+    {
+      "id": "snapchat",
+      "name": "Snapchat",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "snapchat.com",
+        "sc-cdn.net"
+      ]
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "reddit.com",
+        "redd.it",
+        "redditmedia.com",
+        "redditstatic.com"
+      ]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "discord.com",
+        "discordapp.com",
+        "discord.gg",
+        "discordstatus.com",
+        "discord.media"
+      ]
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "telegram.org",
+        "t.me",
+        "telegram.me"
+      ]
+    },
+    {
+      "id": "pinterest",
+      "name": "Pinterest",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "pinterest.com",
+        "pinimg.com"
+      ]
+    },
+    {
+      "id": "linkedin",
+      "name": "LinkedIn",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "linkedin.com",
+        "licdn.com"
+      ]
+    },
+    {
+      "id": "tumblr",
+      "name": "Tumblr",
+      "category": "social",
+      "icon": "\uE716",
+      "domains": [
+        "tumblr.com"
+      ]
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "category": "games",
+      "icon": "\uE7FC",
+      "domains": [
+        "steampowered.com",
+        "steamcommunity.com",
+        "steamstatic.com"
+      ]
+    },
+    {
+      "id": "roblox",
+      "name": "Roblox",
+      "category": "games",
+      "icon": "\uE7FC",
+      "domains": [
+        "roblox.com",
+        "rbxcdn.com"
+      ]
+    },
+    {
+      "id": "epicgames",
+      "name": "Epic Games",
+      "category": "games",
+      "icon": "\uE7FC",
+      "domains": [
+        "epicgames.com",
+        "unrealengine.com"
+      ]
+    }
+  ]
+}
