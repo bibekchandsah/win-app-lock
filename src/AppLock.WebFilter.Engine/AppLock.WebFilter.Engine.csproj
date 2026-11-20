@@ -12,4 +12,9 @@
     <!-- No UI references: this library must be able to move into a Windows service later. -->
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- XxHash64 for the compact domain snapshots. -->
+    <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,84 @@
+# AppLock Web Filter - curated bypass tools list
+# VPN, proxy, anonymizer and public DNS-over-HTTPS service domains.
+# License: AppLock (curated from the providers' public service domains)
+# Format: plain, one domain per line.
+
+# Public DNS-over-HTTPS resolvers
+cloudflare-dns.com
+mozilla.cloudflare-dns.com
+security.cloudflare-dns.com
+one.one.one.one
+dns.google
+dns.google.com
+dns.quad9.net
+doh.opendns.com
+dns.adguard.com
+dns.adguard-dns.com
+family.adguard-dns.com
+dns.nextdns.io
+doh.cleanbrowsing.org
+dns.mullvad.net
+doh.mullvad.net
+dns.controld.com
+doh.controld.com
+dns.sb
+doh.dns.sb
+doh.libredns.gr
+dns.alidns.com
+doh.pub
+dns.shaw.ca
+
+# VPN providers
+nordvpn.com
+nordvpn.net
+expressvpn.com
+expressvpn.net
+surfshark.com
+surfshark.net
+protonvpn.com
+protonvpn.net
+mullvad.net
+ivpn.net
+windscribe.com
+windscribe.net
+cyberghostvpn.com
+privateinternetaccess.com
+purevpn.com
+ipvanish.com
+hidemyass.com
+tunnelbear.com
+hotspotshield.com
+vyprvpn.com
+atlasvpn.com
+torguard.net
+airvpn.org
+perfect-privacy.com
+hide.me
+zoogvpn.com
+xvpn.io
+1clickvpn.net
+speedify.com
+betternet.co
+hola.org
+urban-vpn.com
+piaproxy.com
+proxy-seller.com
+brightdata.com
+smartproxy.com
+oxylabs.io
+
+# Anonymity networks and their public entry points
+torproject.org
+geti2p.net
+psiphon.ca
+lantern.io
+ultrasurf.us
+anonymizer.com
+
+# Web proxy gateways
+kproxy.com
+proxysite.com
+croxyproxy.com
+hideproxy.me
+filterbypass.me
+whoer.net

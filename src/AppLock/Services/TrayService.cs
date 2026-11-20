@@ -1609,13 +1609,13 @@ public sealed class TrayService : IDisposable
         }
     }
 
-    private async void OnNotificationAnchorSelected(string anchor)
+    private void OnNotificationAnchorSelected(string anchor)
     {
         try
         {
             if (anchor == "Custom")
             {
-                await TriggerCustomPositionPickerAsync();
+                TriggerCustomPositionPicker();
             }
             else
             {
@@ -1631,7 +1631,7 @@ public sealed class TrayService : IDisposable
         }
     }
 
-    private async Task TriggerCustomPositionPickerAsync()
+    private void TriggerCustomPositionPicker()
     {
         try
         {

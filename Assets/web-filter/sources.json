@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "adult",
+      "name": "Adult content",
+      "description": "Pornography and adult video sites.",
+      "limits": "Blocks whole domains only; a new site that is not on the list can still be reached.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "StevenBlack porn extension",
+          "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts",
+          "format": "hosts",
+          "license": "MIT",
+          "attribution": "Steven Black's hosts, porn extension - https://github.com/StevenBlack/hosts",
+          "bundled": "adult.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "gambling",
+      "name": "Gambling",
+      "description": "Casinos, sports betting, poker and lottery sites.",
+      "limits": "Blocks the service's domains; a gambling stream embedded on another site is not caught.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "StevenBlack gambling extension",
+          "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts",
+          "format": "hosts",
+          "license": "MIT",
+          "attribution": "Steven Black's hosts, gambling extension - https://github.com/StevenBlack/hosts",
+          "bundled": "gambling.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "social",
+      "name": "Social media",
+      "description": "Social networks and their messaging sites.",
+      "limits": "Blocks login buttons and embedded posts from these networks on other sites too.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "StevenBlack social extension",
+          "url": "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/social/hosts",
+          "format": "hosts",
+          "license": "MIT",
+          "attribution": "Steven Black's hosts, social extension - https://github.com/StevenBlack/hosts",
+          "bundled": "social.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "malware",
+      "name": "Malware & phishing",
+      "description": "Known phishing and malware hosting domains. Low false positives.",
+      "limits": "Only catches domains already reported; new attacks appear first.",
+      "defaultEnabled": true,
+      "sources": [
+        {
+          "name": "Block List Project phishing",
+          "url": "https://blocklistproject.github.io/Lists/phishing.txt",
+          "format": "hosts",
+          "license": "MIT (list header) / Unlicense (repository)",
+          "attribution": "The Block List Project - https://github.com/blocklistproject/Lists",
+          "bundled": "malware.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "bypass",
+      "name": "Bypass tools (VPN, proxy, DoH)",
+      "description": "Well-known VPN, proxy, anonymizer and public DNS-over-HTTPS services.",
+      "limits": "A private VPN server with an unknown name, Tor bridges and an app with hard-coded DNS are not caught.",
+      "defaultEnabled": true,
+      "sources": [
+        {
+          "name": "AppLock curated bypass list",
+          "url": "",
+          "format": "plain",
+          "license": "AppLock",
+          "attribution": "Curated by AppLock from the providers' public service domains",
+          "bundled": "bypass.txt"
+        }
+      ]
+    },
+    {
+      "id": "streaming",
+      "name": "Video streaming",
+      "description": "YouTube, Netflix, Twitch and other video services.",
+      "limits": "Blocks the whole service, including embeds and sign-in on other pages.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "AppLock curated streaming list",
+          "url": "",
+          "format": "plain",
+          "license": "AppLock",
+          "attribution": "Curated by AppLock from the services' public domains",
+          "bundled": "streaming.txt"
+        }
+      ]
+    },
+    {
+      "id": "dating",
+      "name": "Dating",
+      "description": "Dating apps and websites.",
+      "limits": "Catches the listed services only; a dating community hosted elsewhere is not caught.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "AppLock curated dating list",
+          "url": "",
+          "format": "plain",
+          "license": "AppLock",
+          "attribution": "Curated by AppLock from the services' public domains",
+          "bundled": "dating.txt"
+        }
+      ]
+    },
+    {
+      "id": "games",
+      "name": "Games",
+      "description": "Gaming stores, launchers and browser-game sites.",
+      "limits": "Single-player games that never contact their store are not affected.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "AppLock curated games list",
+          "url": "",
+          "format": "plain",
+          "license": "AppLock",
+          "attribution": "Curated by AppLock from the stores' and launchers' public domains",
+          "bundled": "games.txt"
+        }
+      ]
+    },
+    {
+      "id": "piracy",
+      "name": "Piracy & torrents",
+      "description": "Piracy indexes, torrent trackers and illegal streaming sites.",
+      "limits": "Blocks the index and tracker domains; a direct IP or magnet link cannot be filtered by DNS.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "Block List Project piracy",
+          "url": "https://blocklistproject.github.io/Lists/piracy.txt",
+          "format": "hosts",
+          "license": "MIT (list header) / Unlicense (repository)",
+          "attribution": "The Block List Project - https://github.com/blocklistproject/Lists",
+          "bundled": "piracy.txt.gz"
+        },
+        {
+          "name": "Block List Project torrent",
+          "url": "https://blocklistproject.github.io/Lists/torrent.txt",
+          "format": "hosts",
+          "license": "MIT (list header) / Unlicense (repository)",
+          "attribution": "The Block List Project - https://github.com/blocklistproject/Lists",
+          "bundled": "torrent.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "drugs",
+      "name": "Drugs & alcohol",
+      "description": "Online drug shops and alcohol delivery sites.",
+      "limits": "Community list: local shops and new sites may be missing.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "Block List Project drugs",
+          "url": "https://blocklistproject.github.io/Lists/drugs.txt",
+          "format": "hosts",
+          "license": "MIT (list header) / Unlicense (repository)",
+          "attribution": "The Block List Project - https://github.com/blocklistproject/Lists",
+          "bundled": "drugs.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "ads",
+      "name": "Ads & trackers",
+      "description": "Advertising and tracking domains. Convenience, not safety.",
+      "limits": "Can break sites that depend on their ad or analytics scripts.",
+      "defaultEnabled": false,
+      "sources": [
+        {
+          "name": "Block List Project ads",
+          "url": "https://blocklistproject.github.io/Lists/ads.txt",
+          "format": "hosts",
+          "license": "MIT (list header) / Unlicense (repository)",
+          "attribution": "The Block List Project - https://github.com/blocklistproject/Lists",
+          "bundled": "ads.txt.gz"
+        }
+      ]
+    }
+  ]
+}

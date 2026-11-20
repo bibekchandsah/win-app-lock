@@ -21,7 +21,9 @@
     <ApplicationIcon>icons\icon.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
-    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3851</MSBuildWarningsAsMessages>
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3851;NETSDK1206</MSBuildWarningsAsMessages>
+    <!-- WinUI's SDK ships version-specific RIDs; the warning is expected for this unpackaged app. -->
+    <NoWarn>$(NoWarn);NETSDK1206</NoWarn>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin-verify\**;bin-verify3\**;verify-bin\**;**\*verify*\**</DefaultItemExcludes>
   </PropertyGroup>
 

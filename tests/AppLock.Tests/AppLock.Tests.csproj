@@ -73,6 +73,8 @@
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\WebFilterSettings.cs" Link="Models\WebFilterSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterCatalog.cs" Link="Services\WebFilter\WebFilterCatalog.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterListService.cs" Link="Services\WebFilter\WebFilterListService.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultSettings.cs" Link="Models\Vault\VaultSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\KeySlot.cs" Link="Models\Vault\KeySlot.cs" />
     <Compile Include="..\..\src\AppLock\Models\Vault\VaultConfig.cs" Link="Models\Vault\VaultConfig.cs" />

@@ -1,4 +1,5 @@
 using AppLock.Models;
+using AppLock.Services.WebFilter;
 
 namespace AppLock.Services;
 
@@ -55,6 +56,7 @@ public static class ServiceContainer
     private static AppLock.Services.Firewall.PortWatchService? _portWatchService;
     private static AppLock.Services.Vault.VaultSessionManager? _vaultSessionManager;
     private static AppLock.Services.Vault.VaultAutoLockService? _vaultAutoLockService;
+    private static WebFilterListService? _webFilterListService;
 
     public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
     {
@@ -114,6 +116,22 @@ public static class ServiceContainer
                 _settingsStore = new SettingsStore();
             }
             return _settingsStore;
+        }
+    }
+
+    /// <summary>
+    /// The Web Filter block-list pipeline. Created on first use so loading and compiling the bundled
+    /// lists never slows down app startup.
+    /// </summary>
+    public static WebFilterListService WebFilterListService
+    {
+        get
+        {
+            if (_webFilterListService == null)
+            {
+                _webFilterListService = new WebFilterListService(Settings, SettingsStore.Save);
+            }
+            return _webFilterListService;
         }
     }
 
@@ -320,6 +338,9 @@ public static class ServiceContainer
             _ = _screenTimeService.Store.DisposeAsync();
             _screenTimeService = null;
         }
+        _webFilterListService?.Dispose();
+        _webFilterListService = null;
+
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();
         _idleService?.Dispose();
@@ -352,8 +373,7 @@ public static class ServiceContainer
         _displayHelper = null;
         _windowEventMonitor = null;
         _localizationService = null;
-        _notificationService = null;
-        _selfDisciplineService = null;
+        _notificationService = null;        _selfDisciplineService = null;
         _bitLockerSupportService = null;
         _bitLockerService = null;
         _volumeWatcher?.Dispose();

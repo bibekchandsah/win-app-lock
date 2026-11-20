@@ -1,0 +1,30 @@
+# AppLock Web Filter - curated dating list
+# License: AppLock (curated from the services' public domains)
+# Format: plain, one domain per line.
+
+tinder.com
+gotinder.com
+bumble.com
+badoo.com
+match.com
+okcupid.com
+pof.com
+hinge.co
+coffee-meets-bagel.com
+zoosk.com
+eharmony.com
+ashleymadison.com
+adultfriendfinder.com
+grindr.com
+jackd.com
+taimi.com
+her.com
+lex.app
+feeld.co
+happn.com
+once.com
+elitesingles.com
+silversingles.com
+ourtime.com
+christianmingle.com
+jdate.com

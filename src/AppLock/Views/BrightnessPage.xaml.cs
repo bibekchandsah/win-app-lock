@@ -255,7 +255,7 @@ public sealed partial class BrightnessPage : Page
         _viewModel?.SaveSettings();
     }
 
-    private async void ResetDisplay_Click(object sender, RoutedEventArgs e)
+    private void ResetDisplay_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel == null) return;
         

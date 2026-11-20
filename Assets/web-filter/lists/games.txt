@@ -1,0 +1,44 @@
+# AppLock Web Filter - curated games list
+# License: AppLock (curated from the stores' and launchers' public domains)
+# Format: plain, one domain per line.
+
+steampowered.com
+steamcommunity.com
+steamstatic.com
+steamcontent.com
+epicgames.com
+epicgames.dev
+unrealengine.com
+roblox.com
+rbxcdn.com
+minecraft.net
+mojang.com
+battle.net
+blizzard.com
+riotgames.com
+leagueoflegends.com
+valorant.com
+ea.com
+origin.com
+eaassets-a.akamaihd.net
+ubisoft.com
+ubisoftconnect.com
+gog.com
+itch.io
+nintendo.com
+nintendo.net
+playstation.com
+playstation.net
+xbox.com
+xboxlive.com
+miniclip.com
+pogo.com
+kongregate.com
+armorgames.com
+crazygames.com
+poki.com
+y8.com
+agar.io
+slither.io
+coolmathgames.com
+newgrounds.com

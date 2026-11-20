@@ -85,6 +85,9 @@ public class WebFilterSettings
 
     public bool AutoUpdateLists { get; set; } = true;
 
+    /// <summary>True once the catalogue defaults have been written into <see cref="Categories"/>.</summary>
+    public bool DefaultsSeeded { get; set; }
+
     public DateTime? PausedUntilUtc { get; set; }
 
     public bool CacheEnabled { get; set; } = true;

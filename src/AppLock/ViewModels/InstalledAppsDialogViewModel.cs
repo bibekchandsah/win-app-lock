@@ -109,7 +109,7 @@ public partial class InstalledAppViewModel : ObservableObject
             {
                 var tcs = new TaskCompletionSource<bool>();
                 
-                _dispatcherQueue.TryEnqueue(async () =>
+                _dispatcherQueue.TryEnqueue(() =>
                 {
                     try
                     {

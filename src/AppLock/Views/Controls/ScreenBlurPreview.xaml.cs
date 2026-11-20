@@ -93,7 +93,7 @@ public sealed partial class ScreenBlurPreview : UserControl
             if (!System.IO.File.Exists(path))
             {
                 System.Diagnostics.Debug.WriteLine($"[ScreenBlurPreview] Wallpaper file does not exist: {path}");
-                await LoadFallbackImageAsync();
+                LoadFallbackImage();
                 return;
             }
 
@@ -112,11 +112,11 @@ public sealed partial class ScreenBlurPreview : UserControl
             System.Diagnostics.Debug.WriteLine($"[ScreenBlurPreview] Exception type: {ex.GetType().Name}");
             
             // Try fallback image
-            await LoadFallbackImageAsync();
+            LoadFallbackImage();
         }
     }
 
-    private async Task LoadFallbackImageAsync()
+    private void LoadFallbackImage()
     {
         try
         {
@@ -194,7 +194,7 @@ public sealed partial class ScreenBlurPreview : UserControl
         }
         else
         {
-            await LoadFallbackImageAsync();
+            LoadFallbackImage();
         }
     }
 

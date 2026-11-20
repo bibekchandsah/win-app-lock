@@ -1,0 +1,45 @@
+# AppLock Web Filter - curated video streaming list
+# License: AppLock (curated from the services' public domains)
+# Format: plain, one domain per line.
+
+youtube.com
+youtu.be
+youtube-nocookie.com
+ytimg.com
+googlevideo.com
+netflix.com
+nflxvideo.net
+nflximg.net
+nflxext.com
+hulu.com
+huluim.com
+disneyplus.com
+disney-plus.net
+bamgrid.com
+dssott.com
+primevideo.com
+amazonvideo.com
+aiv-cdn.net
+aiv-delivery.net
+max.com
+hbomax.com
+hbomaxcdn.com
+peacocktv.com
+paramountplus.com
+crunchyroll.com
+vrv.co
+funimation.com
+discoveryplus.com
+discovery.com
+pluto.tv
+plex.tv
+tubitv.com
+roku.com
+iqiyi.com
+vimeo.com
+dailymotion.com
+rumble.com
+kick.com
+twitch.tv
+ttvnw.net
+justin.tv
