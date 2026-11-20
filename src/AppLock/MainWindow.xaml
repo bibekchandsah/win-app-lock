@@ -203,39 +203,56 @@
                         </Grid>
                     </Button>
                     
-                    <Button x:Name="WebsitesNavButton" 
+                    <Button x:Name="WebFilterNavButton" 
                             Height="40" 
                             Margin="4,0"
                             Padding="0"
                             CornerRadius="8"
-                            IsEnabled="False"
+                            Click="WebFilterNavButton_Click"
                             Background="Transparent"
                             BorderThickness="0"
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
-                            ToolTipService.ToolTip="Websites (Phase 2)">
+                            PointerEntered="NavButton_PointerEntered"
+                            PointerExited="NavButton_PointerExited"
+                            PointerPressed="NavButton_PointerPressed"
+                            PointerCaptureLost="NavButton_PointerExited"
+                            ToolTipService.ToolTip="Web Filter">
                         <Grid Height="40" HorizontalAlignment="Stretch">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <FontIcon x:Name="WebsitesNavIcon"
-                                      Glyph="&#xE774;" 
-                                      Grid.Column="0"
-                                      FontSize="16" 
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                            <TextBlock x:Name="WebsitesNavLabel"
-                                       Grid.Column="1"
-                                       Text="Websites (Phase 2)"
-                                       FontSize="13"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,12,0"
-                                       TextTrimming="CharacterEllipsis"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       Visibility="Collapsed"/>
+                            <Border x:Name="WebFilterNavBackground"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                    Visibility="Collapsed"/>
+                            <Border x:Name="WebFilterNavIndicator"
+                                    Width="3" Height="18"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="1,0,0,0"
+                                    CornerRadius="1.5"
+                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                            <Grid ColumnSpacing="0" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="WebFilterNavIcon"
+                                          Glyph="&#xE774;" 
+                                          Grid.Column="0"
+                                          FontSize="16" 
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="WebFilterNavLabel"
+                                           Grid.Column="1"
+                                           Text="Web Filter"
+                                           FontSize="13"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,12,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </Button>
 

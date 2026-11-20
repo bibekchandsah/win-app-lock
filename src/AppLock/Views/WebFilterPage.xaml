@@ -1,0 +1,207 @@
+<Page
+    x:Class="AppLock.Views.WebFilterPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <Page.Resources>
+        <!-- Card surface follows the Light/Dark/System theme; no fixed colours. -->
+        <Style x:Key="WebFilterCard" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Page header -->
+        <StackPanel Grid.Row="0" Padding="24,24,24,12" Spacing="8">
+            <TextBlock Text="Web Filter"
+                       Style="{StaticResource TitleTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <TextBlock Text="Block whole categories of websites or a single site for every browser on this PC"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Master switch and pause -->
+        <Border Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource WebFilterCard}" Padding="20,16">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <FontIcon Grid.Column="0"
+                          Glyph="&#xE774;"
+                          FontSize="20"
+                          VerticalAlignment="Center"
+                          Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse x:Name="StatusDot"
+                                 Width="8" Height="8"
+                                 VerticalAlignment="Center"
+                                 Fill="{ThemeResource TextFillColorTertiaryBrush}"/>
+                        <TextBlock x:Name="StatusTitle"
+                                   Text="Web Filter is Off"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                    </StackPanel>
+                    <TextBlock x:Name="StatusDetail"
+                               Text="No websites are blocked. The filter isn't set up yet."
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="MasterToggle"
+                                  IsEnabled="False"
+                                  OnContent="On"
+                                  OffContent="Off"
+                                  MinWidth="0"/>
+                    <Button x:Name="PauseButton"
+                            Content="Pause"
+                            IsEnabled="False"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Status area -->
+        <StackPanel Grid.Row="2" Padding="24,0,24,12" Spacing="8">
+            <InfoBar x:Name="NotElevatedInfoBar"
+                     Severity="Warning"
+                     Title="Administrator rights required"
+                     Message="Administrator rights are needed to change DNS and firewall settings on this PC."
+                     IsOpen="False"
+                     IsClosable="False">
+                <InfoBar.ActionButton>
+                    <Button Content="Restart as administrator"
+                            Click="RestartAsAdminButton_Click"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </StackPanel>
+
+        <!-- Honest scope note -->
+        <TextBlock Grid.Row="3"
+                   Margin="24,0,24,12"
+                   Text="Blocks domain names, not single pages: blocking a site blocks its whole domain. A VPN, a proxy or a browser's own secure DNS can get around it."
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                   TextWrapping="Wrap"/>
+
+        <!-- Tabs -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Padding="24,0,24,12">
+            <Button x:Name="CategoriesTabButton"
+                    Content="Categories"
+                    Tag="categories"
+                    Click="Tab_Click"
+                    Style="{StaticResource AccentButtonStyle}"
+                    Padding="16,8"/>
+            <Button x:Name="SitesTabButton"
+                    Content="Sites"
+                    Tag="sites"
+                    Click="Tab_Click"
+                    Padding="16,8"/>
+            <Button x:Name="ActivityTabButton"
+                    Content="Activity"
+                    Tag="activity"
+                    Click="Tab_Click"
+                    Padding="16,8"/>
+            <Button x:Name="SettingsTabButton"
+                    Content="Settings"
+                    Tag="settings"
+                    Click="Tab_Click"
+                    Padding="16,8"/>
+        </StackPanel>
+
+        <!-- Tab content -->
+        <Grid Grid.Row="5" Padding="24,0,24,24">
+
+            <ScrollViewer x:Name="CategoriesPanel" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Categories"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Adult content, gambling, social media and the other categories will be listed here, each with the number of domains it covers, a switch and a schedule."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Nothing is blocked yet: the filter engine and the block lists come next."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="SitesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Sites"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Always block and always allow lists, plus switches for individual services such as YouTube, Instagram or Steam, will live here."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="ActivityPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Activity"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Blocked requests, their counts and the log settings will be shown here. Nothing is logged until the filter is running."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Settings"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Mode, upstream DNS, block list updates, bypass protection and the emergency restore will be configured here."
+                                       Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Restoring the original DNS settings will always be available without a password."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>

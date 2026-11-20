@@ -105,6 +105,9 @@ public class AppSettings
     // Vault
     public VaultSettings Vault { get; set; } = new();
 
+    // Web Filter (DNS filtering); see Models/WebFilterSettings.cs
+    public WebFilterSettings WebFilter { get; set; } = new();
+
     // First run
     public bool IsFirstRun { get; set; } = true;
 }

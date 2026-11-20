@@ -45,7 +45,8 @@ public class SettingsStore
                 bool hadSelfDisciplineInJson = json.Contains("\"SelfDiscipline\"");
                 bool hadBatteryLevelsInJson = json.Contains("\"BatteryLowPercents\"")
                     || json.Contains("\"BatteryHighPercents\"");
-                MigrateSettings(settings, !hadSelfDisciplineInJson, hadBatteryLevelsInJson);
+                bool hadWebFilterInJson = json.Contains("\"WebFilter\"");
+                MigrateSettings(settings, !hadSelfDisciplineInJson, hadBatteryLevelsInJson, hadWebFilterInJson);
                 return settings;
             }
 
@@ -58,7 +59,7 @@ public class SettingsStore
         }
     }
 
-    private void MigrateSettings(AppSettings settings, bool forceSave = false, bool hadBatteryLevels = true)
+    private void MigrateSettings(AppSettings settings, bool forceSave = false, bool hadBatteryLevels = true, bool hadWebFilter = true)
     {
         bool modified = forceSave;
 
@@ -82,6 +83,25 @@ public class SettingsStore
         if (settings.LockRules == null)
         {
             settings.LockRules = new List<LockRule>();
+        }
+
+        // Settings written before Web Filter existed have no WebFilter block at all; a null block
+        // (hand-edited file) is repaired the same way, and the collection guards keep it usable.
+        if (settings.WebFilter == null)
+        {
+            settings.WebFilter = new WebFilterSettings();
+            modified = true;
+        }
+        else if (settings.WebFilter.Normalize())
+        {
+            modified = true;
+        }
+
+        // A settings file written before this feature has no WebFilter block; save the defaults once
+        // so the file carries its own Web Filter settings from then on.
+        if (!hadWebFilter)
+        {
+            modified = true;
         }
 
         if (settings.Clipboard == null)

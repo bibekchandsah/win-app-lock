@@ -328,6 +328,7 @@ public sealed partial class MainWindow : Window
         bool isSettings = pageType == typeof(SettingsPage);
         bool isBitLocker = pageType == typeof(BitLockerPage);
         bool isInternetAccess = pageType == typeof(InternetAccessPage);
+        bool isWebFilter = pageType == typeof(WebFilterPage);
         bool isOthers = pageType == typeof(OthersPage) ||
                         pageType == typeof(BrightnessPage) ||
                         pageType == typeof(EyeCarePage) ||
@@ -368,11 +369,6 @@ public sealed partial class MainWindow : Window
             ? new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(200, 80, 80, 80));
 
-        // Disabled items
-        var disabledBrush = isDark
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 120, 120, 120));
-
         UpdateNavItem(isProtection, ProtectionNavBackground, ProtectionNavIndicator, ProtectionNavIcon, ProtectionNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
@@ -383,6 +379,10 @@ public sealed partial class MainWindow : Window
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
         UpdateNavItem(isSettings, SettingsNavBackground, SettingsNavIndicator, SettingsNavIcon, SettingsNavLabel,
+            activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
+
+        // Web Filter nav
+        UpdateNavItem(isWebFilter, WebFilterNavBackground, WebFilterNavIndicator, WebFilterNavIcon, WebFilterNavLabel,
             activeBgBrush, activeAccentBrush, inactiveIconBrush, activeTextBrush, inactiveTextBrush);
 
         // Internet Access nav
@@ -407,6 +407,7 @@ public sealed partial class MainWindow : Window
             isVault ? VaultNavButton :
             isFeedback ? FeedbackNavButton :
             isSettings ? SettingsNavButton :
+            isWebFilter ? WebFilterNavButton :
             isInternetAccess ? InternetAccessNavButton :
             isBitLocker ? BitLockerNavButton :
             isOthers ? OthersNavButton : null;
@@ -414,8 +415,7 @@ public sealed partial class MainWindow : Window
         MoveNavSelectionPill(selectedButton, animate: true);
 
         if (NavTogglePaneIcon != null) NavTogglePaneIcon.Foreground = inactiveIconBrush;
-        if (WebsitesNavIcon != null) WebsitesNavIcon.Foreground = disabledBrush;
-        if (WebsitesNavLabel != null) WebsitesNavLabel.Foreground = disabledBrush;
+        // Web Filter is a normal, enabled nav item now - no disabled tint.
     }
 
     private void UpdateNavItem(
@@ -815,6 +815,7 @@ public sealed partial class MainWindow : Window
     {
         nameof(ProtectionNavButton)   => ProtectionNavBackground,
         nameof(VaultNavButton)        => VaultNavBackground,
+        nameof(WebFilterNavButton)    => WebFilterNavBackground,
         nameof(InternetAccessNavButton) => InternetAccessNavBackground,
         nameof(BitLockerNavButton)    => BitLockerNavBackground,
         nameof(OthersNavButton)       => OthersNavBackground,
@@ -844,6 +845,22 @@ public sealed partial class MainWindow : Window
             catch (Exception ex)
             {
                 LogService.LogAction("nav", $"Error navigating to InternetAccessPage: {ex.Message}\n{ex}");
+            }
+        }
+    }
+
+    private void WebFilterNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isMainAuthenticated) return;
+        if (ContentFrame.CurrentSourcePageType != typeof(WebFilterPage))
+        {
+            try
+            {
+                ContentFrame.Navigate(typeof(WebFilterPage));
+            }
+            catch (Exception ex)
+            {
+                LogService.LogAction("nav", $"Error navigating to WebFilterPage: {ex.Message}\n{ex}");
             }
         }
     }
@@ -986,7 +1003,7 @@ public sealed partial class MainWindow : Window
         var labelVis = visible ? Visibility.Visible : Visibility.Collapsed;
         if (ProtectionNavLabel != null) ProtectionNavLabel.Visibility = labelVis;
         if (VaultNavLabel != null) VaultNavLabel.Visibility = labelVis;
-        if (WebsitesNavLabel != null) WebsitesNavLabel.Visibility = labelVis;
+        if (WebFilterNavLabel != null) WebFilterNavLabel.Visibility = labelVis;
         if (FeedbackNavLabel != null) FeedbackNavLabel.Visibility = labelVis;
         if (SettingsNavLabel != null) SettingsNavLabel.Visibility = labelVis;
         if (BitLockerNavLabel != null) BitLockerNavLabel.Visibility = labelVis;
@@ -1053,7 +1070,7 @@ public sealed partial class MainWindow : Window
     {
         if (ProtectionNavLabel != null) yield return ProtectionNavLabel;
         if (VaultNavLabel != null) yield return VaultNavLabel;
-        if (WebsitesNavLabel != null) yield return WebsitesNavLabel;
+        if (WebFilterNavLabel != null) yield return WebFilterNavLabel;
         if (FeedbackNavLabel != null) yield return FeedbackNavLabel;
         if (SettingsNavLabel != null) yield return SettingsNavLabel;
         if (BitLockerNavLabel != null) yield return BitLockerNavLabel;
@@ -1303,13 +1320,13 @@ public sealed partial class MainWindow : Window
         if (AppTitleText != null) AppTitleText.Text = loc["AppTitle"];
         if (ProtectionNavLabel != null) ProtectionNavLabel.Text = loc["NavProtection"];
         if (VaultNavLabel != null) VaultNavLabel.Text = loc["NavVault"];
-        if (WebsitesNavLabel != null) WebsitesNavLabel.Text = loc["NavWebsites"];
+        if (WebFilterNavLabel != null) WebFilterNavLabel.Text = loc["NavWebFilter"];
         if (FeedbackNavLabel != null) FeedbackNavLabel.Text = loc["NavFeedback"];
         if (SettingsNavLabel != null) SettingsNavLabel.Text = loc["NavSettings"];
 
         if (ProtectionNavButton != null) ToolTipService.SetToolTip(ProtectionNavButton, loc["NavProtection"]);
         if (VaultNavButton != null) ToolTipService.SetToolTip(VaultNavButton, loc["NavVault"]);
-        if (WebsitesNavButton != null) ToolTipService.SetToolTip(WebsitesNavButton, loc["NavWebsites"]);
+        if (WebFilterNavButton != null) ToolTipService.SetToolTip(WebFilterNavButton, loc["NavWebFilter"]);
         if (FeedbackNavButton != null) ToolTipService.SetToolTip(FeedbackNavButton, loc["NavFeedback"]);
         if (SettingsNavButton != null) ToolTipService.SetToolTip(SettingsNavButton, loc["NavSettings"]);
         if (NavTogglePaneButton != null) ToolTipService.SetToolTip(NavTogglePaneButton, loc["NavToggle"]);
