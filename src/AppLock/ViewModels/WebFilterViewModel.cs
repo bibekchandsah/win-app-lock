@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AppLock.Models;
@@ -9,8 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace AppLock.ViewModels;
 
 /// <summary>
-/// Header, status and "Check a website" state for the Web Filter page. The settings are the single
-/// source of truth; this only formats them for the page and saves when the master switch changes.
+/// Header, status, "Check a website" and Categories tab state for the Web Filter page.
 /// </summary>
 public partial class WebFilterViewModel : ObservableObject
 {
@@ -55,6 +57,99 @@ public partial class WebFilterViewModel : ObservableObject
         }
     }
 
+    // ── Pause ─────────────────────────────────────────────────────────────────
+
+    public bool IsPaused => Filter.IsPaused;
+
+    public string PauseLabel => Filter.IsPaused
+        ? (Filter.PausedUntilUtc is { } u ? $"Resume (paused until {u.ToLocalTime():HH:mm})" : "Resume")
+        : "Pause";
+
+    /// <summary>Pauses filtering for the given number of minutes (or resumes if paused).</summary>
+    public void TogglePause(int minutes = 30)
+    {
+        if (Filter.IsPaused || minutes <= 0)
+        {
+            Filter.PausedUntilUtc = null;
+        }
+        else
+        {
+            Filter.PausedUntilUtc = DateTime.UtcNow.AddMinutes(minutes);
+        }
+        _settingsStore.Save(_settings);
+        OnPropertyChanged(nameof(IsPaused));
+        OnPropertyChanged(nameof(PauseLabel));
+        OnPropertyChanged(nameof(StatusTitle));
+        OnPropertyChanged(nameof(StatusDetail));
+    }
+
+    // ── Categories ────────────────────────────────────────────────────────────
+
+    private ObservableCollection<CategoryCardViewModel> _categoryCards = new();
+    public ObservableCollection<CategoryCardViewModel> CategoryCards => _categoryCards;
+
+    /// <summary>
+    /// Seeds the WebFilterSettings.Categories dictionary from the catalog defaults
+    /// (run once on first enable; idempotent thereafter).
+    /// </summary>
+    public void SeedCategoryDefaults()
+    {
+        var catalog = _lists.Catalog;
+        bool changed = false;
+
+        foreach (var cat in catalog.Categories)
+        {
+            if (!Filter.Categories.ContainsKey(cat.Id))
+            {
+                Filter.Categories[cat.Id] = new CategoryRule { Enabled = cat.DefaultEnabled };
+                changed = true;
+            }
+        }
+
+        if (!Filter.DefaultsSeeded)
+        {
+            Filter.DefaultsSeeded = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _settingsStore.Save(_settings);
+        }
+    }
+
+    /// <summary>Builds the category card view-models from the loaded catalog.</summary>
+    public void BuildCategoryCards()
+    {
+        var catalog = _lists.Catalog;
+        _categoryCards.Clear();
+
+        foreach (var cat in catalog.Categories)
+        {
+            int count = _lists.GetCategoryDomainCount(cat.Id);
+            var card = new CategoryCardViewModel(_settings, _settingsStore, cat, count);
+
+            // Mark unavailable if no list loaded and no bundled file
+            if (count == 0 && cat.Sources.TrueForAll(s => string.IsNullOrEmpty(s.Bundled)))
+            {
+                card.MarkUnavailable("List not available");
+            }
+
+            _categoryCards.Add(card);
+        }
+    }
+
+    /// <summary>Updates domain counts after list initialization completes.</summary>
+    public void RefreshCategoryDomainCounts()
+    {
+        foreach (var card in _categoryCards)
+        {
+            card.SetDomainCount(_lists.GetCategoryDomainCount(card.Id));
+        }
+    }
+
+    // ── Master switch ─────────────────────────────────────────────────────────
+
     /// <summary>Turns the master switch on or off and persists it.</summary>
     public void SetEnabled(bool enabled)
     {
@@ -66,6 +161,8 @@ public partial class WebFilterViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEnabled));
         OnPropertyChanged(nameof(StatusTitle));
         OnPropertyChanged(nameof(StatusDetail));
+        OnPropertyChanged(nameof(IsPaused));
+        OnPropertyChanged(nameof(PauseLabel));
     }
 
     /// <summary>Re-reads the status text after settings changed elsewhere on the page.</summary>
@@ -75,6 +172,8 @@ public partial class WebFilterViewModel : ObservableObject
         OnPropertyChanged(nameof(EnabledCategoryCount));
         OnPropertyChanged(nameof(StatusTitle));
         OnPropertyChanged(nameof(StatusDetail));
+        OnPropertyChanged(nameof(IsPaused));
+        OnPropertyChanged(nameof(PauseLabel));
     }
 
     // ── "Check a website" tool ────────────────────────────────────────────────
@@ -133,6 +232,10 @@ public partial class WebFilterViewModel : ObservableObject
             {
                 ListStatus += " \u00b7 " + _lists.LastError;
             }
+
+            // Build/refresh category cards now that counts are available
+            BuildCategoryCards();
+            RefreshCategoryDomainCounts();
         }
         catch (OperationCanceledException)
         {

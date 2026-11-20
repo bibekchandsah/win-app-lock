@@ -47,7 +47,13 @@ public sealed partial class WebFilterPage : Page
         PopulateStatus();
         ShowTab("categories");
 
+        // Build initial (empty) cards immediately so the repeater is visible
+        ViewModel.BuildCategoryCards();
+
         await ViewModel.InitializeListsAsync();
+
+        // Refresh cards with real domain counts after lists are loaded
+        ViewModel.RefreshCategoryDomainCounts();
         PopulateStatus();
     }
 
@@ -129,6 +135,10 @@ public sealed partial class WebFilterPage : Page
                     return;
                 }
             }
+
+            // Seed category defaults so cards reflect the wizard's choices
+            ViewModel.SeedCategoryDefaults();
+            ViewModel.BuildCategoryCards();
 
             ViewModel.SetEnabled(true);
             bool ok = await ServiceContainer.WebFilterService.StartAsync();
@@ -293,5 +303,34 @@ public sealed partial class WebFilterPage : Page
         {
             Debug.WriteLine($"[WebFilter] Restart as administrator failed: {ex.Message}");
         }
+    }
+
+    // ── Pause button ──────────────────────────────────────────────────────────
+
+    private void PauseButton_30_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.TogglePause(30);
+        PopulateStatus();
+        UpdatePauseButtonLabel();
+    }
+
+    private void PauseButton_60_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.TogglePause(60);
+        PopulateStatus();
+        UpdatePauseButtonLabel();
+    }
+
+    private void PauseResume_Click(object sender, RoutedEventArgs e)
+    {
+        // Force resume (clear pause) by passing 0 minutes when already paused
+        if (ViewModel.IsPaused) ViewModel.TogglePause(0);
+        PopulateStatus();
+        UpdatePauseButtonLabel();
+    }
+
+    private void UpdatePauseButtonLabel()
+    {
+        PauseButton.Content = ViewModel.IsPaused ? "Resume" : "Pause";
     }
 }

@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:AppLock.ViewModels"
     mc:Ignorable="d"
     Background="Transparent">
 
@@ -16,6 +17,75 @@
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="20"/>
         </Style>
+
+        <!-- Category card template -->
+        <DataTemplate x:Key="CategoryCardTemplate" x:DataType="vm:CategoryCardViewModel">
+            <Border Style="{StaticResource WebFilterCard}" Margin="0,0,0,10">
+                <StackPanel Spacing="10">
+                    <!-- Header row: icon, name, domain count, toggle -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Icon -->
+                        <Border Grid.Column="0"
+                                Width="36" Height="36"
+                                CornerRadius="6"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                VerticalAlignment="Center">
+                            <FontIcon Glyph="{x:Bind IconGlyph}"
+                                      FontSize="16"
+                                      Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- Name + description + domain count -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{x:Bind Name}"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="{x:Bind Description}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{x:Bind DomainCountLabel, Mode=OneWay}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       Visibility="{x:Bind AvailableVisible, Mode=OneWay}"/>
+                            <TextBlock Text="{x:Bind UnavailableReason, Mode=OneWay}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                       Visibility="{x:Bind UnavailableVisible, Mode=OneWay}"/>
+                        </StackPanel>
+
+                        <!-- Toggle (disabled when list unavailable) -->
+                        <ToggleSwitch Grid.Column="2"
+                                      IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
+                                      IsEnabled="{x:Bind IsAvailable, Mode=OneWay}"
+                                      OnContent="On"
+                                      OffContent="Off"
+                                      MinWidth="0"
+                                      VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- First-enable inline hint -->
+                    <InfoBar Severity="Informational"
+                             Title=""
+                             Message="Blocked sites will show 'This site can't be reached' in your browser."
+                             IsOpen="{x:Bind FirstEnableHintVisible, Mode=TwoWay}"
+                             IsClosable="True"/>
+
+                    <!-- Limits tooltip (caption) -->
+                    <TextBlock Text="{x:Bind Limits}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid>
@@ -78,9 +148,22 @@
                                   OnContent="On"
                                   OffContent="Off"
                                   MinWidth="0"/>
+                    <!-- Pause flyout -->
                     <Button x:Name="PauseButton"
                             Content="Pause"
-                            IsEnabled="False"/>
+                            IsEnabled="{x:Bind ViewModel.IsEnabled, Mode=OneWay}">
+                        <Button.Flyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Text="Pause for 30 minutes"
+                                                Click="PauseButton_30_Click"/>
+                                <MenuFlyoutItem Text="Pause for 1 hour"
+                                                Click="PauseButton_60_Click"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem Text="Resume now"
+                                                Click="PauseResume_Click"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -204,23 +287,11 @@
         <!-- Tab content -->
         <Grid Grid.Row="6" Padding="24,0,24,24">
 
+            <!-- Categories tab: real category cards -->
             <ScrollViewer x:Name="CategoriesPanel" VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="12">
-                    <Border Style="{StaticResource WebFilterCard}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Categories"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
-                            <TextBlock Text="Adult content, gambling, social media and the other categories will be listed here, each with the number of domains it covers, a switch and a schedule."
-                                       Style="{StaticResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock Text="The list engine is running behind the check tool above. Category cards and their switches arrive in the next milestone."
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                <ItemsRepeater x:Name="CategoryRepeater"
+                               ItemsSource="{x:Bind ViewModel.CategoryCards, Mode=OneWay}"
+                               ItemTemplate="{StaticResource CategoryCardTemplate}"/>
             </ScrollViewer>
 
             <ScrollViewer x:Name="SitesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
