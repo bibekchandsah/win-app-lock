@@ -47,10 +47,28 @@ public sealed class BlockedQueryEventArgs : EventArgs
     {
         Domain = domain;
         Reason = reason;
+        TimestampUtc = DateTime.UtcNow;
     }
 
     public string Domain { get; }
     public string Reason { get; }
+    public DateTime TimestampUtc { get; }
+}
+
+public sealed class QueryEventArgs : EventArgs
+{
+    public QueryEventArgs(string domain, bool blocked, string? reason)
+    {
+        Domain = domain;
+        Blocked = blocked;
+        Reason = reason;
+        TimestampUtc = DateTime.UtcNow;
+    }
+
+    public string Domain { get; }
+    public bool Blocked { get; }
+    public string? Reason { get; }
+    public DateTime TimestampUtc { get; }
 }
 
 /// <summary>
@@ -90,6 +108,7 @@ public sealed class DnsFilterServer : IAsyncDisposable
     public bool IsRunning => _cts is { IsCancellationRequested: false };
 
     public event EventHandler<BlockedQueryEventArgs>? QueryBlocked;
+    public event EventHandler<QueryEventArgs>? QueryProcessed;
 
     /// <summary>Binds UDP and TCP. Returns false (with <see cref="LastError"/>) when the address is in use.</summary>
     public Task<bool> StartAsync(CancellationToken cancellationToken = default)
@@ -298,9 +317,13 @@ public sealed class DnsFilterServer : IAsyncDisposable
         if (verdict.IsBlocked)
         {
             Stats.RecordBlocked();
-            RaiseBlocked(query.Name, verdict.Reason ?? "Blocked");
+            string reason = verdict.Reason ?? "Blocked";
+            RaiseBlocked(query.Name, reason);
+            RaiseProcessed(query.Name, true, reason);
             return (DnsPacket.BuildBlockedResponse(packet, query, _options.BlockedAnswer), query);
         }
+
+        RaiseProcessed(query.Name, false, null);
 
         if (_cache != null && _cache.TryGet(query.Name, query.Type, query.Id, out var cached))
         {
@@ -328,6 +351,15 @@ public sealed class DnsFilterServer : IAsyncDisposable
         if (handler == null) return;
 
         try { handler(this, new BlockedQueryEventArgs(domain, reason)); }
+        catch { /* a listener must never break the DNS path */ }
+    }
+
+    private void RaiseProcessed(string domain, bool blocked, string? reason)
+    {
+        var handler = QueryProcessed;
+        if (handler == null) return;
+
+        try { handler(this, new QueryEventArgs(domain, blocked, reason)); }
         catch { /* a listener must never break the DNS path */ }
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using AppLock.Services;
 using AppLock.ViewModels;
@@ -20,6 +21,7 @@ public sealed partial class WebFilterPage : Page
 
     private bool _isElevated;
     private bool _updatingToggle;
+    private System.Threading.Timer? _activityRefreshTimer;
 
     public WebFilterPage()
     {
@@ -57,6 +59,10 @@ public sealed partial class WebFilterPage : Page
         ViewModel.RefreshCategoryDomainCounts();
         ViewModel.BuildServicesAndSites();
         PopulateStatus();
+
+        // Initialize activity log service
+        await ServiceContainer.WebFilterLogService.InitializeAsync();
+        InitializeActivityControls();
     }
 
     private void WebFilterPage_Unloaded(object sender, RoutedEventArgs e)
@@ -64,6 +70,8 @@ public sealed partial class WebFilterPage : Page
         ServiceContainer.WebFilterService.StatusChanged -= OnFilterStatusChanged;
         ServiceContainer.WebFilterService.TamperDetected -= OnFilterTamperDetected;
         ServiceContainer.WebFilterService.ListenerFailed -= OnFilterListenerFailed;
+        _activityRefreshTimer?.Dispose();
+        _activityRefreshTimer = null;
     }
 
     private void OnFilterStatusChanged(object? sender, EventArgs e)
@@ -209,6 +217,9 @@ public sealed partial class WebFilterPage : Page
         SitesTabButton.Style = tag == "sites" ? selected : null;
         ActivityTabButton.Style = tag == "activity" ? selected : null;
         SettingsTabButton.Style = tag == "settings" ? selected : null;
+
+        if (tag == "activity")
+            _ = RefreshActivityUiAsync();
     }
 
     private void CheckWebsiteBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -686,5 +697,133 @@ public sealed partial class WebFilterPage : Page
         {
             svc.SetSchedule(dialog.ResultBlocks);
         }
+    }
+
+    // ── Activity Tab ──────────────────────────────────────────────────────────
+
+    private void InitializeActivityControls()
+    {
+        var filter = ServiceContainer.Settings.WebFilter;
+        LogBlockedToggle.IsOn = filter.LogBlocked;
+        LogAllowedToggle.IsOn = filter.LogAllowed;
+        NotifyOnBlockToggle.IsOn = filter.NotifyOnBlock;
+
+        Retain7Days.IsChecked = filter.LogRetentionDays == 7;
+        Retain90Days.IsChecked = filter.LogRetentionDays == 90;
+        Retain30Days.IsChecked = filter.LogRetentionDays != 7 && filter.LogRetentionDays != 90;
+
+        // Start a 500 ms batch-refresh timer when Activity tab goes live
+        _activityRefreshTimer = new System.Threading.Timer(_ =>
+        {
+            DispatcherQueue.TryEnqueue(async () => await RefreshActivityUiAsync());
+        }, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task RefreshActivityUiAsync()
+    {
+        var logSvc = ServiceContainer.WebFilterLogService;
+        var stats = await logSvc.GetStatsAsync().ConfigureAwait(true);
+        BlockedTodayNumber.Text = stats.BlockedToday.ToString("N0");
+        BlockedWeekNumber.Text = stats.BlockedThisWeek.ToString("N0");
+        TopCategoryText.Text = stats.TopBlockedCategory;
+
+        var groups = await logSvc.GetRecentBlockedGroupsAsync(100).ConfigureAwait(true);
+        var rows = groups.Select(g => new LogRowViewModel(g)).ToList();
+        BlockedList.ItemsSource = rows;
+        NoBlockedText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var top = await logSvc.GetTopBlockedDomainsAsync(7, 10).ConfigureAwait(true);
+        var topRows = top.Select(t => new TopDomainRowViewModel(t)).ToList();
+        TopDomainsList.ItemsSource = topRows;
+        NoTopDomainsText.Visibility = topRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void RefreshActivity_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshActivityUiAsync();
+    }
+
+    private void LogBlocked_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        ServiceContainer.Settings.WebFilter.LogBlocked = ts.IsOn;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private void LogAllowed_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        ServiceContainer.Settings.WebFilter.LogAllowed = ts.IsOn;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private void LogRetention_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton { Tag: string tag }) return;
+        if (!int.TryParse(tag, out int days)) return;
+        ServiceContainer.Settings.WebFilter.LogRetentionDays = days;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        _ = ServiceContainer.WebFilterLogService.PruneOldEntriesAsync();
+    }
+
+    private void NotifyOnBlock_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch ts) return;
+        ServiceContainer.Settings.WebFilter.NotifyOnBlock = ts.IsOn;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+    }
+
+    private async void ClearLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await RequestAuthAsync("Enter your password to clear the activity log")) return;
+        await ServiceContainer.WebFilterLogService.ClearLogAsync();
+        await RefreshActivityUiAsync();
+    }
+
+    private async Task ApplyCheckTempAllowAsync(int minutes, string durationLabel, string domain)
+    {
+        if (!await RequestAuthAsync($"Enter your password to temporarily allow {domain} for {durationLabel}")) return;
+        if (ViewModel.AddTempAllow(domain, minutes, out var host, out var expiresUtc))
+        {
+            ShowCheckResult(InfoBarSeverity.Success, "Temporarily Allowed",
+                $"{host} is allowed until {expiresUtc.ToLocalTime():HH:mm} ({durationLabel}).");
+        }
+    }
+
+    private void LogRow_AllowMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: LogRowViewModel row }) return;
+
+        var flyout = new MenuFlyout();
+
+        var allow15 = new MenuFlyoutItem { Text = "Allow for 15 min" };
+        allow15.Click += async (s, _) => await ApplyCheckTempAllowAsync(15, "15 minutes", row.Domain);
+
+        var allow1h = new MenuFlyoutItem { Text = "Allow for 1 hour" };
+        allow1h.Click += async (s, _) => await ApplyCheckTempAllowAsync(60, "1 hour", row.Domain);
+
+        var alwaysAllow = new MenuFlyoutItem { Text = "Add to always allow" };
+        alwaysAllow.Click += async (s, _) =>
+        {
+            if (!await RequestAuthAsync($"Enter your password to always allow {row.Domain}")) return;
+            ViewModel.AddAlwaysAllow(row.Domain, "Allowed from activity log", out string _, out bool _);
+        };
+
+        var copy = new MenuFlyoutItem { Text = "Copy domain" };
+        copy.Click += (s, _) =>
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(row.Domain);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+        };
+
+        flyout.Items.Add(allow15);
+        flyout.Items.Add(allow1h);
+        flyout.Items.Add(alwaysAllow);
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        flyout.Items.Add(copy);
+
+        if (sender is FrameworkElement fe)
+            flyout.ShowAt(fe);
     }
 }

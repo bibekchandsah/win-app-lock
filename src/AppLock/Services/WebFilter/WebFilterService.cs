@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
@@ -25,6 +26,8 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     private readonly WebFilterListService _listService;
     private readonly DnsConfigurator _configurator;
     private readonly DnsVerifier _verifier;
+    private readonly WebFilterLogService? _logService;
+    private readonly ConcurrentDictionary<string, DateTime> _notificationThrottle = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private DnsFilterServer? _server;
@@ -36,17 +39,20 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     public event EventHandler? StatusChanged;
     public event EventHandler<string>? TamperDetected;
     public event EventHandler<string>? ListenerFailed;
+    public event EventHandler<BlockedQueryEventArgs>? QueryBlocked;
 
     public WebFilterService(
         AppSettings settings,
         Action<AppSettings> saveSettings,
         WebFilterListService listService,
-        DnsConfigurator? configurator = null)
+        DnsConfigurator? configurator = null,
+        WebFilterLogService? logService = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _saveSettings = saveSettings ?? throw new ArgumentNullException(nameof(saveSettings));
         _listService = listService ?? throw new ArgumentNullException(nameof(listService));
         _configurator = configurator ?? new DnsConfigurator();
+        _logService = logService;
 
         _verifier = new DnsVerifier(
             _configurator,
@@ -164,6 +170,8 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             }
 
             _server = startedServer;
+            _server.QueryBlocked += OnServerQueryBlocked;
+            _server.QueryProcessed += OnServerQueryProcessed;
             string boundIp = startedServer.BoundEndPoint!.Address.ToString();
 
             // 4. Point system DNS to the bound filter address
@@ -465,6 +473,11 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         if (_isDisposed) return;
         _isDisposed = true;
 
+        if (_server != null)
+        {
+            _server.QueryBlocked -= OnServerQueryBlocked;
+            _server.QueryProcessed -= OnServerQueryProcessed;
+        }
         await StopInternalAsync(restoreDns: true).ConfigureAwait(false);
         _verifier.Dispose();
         _gate.Dispose();
@@ -475,8 +488,59 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         if (_isDisposed) return;
         _isDisposed = true;
 
+        if (_server != null)
+        {
+            _server.QueryBlocked -= OnServerQueryBlocked;
+            _server.QueryProcessed -= OnServerQueryProcessed;
+        }
         OnAppExit();
         _verifier.Dispose();
         _gate.Dispose();
+    }
+
+    private void OnServerQueryBlocked(object? sender, BlockedQueryEventArgs e)
+    {
+        // Log blocked request
+        if (_logService != null && _settings.WebFilter.LogBlocked)
+        {
+            _ = _logService.LogQueryAsync(e.Domain, true, e.Reason, e.TimestampUtc);
+        }
+
+        // Throttled toast notification (once per domain per 5 minutes)
+        if (_settings.WebFilter.NotifyOnBlock)
+        {
+            var now = DateTime.UtcNow;
+            bool shouldNotify = false;
+            _notificationThrottle.AddOrUpdate(
+                e.Domain,
+                _ => { shouldNotify = true; return now; },
+                (_, last) =>
+                {
+                    if ((now - last).TotalMinutes >= 5)
+                    {
+                        shouldNotify = true;
+                        return now;
+                    }
+                    return last;
+                });
+
+            if (shouldNotify)
+            {
+                ServiceContainer.NotificationService.ShowWarning(
+                    "Web Filter",
+                    $"Blocked: {e.Domain} ({e.Reason})");
+            }
+        }
+
+        QueryBlocked?.Invoke(this, e);
+    }
+
+    private void OnServerQueryProcessed(object? sender, QueryEventArgs e)
+    {
+        // Log allowed requests if enabled
+        if (!e.Blocked && _logService != null && _settings.WebFilter.LogAllowed)
+        {
+            _ = _logService.LogQueryAsync(e.Domain, false, null, e.TimestampUtc);
+        }
     }
 }

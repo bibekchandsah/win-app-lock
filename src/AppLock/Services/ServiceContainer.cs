@@ -57,6 +57,7 @@ public static class ServiceContainer
     private static AppLock.Services.Vault.VaultSessionManager? _vaultSessionManager;
     private static AppLock.Services.Vault.VaultAutoLockService? _vaultAutoLockService;
     private static WebFilterListService? _webFilterListService;
+    private static WebFilterLogService? _webFilterLogService;
     private static WebFilterService? _webFilterService;
 
     public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
@@ -136,13 +137,25 @@ public static class ServiceContainer
         }
     }
 
+    public static WebFilterLogService WebFilterLogService
+    {
+        get
+        {
+            if (_webFilterLogService == null)
+            {
+                _webFilterLogService = new WebFilterLogService(Settings);
+            }
+            return _webFilterLogService;
+        }
+    }
+
     public static WebFilterService WebFilterService
     {
         get
         {
             if (_webFilterService == null)
             {
-                _webFilterService = new WebFilterService(Settings, SettingsStore.Save, WebFilterListService);
+                _webFilterService = new WebFilterService(Settings, SettingsStore.Save, WebFilterListService, logService: WebFilterLogService);
             }
             return _webFilterService;
         }
@@ -355,6 +368,8 @@ public static class ServiceContainer
         _webFilterService = null;
         _webFilterListService?.Dispose();
         _webFilterListService = null;
+        _webFilterLogService?.Dispose();
+        _webFilterLogService = null;
 
         _overlayManager?.Dispose();
         _hotkeyService?.Dispose();

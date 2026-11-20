@@ -22,11 +22,14 @@ public partial class WebFilterViewModel : ObservableObject
     private readonly SettingsStore _settingsStore;
     private readonly WebFilterListService _lists;
 
-    public WebFilterViewModel(AppSettings settings, SettingsStore settingsStore, WebFilterListService lists)
+    public WebFilterActivityViewModel Activity { get; }
+
+    public WebFilterViewModel(AppSettings settings, SettingsStore settingsStore, WebFilterListService lists, WebFilterLogService? logService = null)
     {
         _settings = settings;
         _settingsStore = settingsStore;
         _lists = lists;
+        Activity = new WebFilterActivityViewModel(settings, logService ?? ServiceContainer.WebFilterLogService);
     }
 
     public WebFilterSettings Filter => _settings.WebFilter;
