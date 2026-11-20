@@ -6,6 +6,7 @@ using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.ScreenTime;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml.Media;
 
 namespace AppLock.ViewModels;
 
@@ -22,6 +23,7 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
     private readonly LockManager _lockManager;
     private readonly IClock _clock = SystemClock.Instance;
 
+    private readonly Dictionary<string, AppUsageRowViewModel> _rowCache = new(StringComparer.OrdinalIgnoreCase);
     private List<AppUsageRowViewModel> _filtered = new();
     private int _visibleRows = DefaultVisibleRows;
 
@@ -37,6 +39,7 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
     [ObservableProperty] private string _mostUsedName = "—";
     [ObservableProperty] private string _mostUsedTime = string.Empty;
     [ObservableProperty] private int _mostUsedColorIndex;
+    [ObservableProperty] private ImageSource? _mostUsedIcon;
     [ObservableProperty] private bool _hasData;
     [ObservableProperty] private bool _showAllButton;
     [ObservableProperty] private string _showAllText = string.Empty;
@@ -124,18 +127,36 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
 
         var rows = _store.GetAppUsage(range.From, range.To);
         var storedApps = _store.GetApps().ToDictionary(a => a.AppKey, StringComparer.OrdinalIgnoreCase);
+        var icons = _store.GetAppIcons(rows.Select(r => r.AppKey));
         var rules = _lockManager.GetAllRules();
         long total = rows.Sum(r => r.Seconds);
 
-        var allRows = rows
-            .Select(r => new AppUsageRowViewModel(
-                r,
-                storedApps.TryGetValue(r.AppKey, out var stored) ? stored : null,
-                FindRule(rules, r.AppKey, storedApps.TryGetValue(r.AppKey, out var s) ? s.ExePath : null, r.DisplayName),
-                settings,
-                today,
-                total))
-            .ToList();
+        // Reuse the row for an app so a refresh updates numbers in place instead of rebuilding
+        // the whole list (and replaying entrance animations) every 30 seconds.
+        var allRows = new List<AppUsageRowViewModel>(rows.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var usage in rows)
+        {
+            seen.Add(usage.AppKey);
+            storedApps.TryGetValue(usage.AppKey, out var stored);
+            var rule = FindRule(rules, usage.AppKey, stored?.ExePath, usage.DisplayName);
+
+            icons.TryGetValue(usage.AppKey, out var icon);
+            if (_rowCache.TryGetValue(usage.AppKey, out var cached))
+            {
+                cached.Update(usage, rule, settings, today, total, icon);
+                allRows.Add(cached);
+            }
+            else
+            {
+                var row = new AppUsageRowViewModel(usage, stored, rule, settings, today, total, icon);
+                _rowCache[usage.AppKey] = row;
+                allRows.Add(row);
+            }
+        }
+
+        foreach (string stale in _rowCache.Keys.Where(k => !seen.Contains(k)).ToList())
+            _rowCache.Remove(stale);
 
         var visible = allRows.Where(r => !r.IsHidden || ShowHidden).ToList();
 
@@ -155,6 +176,7 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
         MostUsedName = mostUsed?.DisplayName ?? "—";
         MostUsedTime = mostUsed != null ? UsageFormat.Duration(mostUsed.Seconds) : string.Empty;
         MostUsedColorIndex = mostUsed?.ColorIndex ?? 0;
+        MostUsedIcon = mostUsed?.Icon;
 
         BuildSecondCard(range, today);
         BuildChart(range, visible, today);
@@ -283,9 +305,23 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
         }
 
         var list = filtered.ToList();
-        Rows.Clear();
-        foreach (var row in list.Take(_visibleRows))
-            Rows.Add(row);
+        var desired = list.Take(_visibleRows).ToList();
+
+        // Diff instead of Clear+Add: only rows that really appeared or disappeared animate.
+        for (int i = Rows.Count - 1; i >= 0; i--)
+        {
+            if (!desired.Contains(Rows[i]))
+                Rows.RemoveAt(i);
+        }
+
+        for (int i = 0; i < desired.Count; i++)
+        {
+            int existing = Rows.IndexOf(desired[i]);
+            if (existing < 0)
+                Rows.Insert(i, desired[i]);
+            else if (existing != i)
+                Rows.Move(existing, i);
+        }
 
         int hiddenCount = _filtered.Count(r => r.IsHidden);
         ShowAllButton = list.Count > _visibleRows;

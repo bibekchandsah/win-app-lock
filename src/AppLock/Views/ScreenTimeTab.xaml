@@ -12,8 +12,12 @@
     <UserControl.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <local:InverseBoolConverter x:Key="InverseBool"/>
+        <local:NullToVisibilityConverter x:Key="NullToVisibility"/>
     </UserControl.Resources>
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalScrollMode="Disabled">
     <Grid Padding="16" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -21,7 +25,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -180,18 +184,22 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Border x:Name="MostUsedTile"
-                            Grid.Column="0"
-                            Width="34" Height="34"
-                            CornerRadius="6"
-                            VerticalAlignment="Center"
-                            Margin="0,0,12,0">
-                        <TextBlock x:Name="MostUsedInitial"
-                                   Text="—"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
+                    <Grid Grid.Column="0" Width="34" Height="34" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <Border x:Name="MostUsedTile"
+                                CornerRadius="6"
+                                Visibility="{x:Bind ViewModel.MostUsedIcon, Mode=OneWay, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock x:Name="MostUsedInitial"
+                                       Text="—"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <Image Source="{x:Bind ViewModel.MostUsedIcon, Mode=OneWay}"
+                               Width="32" Height="32"
+                               Stretch="Uniform"
+                               Visibility="{x:Bind ViewModel.MostUsedIcon, Mode=OneWay, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}"/>
+                    </Grid>
 
                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                         <TextBlock Text="Most used app"
@@ -273,7 +281,17 @@
                           SelectionMode="None"
                           IsItemClickEnabled="True"
                           ItemClick="AppList_ItemClick"
+                          ScrollViewer.VerticalScrollMode="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled"
                           Visibility="{x:Bind ViewModel.HasData, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                    <!-- Only added/removed rows animate, so a refresh updates numbers without
+                         replaying an entrance animation over the whole list. -->
+                    <ListView.ItemContainerTransitions>
+                        <TransitionCollection>
+                            <AddDeleteThemeTransition/>
+                            <ReorderThemeTransition/>
+                        </TransitionCollection>
+                    </ListView.ItemContainerTransitions>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:AppUsageRowViewModel">
                             <Grid Padding="12,8" ColumnSpacing="12">
@@ -284,54 +302,59 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <Border Grid.Column="0"
-                                        Width="34" Height="34"
-                                        CornerRadius="6"
-                                        Background="{x:Bind ColorBrush}"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Initial}"
-                                               FontWeight="SemiBold"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                </Border>
+                                <Grid Grid.Column="0" Width="34" Height="34" VerticalAlignment="Center">
+                                    <Border CornerRadius="6"
+                                            Background="{x:Bind ColorBrush}"
+                                            Visibility="{x:Bind Icon, Converter={StaticResource NullToVisibility}}">
+                                        <TextBlock Text="{x:Bind Initial}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <Image Source="{x:Bind Icon}"
+                                           Width="32" Height="32"
+                                           Stretch="Uniform"
+                                           Visibility="{x:Bind Icon, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}"/>
+                                </Grid>
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="{x:Bind DisplayName}"
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{x:Bind TimeText}"
+                                        <TextBlock Text="{x:Bind TimeText, Mode=OneWay}"
                                                    FontSize="11"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <TextBlock Text="{x:Bind OpensText}"
+                                        <TextBlock Text="{x:Bind OpensText, Mode=OneWay}"
                                                    FontSize="11"
                                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                         <StackPanel Orientation="Horizontal" Spacing="4"
-                                                    Visibility="{x:Bind HasLimit, Converter={StaticResource BoolToVisibility}}">
+                                                    Visibility="{x:Bind HasLimit, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                             <FontIcon Glyph="&#xE916;"
                                                       FontSize="10"
-                                                      Foreground="{x:Bind LimitBrush}"/>
-                                            <TextBlock Text="{x:Bind LimitStateText}"
+                                                      Foreground="{x:Bind LimitBrush, Mode=OneWay}"/>
+                                            <TextBlock Text="{x:Bind LimitStateText, Mode=OneWay}"
                                                        FontSize="11"
-                                                       Foreground="{x:Bind LimitBrush}"/>
-                                            <TextBlock Text="{x:Bind ExtraText}"
+                                                       Foreground="{x:Bind LimitBrush, Mode=OneWay}"/>
+                                            <TextBlock Text="{x:Bind ExtraText, Mode=OneWay}"
                                                        FontSize="10"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                       Visibility="{x:Bind HasExtra, Converter={StaticResource BoolToVisibility}}"/>
+                                                       Visibility="{x:Bind HasExtra, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
-                                    <ProgressBar Value="{x:Bind SharePercent}"
+                                    <ProgressBar Value="{x:Bind SharePercent, Mode=OneWay}"
                                                  Maximum="100"
                                                  Height="3"
                                                  Foreground="{x:Bind ColorBrush}"/>
-                                    <ProgressBar Value="{x:Bind LimitProgress}"
+                                    <ProgressBar Value="{x:Bind LimitProgress, Mode=OneWay}"
                                                  Maximum="100"
                                                  Height="3"
-                                                 Foreground="{x:Bind LimitBrush}"
-                                                 Visibility="{x:Bind HasLimit, Converter={StaticResource BoolToVisibility}}"/>
+                                                 Foreground="{x:Bind LimitBrush, Mode=OneWay}"
+                                                 Visibility="{x:Bind HasLimit, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
                                 </StackPanel>
 
                                 <Button Grid.Column="3"
@@ -399,4 +422,5 @@
                              Padding="4,0"/>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </UserControl>

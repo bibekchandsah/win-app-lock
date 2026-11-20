@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using AppLock.Models;
 using AppLock.ViewModels;
 using Microsoft.UI.Xaml;
@@ -12,22 +11,24 @@ using Microsoft.UI.Xaml.Shapes;
 namespace AppLock.Views.Controls;
 
 /// <summary>
-/// Section 6: charts drawn with XAML primitives instead of a charting dependency. Each bar is a
-/// focusable button with an automation name and a tooltip, so the chart works with a keyboard and
-/// a screen reader as well as with a mouse.
+/// Section 6: charts drawn with XAML primitives instead of a charting dependency. Bar heights are
+/// computed in pixels from the measured plot area, because star-sized rows inside a button's
+/// content measured to zero on first layout and made the bars disappear.
 /// </summary>
 public sealed partial class UsageBarChart : UserControl
 {
     private const double LabelRowHeight = 18;
+    private const double MinimumPlotHeight = 120;
 
     private IReadOnlyList<UsageBar> _bars = Array.Empty<UsageBar>();
     private double _max = 3600;
     private double? _average;
+    private double _lastPlotHeight = -1;
 
     public UsageBarChart()
     {
         InitializeComponent();
-        SizeChanged += (_, _) => PositionAverageLine();
+        SizeChanged += ChartRoot_SizeChanged;
     }
 
     /// <summary>Raised when a day bar is clicked so the Week view can filter its app list.</summary>
@@ -41,10 +42,15 @@ public sealed partial class UsageBarChart : UserControl
         Rebuild();
     }
 
+    private double PlotHeight => Math.Max(MinimumPlotHeight, PlotHost.ActualHeight - LabelRowHeight);
+
     private void Rebuild()
     {
         PlotHost.Children.Clear();
         Overlay.Children.Clear();
+        _lastPlotHeight = PlotHost.ActualHeight;
+
+        double plotHeight = PlotHeight;
 
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -61,33 +67,44 @@ public sealed partial class UsageBarChart : UserControl
         {
             var bar = _bars[i];
 
-            var cell = new Grid { Margin = new Thickness(1, 0, 1, 0), MinHeight = 0 };
-            cell.RowDefinitions.Add(new RowDefinition
+            var cell = new Grid
             {
-                Height = new GridLength(Math.Max(0.001, _max - Math.Min(bar.Value, _max)), GridUnitType.Star)
-            });
-            cell.RowDefinitions.Add(new RowDefinition
-            {
-                Height = new GridLength(Math.Max(0.001, Math.Min(bar.Value, _max)), GridUnitType.Star)
-            });
+                Height = plotHeight,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                IsHitTestVisible = false
+            };
+            cell.Children.Add(BuildBarVisual(bar, plotHeight));
 
-            var visual = BuildBarVisual(bar);
-            Grid.SetRow(visual, 1);
-            cell.Children.Add(visual);
+            if (bar.Incomplete)
+            {
+                var coverageStrip = new Border
+                {
+                    Height = 3,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Background = UsagePalette.Warning,
+                    Opacity = 0.8
+                };
+                ToolTipService.SetToolTip(coverageStrip, "AppLock was not running for part of this hour.");
+                cell.Children.Add(coverageStrip);
+            }
 
             if (bar.Future)
-                visual.Opacity = 0.25;
+                cell.Opacity = 0.3;
 
+            Grid.SetColumn(cell, i + 1);
+            grid.Children.Add(cell);
+
+            // Transparent hit target above the bar: Button content does not layout reliably here.
             var button = new Button
             {
-                Content = cell,
                 Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(0),
+                Margin = new Thickness(1, 0, 1, 0),
                 MinWidth = 0,
                 MinHeight = 0,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
                 Tag = bar
             };
 
@@ -104,7 +121,8 @@ public sealed partial class UsageBarChart : UserControl
                 FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = UsagePalette.SecondaryText,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 3, 0, 0)
             };
             Grid.SetRow(label, 1);
             Grid.SetColumn(label, i + 1);
@@ -115,7 +133,7 @@ public sealed partial class UsageBarChart : UserControl
         PositionAverageLine();
     }
 
-    private static Grid BuildBarVisual(UsageBar bar)
+    private Grid BuildBarVisual(UsageBar bar, double plotHeight)
     {
         var host = new Grid();
 
@@ -126,50 +144,38 @@ public sealed partial class UsageBarChart : UserControl
                 Height = 2,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Background = UsagePalette.Neutral,
-                Opacity = 0.25
+                Opacity = 0.35,
+                CornerRadius = new CornerRadius(1)
             });
             return host;
         }
 
-        var stack = new Grid();
+        double barHeight = Math.Max(3, plotHeight * (Math.Min(bar.Value, _max) / _max));
+        var stack = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Spacing = 0
+        };
+
         foreach (var segment in bar.Segments)
         {
-            stack.RowDefinitions.Add(new RowDefinition
-            {
-                Height = new GridLength(Math.Max(0.001, segment.Seconds), GridUnitType.Star)
-            });
-        }
+            double share = bar.Value > 0 ? segment.Seconds / bar.Value : 0;
+            double height = Math.Max(1, barHeight * share);
 
-        for (int i = 0; i < bar.Segments.Count; i++)
-        {
-            var segment = bar.Segments[i];
             var part = new Border
             {
-                Background = segment.ColorIndex < 0 ? UsagePalette.Neutral : UsagePalette.BrushFor(segment.ColorIndex),
-                CornerRadius = new CornerRadius(1),
-                Margin = new Thickness(0, 1, 0, 0)
+                Height = height,
+                Background = segment.ColorIndex < 0
+                    ? UsagePalette.Neutral
+                    : UsagePalette.BrushFor(segment.ColorIndex),
+                CornerRadius = new CornerRadius(1)
             };
 
             ToolTipService.SetToolTip(part, segment.Tooltip);
-            Grid.SetRow(part, i);
             stack.Children.Add(part);
         }
 
         host.Children.Add(stack);
-
-        if (bar.Incomplete)
-        {
-            var coverageStrip = new Border
-            {
-                Height = 3,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Background = UsagePalette.Warning,
-                Opacity = 0.7
-            };
-            ToolTipService.SetToolTip(coverageStrip, "AppLock was not running for part of this hour.");
-            host.Children.Add(coverageStrip);
-        }
-
         return host;
     }
 
@@ -189,7 +195,17 @@ public sealed partial class UsageBarChart : UserControl
             DayClicked?.Invoke(this, bar.Day.Value);
     }
 
-    private void ChartRoot_SizeChanged(object sender, SizeChangedEventArgs e) => PositionAverageLine();
+    private void ChartRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // The first layout gives the plot its real height; rebuild once it is known, and on resize.
+        if (Math.Abs(PlotHost.ActualHeight - _lastPlotHeight) > 2 && _bars.Count > 0)
+        {
+            Rebuild();
+            return;
+        }
+
+        PositionAverageLine();
+    }
 
     private void PositionAverageLine()
     {
@@ -197,8 +213,8 @@ public sealed partial class UsageBarChart : UserControl
         if (_average is not { } average || _max <= 0) return;
 
         double width = PlotHost.ActualWidth;
-        double height = PlotHost.ActualHeight - LabelRowHeight;
-        if (width <= 0 || height <= 0) return;
+        double height = PlotHeight;
+        if (width <= 0) return;
 
         double ratio = Math.Clamp(average / _max, 0, 1);
         double y = height - (ratio * height);

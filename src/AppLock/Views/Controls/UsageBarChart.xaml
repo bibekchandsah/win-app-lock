@@ -15,22 +15,25 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <StackPanel x:Name="AxisPanel"
-                    Grid.Column="0"
-                    VerticalAlignment="Stretch"
-                    Margin="0,0,6,18">
+        <Grid x:Name="AxisPanel"
+              Grid.Column="0"
+              Margin="0,0,6,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <TextBlock x:Name="AxisTop" FontSize="10"
                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                        HorizontalAlignment="Right"/>
-            <TextBlock x:Name="AxisMiddle" FontSize="10"
+            <TextBlock x:Name="AxisMiddle" Grid.Row="1" FontSize="10"
                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                        HorizontalAlignment="Right"
                        VerticalAlignment="Center"/>
-            <TextBlock Text="0" FontSize="10"
+            <TextBlock Grid.Row="2" Text="0" FontSize="10"
                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Bottom"/>
-        </StackPanel>
+                       HorizontalAlignment="Right"/>
+        </Grid>
 
         <Grid x:Name="PlotHost" Grid.Column="1"/>
         <Canvas x:Name="Overlay" Grid.Column="1" IsHitTestVisible="False"/>

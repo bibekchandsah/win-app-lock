@@ -153,7 +153,8 @@ public sealed partial class ScreenTimeTab : UserControl
             PrimaryButtonText = "Turn on",
             CloseButtonText = "Not now",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         var result = await dialog.ShowAsync();
@@ -281,7 +282,8 @@ public sealed partial class ScreenTimeTab : UserControl
             PrimaryButtonText = "Save",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
@@ -434,7 +436,8 @@ public sealed partial class ScreenTimeTab : UserControl
             PrimaryButtonText = row.HasLimit ? "Edit limit" : "Set limit…",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
@@ -494,7 +497,8 @@ public sealed partial class ScreenTimeTab : UserControl
             PrimaryButtonText = "Save limit",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         more.Click += async (_, _) =>
@@ -502,7 +506,11 @@ public sealed partial class ScreenTimeTab : UserControl
             dialog.Hide();
             if (row.Rule == null) return;
 
-            await new SelfDisciplineDialog(row.Rule) { XamlRoot = XamlRoot }.ShowAsync();
+            await new SelfDisciplineDialog(row.Rule)
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ServiceContainer.CurrentTheme
+            }.ShowAsync();
             RefreshView();
         };
         panel.Children.Add(more);
@@ -718,7 +726,8 @@ public sealed partial class ScreenTimeTab : UserControl
             PrimaryButtonText = "Clear data",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         };
 
         if (await confirm.ShowAsync() != ContentDialogResult.Primary)
@@ -738,7 +747,11 @@ public sealed partial class ScreenTimeTab : UserControl
     {
         try
         {
-            var dialog = new AuthDialog(ServiceContainer.AuthService) { XamlRoot = XamlRoot };
+            var dialog = new AuthDialog(ServiceContainer.AuthService)
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ServiceContainer.CurrentTheme
+            };
             await dialog.ShowAsync();
             return dialog.IsAuthenticated;
         }
@@ -756,7 +769,8 @@ public sealed partial class ScreenTimeTab : UserControl
             Title = title,
             Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 420 },
             CloseButtonText = "OK",
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ServiceContainer.CurrentTheme
         }.ShowAsync();
     }
 }

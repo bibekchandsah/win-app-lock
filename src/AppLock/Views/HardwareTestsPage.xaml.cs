@@ -40,6 +40,42 @@ namespace AppLock.Views
         [DllImport("user32.dll")]
         private static extern int GetSystemMetrics(int nIndex);
 
+        // A low-level hook is the only way to tell left from right Shift/Ctrl/Alt and main from
+        // numpad Enter, and to see keys XAML never receives (Win, Print Screen).
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_KEYUP = 0x0101;
+        private const int WM_SYSKEYDOWN = 0x0104;
+        private const int WM_SYSKEYUP = 0x0105;
+        private const uint LLKHF_EXTENDED = 0x01;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
+        private delegate nint LowLevelKeyboardProc(int nCode, nint wParam, nint lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern nint SetWindowsHookExW(int idHook, LowLevelKeyboardProc lpfn, nint hMod, uint dwThreadId);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWindowsHookEx(nint hhk);
+
+        [DllImport("user32.dll")]
+        private static extern nint CallNextHookEx(nint hhk, int nCode, nint wParam, nint lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern nint GetModuleHandleW(string? lpModuleName);
+
+        [DllImport("user32.dll")]
+        private static extern nint GetForegroundWindow();
+
         private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };
 
         private CancellationTokenSource? _diskTest;
@@ -50,6 +86,8 @@ namespace AppLock.Views
         private MediaPlayer? _cameraPlayer;
 
         private int _keyCount;
+        private nint _keyboardHook;
+        private LowLevelKeyboardProc? _keyboardHookProc;
         private int _leftClicks;
         private int _rightClicks;
         private int _otherClicks;
@@ -83,6 +121,122 @@ namespace AppLock.Views
             FillMicrophones();
             DescribeTouch();
             BuildKeyboardLayout();
+            InstallKeyboardHook();
+        }
+
+        private void InstallKeyboardHook()
+        {
+            if (_keyboardHook != 0) return;
+
+            try
+            {
+                _keyboardHookProc = KeyboardHookProc;
+                _keyboardHook = SetWindowsHookExW(WH_KEYBOARD_LL, _keyboardHookProc, GetModuleHandleW(null), 0);
+                if (_keyboardHook == 0)
+                    System.Diagnostics.Debug.WriteLine($"[HardwareTests] keyboard hook failed: {Marshal.GetLastWin32Error()}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HardwareTests] keyboard hook error: {ex.Message}");
+            }
+        }
+
+        private nint KeyboardHookProc(int nCode, nint wParam, nint lParam)
+        {
+            if (nCode >= 0 && _keyboardHook != 0 && ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab) && IsAppForeground())
+            {
+                try
+                {
+                    int message = (int)wParam;
+                    bool down = message is WM_KEYDOWN or WM_SYSKEYDOWN;
+                    bool up = message is WM_KEYUP or WM_SYSKEYUP;
+
+                    if (down || up)
+                    {
+                        var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                        string? name = MapPhysicalKey(info.vkCode, info.scanCode, info.flags);
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
+
+                                if (down) RegisterKeyDown(name, (Windows.System.VirtualKey)info.vkCode);
+                                else RegisterKeyUp(name);
+                            });
+                        }
+                    }
+                }
+                catch
+                {
+                    // A hook must never throw into the input pipeline.
+                }
+            }
+
+            return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
+        }
+
+        private static bool IsAppForeground()
+        {
+            try
+            {
+                var window = App.MainWindowInstance;
+                return window != null && GetForegroundWindow() == WinRT.Interop.WindowNative.GetWindowHandle(window);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Maps the physical key, including left/right variants and OEM keys XAML reports as numbers.</summary>
+        private static string? MapPhysicalKey(uint vk, uint scanCode, uint flags)
+        {
+            bool extended = (flags & LLKHF_EXTENDED) != 0;
+
+            switch (vk)
+            {
+                case 0x10: return scanCode == 0x36 ? "RightShift" : "LeftShift";
+                case 0xA0: return "LeftShift";
+                case 0xA1: return "RightShift";
+                case 0x11: return extended ? "RightControl" : "Control";
+                case 0xA2: return "Control";
+                case 0xA3: return "RightControl";
+                case 0x12: return extended ? "RightMenu" : "Menu";
+                case 0xA4: return "Menu";
+                case 0xA5: return "RightMenu";
+                case 0x5B: return "LeftWindows";
+                case 0x5C: return "RightWindows";
+                case 0x5D: return "Application";
+                case 0x2C: return "Snapshot";
+                case 0x91: return "Scroll";
+                case 0x2D: return "Insert";
+                case 0x0D: return extended ? "NumberPadEnter" : "Enter";
+                case 0x6E: return "Decimal";
+                case 0x6F: return "Divide";
+                case 0x6A: return "Multiply";
+                case 0x6B: return "Add";
+                case 0x6D: return "Subtract";
+                case 0x90: return "NumberKeyLock";
+                case 0xC0: return "OemTilde";
+                case 0xBD: return "OemMinus";
+                case 0xBB: return "OemPlus";
+                case 0xDB: return "OemOpenBrackets";
+                case 0xDD: return "OemCloseBrackets";
+                case 0xDC: return "OemPipe";
+                case 0xBA: return "OemSemicolon";
+                case 0xDE: return "OemQuotes";
+                case 0xBC: return "OemComma";
+                case 0xBE: return "OemPeriod";
+                case 0xBF: return "OemQuestion";
+            }
+
+            if (vk is >= 0x60 and <= 0x69) return "NumberPad" + (vk - 0x60);
+            if (vk is >= 0x30 and <= 0x39) return "Number" + (vk - 0x30);
+            if (vk is >= 0x41 and <= 0x5A) return ((char)vk).ToString();
+            if (vk is >= 0x70 and <= 0x87) return "F" + (vk - 0x6F);
+
+            return ((Windows.System.VirtualKey)vk).ToString();
         }
 
         private const double KeyGap = 4;
@@ -372,6 +526,13 @@ namespace AppLock.Views
             StopMicrophone();
             _ = StopCameraAsync();
             _http.Dispose();
+
+            if (_keyboardHook != 0)
+            {
+                UnhookWindowsHookEx(_keyboardHook);
+                _keyboardHook = 0;
+                _keyboardHookProc = null;
+            }
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
@@ -804,8 +965,21 @@ namespace AppLock.Views
         private void HardwareTestsPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
+            if (_keyboardHook != 0) return; // the low-level hook handles every physical key
 
-            string name = e.Key.ToString();
+            RegisterKeyDown(e.Key.ToString(), e.Key);
+        }
+
+        private void HardwareTestsPage_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
+            if (_keyboardHook != 0) return;
+
+            RegisterKeyUp(e.Key.ToString());
+        }
+
+        private void RegisterKeyDown(string name, Windows.System.VirtualKey key)
+        {
             _keyCount++;
 
             if (!_heldKeys.Contains(name)) _heldKeys.Add(name);
@@ -813,17 +987,14 @@ namespace AppLock.Views
 
             if (_keyCaps.TryGetValue(name, out var cap)) ApplyKeyCapState(cap);
 
-            LastInputText.Text = $"Key: {DescribeKey(name)} (virtual key {(int)e.Key})";
+            LastInputText.Text = $"Key: {DescribeKey(name)} (virtual key {(int)key})";
             UpdateInputCounts();
             UpdateHeldKeys();
             UpdateCoverage();
         }
 
-        private void HardwareTestsPage_KeyUp(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        private void RegisterKeyUp(string name)
         {
-            if (!ReferenceEquals(TestsTabs.SelectedItem, KeyboardTab)) return;
-
-            string name = e.Key.ToString();
             _heldKeys.Remove(name);
 
             if (_keyCaps.TryGetValue(name, out var cap)) ApplyKeyCapState(cap);

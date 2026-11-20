@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AppLock.Models;
-using AppLock.Services;
+using AppLock.Services.ScreenTime;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace AppLock.ViewModels;
 
@@ -85,26 +86,83 @@ public static class UsagePalette
     }
 }
 
-/// <summary>One app line in the Screen Time list, including its live limit chip.</summary>
-public sealed class AppUsageRowViewModel
+/// <summary>
+/// One app line in the Screen Time list. Rows are updated in place by AppKey so a refresh does not
+/// rebuild the whole list and replay entrance animations over every row.
+/// </summary>
+public sealed partial class AppUsageRowViewModel : ObservableObject
 {
+    private readonly string _displayName;
+
     public AppUsageRowViewModel(
         AppUsageRow row,
         StoredApp? stored,
         LockRule? rule,
         ScreenTimeSettings settings,
         DateOnly today,
-        long rangeTotalSeconds)
+        long rangeTotalSeconds,
+        byte[]? iconPng = null)
     {
         AppKey = row.AppKey;
-        DisplayName = string.IsNullOrWhiteSpace(row.DisplayName) ? row.AppKey : row.DisplayName;
-        Seconds = row.Seconds;
-        Opens = row.Opens;
+        _displayName = string.IsNullOrWhiteSpace(row.DisplayName) ? row.AppKey : row.DisplayName;
+        Initial = string.IsNullOrEmpty(_displayName) ? "?" : _displayName.Substring(0, 1).ToUpperInvariant();
         ExePath = stored?.ExePath;
         Aumid = stored?.Aumid;
+        ColorIndex = ScreenTimeStore.StableColorIndex(row.AppKey);
+        Icon = CreateImage(iconPng);
+
+        Update(row, rule, settings, today, rangeTotalSeconds, iconPng);
+    }
+
+    public string AppKey { get; }
+    public string DisplayName => _displayName;
+    public string Initial { get; }
+    public string? ExePath { get; }
+    public string? Aumid { get; }
+    public int ColorIndex { get; }
+
+    [ObservableProperty] private ImageSource? _icon;
+
+    [ObservableProperty] private long _seconds;
+    [ObservableProperty] private string _timeText = "0m";
+    [ObservableProperty] private string _opensText = string.Empty;
+    [ObservableProperty] private double _sharePercent;
+    [ObservableProperty] private LockRule? _rule;
+    [ObservableProperty] private bool _isHidden;
+
+    [ObservableProperty] private bool _hasLimit;
+    [ObservableProperty] private int _limitMinutes;
+    [ObservableProperty] private string _limitText = string.Empty;
+    [ObservableProperty] private string _limitStateText = string.Empty;
+    [ObservableProperty] private double _limitProgress;
+    [ObservableProperty] private Brush _limitBrush = UsagePalette.SecondaryText;
+    [ObservableProperty] private string _extraText = string.Empty;
+    [ObservableProperty] private bool _hasExtra;
+
+    public double Share => SharePercent / 100.0;
+    public Brush ColorBrush => UsagePalette.BrushFor(ColorIndex);
+    public Brush NeutralBrush => UsagePalette.Neutral;
+
+    /// <summary>True when the app has an admin limit, so excluding it would be a loophole.</summary>
+    public bool CanExclude => !HasLimit;
+
+    partial void OnHasLimitChanged(bool value) => OnPropertyChanged(nameof(CanExclude));
+
+    partial void OnSharePercentChanged(double value) => OnPropertyChanged(nameof(Share));
+
+    public void Update(AppUsageRow row, LockRule? rule, ScreenTimeSettings settings, DateOnly today, long rangeTotalSeconds, byte[]? iconPng = null)
+    {
+        if (Icon == null && iconPng is { Length: > 0 })
+            Icon = CreateImage(iconPng);
+
+        Seconds = row.Seconds;
+        TimeText = UsageFormat.Duration(row.Seconds);
+        OpensText = row.Opens == 1 ? "1 open" : $"{row.Opens} opens";
+        SharePercent = rangeTotalSeconds > 0
+            ? Math.Clamp(row.Seconds / (double)rangeTotalSeconds * 100.0, 0, 100)
+            : 0;
+
         Rule = rule;
-        ColorIndex = Services.ScreenTime.ScreenTimeStore.StableColorIndex(row.AppKey);
-        Share = rangeTotalSeconds > 0 ? Math.Clamp(row.Seconds / (double)rangeTotalSeconds, 0, 1) : 0;
         IsHidden = settings.HiddenAppKeys.Any(k => string.Equals(k, AppKey, StringComparison.OrdinalIgnoreCase));
 
         if (rule?.SelfDiscipline is { QuotaEnabled: true } sd)
@@ -115,11 +173,9 @@ public sealed class AppUsageRowViewModel
 
             int used = sd.QuotaDate == today ? sd.UsedSecondsToday : 0;
             int limit = Math.Max(1, sd.DailyLimitMinutes) * 60;
-            LimitProgress = Math.Clamp(used / (double)limit * 100.0, 0, 100);
-            UsedText = UsageFormat.ShortDuration(used);
-
-            bool hasExtra = sd.ExtraSecondsGrantedToday > 0;
             int effective = limit + Math.Max(0, sd.ExtraSecondsGrantedToday);
+
+            LimitProgress = Math.Clamp(used / (double)limit * 100.0, 0, 100);
 
             if (used >= effective)
             {
@@ -137,39 +193,38 @@ public sealed class AppUsageRowViewModel
                 LimitBrush = UsagePalette.SecondaryText;
             }
 
-            if (hasExtra)
-                ExtraText = $"+{UsageFormat.ShortDuration(sd.ExtraSecondsGrantedToday)} extra";
+            ExtraText = sd.ExtraSecondsGrantedToday > 0
+                ? $"+{UsageFormat.ShortDuration(sd.ExtraSecondsGrantedToday)} extra"
+                : string.Empty;
+            HasExtra = ExtraText.Length > 0;
+        }
+        else
+        {
+            HasLimit = false;
+            LimitMinutes = 0;
+            LimitText = string.Empty;
+            LimitStateText = string.Empty;
+            LimitProgress = 0;
+            LimitBrush = UsagePalette.SecondaryText;
+            ExtraText = string.Empty;
+            HasExtra = false;
         }
     }
 
-    public string AppKey { get; }
-    public string DisplayName { get; }
-    public long Seconds { get; }
-    public int Opens { get; }
-    public string? ExePath { get; }
-    public string? Aumid { get; }
-    public LockRule? Rule { get; }
-    public int ColorIndex { get; }
-    public double Share { get; }
-    public bool IsHidden { get; }
+    private static ImageSource? CreateImage(byte[]? png)
+    {
+        if (png == null || png.Length == 0) return null;
 
-    public string Initial => string.IsNullOrEmpty(DisplayName) ? "?" : DisplayName.Substring(0, 1).ToUpperInvariant();
-    public string TimeText => UsageFormat.Duration(Seconds);
-    public string OpensText => Opens == 1 ? "1 open" : $"{Opens} opens";
-    public double SharePercent => Share * 100.0;
-    public Brush ColorBrush => UsagePalette.BrushFor(ColorIndex);
-    public Brush NeutralBrush => UsagePalette.Neutral;
-
-    public bool HasLimit { get; }
-    public int LimitMinutes { get; }
-    public string LimitText { get; } = string.Empty;
-    public string LimitStateText { get; } = string.Empty;
-    public string UsedText { get; } = string.Empty;
-    public string ExtraText { get; } = string.Empty;
-    public double LimitProgress { get; }
-    public Brush LimitBrush { get; } = UsagePalette.SecondaryText;
-    public bool HasExtra => !string.IsNullOrEmpty(ExtraText);
-
-    /// <summary>True when the app has an admin limit, so excluding it would be a loophole.</summary>
-    public bool CanExclude => !HasLimit;
+        try
+        {
+            var stream = new MemoryStream(png);
+            var bitmap = new BitmapImage();
+            bitmap.SetSource(stream.AsRandomAccessStream());
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
