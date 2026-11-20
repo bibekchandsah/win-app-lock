@@ -45,3 +45,28 @@ public sealed partial class DomainItemViewModel : ObservableObject
 
     public void RequestDelete() => _onDelete(this);
 }
+
+/// <summary>
+/// Backs one item in the Temporary Allow list.
+/// </summary>
+public sealed class TempAllowItemViewModel
+{
+    public TempAllow Entry { get; }
+
+    public string Domain => Entry.Domain;
+
+    public string ExpiresFormatted => $"Expires at {Entry.ExpiresUtc.ToLocalTime():HH:mm} ({FormatRemaining()})";
+
+    public TempAllowItemViewModel(TempAllow entry)
+    {
+        Entry = entry;
+    }
+
+    private string FormatRemaining()
+    {
+        var diff = Entry.ExpiresUtc - DateTime.UtcNow;
+        if (diff.TotalMinutes < 1) return "< 1 min left";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m left";
+        return $"{(int)diff.TotalHours}h {diff.Minutes}m left";
+    }
+}

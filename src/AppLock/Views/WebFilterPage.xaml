@@ -75,14 +75,26 @@
                                        Visibility="{x:Bind UnavailableVisible, Mode=OneWay}"/>
                         </StackPanel>
 
-                        <!-- Toggle (disabled when list unavailable) -->
-                        <ToggleSwitch Grid.Column="2"
-                                      IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
-                                      IsEnabled="{x:Bind IsAvailable, Mode=OneWay}"
-                                      OnContent="On"
-                                      OffContent="Off"
-                                      MinWidth="0"
-                                      VerticalAlignment="Center"/>
+                        <!-- Actions: Schedule button + Toggle -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Click="CategorySchedule_Click"
+                                    Tag="{x:Bind}"
+                                    Padding="8,4"
+                                    CornerRadius="4"
+                                    Background="Transparent"
+                                    BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE787;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="{x:Bind ScheduleLabel, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"/>
+                                </StackPanel>
+                            </Button>
+                            <ToggleSwitch IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
+                                          IsEnabled="{x:Bind IsAvailable, Mode=OneWay}"
+                                          OnContent="On"
+                                          OffContent="Off"
+                                          MinWidth="0"
+                                          VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Grid>
 
                     <!-- First-enable inline hint -->
@@ -152,12 +164,25 @@
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                     </StackPanel>
 
-                    <ToggleSwitch Grid.Column="2"
-                                  IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
-                                  OnContent="Blocked"
-                                  OffContent="Allowed"
-                                  MinWidth="0"
-                                  VerticalAlignment="Center"/>
+                    <!-- Actions: Schedule button + Toggle -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Click="ServiceSchedule_Click"
+                                Tag="{x:Bind}"
+                                Padding="8,4"
+                                CornerRadius="4"
+                                Background="Transparent"
+                                BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE787;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="{x:Bind ScheduleLabel, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+                        <ToggleSwitch IsOn="{x:Bind IsEnabled, Mode=TwoWay}"
+                                      OnContent="Blocked"
+                                      OffContent="Allowed"
+                                      MinWidth="0"
+                                      VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -202,6 +227,45 @@
                             VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
                     </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Temporary Allow Row Template -->
+        <DataTemplate x:Key="TempAllowRowTemplate" x:DataType="vm:TempAllowItemViewModel">
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,10"
+                    Margin="0,0,0,6">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{x:Bind Domain}"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Temporary allow"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{x:Bind ExpiresFormatted}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <Button Grid.Column="2"
+                            Tag="{x:Bind}"
+                            Click="RevokeTempAllow_Click"
+                            Content="Revoke"
+                            Padding="8,4"
+                            VerticalAlignment="Center"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -330,7 +394,20 @@
 
                 <InfoBar x:Name="CheckResultBar"
                          IsOpen="False"
-                         IsClosable="True"/>
+                         IsClosable="True">
+                    <InfoBar.Content>
+                        <StackPanel x:Name="CheckBlockedActionPanel"
+                                    Orientation="Horizontal"
+                                    Spacing="6"
+                                    Margin="0,8,0,0"
+                                    Visibility="Collapsed">
+                            <Button Content="Allow for 15 min" Click="Allow15Min_Click" Padding="8,4"/>
+                            <Button Content="Allow for 1 hour" Click="Allow1Hour_Click" Padding="8,4"/>
+                            <Button Content="Allow today" Click="AllowToday_Click" Padding="8,4"/>
+                            <Button Content="Always allow" Click="CheckAlwaysAllow_Click" Padding="8,4"/>
+                        </StackPanel>
+                    </InfoBar.Content>
+                </InfoBar>
             </StackPanel>
         </Border>
 
@@ -530,6 +607,22 @@
                                 <!-- Items list -->
                                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.AlwaysAllowItems, Mode=OneWay}"
                                                ItemTemplate="{StaticResource DomainRowTemplate}"/>
+                            </StackPanel>
+                        </PivotItem>
+
+                        <!-- Temporary Allow -->
+                        <PivotItem Header="Temporary Allow">
+                            <StackPanel Spacing="12" Margin="0,12,0,0">
+                                <TextBlock Text="Websites temporarily unblocked for 15 minutes, 1 hour, or until midnight. Once expired, they are automatically blocked again."
+                                           Style="{StaticResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+
+                                <TextBlock Text="{x:Bind ViewModel.TempAllowsCountLabel, Mode=OneWay}"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+
+                                <ItemsRepeater ItemsSource="{x:Bind ViewModel.ActiveTempAllows, Mode=OneWay}"
+                                               ItemTemplate="{StaticResource TempAllowRowTemplate}"/>
                             </StackPanel>
                         </PivotItem>
                     </Pivot>

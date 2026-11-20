@@ -167,6 +167,24 @@ public sealed partial class CategoryCardViewModel : ObservableObject
         }
     }
 
+    public List<TimeBlock> GetSchedule()
+    {
+        return _settings.WebFilter.Categories.TryGetValue(Id, out var r)
+            ? r.ActiveBlocks
+            : new List<TimeBlock>();
+    }
+
+    public void SetSchedule(List<TimeBlock> blocks)
+    {
+        var rule = _settings.WebFilter.Categories.TryGetValue(Id, out var r)
+            ? r
+            : (_settings.WebFilter.Categories[Id] = new CategoryRule());
+
+        rule.ActiveBlocks = blocks;
+        _settingsStore.Save(_settings);
+        OnPropertyChanged(nameof(ScheduleLabel));
+    }
+
     private static string FormatBlocks(IReadOnlyList<TimeBlock> blocks)
     {
         if (blocks.Count == 0) return "Always";

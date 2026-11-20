@@ -119,7 +119,7 @@ public class DnsFilterServerTests
         for (int port = 5300; port < 5320; port++)
         {
             var server = new DnsFilterServer(
-                new DnsServerOptions { BindAddress = IPAddress.Loopback, Port = port, QueryTimeout = TimeSpan.FromSeconds(1) },
+                new DnsServerOptions { BindAddress = IPAddress.Loopback, Port = port, QueryTimeout = TimeSpan.FromSeconds(5) },
                 upstream ?? new FakeUpstream(),
                 new TestPolicy());
 

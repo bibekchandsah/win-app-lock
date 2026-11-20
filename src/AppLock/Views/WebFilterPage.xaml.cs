@@ -155,6 +155,15 @@ public sealed partial class WebFilterPage : Page
         }
         else
         {
+            if (ViewModel.IsEnabled)
+            {
+                if (!await RequestAuthAsync("Enter your password to turn off Web Filter"))
+                {
+                    SetToggleWithoutEvent(true);
+                    return;
+                }
+            }
+
             ViewModel.SetEnabled(false);
             await ServiceContainer.WebFilterService.StopAsync();
             PopulateStatus();
@@ -244,6 +253,9 @@ public sealed partial class WebFilterPage : Page
 
         if (result.IsBlocked)
         {
+            _lastCheckedHost = result.Host;
+            CheckBlockedActionPanel.Visibility = Visibility.Visible;
+
             string source = string.IsNullOrWhiteSpace(result.SourceName)
                 ? string.Empty
                 : $" Matched by {result.SourceName}.";
@@ -255,6 +267,9 @@ public sealed partial class WebFilterPage : Page
         }
         else
         {
+            _lastCheckedHost = string.Empty;
+            CheckBlockedActionPanel.Visibility = Visibility.Collapsed;
+
             ShowCheckResult(
                 InfoBarSeverity.Success,
                 "Allowed",
@@ -309,15 +324,17 @@ public sealed partial class WebFilterPage : Page
 
     // ── Pause button ──────────────────────────────────────────────────────────
 
-    private void PauseButton_30_Click(object sender, RoutedEventArgs e)
+    private async void PauseButton_30_Click(object sender, RoutedEventArgs e)
     {
+        if (!await RequestAuthAsync("Enter your password to pause Web Filter")) return;
         ViewModel.TogglePause(30);
         PopulateStatus();
         UpdatePauseButtonLabel();
     }
 
-    private void PauseButton_60_Click(object sender, RoutedEventArgs e)
+    private async void PauseButton_60_Click(object sender, RoutedEventArgs e)
     {
+        if (!await RequestAuthAsync("Enter your password to pause Web Filter")) return;
         ViewModel.TogglePause(60);
         PopulateStatus();
         UpdatePauseButtonLabel();
@@ -543,6 +560,131 @@ public sealed partial class WebFilterPage : Page
         catch (Exception ex)
         {
             Debug.WriteLine($"[WebFilter] Export failed: {ex.Message}");
+        }
+    }
+
+    // ── Check Tool Allow Actions ──────────────────────────────────────────────
+
+    private string _lastCheckedHost = string.Empty;
+
+    private async void Allow15Min_Click(object sender, RoutedEventArgs e)
+    {
+        await ApplyCheckTempAllowAsync(15, "15 minutes");
+    }
+
+    private async void Allow1Hour_Click(object sender, RoutedEventArgs e)
+    {
+        await ApplyCheckTempAllowAsync(60, "1 hour");
+    }
+
+    private async void AllowToday_Click(object sender, RoutedEventArgs e)
+    {
+        var now = DateTime.Now;
+        var midnight = now.Date.AddDays(1);
+        int minutes = Math.Max(1, (int)(midnight - now).TotalMinutes);
+        await ApplyCheckTempAllowAsync(minutes, "today (until midnight)");
+    }
+
+    private async Task ApplyCheckTempAllowAsync(int minutes, string durationLabel)
+    {
+        if (string.IsNullOrEmpty(_lastCheckedHost)) return;
+
+        if (!await RequestAuthAsync($"Enter your password to temporarily allow {_lastCheckedHost} for {durationLabel}"))
+        {
+            return;
+        }
+
+        if (ViewModel.AddTempAllow(_lastCheckedHost, minutes, out var host, out var expiresUtc))
+        {
+            CheckBlockedActionPanel.Visibility = Visibility.Collapsed;
+            ShowCheckResult(
+                InfoBarSeverity.Success,
+                "Temporarily Allowed",
+                $"{host} is allowed until {expiresUtc.ToLocalTime():HH:mm} ({durationLabel}).");
+        }
+    }
+
+    private async void CheckAlwaysAllow_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_lastCheckedHost)) return;
+
+        if (!await RequestAuthAsync($"Enter your password to add {_lastCheckedHost} to Always Allow"))
+        {
+            return;
+        }
+
+        if (ViewModel.AddAlwaysAllow(_lastCheckedHost, "Allowed via check tool", out var message, out bool isNeverBlock))
+        {
+            CheckBlockedActionPanel.Visibility = Visibility.Collapsed;
+            ShowCheckResult(
+                InfoBarSeverity.Success,
+                "Always Allowed",
+                $"{_lastCheckedHost} has been added to the Always Allow list.");
+        }
+        else
+        {
+            ShowCheckResult(
+                isNeverBlock ? InfoBarSeverity.Informational : InfoBarSeverity.Error,
+                isNeverBlock ? "Already protected" : "Could not allow",
+                message);
+        }
+    }
+
+    // ── Temporary Allow Revoke ────────────────────────────────────────────────
+
+    private async void RevokeTempAllow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: TempAllowItemViewModel item }) return;
+
+        if (!await RequestAuthAsync($"Enter your password to revoke temporary allow for {item.Domain}"))
+        {
+            return;
+        }
+
+        ViewModel.RevokeTempAllow(item);
+    }
+
+    // ── Schedule Dialogs ──────────────────────────────────────────────────────
+
+    private async void CategorySchedule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: CategoryCardViewModel card }) return;
+
+        if (!await RequestAuthAsync($"Enter your password to modify schedule for {card.Name}"))
+        {
+            return;
+        }
+
+        var dialog = new WebFilter.Dialogs.ScheduleEditorDialog(card.Name, card.GetSchedule())
+        {
+            XamlRoot = this.Content.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            card.SetSchedule(dialog.ResultBlocks);
+        }
+    }
+
+    private async void ServiceSchedule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ServiceCardViewModel svc }) return;
+
+        if (!await RequestAuthAsync($"Enter your password to modify schedule for {svc.Name}"))
+        {
+            return;
+        }
+
+        var dialog = new WebFilter.Dialogs.ScheduleEditorDialog(svc.Name, svc.GetSchedule())
+        {
+            XamlRoot = this.Content.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            svc.SetSchedule(dialog.ResultBlocks);
         }
     }
 }

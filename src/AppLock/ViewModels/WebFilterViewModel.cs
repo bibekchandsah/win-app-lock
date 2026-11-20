@@ -263,6 +263,30 @@ public partial class WebFilterViewModel : ObservableObject
     private readonly ObservableCollection<DomainItemViewModel> _alwaysAllowItems = new();
     public ObservableCollection<DomainItemViewModel> AlwaysAllowItems => _alwaysAllowItems;
 
+    private readonly ObservableCollection<TempAllowItemViewModel> _activeTempAllows = new();
+    public ObservableCollection<TempAllowItemViewModel> ActiveTempAllows => _activeTempAllows;
+
+    public void RefreshTempAllows()
+    {
+        Filter.TempAllows.RemoveAll(t => t.ExpiresUtc <= DateTime.UtcNow);
+        _activeTempAllows.Clear();
+        foreach (var t in Filter.TempAllows.OrderBy(t => t.ExpiresUtc))
+        {
+            _activeTempAllows.Add(new TempAllowItemViewModel(t));
+        }
+        OnPropertyChanged(nameof(TempAllowsCountLabel));
+    }
+
+    public string TempAllowsCountLabel => $"{Filter.TempAllows.Count} domains";
+
+    public void RevokeTempAllow(TempAllowItemViewModel item)
+    {
+        Filter.TempAllows.Remove(item.Entry);
+        _activeTempAllows.Remove(item);
+        SaveSettings();
+        OnPropertyChanged(nameof(TempAllowsCountLabel));
+    }
+
     public void BuildServicesAndSites()
     {
         var catalog = _lists.Catalog;
@@ -304,6 +328,8 @@ public partial class WebFilterViewModel : ObservableObject
         {
             _alwaysAllowItems.Add(new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
         }
+
+        RefreshTempAllows();
 
         OnPropertyChanged(nameof(AlwaysBlockCountLabel));
         OnPropertyChanged(nameof(AlwaysAllowCountLabel));
@@ -390,6 +416,37 @@ public partial class WebFilterViewModel : ObservableObject
 
         _alwaysAllowItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
         OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+        return true;
+    }
+
+    public bool AddTempAllow(string domainOrUrl, int minutes, out string host, out DateTime expiresUtc)
+    {
+        expiresUtc = DateTime.UtcNow.AddMinutes(minutes);
+        host = string.Empty;
+
+        if (!DomainName.TryExtractHost(domainOrUrl, out host))
+        {
+            return false;
+        }
+
+        var targetHost = host;
+        Filter.TempAllows.RemoveAll(t => t.ExpiresUtc <= DateTime.UtcNow);
+        var existing = Filter.TempAllows.FirstOrDefault(t => t.Domain.Equals(targetHost, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.ExpiresUtc = expiresUtc;
+        }
+        else
+        {
+            Filter.TempAllows.Add(new TempAllow
+            {
+                Domain = targetHost,
+                ExpiresUtc = expiresUtc
+            });
+        }
+
+        SaveSettings();
+        RefreshTempAllows();
         return true;
     }
 

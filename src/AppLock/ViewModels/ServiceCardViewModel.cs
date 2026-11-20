@@ -85,6 +85,24 @@ public sealed partial class ServiceCardViewModel : ObservableObject
         }
     }
 
+    public List<TimeBlock> GetSchedule()
+    {
+        return _settings.WebFilter.Services.TryGetValue(Id, out var r)
+            ? r.ActiveBlocks
+            : new List<TimeBlock>();
+    }
+
+    public void SetSchedule(List<TimeBlock> blocks)
+    {
+        var rule = _settings.WebFilter.Services.TryGetValue(Id, out var r)
+            ? r
+            : (_settings.WebFilter.Services[Id] = new ServiceRule());
+
+        rule.ActiveBlocks = blocks;
+        _settingsStore.Save(_settings);
+        OnPropertyChanged(nameof(ScheduleLabel));
+    }
+
     private static string FormatBlocks(IReadOnlyList<TimeBlock> blocks)
     {
         if (blocks.Count == 0) return "Always";

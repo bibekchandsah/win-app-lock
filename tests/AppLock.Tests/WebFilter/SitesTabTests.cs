@@ -138,4 +138,42 @@ https://sub.blocked.net/login
         Assert.Equal("test.org", entries[1].Domain);
         Assert.Equal("sub.blocked.net", entries[2].Domain);
     }
+
+    [Fact]
+    public void TempAllow_WinsOverAlwaysBlockAndServices_UntilExpiry()
+    {
+        var now = DateTime.UtcNow;
+        var rules = new DomainRuleSet
+        {
+            Enabled = true,
+            AlwaysBlock = new SuffixSet(new[] { "reddit.com" }),
+            TempAllows = new[] { new TempAllowEntry("reddit.com", now.AddMinutes(15)) }
+        };
+
+        var matcherBefore = new DomainMatcher(rules, () => now.ToLocalTime(), () => now);
+        var matchBefore = matcherBefore.Match("reddit.com");
+        Assert.False(matchBefore.IsBlocked);
+        Assert.Equal(MatchLayer.TempAllow, matchBefore.Layer);
+
+        // After 16 minutes, the temp allow has expired
+        var matcherAfter = new DomainMatcher(rules, () => now.ToLocalTime(), () => now.AddMinutes(16));
+        var matchAfter = matcherAfter.Match("reddit.com");
+        Assert.True(matchAfter.IsBlocked);
+        Assert.Equal(MatchLayer.AlwaysBlock, matchAfter.Layer);
+    }
+
+    [Fact]
+    public void ScheduleWindows_EvaluatesActiveTimesCorrectly()
+    {
+        // Monday 9:00 - 17:00
+        var window = new TimeWindow(new TimeOnly(9, 0), new TimeOnly(17, 0), new[] { true, false, false, false, false, false, false });
+
+        var mon10am = new DateTime(2026, 11, 16, 10, 0, 0); // Monday
+        var mon8am = new DateTime(2026, 11, 16, 8, 0, 0);   // Monday
+        var tue10am = new DateTime(2026, 11, 17, 10, 0, 0); // Tuesday
+
+        Assert.True(window.IsActiveAt(mon10am));
+        Assert.False(window.IsActiveAt(mon8am));
+        Assert.False(window.IsActiveAt(tue10am));
+    }
 }

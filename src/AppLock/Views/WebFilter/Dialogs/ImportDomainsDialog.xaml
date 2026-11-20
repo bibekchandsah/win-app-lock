@@ -10,7 +10,7 @@
     CloseButtonText="Cancel"
     DefaultButton="Primary"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    Style="{StaticResource DefaultContentDialogStyle}">
+    CornerRadius="8">
 
     <StackPanel Spacing="14" Width="440">
         <TextBlock Text="Paste one domain or URL per line. Lines starting with # are treated as comments."
