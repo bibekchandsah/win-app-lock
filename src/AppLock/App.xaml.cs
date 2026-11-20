@@ -107,6 +107,16 @@ public partial class App : Application
             {
                 AppLock.Services.ServiceContainer.PortWatchService.Start();
             }
+
+            // Run Web Filter startup check / fail-safe repair
+            try
+            {
+                AppLock.Services.ServiceContainer.WebFilterService.CheckStartupRepair();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[App] WebFilter startup check failed: {ex.Message}");
+            }
         }
 
         // Wire session lock change to dismiss popup immediately on lock screen

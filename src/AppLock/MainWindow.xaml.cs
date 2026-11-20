@@ -1419,6 +1419,7 @@ public sealed partial class MainWindow : Window
         if (Interlocked.Exchange(ref _finalCleanupDone, 1) != 0) return;
 
         try { ServiceContainer.ShutdownNotificationCustomizer(); } catch { }
+        try { ServiceContainer.WebFilterService.OnUnexpectedExit(); } catch { }
     }
 
     private void StartVaultAddIpcListener()
@@ -2359,6 +2360,22 @@ public sealed partial class MainWindow : Window
         // Hand the shell's toast banner windows back untouched, otherwise a toast that was mid
         // animation keeps the shared window hidden/transparent after we exit.
         ServiceContainer.ShutdownNotificationCustomizer();
+
+        try
+        {
+            if (ServiceContainer.Settings.WebFilter.Enabled)
+            {
+                ServiceContainer.TrayService.ShowBalloonNotification(
+                    "Web Filter Paused",
+                    "Web Filter paused because AppLock closed.",
+                    NotificationSeverity.Informational);
+            }
+            ServiceContainer.WebFilterService.OnAppExit();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebFilter] Shutdown cleanup error: {ex.Message}");
+        }
 
         ServiceContainer.TrayService.Dispose();
         _windowIcon?.Dispose();

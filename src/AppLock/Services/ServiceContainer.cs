@@ -57,6 +57,7 @@ public static class ServiceContainer
     private static AppLock.Services.Vault.VaultSessionManager? _vaultSessionManager;
     private static AppLock.Services.Vault.VaultAutoLockService? _vaultAutoLockService;
     private static WebFilterListService? _webFilterListService;
+    private static WebFilterService? _webFilterService;
 
     public static AppLock.Services.Vault.VaultSessionManager VaultSessionManager
     {
@@ -132,6 +133,18 @@ public static class ServiceContainer
                 _webFilterListService = new WebFilterListService(Settings, SettingsStore.Save);
             }
             return _webFilterListService;
+        }
+    }
+
+    public static WebFilterService WebFilterService
+    {
+        get
+        {
+            if (_webFilterService == null)
+            {
+                _webFilterService = new WebFilterService(Settings, SettingsStore.Save, WebFilterListService);
+            }
+            return _webFilterService;
         }
     }
 
@@ -338,6 +351,8 @@ public static class ServiceContainer
             _ = _screenTimeService.Store.DisposeAsync();
             _screenTimeService = null;
         }
+        _webFilterService?.Dispose();
+        _webFilterService = null;
         _webFilterListService?.Dispose();
         _webFilterListService = null;
 

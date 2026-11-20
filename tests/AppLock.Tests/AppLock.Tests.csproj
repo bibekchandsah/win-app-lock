@@ -149,6 +149,10 @@
     <Compile Include="..\..\src\AppLock\Services\BitLocker\BitLockerLogger.cs" Link="Services\BitLocker\BitLockerLogger.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\DriveItemViewModel.cs" Link="ViewModels\DriveItemViewModel.cs" />
     <Compile Include="..\..\src\AppLock\ViewModels\BitLockerViewModel.cs" Link="ViewModels\BitLockerViewModel.cs" />
+    <!-- WebFilter DNS types (Milestone 4) -->
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\INetworkAdapterService.cs" Link="Services\WebFilter\INetworkAdapterService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\RealNetworkAdapterService.cs" Link="Services\WebFilter\RealNetworkAdapterService.cs" />
+    <Compile Include="..\..\src\AppLock\Services\WebFilter\DnsConfigurator.cs" Link="Services\WebFilter\DnsConfigurator.cs" />
   </ItemGroup>
 
   <ItemGroup>

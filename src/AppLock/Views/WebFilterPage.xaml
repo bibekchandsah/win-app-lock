@@ -74,7 +74,7 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <ToggleSwitch x:Name="MasterToggle"
-                                  IsEnabled="False"
+                                  Toggled="MasterToggle_Toggled"
                                   OnContent="On"
                                   OffContent="Off"
                                   MinWidth="0"/>
@@ -145,6 +145,27 @@
                             Click="RestartAsAdminButton_Click"/>
                 </InfoBar.ActionButton>
             </InfoBar>
+
+            <InfoBar x:Name="TamperInfoBar"
+                     Severity="Informational"
+                     Title="DNS changed outside AppLock"
+                     Message="DNS settings were changed outside AppLock and were automatically re-applied to the filter."
+                     IsOpen="False"
+                     IsClosable="True"/>
+
+            <InfoBar x:Name="FilterErrorInfoBar"
+                     Severity="Error"
+                     Title="Filter stopped unexpectedly"
+                     Message=""
+                     IsOpen="False"
+                     IsClosable="True"/>
+
+            <InfoBar x:Name="RestoreSuccessBar"
+                     Severity="Success"
+                     Title="Network settings restored"
+                     Message="Original DNS settings have been restored on all network adapters."
+                     IsOpen="False"
+                     IsClosable="True"/>
         </StackPanel>
 
         <!-- Honest scope note -->
@@ -246,6 +267,20 @@
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                        TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource WebFilterCard}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Emergency"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="Restore the PC's original DNS settings immediately and turn off Web Filter. This always works without authentication."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                            <Button Content="Restore my network settings"
+                                    Click="RestoreNetworkButton_Click"
+                                    CornerRadius="4"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

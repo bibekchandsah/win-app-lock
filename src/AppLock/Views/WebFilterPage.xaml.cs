@@ -19,6 +19,7 @@ public sealed partial class WebFilterPage : Page
     public WebFilterViewModel ViewModel { get; }
 
     private bool _isElevated;
+    private bool _updatingToggle;
 
     public WebFilterPage()
     {
@@ -30,6 +31,7 @@ public sealed partial class WebFilterPage : Page
         InitializeComponent();
         DataContext = ViewModel;
         Loaded += WebFilterPage_Loaded;
+        Unloaded += WebFilterPage_Unloaded;
     }
 
     private async void WebFilterPage_Loaded(object sender, RoutedEventArgs e)
@@ -37,11 +39,123 @@ public sealed partial class WebFilterPage : Page
         _isElevated = KeyboardService.IsAdministrator();
         NotElevatedInfoBar.IsOpen = !_isElevated;
 
+        ServiceContainer.WebFilterService.StatusChanged += OnFilterStatusChanged;
+        ServiceContainer.WebFilterService.TamperDetected += OnFilterTamperDetected;
+        ServiceContainer.WebFilterService.ListenerFailed += OnFilterListenerFailed;
+
+        SetToggleWithoutEvent(ViewModel.IsEnabled);
         PopulateStatus();
         ShowTab("categories");
 
         await ViewModel.InitializeListsAsync();
         PopulateStatus();
+    }
+
+    private void WebFilterPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.WebFilterService.StatusChanged -= OnFilterStatusChanged;
+        ServiceContainer.WebFilterService.TamperDetected -= OnFilterTamperDetected;
+        ServiceContainer.WebFilterService.ListenerFailed -= OnFilterListenerFailed;
+    }
+
+    private void OnFilterStatusChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            SetToggleWithoutEvent(ViewModel.IsEnabled);
+            PopulateStatus();
+        });
+    }
+
+    private void OnFilterTamperDetected(object? sender, string message)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            TamperInfoBar.Message = message;
+            TamperInfoBar.IsOpen = true;
+        });
+    }
+
+    private void OnFilterListenerFailed(object? sender, string message)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            FilterErrorInfoBar.Message = message;
+            FilterErrorInfoBar.IsOpen = true;
+            SetToggleWithoutEvent(false);
+            PopulateStatus();
+        });
+    }
+
+    private void SetToggleWithoutEvent(bool isOn)
+    {
+        _updatingToggle = true;
+        try
+        {
+            MasterToggle.IsOn = isOn;
+        }
+        finally
+        {
+            _updatingToggle = false;
+        }
+    }
+
+    private async void MasterToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingToggle) return;
+
+        bool turningOn = MasterToggle.IsOn;
+
+        if (turningOn)
+        {
+            if (!_isElevated)
+            {
+                NotElevatedInfoBar.IsOpen = true;
+                SetToggleWithoutEvent(false);
+                return;
+            }
+
+            if (!ViewModel.Filter.DefaultsSeeded)
+            {
+                var dialog = new WebFilter.Dialogs.SetupWizardDialog(ViewModel.Filter)
+                {
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+                if (!dialog.WasApplied)
+                {
+                    SetToggleWithoutEvent(false);
+                    return;
+                }
+            }
+
+            ViewModel.SetEnabled(true);
+            bool ok = await ServiceContainer.WebFilterService.StartAsync();
+            if (!ok)
+            {
+                FilterErrorInfoBar.Message = ServiceContainer.WebFilterService.LastError ?? "Could not start DNS filter server.";
+                FilterErrorInfoBar.IsOpen = true;
+                ViewModel.SetEnabled(false);
+                SetToggleWithoutEvent(false);
+            }
+            PopulateStatus();
+        }
+        else
+        {
+            ViewModel.SetEnabled(false);
+            await ServiceContainer.WebFilterService.StopAsync();
+            PopulateStatus();
+        }
+    }
+
+    private void RestoreNetworkButton_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.WebFilterService.RestoreNetworkSettings();
+        ViewModel.SetEnabled(false);
+        SetToggleWithoutEvent(false);
+        PopulateStatus();
+        RestoreSuccessBar.IsOpen = true;
     }
 
     private void PopulateStatus()

@@ -37,6 +37,25 @@ public static class Program
             return;
         }
 
+        // 3. If running headless DNS restoration (--restore-dns)
+        if (args.Length > 0 && Array.Exists(args, a => string.Equals(a, "--restore-dns", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                var store = new SettingsStore();
+                var settings = store.Load();
+                AppLock.Services.WebFilter.DnsConfigurator.RestoreDnsHeadless(settings.WebFilter);
+                settings.WebFilter.Enabled = false;
+                store.Save(settings);
+                Console.WriteLine("[AppLock] Original DNS settings restored successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[AppLock] Failed to restore DNS: {ex.Message}");
+            }
+            return;
+        }
+
         // 3. If invoked with --vault-add to add files/folders to vault
         var vaultAddIdx = Array.FindIndex(args, a => string.Equals(a, "--vault-add", StringComparison.OrdinalIgnoreCase));
         if (vaultAddIdx >= 0)

@@ -1,0 +1,123 @@
+<ContentDialog
+    x:Class="AppLock.Views.WebFilter.Dialogs.SetupWizardDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Setup Web Filter"
+    PrimaryButtonText="Next"
+    SecondaryButtonText=""
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    PrimaryButtonClick="PrimaryButton_Click"
+    SecondaryButtonClick="SecondaryButton_Click">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="520">
+        <StackPanel Spacing="16" MinWidth="420" MaxWidth="480" Padding="0,4,0,0">
+
+            <!-- Step indicator -->
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Ellipse x:Name="Dot1" Width="8" Height="8"
+                         Fill="{ThemeResource AccentFillColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot2" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+                <Ellipse x:Name="Dot3" Width="8" Height="8"
+                         Fill="{ThemeResource ControlStrokeColorDefaultBrush}"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 1: Mode ===================== -->
+            <StackPanel x:Name="Step1Panel" Spacing="14" Visibility="Visible">
+                <TextBlock Text="How should AppLock filter?"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="Choose how websites should be filtered on this PC."
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <StackPanel Spacing="12">
+                    <RadioButton x:Name="LocalFilterRadio" IsChecked="True" GroupName="FilterModeGroup">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Local filter (recommended)" FontWeight="SemiBold"/>
+                            <TextBlock Text="Runs a lightweight local filter on this PC. Blocks entire categories, individual sites, schedules, and custom rules."
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="ProviderRadio" GroupName="FilterModeGroup">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Filtered DNS provider (simple)" FontWeight="SemiBold"/>
+                            <TextBlock Text="Points Windows DNS to a family safety provider (e.g. Cloudflare Family). Fast and simple, but without local site schedules or category fine-tuning."
+                                       TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- ===================== STEP 2: Categories ===================== -->
+            <StackPanel x:Name="Step2Panel" Spacing="14" Visibility="Collapsed">
+                <TextBlock Text="What should be blocked?"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="Choose the default content categories to block immediately."
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <StackPanel Spacing="10">
+                    <CheckBox x:Name="AdultCheck" IsChecked="True" Content="Adult &amp; Pornography"/>
+                    <CheckBox x:Name="GamblingCheck" IsChecked="True" Content="Gambling"/>
+                    <CheckBox x:Name="SocialCheck" IsChecked="True" Content="Social Media"/>
+                    <CheckBox x:Name="MalwareCheck" IsChecked="True" Content="Malware &amp; Phishing"/>
+                    <CheckBox x:Name="BypassCheck" IsChecked="True" Content="Bypass Tools &amp; Proxies"/>
+                </StackPanel>
+
+                <TextBlock Text="Note: More categories, custom schedules, and individual website blocks can be adjusted on the Categories and Sites tabs anytime."
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            </StackPanel>
+
+            <!-- ===================== STEP 3: Review ===================== -->
+            <StackPanel x:Name="Step3Panel" Spacing="14" Visibility="Collapsed">
+                <TextBlock Text="Review changes"
+                           FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock Text="Here is what will change on this PC:"
+                           TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE774;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ReviewDnsText"
+                                       Text="Windows DNS will be set to the AppLock filter on: Wi-Fi, Ethernet."
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ReviewFirewallRow" Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE83D;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Firewall rules named 'AppLock Web Filter' will be added."
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ReviewBrowserRow" Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72D;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Browser Secure DNS will be turned off by policy."
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="You can undo all of this at any time by turning Web Filter off or using 'Restore my network settings'."
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>
