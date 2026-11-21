@@ -66,7 +66,7 @@ public sealed partial class CategoryCardViewModel : ObservableObject
         "streaming" => "\uE786", // Video
         "dating"    => "\uEB51", // Heart
         "games"     => "\uE7FC", // GameController
-        "piracy"    => "\uE7A5", // Blocked
+        "piracy"    => "\uE896", // Download (torrent / piracy)
         "drugs"     => "\uEBE8", // Warning / flag
         "ads"       => "\uECA7", // ClearSelection / filter
         _           => "\uE9CE"  // Filter generic

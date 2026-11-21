@@ -147,7 +147,8 @@ public sealed partial class WebFilterPage : Page
             {
                 var dialog = new WebFilter.Dialogs.SetupWizardDialog(ViewModel.Filter)
                 {
-                    XamlRoot = this.Content.XamlRoot
+                    XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+                    RequestedTheme = GetCurrentActualTheme()
                 };
 
                 await dialog.ShowAsync();
@@ -190,13 +191,29 @@ public sealed partial class WebFilterPage : Page
         }
     }
 
-    private void RestoreNetworkButton_Click(object sender, RoutedEventArgs e)
+    private async void RestoreNetworkButton_Click(object sender, RoutedEventArgs e)
     {
-        ServiceContainer.WebFilterService.RestoreNetworkSettings();
-        ViewModel.SetEnabled(false);
-        SetToggleWithoutEvent(false);
-        PopulateStatus();
-        RestoreSuccessBar.IsOpen = true;
+        var targetBtn = sender as Button;
+        if (targetBtn != null) targetBtn.IsEnabled = false;
+        try
+        {
+            await ServiceContainer.WebFilterService.RestoreNetworkSettingsAsync();
+            ViewModel.SetEnabled(false);
+            SetToggleWithoutEvent(false);
+            PopulateStatus();
+            RestoreSuccessBar.IsOpen = true;
+        }
+        finally
+        {
+            if (targetBtn != null) targetBtn.IsEnabled = true;
+        }
+    }
+
+    private ElementTheme GetCurrentActualTheme()
+    {
+        if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+            return rootFe.ActualTheme;
+        return ServiceContainer.CurrentTheme;
     }
 
     private void PopulateStatus()
@@ -430,7 +447,8 @@ public sealed partial class WebFilterPage : Page
         if (ServiceContainer.AuthService.IsFirstRun) return true;
         var dialog = new AuthDialog(ServiceContainer.AuthService)
         {
-            XamlRoot = this.Content.XamlRoot,
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme(),
             IntroText = prompt
         };
         await dialog.ShowAsync();
@@ -492,7 +510,8 @@ public sealed partial class WebFilterPage : Page
 
         var dialog = new ContentDialog
         {
-            XamlRoot = this.Content.XamlRoot,
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme(),
             Title = "Delete all always blocked domains?",
             Content = $"Are you sure you want to remove all {ViewModel.Filter.AlwaysBlock.Count} domain(s) from the Always Block list? This action cannot be undone.",
             PrimaryButtonText = "Delete All",
@@ -514,7 +533,8 @@ public sealed partial class WebFilterPage : Page
     {
         var dialog = new WebFilter.Dialogs.ImportDomainsDialog("Always Block")
         {
-            XamlRoot = this.Content.XamlRoot
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme()
         };
         await dialog.ShowAsync();
         if (!string.IsNullOrWhiteSpace(dialog.ImportedText))
@@ -602,7 +622,8 @@ public sealed partial class WebFilterPage : Page
 
         var dialog = new ContentDialog
         {
-            XamlRoot = this.Content.XamlRoot,
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme(),
             Title = "Delete all always allowed domains?",
             Content = $"Are you sure you want to remove all {ViewModel.Filter.AlwaysAllow.Count} domain(s) from the Always Allow list? This action cannot be undone.",
             PrimaryButtonText = "Delete All",
@@ -629,7 +650,8 @@ public sealed partial class WebFilterPage : Page
 
         var dialog = new WebFilter.Dialogs.ImportDomainsDialog("Always Allow")
         {
-            XamlRoot = this.Content.XamlRoot
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme()
         };
         await dialog.ShowAsync();
         if (!string.IsNullOrWhiteSpace(dialog.ImportedText))
@@ -795,7 +817,8 @@ public sealed partial class WebFilterPage : Page
 
         var dialog = new WebFilter.Dialogs.ScheduleEditorDialog(card.Name, card.GetSchedule())
         {
-            XamlRoot = this.Content.XamlRoot
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         var result = await dialog.ShowAsync();
@@ -816,7 +839,8 @@ public sealed partial class WebFilterPage : Page
 
         var dialog = new WebFilter.Dialogs.ScheduleEditorDialog(svc.Name, svc.GetSchedule())
         {
-            XamlRoot = this.Content.XamlRoot
+            XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+            RequestedTheme = GetCurrentActualTheme()
         };
 
         var result = await dialog.ShowAsync();
@@ -1069,7 +1093,8 @@ public sealed partial class WebFilterPage : Page
                 PrimaryButtonText = "Apply",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot ?? this.Content?.XamlRoot,
+                RequestedTheme = GetCurrentActualTheme()
             };
             var box = new NumberBox
             {
@@ -1397,7 +1422,10 @@ public sealed partial class WebFilterPage : Page
 
     private async void CreditsAndLicenses_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new AppLock.Views.WebFilter.Dialogs.CreditsAndLicensesDialog(ViewModel.Catalog, XamlRoot);
+        var dialog = new AppLock.Views.WebFilter.Dialogs.CreditsAndLicensesDialog(ViewModel.Catalog, XamlRoot ?? this.Content?.XamlRoot)
+        {
+            RequestedTheme = GetCurrentActualTheme()
+        };
         await dialog.ShowAsync();
     }
 }

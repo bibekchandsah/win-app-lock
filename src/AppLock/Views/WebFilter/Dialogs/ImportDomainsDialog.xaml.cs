@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -15,6 +16,21 @@ public sealed partial class ImportDomainsDialog : ContentDialog
         InitializeComponent();
         Title = $"Import into {listName}";
         InputTextBox.TextChanged += (s, e) => UpdatePreview();
+
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void UpdatePreview()

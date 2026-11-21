@@ -1,5 +1,6 @@
 using System;
 using AppLock.Models;
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -18,6 +19,9 @@ public sealed partial class SetupWizardDialog : ContentDialog
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         InitializeComponent();
         UpdateStepUI();
+
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
     }
 
     private void PrimaryButton_Click(ContentDialog sender, ContentDialogButtonClickEventArgs args)
@@ -97,5 +101,17 @@ public sealed partial class SetupWizardDialog : ContentDialog
         SetCategory("social", SocialCheck.IsChecked == true);
         SetCategory("malware", MalwareCheck.IsChecked == true);
         SetCategory("bypass", BypassCheck.IsChecked == true);
+    }
+
+    private void ApplyTheme()
+    {
+        if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AppLock.Models;
+using AppLock.Services;
 using AppLock.Services.WebFilter;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -19,10 +20,13 @@ public sealed partial class CreditsAndLicensesDialog : ContentDialog
         public Visibility HasUrl => Url != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    public CreditsAndLicensesDialog(WebFilterCatalog catalog, XamlRoot xamlRoot)
+    public CreditsAndLicensesDialog(WebFilterCatalog catalog, XamlRoot? xamlRoot = null)
     {
         InitializeComponent();
-        XamlRoot = xamlRoot;
+        if (xamlRoot != null) XamlRoot = xamlRoot;
+
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
 
         // Build list of all distinct list sources
         var credits = new List<ListSourceCreditItem>();
@@ -86,6 +90,18 @@ public sealed partial class CreditsAndLicensesDialog : ContentDialog
         else if (sender is HyperlinkButton { Tag: string url } && Uri.TryCreate(url, UriKind.Absolute, out var parsed))
         {
             await Windows.System.Launcher.LaunchUriAsync(parsed);
+        }
+    }
+
+    private void ApplyTheme()
+    {
+        if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            RequestedTheme = ServiceContainer.CurrentTheme;
         }
     }
 }

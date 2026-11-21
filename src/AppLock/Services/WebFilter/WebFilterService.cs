@@ -413,40 +413,35 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         _forwarder = null;
     }
 
-    /// <summary>Emergency restore button: disables filter, restores original DNS and saves settings.</summary>
-    public void RestoreNetworkSettings()
+    /// <summary>Emergency restore button: disables filter, restores original DNS and saves settings asynchronously without blocking.</summary>
+    public async Task RestoreNetworkSettingsAsync()
     {
         try
         {
             _settings.WebFilter.Enabled = false;
-            _configurator.RestoreOriginalDns(_settings.WebFilter);
+            _saveSettings(_settings);
 
+            await _gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                _firewallService.RemoveRulesAsync(_settings.WebFilter).GetAwaiter().GetResult();
-                _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
+                await StopInternalAsync(restoreDns: true).ConfigureAwait(false);
             }
-            catch { }
-
-            _ = Task.Run(async () =>
+            finally
             {
-                await _gate.WaitAsync().ConfigureAwait(false);
-                try
-                {
-                    await StopInternalAsync(restoreDns: true).ConfigureAwait(false);
-                }
-                finally
-                {
-                    _gate.Release();
-                    StatusChanged?.Invoke(this, EventArgs.Empty);
-                }
-            });
-            _saveSettings(_settings);
+                _gate.Release();
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[WebFilter] RestoreNetworkSettings failed: {ex.Message}");
         }
+    }
+
+    /// <summary>Non-blocking emergency restore convenience wrapper.</summary>
+    public void RestoreNetworkSettings()
+    {
+        _ = Task.Run(RestoreNetworkSettingsAsync);
     }
 
     /// <summary>Normal application exit handler: restores DNS and displays toast.</summary>

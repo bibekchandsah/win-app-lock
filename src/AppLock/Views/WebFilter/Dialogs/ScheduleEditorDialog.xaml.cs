@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AppLock.Models;
+using AppLock.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -20,6 +21,9 @@ public sealed partial class ScheduleEditorDialog : ContentDialog
         Title = $"Schedule — {targetName}";
         TargetSubheader.Text = $"Active periods for {targetName}";
 
+        ApplyTheme();
+        Loaded += (s, e) => ApplyTheme();
+
         PrimaryButtonClick += (s, e) =>
         {
             ResultBlocks = _cards.Select(c => c.Block.Clone()).ToList();
@@ -34,6 +38,18 @@ public sealed partial class ScheduleEditorDialog : ContentDialog
         }
 
         UpdateUiState();
+    }
+
+    private void ApplyTheme()
+    {
+        if (XamlRoot?.Content is FrameworkElement rootFe && rootFe.ActualTheme != ElementTheme.Default)
+        {
+            RequestedTheme = rootFe.ActualTheme;
+        }
+        else
+        {
+            RequestedTheme = ServiceContainer.CurrentTheme;
+        }
     }
 
     private void AddCard(TimeBlock block)
