@@ -215,14 +215,38 @@ public sealed partial class WebFilterPage : Page
         ActivityPanel.Visibility = tag == "activity" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
 
-        var selected = (Style)Application.Current.Resources["AccentButtonStyle"];
-        CategoriesTabButton.Style = tag == "categories" ? selected : null;
-        SitesTabButton.Style = tag == "sites" ? selected : null;
-        ActivityTabButton.Style = tag == "activity" ? selected : null;
-        SettingsTabButton.Style = tag == "settings" ? selected : null;
+        var activeStyle = (Style)Resources["SegmentedTabButtonActive"];
+        var inactiveStyle = (Style)Resources["SegmentedTabButtonInactive"];
+
+        CategoriesTabButton.Style = tag == "categories" ? activeStyle : inactiveStyle;
+        SitesTabButton.Style = tag == "sites" ? activeStyle : inactiveStyle;
+        ActivityTabButton.Style = tag == "activity" ? activeStyle : inactiveStyle;
+        SettingsTabButton.Style = tag == "settings" ? activeStyle : inactiveStyle;
 
         if (tag == "activity")
             _ = RefreshActivityUiAsync();
+    }
+
+    private void SitesSubTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string tag }) return;
+        ShowSitesSubTab(tag);
+    }
+
+    private void ShowSitesSubTab(string tag)
+    {
+        ServicesSection.Visibility = tag == "services" ? Visibility.Visible : Visibility.Collapsed;
+        AlwaysBlockSection.Visibility = tag == "always_block" ? Visibility.Visible : Visibility.Collapsed;
+        AlwaysAllowSection.Visibility = tag == "always_allow" ? Visibility.Visible : Visibility.Collapsed;
+        TempAllowSection.Visibility = tag == "temp_allow" ? Visibility.Visible : Visibility.Collapsed;
+
+        var activeStyle = (Style)Resources["SegmentedTabButtonActive"];
+        var inactiveStyle = (Style)Resources["SegmentedTabButtonInactive"];
+
+        ServicesSubTabButton.Style = tag == "services" ? activeStyle : inactiveStyle;
+        AlwaysBlockSubTabButton.Style = tag == "always_block" ? activeStyle : inactiveStyle;
+        AlwaysAllowSubTabButton.Style = tag == "always_allow" ? activeStyle : inactiveStyle;
+        TempAllowSubTabButton.Style = tag == "temp_allow" ? activeStyle : inactiveStyle;
     }
 
     private void CheckWebsiteBox_TextChanged(object sender, TextChangedEventArgs e)
