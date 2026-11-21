@@ -1,10 +1,10 @@
 :root {
   color-scheme: dark;
-  --island-fill-closed: rgba(17, 17, 20, 0.949);
-  --island-fill-open: rgba(22, 22, 26, 0.969);
+  --island-fill: rgba(17, 17, 20, 0.949);
   --island-text: #ffffff;
-  --island-text-dim: rgba(255, 255, 255, 0.7);
+  --island-text-dim: rgba(255, 255, 255, 0.72);
   --island-text-faint: rgba(255, 255, 255, 0.5);
+  --island-scale: 1;
 }
 
 * {
@@ -42,7 +42,7 @@ body {
   top: 0;
   width: 420px;
   height: 180px;
-  background: var(--island-fill-closed);
+  background: var(--island-fill);
   border-radius: 24px;
   overflow: hidden;
   will-change: clip-path, width, height;
@@ -60,10 +60,16 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 10px 16px 12px;
-  opacity: 0;
-  will-change: opacity;
+}
+
+.top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 18px;
+  flex: none;
 }
 
 .clock {
@@ -74,37 +80,54 @@ body {
   color: var(--island-text);
 }
 
-.content .body-block {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
+.battery {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--island-text-dim);
 }
 
-.stats {
+/* Everything below the clock appears with the open motion. */
+.body-block {
+  flex: 1;
+  width: 100%;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.shell-placeholder {
+  height: 100%;
+}
+
+.debug {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats,
+.bench {
   font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--island-text-dim);
   font-variant-numeric: tabular-nums;
   white-space: pre;
-}
-
-.hint {
-  font-size: 11px;
-  color: var(--island-text-faint);
 }
 
 .spike-controls {
   display: flex;
   gap: 6px;
   align-items: center;
-  margin-top: 2px;
 }
 
 .spike-controls button {
   font: inherit;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--island-text);
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -121,22 +144,4 @@ body {
 .spike-controls button:focus-visible {
   outline: 2px solid rgba(150, 190, 255, 0.9);
   outline-offset: 1px;
-}
-
-.diag {
-  font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
-  white-space: pre;
-}
-
-.bench {
-  font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--island-text-dim);
-  font-variant-numeric: tabular-nums;
-  white-space: pre;
-  text-align: center;
-  min-height: 14px;
 }

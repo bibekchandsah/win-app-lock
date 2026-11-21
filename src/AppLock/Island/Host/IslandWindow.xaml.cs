@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using AppLock.Island.Bridge;
+using AppLock.Models;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -15,23 +17,11 @@ using WinRT.Interop;
 namespace AppLock.Island.Host;
 
 /// <summary>
-/// Milestone 1 spike host: a borderless, topmost, non-activating window with a transparent
-/// WebView2 surface that loads the local island bundle through a virtual host.
-/// Mirrors the layout constants of <c>Assets/island-ui/src/motion.ts</c>.
+/// The island window: borderless, topmost, never activates on hover, and per-pixel transparent.
+/// It hosts the local WebView2 bundle and talks to it only through the validated message bridge.
 /// </summary>
 public sealed partial class IslandWindow : Window
 {
-    // ── Layout (CSS px, mirrored in motion.ts) ───────────────────────────────
-    private const int FoldedWidth = 196;
-    private const int FoldedHeight = 36;
-    private const int FoldedRadius = 18;
-    private const int OpenWidth = 420;
-    private const int OpenHeight = 180;
-    private const int SideMargin = 8;
-    private const int BottomMargin = 8;
-    private const int PageWidth = OpenWidth + (SideMargin * 2);
-    private const int PageHeight = OpenHeight + BottomMargin;
-
     // ── Win32 ────────────────────────────────────────────────────────────────
     private const int GWL_EXSTYLE = -20;
     private const long WS_EX_TOOLWINDOW = 0x00000080L;
@@ -41,7 +31,15 @@ public sealed partial class IslandWindow : Window
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint WM_MOUSEACTIVATE = 0x0021;
+    private const uint WM_DPICHANGED = 0x02E0;
     private const int MA_NOACTIVATE = 3;
+
+    // Windows 11 DWM attributes: a transparent window still gets a 1px border and OS rounding
+    // unless both are turned off, which otherwise shows as a rectangle around the notch.
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWA_BORDER_COLOR = 34;
+    private const int DWMWCP_DONOTROUND = 1;
+    private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
 
     private static readonly IntPtr HwndTopmost = new(-1);
 
@@ -75,6 +73,9 @@ public sealed partial class IslandWindow : Window
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT point);
 
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
     {
@@ -92,9 +93,9 @@ public sealed partial class IslandWindow : Window
         "hover.state",
         "perf.report",
         "perf.done",
+        "state.hover",
         "input.focusRequested",
         "input.focusReleased",
-        "state.hover",
     };
 
     private readonly IntPtr _hwnd;
@@ -102,54 +103,57 @@ public sealed partial class IslandWindow : Window
     private readonly DispatcherTimer _topmostTimer = new();
     private readonly DispatcherTimer _hoverTimer = new();
     private readonly string _benchFile;
-    private double _scale = 1;
+    private readonly string _contentDir;
+    private BridgeBatcher? _batcher;
 
-    /// <summary>True while the island is drawn open; drives the hover hit box.</summary>
+    private IslandSettings _settings;
+    private double _scale = 1;
     private bool _hoverTargetOpen;
     private bool _hoverInside;
+    private bool _isVisible = true;
 
-    public IslandWindow()
+    /// <summary>Raised once the page has loaded and the first snapshot can be sent.</summary>
+    public event Action? Ready;
+
+    public IslandWindow(IslandSettings settings)
     {
         InitializeComponent();
-        IslandSpikeLog.Write("ctor: begin");
+        _settings = settings.Clone();
 
         _hwnd = WindowNative.GetWindowHandle(this);
         _subclassProc = IslandSubclassProc;
         Title = "Island";
 
+        _contentDir = Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist");
         _benchFile = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AppLock", "island", "bench.txt");
 
         ConfigureWindowChrome();
-        IslandSpikeLog.Write("ctor: chrome configured");
+        ApplyWindowGeometry();
 
-        ResizeForPage();
-        // Start folded: the notch is centred in the page, so the click-through region matches it.
-        UpdateHitRegion(
-            side: (PageWidth - FoldedWidth) / 2,
-            width: FoldedWidth,
-            height: FoldedHeight,
-            radius: FoldedRadius);
-        IslandSpikeLog.Write("ctor: sized");
-
-        // Re-assert the topmost slot: another topmost window (a browser PWA, another overlay) can
-        // otherwise end up above the island. This never touches the visual tree.
+        // Re-assert the topmost slot: another topmost window can end up above the island.
         _topmostTimer.Interval = TimeSpan.FromSeconds(1);
         _topmostTimer.Tick += (_, _) => SetWindowPos(
             _hwnd, HwndTopmost, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         _topmostTimer.Start();
 
+        // Hover is detected here, not in the page: WinUI's WebView2 control only receives pointer
+        // input while its window is active, and the island must react without taking focus.
+        _hoverTimer.Interval = TimeSpan.FromMilliseconds(33);
+        _hoverTimer.Tick += (_, _) => PollHover();
+        _hoverTimer.Start();
+
         Activate();
         SetWindowPos(_hwnd, HwndTopmost, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         ShowWindow(_hwnd, 4 /* SW_SHOWNOACTIVATE */);
 
-        IslandSpikeLog.Write(
-            $"window shown: visible={AppWindow.IsVisible} rect={AppWindow.Position.X},{AppWindow.Position.Y} " +
-            $"{AppWindow.Size.Width}x{AppWindow.Size.Height} scale={_scale:0.##}");
-
         _ = InitializeWebViewAsync();
     }
+
+    public bool IsVisible => _isVisible;
+
+    // ── Window ───────────────────────────────────────────────────────────────
 
     private void ConfigureWindowChrome()
     {
@@ -165,34 +169,47 @@ public sealed partial class IslandWindow : Window
         AppWindow.IsShownInSwitchers = false;
 
         // Tool window keeps it out of the taskbar and Alt-Tab. Focus is kept by answering
-        // WM_MOUSEACTIVATE instead of using WS_EX_NOACTIVATE, which blocks WinUI/WebView2 input.
+        // WM_MOUSEACTIVATE instead of WS_EX_NOACTIVATE, which blocks WinUI/WebView2 input.
         long exStyle = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64();
         exStyle |= WS_EX_TOOLWINDOW | WS_EX_TOPMOST;
         SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(exStyle));
 
         SetWindowSubclass(_hwnd, _subclassProc, 1, IntPtr.Zero);
+
+        try
+        {
+            int noBorder = DWMWA_COLOR_NONE;
+            DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
+
+            int noRounding = DWMWCP_DONOTROUND;
+            DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref noRounding, sizeof(int));
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"dwm: border/corner attributes unavailable: {ex.Message}");
+        }
     }
 
     private IntPtr IslandSubclassProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr id, IntPtr data)
     {
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+
+        if (msg == WM_DPICHANGED)
+        {
+            // The page follows the new DPI on its own; the window and hit region do not.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ApplyWindowGeometry();
+                UpdateHitRegion(
+                    side: (IslandLayout.PageSize(_settings.SizePercent).Width / 2)
+                          - (int)Math.Round(IslandLayout.FoldedWidth * IslandLayout.SizeFactor(_settings.SizePercent) / 2),
+                    width: (int)Math.Round(IslandLayout.FoldedWidth * IslandLayout.SizeFactor(_settings.SizePercent)),
+                    height: (int)Math.Round(IslandLayout.FoldedHeight * IslandLayout.SizeFactor(_settings.SizePercent)),
+                    radius: (int)Math.Round(IslandLayout.FoldedRadius * IslandLayout.SizeFactor(_settings.SizePercent)));
+            });
+        }
+
         return DefSubclassProc(hWnd, msg, wParam, lParam);
-    }
-
-    private void ResizeForPage()
-    {
-        _scale = DpiScale();
-
-        int width = (int)Math.Round(PageWidth * _scale);
-        int height = (int)Math.Round(PageHeight * _scale);
-
-        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
-        var outer = area.OuterBounds;
-
-        int x = outer.X + ((outer.Width - width) / 2);
-        int y = outer.Y;
-
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
     }
 
     private double DpiScale()
@@ -201,9 +218,24 @@ public sealed partial class IslandWindow : Window
         return dpi == 0 ? 1d : dpi / 96d;
     }
 
+    private void ApplyWindowGeometry()
+    {
+        _scale = DpiScale();
+        var (pageWidth, pageHeight) = IslandLayout.PageSize(_settings.SizePercent);
+        var rect = IslandPositioner.Compute(AppWindow, _settings, pageWidth, pageHeight, _scale);
+        AppWindow.MoveAndResize(rect);
+
+        double factor = IslandLayout.SizeFactor(_settings.SizePercent);
+        UpdateHitRegion(
+            side: (pageWidth / 2) - (int)Math.Round(IslandLayout.FoldedWidth * factor / 2),
+            width: (int)Math.Round(IslandLayout.FoldedWidth * factor),
+            height: (int)Math.Round(IslandLayout.FoldedHeight * factor),
+            radius: (int)Math.Round(IslandLayout.FoldedRadius * factor));
+    }
+
     /// <summary>
     /// Clicks outside the visible notch fall through to the desktop. Called at animation
-    /// boundaries only, never per frame.
+    /// boundaries only (the UI sends layout.target), never per frame.
     /// </summary>
     private void UpdateHitRegion(int side, int width, int height, int radius)
     {
@@ -220,14 +252,36 @@ public sealed partial class IslandWindow : Window
         SetWindowRgn(_hwnd, region, true);
     }
 
+    // ── Settings ─────────────────────────────────────────────────────────────
+
+    public void ApplySettings(IslandSettings settings)
+    {
+        _settings = settings.Clone();
+        ApplyWindowGeometry();
+        SendSnapshot();
+    }
+
+    public void SetIslandVisible(bool visible)
+    {
+        if (_isVisible == visible) return;
+        _isVisible = visible;
+
+        ShowWindow(_hwnd, visible ? 4 /* SW_SHOWNOACTIVATE */ : 0 /* SW_HIDE */);
+        if (visible)
+        {
+            SetWindowPos(_hwnd, HwndTopmost, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+
+        PostRaw(BridgeMessages.Envelope(visible ? BridgeMessages.AnimResume : BridgeMessages.AnimPause, null));
+    }
+
     // ── WebView2 ─────────────────────────────────────────────────────────────
 
     private async Task InitializeWebViewAsync()
     {
-        string contentDir = Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist");
-        if (!File.Exists(Path.Combine(contentDir, "index.html")))
+        if (!File.Exists(Path.Combine(_contentDir, "index.html")))
         {
-            IslandSpikeLog.Write($"webview: bundle missing at {contentDir}");
+            IslandSpikeLog.Write($"webview: bundle missing at {_contentDir}");
             return;
         }
 
@@ -242,7 +296,9 @@ public sealed partial class IslandWindow : Window
         {
             var options = new CoreWebView2EnvironmentOptions
             {
-                AdditionalBrowserArguments = "--disable-features=Translate,msPdfOOUI,msWebOOUI",
+                AdditionalBrowserArguments = _settings.HardwareAcceleration
+                    ? "--disable-features=Translate,msPdfOOUI,msWebOOUI"
+                    : "--disable-features=Translate,msPdfOOUI,msWebOOUI --disable-gpu",
             };
             var environment = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, options);
             await WebView.EnsureCoreWebView2Async(environment);
@@ -260,18 +316,18 @@ public sealed partial class IslandWindow : Window
             return;
         }
 
-        var settings = core.Settings;
-        settings.AreDefaultContextMenusEnabled = false;
-        settings.AreDevToolsEnabled = false;
-        settings.IsStatusBarEnabled = false;
-        settings.IsZoomControlEnabled = false;
-        settings.AreBrowserAcceleratorKeysEnabled = false;
-        settings.IsPasswordAutosaveEnabled = false;
-        settings.AreDefaultScriptDialogsEnabled = false;
-        settings.IsSwipeNavigationEnabled = false;
+        var webSettings = core.Settings;
+        webSettings.AreDefaultContextMenusEnabled = false;
+        webSettings.AreDevToolsEnabled = false;
+        webSettings.IsStatusBarEnabled = false;
+        webSettings.IsZoomControlEnabled = false;
+        webSettings.AreBrowserAcceleratorKeysEnabled = false;
+        webSettings.IsPasswordAutosaveEnabled = false;
+        webSettings.AreDefaultScriptDialogsEnabled = false;
+        webSettings.IsSwipeNavigationEnabled = false;
 
         core.SetVirtualHostNameToFolderMapping(
-            "island.appassets", contentDir, CoreWebView2HostResourceAccessKind.DenyCors);
+            "island.appassets", _contentDir, CoreWebView2HostResourceAccessKind.DenyCors);
 
         // Local content only: nothing may navigate away, open windows or ask for permissions.
         core.NavigationStarting += (_, e) =>
@@ -286,6 +342,8 @@ public sealed partial class IslandWindow : Window
         core.PermissionRequested += (_, e) => e.Handled = true;
         core.WebMessageReceived += OnWebMessageReceived;
 
+        _batcher = new BridgeBatcher(DispatcherQueue, PostRaw, (module, ex) => IslandSpikeLog.Write($"bridge: {module} send failed ({ex.GetType().Name})"));
+
         bool bench = Array.Exists(
             Environment.GetCommandLineArgs(),
             a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase));
@@ -293,14 +351,62 @@ public sealed partial class IslandWindow : Window
         string url = "https://island.appassets/index.html" + (bench ? "?bench=1&cycles=100" : string.Empty);
         core.Navigate(url);
         IslandSpikeLog.Write($"webview: navigating to {url}");
+    }
 
-        // Hover is detected here, not in the page: WinUI's WebView2 control only receives pointer
-        // input while its window is active, and the island must react without ever taking focus.
-        // A 30 Hz cursor poll costs well under 1% of a core and gives exact geometry hysteresis.
-        _hoverTimer.Interval = TimeSpan.FromMilliseconds(33);
-        _hoverTimer.Tick += (_, _) => PollHover();
-        _hoverTimer.Start();
+    private void PostRaw(string json)
+    {
+        try
+        {
+            WebView.CoreWebView2?.PostWebMessageAsJson(json);
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"bridge: post failed ({ex.GetType().Name})");
+        }
+    }
 
+    // ── Host → UI ────────────────────────────────────────────────────────────
+
+    public void SendSnapshot()
+    {
+        if (_batcher == null) return;
+
+        var palette = BridgeMessages.ResolvePalette(_settings, SystemUsesLightTheme());
+        string message = BridgeMessages.SettingsSnapshotMessage(_settings, palette, AppVersion());
+
+        // A snapshot must never wait behind a batched module update.
+        _batcher.SendNow(message);
+    }
+
+    public void SendTime(DateTime now) => _batcher?.Post("time", BridgeMessages.TimeMessage(now));
+
+    public void SendBattery(int percent, bool charging, bool present) =>
+        _batcher?.Post("battery", BridgeMessages.BatteryMessage(percent, charging, present));
+
+    private static bool SystemUsesLightTheme()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return key?.GetValue("AppsUseLightTheme") is int value && value != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string AppVersion()
+    {
+        try
+        {
+            return typeof(IslandWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+        }
+        catch
+        {
+            return "1.0.0";
+        }
     }
 
     // ── Bridge (trust boundary) ──────────────────────────────────────────────
@@ -348,18 +454,17 @@ public sealed partial class IslandWindow : Window
                     HandlePerfReport(root);
                     break;
 
-                case "perf.done":
-                    IslandSpikeLog.Write("bench: all variants finished");
-                    break;
-
                 case "ui.ready":
-                    IslandSpikeLog.Write($"bridge: ui ready ({json})");
+                    IslandSpikeLog.Write("bridge: ui ready");
+                    SendSnapshot();
+                    Ready?.Invoke();
                     break;
 
+                case "perf.done":
                 case "hover.state":
+                case "state.hover":
                 case "input.focusRequested":
                 case "input.focusReleased":
-                    IslandSpikeLog.Write($"bridge: {type}");
                     break;
             }
         }
@@ -371,14 +476,22 @@ public sealed partial class IslandWindow : Window
 
     private void PollHover()
     {
-        if (WebView.CoreWebView2 == null || !GetCursorPos(out POINT cursor)) return;
+        if (!_isVisible || WebView.CoreWebView2 == null || !GetCursorPos(out POINT cursor)) return;
 
         var origin = AppWindow.Position;
-        int islandLeft = _hoverTargetOpen ? SideMargin : (PageWidth - FoldedWidth) / 2;
-        int islandWidth = _hoverTargetOpen ? OpenWidth : FoldedWidth;
-        int islandHeight = _hoverTargetOpen ? OpenHeight : FoldedHeight;
+        double factor = IslandLayout.SizeFactor(_settings.SizePercent);
+        int islandLeft = _hoverTargetOpen
+            ? IslandLayout.SideMargin
+            : (IslandLayout.PageWidth - (int)(IslandLayout.FoldedWidth * factor)) / 2;
+        int islandWidth = _hoverTargetOpen
+            ? IslandLayout.OpenWidth
+            : (int)Math.Round(IslandLayout.FoldedWidth * factor);
+        int islandHeight = _hoverTargetOpen
+            ? IslandLayout.OpenHeight
+            : (int)Math.Round(IslandLayout.FoldedHeight * factor);
 
-        // A little hysteresis keeps the pointer on the edge from flapping.
+        // A little hysteresis keeps the pointer on the edge from flapping. islandLeft/Width/Height
+        // are already in page CSS pixels, so only the DPI scale is applied here.
         int pad = (int)Math.Round(8 * _scale);
         int left = origin.X + (int)Math.Round(islandLeft * _scale) - pad;
         int right = origin.X + (int)Math.Round((islandLeft + islandWidth) * _scale) + pad;
@@ -389,8 +502,7 @@ public sealed partial class IslandWindow : Window
         if (inside == _hoverInside) return;
 
         _hoverInside = inside;
-        PostToUi("state.hover", new { inside });
-        IslandSpikeLog.Write($"hover: {(inside ? "in" : "out")} at {cursor.X},{cursor.Y}");
+        PostRaw(BridgeMessages.HoverMessage(inside));
     }
 
     private void HandleLayoutTarget(JsonElement root)
@@ -403,12 +515,12 @@ public sealed partial class IslandWindow : Window
 
         // The UI is untrusted: only the two layouts this host offers are accepted.
         if (phase != "open" && phase != "folded") return;
-        if (x < 0 || x > PageWidth || w <= 0 || w > PageWidth || h <= 0 || h > PageHeight) return;
+        var (pageWidth, pageHeight) = IslandLayout.PageSize(_settings.SizePercent);
+        if (x < 0 || x > pageWidth || w <= 0 || w > pageWidth || h <= 0 || h > pageHeight) return;
         if (radius < 0 || radius > 64) return;
 
         _hoverTargetOpen = phase == "open";
         UpdateHitRegion(x, w, h, radius);
-        IslandSpikeLog.Write($"layout.target: {phase} {w}x{h} r={radius} at x={x}");
     }
 
     private void HandlePerfReport(JsonElement root)
@@ -420,7 +532,7 @@ public sealed partial class IslandWindow : Window
         TryReadDouble(payload, "p99", out double p99);
         TryReadInt(payload, "cycles", out int cycles);
         TryReadInt(payload, "samples", out int samples);
-        TryReadManyStrings(payload, "text", out string text);
+        TryReadText(payload, "text", out string text);
 
         string line =
             $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} variant={variant} cycles={cycles} samples={samples} " +
@@ -438,15 +550,6 @@ public sealed partial class IslandWindow : Window
         IslandSpikeLog.Write("bench: " + line);
     }
 
-    private void PostToUi(string type, object payload)
-    {
-        var core = WebView.CoreWebView2;
-        if (core == null) return;
-
-        string json = JsonSerializer.Serialize(new { v = 1, type, payload });
-        core.PostWebMessageAsJson(json);
-    }
-
     private static bool TryReadString(JsonElement payload, string name, out string value)
     {
         value = string.Empty;
@@ -455,7 +558,7 @@ public sealed partial class IslandWindow : Window
         return value.Length > 0 && value.Length <= 64;
     }
 
-    private static bool TryReadManyStrings(JsonElement payload, string name, out string value)
+    private static bool TryReadText(JsonElement payload, string name, out string value)
     {
         value = string.Empty;
         if (!payload.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.String) return false;

@@ -76,6 +76,8 @@ public class AppSettings
     public EyeCareSettings EyeCare { get; set; } = new();
     
     // Clipboard
+    public IslandSettings Island { get; set; } = new();
+
     public ClipboardSettings Clipboard { get; set; } = new();
 
     // Ring Light

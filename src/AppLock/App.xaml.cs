@@ -33,17 +33,14 @@ public partial class App : Application
         InitializeComponent();
     }
 
-    /// <summary>Milestone 1 spike host: when set, the app runs only the island window.</summary>
-    private Island.Host.IslandWindow? _islandSpikeWindow;
-
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        // Island rendering spike: no main window, no first-run flow, just the notch.
+        // Island-only run: no main window, no first-run flow, just the notch. Used to iterate on
+        // the island without the AppLock lock screen.
         if (Environment.GetCommandLineArgs().Any(a => a.Equals("--island-spike", StringComparison.OrdinalIgnoreCase)))
         {
-            Island.Host.IslandSpikeLog.Write("app: starting island spike");
-            _islandSpikeWindow = new Island.Host.IslandWindow();
-            Island.Host.IslandSpikeLog.Write("app: island spike window created");
+            Island.Host.IslandSpikeLog.Write("app: starting island only");
+            Island.Host.IslandHost.Instance.Start(ignoreEnabledSetting: true);
             return;
         }
 

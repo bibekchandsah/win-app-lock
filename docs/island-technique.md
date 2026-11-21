@@ -70,6 +70,34 @@ inside animation frames.
    `SetWindowPos(HWND_TOPMOST, NOMOVE|NOSIZE|NOACTIVATE)` keeps the slot. It does not touch the
    visual tree.
 
+## Milestone 2 follow-up: two visual defects fixed after review
+
+1. **A thin rectangle around the notch.** A transparent Windows 11 window still gets the DWM 1px
+   border and OS corner rounding. Both are turned off with `DwmSetWindowAttribute`
+   (`DWMWA_BORDER_COLOR = 0xFFFFFFFE`, `DWMWA_WINDOW_CORNER_PREFERENCE = DONOTROUND`), so only the
+   notch shape itself is visible on the desktop.
+2. **A dark ghost left behind after the island shrank.** Shrinking a painted element on a
+   transparent WebView2 surface leaves the previously painted area on screen, because the newly
+   transparent region is not repainted. The default shape variant is therefore (a) `clip-path`:
+   keep the full-size 420×180 layer and clip it per frame, so every animation frame repaints the
+   whole painted area and the transparent background is cleared correctly. Variant (b) stays
+   available for comparison in the benchmark.
+
+## Milestone 2: settings, host lifetime and the bridge
+
+- `Models/IslandSettings.cs` (position, shape, theme, size, opacity, hardware acceleration,
+  hotkey, clock and battery toggles) is persisted inside `settings.json` (`AppSettings.Island`).
+- `IslandHost` owns one window for the whole session (never per show), feeds `state.time` and
+  `state.battery`, registers the show/hide hotkey and re-applies settings live.
+- `BridgeBatcher` coalesces host → UI updates to one message per module per 100 ms;
+  `BridgeMessages` is the single place that decides the wire format.
+- `IslandPositioner` places the page on the chosen monitor at its DPI; the page size follows the
+  size setting, and the click-through region follows the folded/open rectangle.
+- Setting `HardwareAcceleration` off passes `--disable-gpu` to the WebView2 process and takes
+  effect on the next start (the environment is created once per process).
+- The WinUI settings page (`Views/IslandSettingsPage.xaml`) is a skeleton with every setting the
+  milestone needs, reachable from the Others page card.
+
 ## Host hardening already in place
 
 Virtual host mapping to `Assets/island-ui/dist` (`DenyCors`), navigation blocked to any other

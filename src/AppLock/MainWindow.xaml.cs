@@ -1355,6 +1355,9 @@ public sealed partial class MainWindow : Window
         // Register Notification toggle hotkey (Alt+N)
         RegisterNotificationToggleHotkey();
 
+        // The island is an overlay that lives for the whole session; it never steals focus.
+        AppLock.Island.Host.IslandHost.Instance.Start();
+
         // Our own input clock (Windows' idle counter is unreliable on some machines)
         InputActivityMonitor.Start();
 

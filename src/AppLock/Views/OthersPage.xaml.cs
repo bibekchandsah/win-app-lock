@@ -247,6 +247,16 @@ public sealed partial class OthersPage : Page
             },
             new UtilityCard
             {
+                Id = "island",
+                Order = 30,
+                Icon = "\uE8A1", // Notch / dock glyph
+                Title = "Island",
+                Description = "A notch at the top of the screen with the clock, battery and quick controls",
+                Status = ServiceContainer.Settings.Island.Enabled ? "On" : "Disabled",
+                StatusVisibility = Visibility.Collapsed
+            },
+            new UtilityCard
+            {
                 Id = "clipboard",
                 Order = 40,
                 Icon = "\uE8C8", // Paste / Clipboard icon
@@ -381,6 +391,10 @@ public sealed partial class OthersPage : Page
             {
                 // Navigate to EyeCarePage
                 Frame.Navigate(typeof(EyeCarePage));
+            }
+            else if (card.Id == "island")
+            {
+                Frame.Navigate(typeof(IslandSettingsPage));
             }
             else if (card.Id == "clipboard")
             {
