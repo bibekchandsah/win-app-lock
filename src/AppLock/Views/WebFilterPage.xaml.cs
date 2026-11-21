@@ -1307,7 +1307,7 @@ public sealed partial class WebFilterPage : Page
 
     public Visibility GetLocalOptionsVisibility(bool isLocal) => isLocal ? Visibility.Visible : Visibility.Collapsed;
 
-    public string GetTabToolTip(bool isLocal) => isLocal ? string.Empty : "Available in Local filter mode";
+    public string? GetTabToolTip(bool isLocal) => isLocal ? null : "Available in Local filter mode";
 
     // ── Milestone 10: Filtering Mode & Provider Selection ────────────────────
 

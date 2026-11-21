@@ -11,7 +11,7 @@
     DefaultButton="Primary"
     CornerRadius="8">
 
-    <StackPanel Spacing="16" Width="520">
+    <StackPanel Spacing="16" Width="440">
         <StackPanel Spacing="4">
             <TextBlock x:Name="TargetSubheader"
                        Text="Active hours"
@@ -23,7 +23,7 @@
         </StackPanel>
 
         <!-- Container for TimeBlockCards -->
-        <ScrollViewer MaxHeight="380" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer MaxHeight="380" VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
             <StackPanel x:Name="BlocksContainer" Spacing="10"/>
         </ScrollViewer>
 

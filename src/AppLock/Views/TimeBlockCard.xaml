@@ -43,7 +43,7 @@
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="8"
-            Padding="14,12">
+            Padding="16,12">
         <StackPanel Spacing="12">
             <!-- Top Row: Time Pickers and Delete Button -->
             <Grid>
@@ -71,7 +71,9 @@
                         Click="DeleteButton_Click"
                         Background="Transparent"
                         BorderThickness="0"
-                        Padding="8,6"
+                        Padding="6"
+                        Margin="4,0,2,0"
+                        HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         ToolTipService.ToolTip="Delete time block">
                     <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="#FF453A"/>
