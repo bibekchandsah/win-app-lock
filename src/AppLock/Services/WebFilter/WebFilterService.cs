@@ -39,6 +39,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     private int _watchdogFailures;
     private bool _isDisposed;
     private bool _isProviderModeActive;    // true when running in Filtered DNS Provider mode
+    private Port53ConflictResolver? _conflictResolver;
 
     public event EventHandler? StatusChanged;
     public event EventHandler<string>? TamperDetected;
@@ -181,7 +182,27 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             var policy = _listService.CreateDnsPolicy();
             var safeSearchRewriter = CreateSafeSearchRewriter();
 
-            // 3. Try candidate loopback addresses on port 53
+            // 3a. Free port 53 from conflicting services (e.g. ICS / Windows DNS Server)
+            _conflictResolver = new Port53ConflictResolver();
+            if (Port53ConflictResolver.IsPort53Conflicted())
+            {
+                Debug.WriteLine("[WebFilter] Port 53 conflict detected. Attempting to stop conflicting services...");
+                bool freed = await _conflictResolver.ResolveConflictsAsync().ConfigureAwait(false);
+                if (!freed)
+                {
+                    LastError = "Port 53 is in use by another service and could not be freed. " +
+                                "Disable Internet Connection Sharing (ICS) or Windows DNS Server and try again.";
+                    Debug.WriteLine($"[WebFilter] {LastError}");
+                    _conflictResolver.Dispose();
+                    _conflictResolver = null;
+                    _forwarder?.Dispose();
+                    _forwarder = null;
+                    StatusChanged?.Invoke(this, EventArgs.Empty);
+                    return false;
+                }
+            }
+
+            // 3b. Try candidate loopback addresses on port 53
             DnsFilterServer? startedServer = null;
             foreach (var candidate in CandidateLoopbackAddresses)
             {
@@ -214,6 +235,8 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             {
                 LastError = "Port 53 could not be bound on any loopback address. Another DNS service may be using it.";
                 Debug.WriteLine($"[WebFilter] {LastError}");
+                _conflictResolver?.Dispose();
+                _conflictResolver = null;
                 _forwarder?.Dispose();
                 _forwarder = null;
                 StatusChanged?.Invoke(this, EventArgs.Empty);
@@ -354,6 +377,18 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             _server = null;
         }
 
+        // Restore any services that were stopped to free port 53
+        try
+        {
+            _conflictResolver?.RestoreServices();
+            _conflictResolver?.Dispose();
+            _conflictResolver = null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WebFilter] ConflictResolver restore error: {ex.Message}");
+        }
+
         _isProviderModeActive = false;
         _forwarder?.Dispose();
         _forwarder = null;
@@ -419,6 +454,15 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             {
                 _ = _server.StopAsync();
             }
+
+            // Restore services stopped to free port 53
+            try
+            {
+                _conflictResolver?.RestoreServices();
+                _conflictResolver?.Dispose();
+                _conflictResolver = null;
+            }
+            catch { }
         }
         catch (Exception ex)
         {
