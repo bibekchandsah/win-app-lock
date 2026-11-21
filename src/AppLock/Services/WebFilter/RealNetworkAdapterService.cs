@@ -145,12 +145,8 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
         bool ipv6Dhcp = true;
         var ipv6Servers = new List<string>();
 
-        // Query Registry for exact static vs DHCP configuration
-        ReadIpv4Registry(id, out ipv4Dhcp, ipv4Servers);
-        ReadIpv6Registry(id, out ipv6Dhcp, ipv6Servers);
-
-        // Fallback to NetworkInterface DNS addresses if registry didn't list servers
-        if (ipv4Servers.Count == 0 && props.DnsAddresses != null)
+        // 1. Read live active DNS addresses from network properties
+        if (props.DnsAddresses != null)
         {
             foreach (var addr in props.DnsAddresses)
             {
@@ -158,19 +154,16 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
                 {
                     ipv4Servers.Add(addr.ToString());
                 }
-            }
-        }
-
-        if (ipv6Servers.Count == 0 && props.DnsAddresses != null)
-        {
-            foreach (var addr in props.DnsAddresses)
-            {
-                if (addr.AddressFamily == AddressFamily.InterNetworkV6 && !addr.IsIPv6LinkLocal && !addr.IsIPv6SiteLocal)
+                else if (addr.AddressFamily == AddressFamily.InterNetworkV6 && !addr.IsIPv6LinkLocal && !addr.IsIPv6SiteLocal)
                 {
                     ipv6Servers.Add(addr.ToString());
                 }
             }
         }
+
+        // 2. Query Registry for exact static vs DHCP configuration
+        ReadIpv4Registry(id, out ipv4Dhcp, ipv4Servers);
+        ReadIpv6Registry(id, out ipv6Dhcp, ipv6Servers);
 
         return new NetworkAdapterInfo
         {
@@ -181,9 +174,9 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
             IsUp = nic.OperationalStatus == OperationalStatus.Up,
             HasGateway = hasGateway,
             Ipv4FromDhcp = ipv4Dhcp,
-            Ipv4Servers = ipv4Servers,
+            Ipv4Servers = ipv4Servers.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Ipv6FromDhcp = ipv6Dhcp,
-            Ipv6Servers = ipv6Servers
+            Ipv6Servers = ipv6Servers.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
     }
 
@@ -199,23 +192,23 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
                 if (!string.IsNullOrWhiteSpace(staticDns))
                 {
                     isDhcp = false;
-                    servers.AddRange(staticDns.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
+                    if (servers.Count == 0)
+                    {
+                        servers.AddRange(staticDns.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
+                    }
                 }
                 else
                 {
                     var dhcpDns = key.GetValue("DhcpNameServer") as string;
-                    if (!string.IsNullOrWhiteSpace(dhcpDns))
+                    if (!string.IsNullOrWhiteSpace(dhcpDns) && servers.Count == 0)
                     {
                         servers.AddRange(dhcpDns.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
                     }
                 }
 
-                if (key.GetValue("EnableDHCP") is int enableDhcp)
+                if (key.GetValue("EnableDHCP") is int enableDhcp && enableDhcp == 0)
                 {
-                    if (enableDhcp == 0 && servers.Count > 0)
-                    {
-                        isDhcp = false;
-                    }
+                    isDhcp = false;
                 }
             }
         }
@@ -237,7 +230,10 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
                 if (!string.IsNullOrWhiteSpace(staticDns))
                 {
                     isDhcp = false;
-                    servers.AddRange(staticDns.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
+                    if (servers.Count == 0)
+                    {
+                        servers.AddRange(staticDns.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
+                    }
                 }
             }
         }
@@ -255,50 +251,6 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
         bool ipv4Dhcp,
         bool ipv6Dhcp)
     {
-        bool pInvokeSucceeded = false;
-
-        // 1. Primary path: SetInterfaceDnsSettings from iphlpapi.dll (Windows 10 2004+)
-        if (Guid.TryParse(adapterId, out var guid))
-        {
-            try
-            {
-                var allServers = new List<string>();
-                if (!ipv4Dhcp && ipv4Servers != null) allServers.AddRange(ipv4Servers);
-                if (!ipv6Dhcp && ipv6Servers != null) allServers.AddRange(ipv6Servers);
-
-                var settings = new DNS_INTERFACE_SETTINGS
-                {
-                    Version = DNS_INTERFACE_SETTINGS_VERSION1,
-                    Flags = DNS_SETTING_NAMESERVER,
-                    NameServer = allServers.Count > 0 ? string.Join(",", allServers) : null
-                };
-
-                uint ret = SetInterfaceDnsSettings(ref guid, ref settings);
-                if (ret == 0)
-                {
-                    pInvokeSucceeded = true;
-                }
-                else
-                {
-                    Debug.WriteLine($"[WebFilter] SetInterfaceDnsSettings returned {ret} for {adapterId}");
-                }
-            }
-            catch (EntryPointNotFoundException)
-            {
-                // Older OS: will fall back to netsh
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[WebFilter] SetInterfaceDnsSettings threw for {adapterId}: {ex.Message}");
-            }
-        }
-
-        if (pInvokeSucceeded)
-        {
-            return true;
-        }
-
-        // 2. Fallback path: netsh
         bool netshSucceeded = true;
         try
         {
@@ -332,8 +284,36 @@ public sealed class RealNetworkAdapterService : INetworkAdapterService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WebFilter] Netsh fallback failed: {ex.Message}");
+            Debug.WriteLine($"[WebFilter] Netsh failed: {ex.Message}");
             netshSucceeded = false;
+        }
+
+        // Also call SetInterfaceDnsSettings from iphlpapi.dll for Windows 10 2004+ DNS client
+        if (Guid.TryParse(adapterId, out var guid))
+        {
+            try
+            {
+                var allServers = new List<string>();
+                if (!ipv4Dhcp && ipv4Servers != null) allServers.AddRange(ipv4Servers);
+                if (!ipv6Dhcp && ipv6Servers != null) allServers.AddRange(ipv6Servers);
+
+                var settings = new DNS_INTERFACE_SETTINGS
+                {
+                    Version = DNS_INTERFACE_SETTINGS_VERSION1,
+                    Flags = DNS_SETTING_NAMESERVER,
+                    NameServer = allServers.Count > 0 ? string.Join(",", allServers) : null
+                };
+
+                uint ret = SetInterfaceDnsSettings(ref guid, ref settings);
+                if (ret != 0)
+                {
+                    Debug.WriteLine($"[WebFilter] SetInterfaceDnsSettings returned {ret} for {adapterId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WebFilter] SetInterfaceDnsSettings error for {adapterId}: {ex.Message}");
+            }
         }
 
         return netshSucceeded;

@@ -72,6 +72,7 @@ public sealed partial class WebFilterPage : Page
         ServiceContainer.WebFilterService.StatusChanged -= OnFilterStatusChanged;
         ServiceContainer.WebFilterService.TamperDetected -= OnFilterTamperDetected;
         ServiceContainer.WebFilterService.ListenerFailed -= OnFilterListenerFailed;
+        ServiceContainer.WebFilterLogService.LogChanged -= OnLogChanged;
         _activityRefreshTimer?.Dispose();
         _activityRefreshTimer = null;
     }
@@ -742,6 +743,13 @@ public sealed partial class WebFilterPage : Page
         {
             DispatcherQueue.TryEnqueue(async () => await RefreshActivityUiAsync());
         }, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+
+        ServiceContainer.WebFilterLogService.LogChanged += OnLogChanged;
+    }
+
+    private void OnLogChanged(object? sender, EventArgs e)
+    {
+        _activityRefreshTimer?.Change(400, System.Threading.Timeout.Infinite);
     }
 
     private async Task RefreshActivityUiAsync()

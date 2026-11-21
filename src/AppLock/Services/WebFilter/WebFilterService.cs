@@ -108,6 +108,21 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary>
+    /// Rebuilds the DNS filter policy from current settings and applies it to the running
+    /// filter server, clearing the DNS cache so new rules take effect immediately.
+    /// </summary>
+    public void UpdatePolicy()
+    {
+        if (_server != null)
+        {
+            _listService.Refresh();
+            _server.Policy = _listService.CreateDnsPolicy();
+            _server.ClearCache();
+            _configurator.AdapterService.FlushDnsCache();
+        }
+    }
+
     private SafeSearchRewriter CreateSafeSearchRewriter()
     {
         var googleDomains = _listService.Catalog.GoogleDomains;
@@ -252,7 +267,11 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
             bool dnsApplied = _configurator.ApplyFilterDns(_settings.WebFilter, boundIp, "::1");
             if (!dnsApplied)
             {
-                Debug.WriteLine("[WebFilter] Warning: Failed to apply DNS to all network adapters.");
+                LastError = "Failed to apply DNS to network adapters. Administrator privileges are required.";
+                Debug.WriteLine($"[WebFilter] {LastError}");
+                await StopInternalAsync(restoreDns: true).ConfigureAwait(false);
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+                return false;
             }
 
             // 5. Apply bypass protection (firewall rules and browser policies)
@@ -620,7 +639,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     private void StartWatchdog()
     {
         _watchdogFailures = 0;
-        _watchdogTimer = new Timer(WatchdogCheck, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        _watchdogTimer = new Timer(WatchdogCheck, null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
     }
 
     private void StopWatchdog()
@@ -664,10 +683,10 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
                 }
             });
         }
-        else if (_watchdogFailures >= 3)
+        else if (_watchdogFailures >= 5)
         {
-            // 3 consecutive failures: emergency restore to keep internet working!
-            Debug.WriteLine("[WebFilter] Watchdog: 3 consecutive failures. Performing emergency DNS restore!");
+            // 5 consecutive failures (100s): emergency restore to keep internet working!
+            Debug.WriteLine("[WebFilter] Watchdog: 5 consecutive failures. Performing emergency DNS restore!");
             StopWatchdog();
             _configurator.RestoreOriginalDns(_settings.WebFilter);
             _settings.WebFilter.Enabled = false;
@@ -684,7 +703,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
         try
         {
             using var udp = new UdpClient();
-            udp.Client.ReceiveTimeout = 2000;
+            udp.Client.ReceiveTimeout = 5000;
             udp.Client.SendTimeout = 2000;
 
             var target = new IPEndPoint(IPAddress.Parse(address), port);
@@ -692,7 +711,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
 
             await udp.SendAsync(query, query.Length, target).ConfigureAwait(false);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var receiveTask = udp.ReceiveAsync(cts.Token).AsTask();
 
             var result = await receiveTask.ConfigureAwait(false);

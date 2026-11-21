@@ -130,6 +130,7 @@ public sealed partial class CategoryCardViewModel : ObservableObject
             if (rule.Enabled == value) return;
             rule.Enabled = value;
             _settingsStore.Save(_settings);
+            ServiceContainer.WebFilterService?.UpdatePolicy();
 
             OnPropertyChanged();
             OnPropertyChanged(nameof(ScheduleLabel));
@@ -236,6 +237,7 @@ public sealed partial class CategoryCardViewModel : ObservableObject
 
         rule.ActiveBlocks = blocks;
         _settingsStore.Save(_settings);
+        ServiceContainer.WebFilterService?.UpdatePolicy();
         OnPropertyChanged(nameof(ScheduleLabel));
     }
 

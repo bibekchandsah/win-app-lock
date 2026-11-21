@@ -120,7 +120,7 @@ public sealed class DnsConfigurator
         var adapters = _adapterService.GetEligibleAdapters();
         if (adapters.Count == 0) return false;
 
-        bool allSucceeded = true;
+        bool anySucceeded = false;
         foreach (var adapter in adapters)
         {
             bool ok = _adapterService.SetAdapterDns(
@@ -131,7 +131,7 @@ public sealed class DnsConfigurator
                 ipv4Dhcp: false,
                 ipv6Dhcp: false);
 
-            if (!ok) allSucceeded = false;
+            if (ok) anySucceeded = true;
         }
 
         settings.Applied ??= new AppliedChanges();
@@ -139,7 +139,7 @@ public sealed class DnsConfigurator
         settings.Applied.AppliedUtc = DateTime.UtcNow;
 
         _adapterService.FlushDnsCache();
-        return allSucceeded;
+        return anySucceeded;
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed class DnsConfigurator
         var adapters = _adapterService.GetEligibleAdapters();
         if (adapters.Count == 0) return false;
 
-        bool allSucceeded = true;
+        bool anySucceeded = false;
         foreach (var adapter in adapters)
         {
             bool ok = _adapterService.SetAdapterDns(
@@ -166,11 +166,11 @@ public sealed class DnsConfigurator
                 ipv4Dhcp: ipv4Servers.Count == 0,
                 ipv6Dhcp: ipv6Servers.Count == 0);
 
-            if (!ok) allSucceeded = false;
+            if (ok) anySucceeded = true;
         }
 
         _adapterService.FlushDnsCache();
-        return allSucceeded;
+        return anySucceeded;
     }
 
     /// <summary>

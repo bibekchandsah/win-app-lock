@@ -79,7 +79,7 @@ public sealed class DnsFilterServer : IAsyncDisposable
 {
     private readonly DnsServerOptions _options;
     private readonly IUpstreamResolver _upstream;
-    private readonly IDnsFilterPolicy _policy;
+    private IDnsFilterPolicy _policy;
     private readonly DnsCache? _cache;
     private readonly SemaphoreSlim _inFlight;
     private SafeSearchRewriter? _safeSearchRewriter;
@@ -110,6 +110,12 @@ public sealed class DnsFilterServer : IAsyncDisposable
     {
         get => _safeSearchRewriter;
         set => _safeSearchRewriter = value;
+    }
+
+    public IDnsFilterPolicy Policy
+    {
+        get => _policy;
+        set => _policy = value ?? throw new ArgumentNullException(nameof(value));
     }
 
     public DnsServerStats Stats { get; } = new();
@@ -336,6 +342,28 @@ public sealed class DnsFilterServer : IAsyncDisposable
             RaiseBlocked(query.Name, reason);
             RaiseProcessed(query.Name, true, reason);
             return (DnsPacket.BuildBlockedResponse(packet, query, _options.BlockedAnswer), query);
+        }
+
+        // RFC 6761: Localhost names must never be forwarded upstream; resolve locally.
+        if (string.Equals(query.Name, "localhost", StringComparison.OrdinalIgnoreCase) ||
+            query.Name.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            byte[] localResp;
+            if (query.Type == DnsPacket.TypeA)
+            {
+                localResp = DnsPacket.BuildResponseWithIps(packet, query, new[] { IPAddress.Loopback });
+            }
+            else if (query.Type == DnsPacket.TypeAaaa)
+            {
+                localResp = DnsPacket.BuildResponseWithIps(packet, query, new[] { IPAddress.IPv6Loopback });
+            }
+            else
+            {
+                localResp = DnsPacket.BuildBlockedResponse(packet, query, BlockedAnswer.NullAddress);
+            }
+
+            RaiseProcessed(query.Name, false, null);
+            return (localResp, query);
         }
 
         // 1. SafeSearch and YouTube Restricted Mode rewriting (Milestone 11)

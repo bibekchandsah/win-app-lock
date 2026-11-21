@@ -67,6 +67,7 @@ public sealed partial class ServiceCardViewModel : ObservableObject
             if (rule.Enabled == value) return;
             rule.Enabled = value;
             _settingsStore.Save(_settings);
+            ServiceContainer.WebFilterService?.UpdatePolicy();
 
             OnPropertyChanged();
             OnPropertyChanged(nameof(ScheduleLabel));
@@ -100,6 +101,7 @@ public sealed partial class ServiceCardViewModel : ObservableObject
 
         rule.ActiveBlocks = blocks;
         _settingsStore.Save(_settings);
+        ServiceContainer.WebFilterService?.UpdatePolicy();
         OnPropertyChanged(nameof(ScheduleLabel));
     }
 

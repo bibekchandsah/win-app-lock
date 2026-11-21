@@ -848,6 +848,8 @@ public partial class WebFilterViewModel : ObservableObject
     private void SaveSettings()
     {
         _settingsStore.Save(_settings);
+        _lists.Refresh();
+        ServiceContainer.WebFilterService?.UpdatePolicy();
     }
 
     /// <summary>Runs the check tool. Returns null while another check is in progress.</summary>
