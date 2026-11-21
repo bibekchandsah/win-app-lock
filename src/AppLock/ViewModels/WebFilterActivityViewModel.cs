@@ -156,6 +156,14 @@ public sealed partial class WebFilterActivityViewModel : ObservableObject
         ApplySortAndPaging();
     }
 
+    public void SetPageSize(int size)
+    {
+        if (size < 1) size = 1;
+        PageSize = size;
+        CurrentPage = 1;
+        ApplySortAndPaging();
+    }
+
     public void NextPage()
     {
         if (CanGoNext)

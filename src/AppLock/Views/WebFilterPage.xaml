@@ -787,7 +787,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Header actions: count + Search + Clear All + Import / Export -->
+                        <!-- Header actions: count | spacer | Search + Delete All + Import + Export -->
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -798,13 +798,12 @@
                                        Text="{x:Bind ViewModel.AlwaysBlockCountLabel, Mode=OneWay}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}"
                                        VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1"
-                                     x:Name="AlwaysBlockSearchBox"
-                                     PlaceholderText="Search blocked domains..."
-                                     TextChanged="AlwaysBlockSearch_TextChanged"
-                                     HorizontalAlignment="Stretch"
-                                     MaxWidth="320"/>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                <TextBox x:Name="AlwaysBlockSearchBox"
+                                         PlaceholderText="Search blocked domains..."
+                                         TextChanged="AlwaysBlockSearch_TextChanged"
+                                         Width="220"
+                                         VerticalAlignment="Center"/>
                                 <Button x:Name="ClearAlwaysBlockButton"
                                         Click="ClearAlwaysBlockButton_Click"
                                         ToolTipService.ToolTip="Delete all domains in Always Block">
@@ -857,7 +856,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Header actions: count + Search + Clear All + Import / Export -->
+                        <!-- Header actions: count | spacer | Search + Delete All + Import + Export -->
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -868,13 +867,12 @@
                                        Text="{x:Bind ViewModel.AlwaysAllowCountLabel, Mode=OneWay}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}"
                                        VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1"
-                                     x:Name="AlwaysAllowSearchBox"
-                                     PlaceholderText="Search allowed domains..."
-                                     TextChanged="AlwaysAllowSearch_TextChanged"
-                                     HorizontalAlignment="Stretch"
-                                     MaxWidth="320"/>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                <TextBox x:Name="AlwaysAllowSearchBox"
+                                         PlaceholderText="Search allowed domains..."
+                                         TextChanged="AlwaysAllowSearch_TextChanged"
+                                         Width="220"
+                                         VerticalAlignment="Center"/>
                                 <Button x:Name="ClearAlwaysAllowButton"
                                         Click="ClearAlwaysAllowButton_Click"
                                         ToolTipService.ToolTip="Delete all domains in Always Allow">
@@ -1048,13 +1046,32 @@
                                     </StackPanel>
                                 </Button>
 
-                                <TextBlock Grid.Column="1"
-                                           x:Name="ActivityPageSummaryText"
-                                           Text="0 items"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock x:Name="ActivityPageSummaryText"
+                                               Text="0 items"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="·"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="Rows:"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="RowsPerPageComboBox"
+                                              SelectionChanged="RowsPerPageComboBox_SelectionChanged"
+                                              MinWidth="80"
+                                              Padding="8,4">
+                                        <ComboBoxItem Content="10" Tag="10"/>
+                                        <ComboBoxItem Content="30" Tag="30"/>
+                                        <ComboBoxItem Content="50" Tag="50"/>
+                                        <ComboBoxItem Content="100" Tag="100"/>
+                                        <ComboBoxItem x:Name="RowsCustomItem" Content="Custom" Tag="0"/>
+                                    </ComboBox>
+                                </StackPanel>
 
                                 <Button Grid.Column="2"
                                         x:Name="ActivityNextPageButton"

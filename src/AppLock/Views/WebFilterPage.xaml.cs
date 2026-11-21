@@ -832,6 +832,11 @@ public sealed partial class WebFilterPage : Page
         Retain90Days.IsChecked = filter.LogRetentionDays == 90;
         Retain30Days.IsChecked = filter.LogRetentionDays != 7 && filter.LogRetentionDays != 90;
 
+        // Set initial rows-per-page selection without firing the handler
+        RowsPerPageComboBox.SelectionChanged -= RowsPerPageComboBox_SelectionChanged;
+        SyncRowsPerPageComboBox();
+        RowsPerPageComboBox.SelectionChanged += RowsPerPageComboBox_SelectionChanged;
+
         // Start a 500 ms batch-refresh timer when Activity tab goes live
         _activityRefreshTimer = new System.Threading.Timer(_ =>
         {
@@ -908,6 +913,73 @@ public sealed partial class WebFilterPage : Page
         if (SortActivityComboBox == null || BlockedList == null) return;
         ViewModel.Activity.SetSortOption(SortActivityComboBox.SelectedIndex);
         UpdateActivityPagingUi();
+    }
+
+    private async void RowsPerPageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (RowsPerPageComboBox == null || BlockedList == null) return;
+        if (RowsPerPageComboBox.SelectedItem is not ComboBoxItem item) return;
+
+        int tag = (int)item.Tag;
+        if (tag == 0)
+        {
+            // Custom: show input dialog
+            var dialog = new ContentDialog
+            {
+                Title = "Custom rows per page",
+                PrimaryButtonText = "Apply",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+            var box = new NumberBox
+            {
+                Minimum = 1,
+                Maximum = 2000,
+                Value = ViewModel.Activity.PageSize,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+                Header = "Enter number of rows (1–2000):"
+            };
+            dialog.Content = box;
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary && !double.IsNaN(box.Value))
+            {
+                int custom = Math.Clamp((int)box.Value, 1, 2000);
+                // Update the Custom item tag so we remember it
+                RowsCustomItem.Tag = custom;
+                RowsCustomItem.Content = $"Custom ({custom})";
+                ViewModel.Activity.SetPageSize(custom);
+                UpdateActivityPagingUi();
+            }
+            else
+            {
+                // Revert to previous selection without triggering this handler again
+                RowsPerPageComboBox.SelectionChanged -= RowsPerPageComboBox_SelectionChanged;
+                SyncRowsPerPageComboBox();
+                RowsPerPageComboBox.SelectionChanged += RowsPerPageComboBox_SelectionChanged;
+            }
+        }
+        else
+        {
+            ViewModel.Activity.SetPageSize(tag);
+            UpdateActivityPagingUi();
+        }
+    }
+
+    private void SyncRowsPerPageComboBox()
+    {
+        if (RowsPerPageComboBox == null) return;
+        int current = ViewModel.Activity.PageSize;
+        foreach (var obj in RowsPerPageComboBox.Items)
+        {
+            if (obj is ComboBoxItem ci && ci.Tag is int t && t == current)
+            {
+                RowsPerPageComboBox.SelectedItem = ci;
+                return;
+            }
+        }
+        // Not found in fixed options — select the Custom item
+        RowsPerPageComboBox.SelectedItem = RowsCustomItem;
     }
 
     private void ActivityPrevPage_Click(object sender, RoutedEventArgs e)
