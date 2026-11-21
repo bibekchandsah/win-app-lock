@@ -904,19 +904,19 @@ public sealed partial class WebFilterPage : Page
         }
     }
 
-    // ── Donut chart palette (10 distinct colours) ──────────────────────────────
+    // ── Donut chart palette (10 distinct colours, strong contrast on light and dark) ──
     private static readonly Color[] DonutPalette =
     [
-        Color.FromArgb(255, 0,   120, 212),   // 0 blue
-        Color.FromArgb(255, 0,   183, 148),   // 1 teal
-        Color.FromArgb(255, 255, 185,   0),   // 2 amber
+        Color.FromArgb(255, 79,  107, 237),   // 0 blue/indigo
+        Color.FromArgb(255, 0,   151, 167),   // 1 teal/cyan
+        Color.FromArgb(255, 217, 119,   6),   // 2 amber/dark gold
         Color.FromArgb(255, 209,  52,  56),   // 3 red
-        Color.FromArgb(255, 143,  65, 196),   // 4 purple
-        Color.FromArgb(255, 255, 140,   0),   // 5 orange
-        Color.FromArgb(255,  16, 137, 62),    // 6 green
-        Color.FromArgb(255, 232,  17, 135),   // 7 pink
-        Color.FromArgb(255, 100, 180, 255),   // 8 light blue
-        Color.FromArgb(255, 150, 150, 150),   // 9 grey (others)
+        Color.FromArgb(255, 142,  68, 173),   // 4 purple
+        Color.FromArgb(255, 230, 115,   0),   // 5 orange
+        Color.FromArgb(255,  34, 160, 107),   // 6 green
+        Color.FromArgb(255, 216,  27,  96),   // 7 pink/magenta
+        Color.FromArgb(255,  43, 130, 201),   // 8 steel blue
+        Color.FromArgb(255, 120, 130, 140),   // 9 slate grey (others)
     ];
 
     private void DrawDonutChart(List<TopBlockedDomain> items)
@@ -1012,11 +1012,11 @@ public sealed partial class WebFilterPage : Page
             StrokeThickness = 0
         };
 
-        // Hover: lighten on enter, restore on exit
+        // Hover: slight dimming on enter, restore on exit
         path.PointerEntered += (s, _) =>
         {
             if (s is Microsoft.UI.Xaml.Shapes.Path p)
-                p.Opacity = 0.75;
+                p.Opacity = 0.85;
         };
         path.PointerExited += (s, _) =>
         {

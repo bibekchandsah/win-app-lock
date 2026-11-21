@@ -34,35 +34,33 @@ public static class UsageFormat
     }
 }
 
-/// <summary>Theme-aware fixed palette; the index is a stable hash of AppKey.</summary>
+/// <summary>Vibrant, high-contrast fixed palette; the index is a stable hash of AppKey.</summary>
 public static class UsagePalette
 {
-    private static readonly string[] ColorKeys =
-    {
-        "SystemAccentColor",
-        "SystemAccentColorLight1",
-        "SystemAccentColorLight2",
-        "SystemAccentColorDark1",
-        "SystemFillColorSuccess",
-        "SystemFillColorCaution",
-        "SystemFillColorAttention",
-        "SystemFillColorCritical"
-    };
+    // Carefully selected high-contrast colors with strong visibility (contrast >= 3:1)
+    // on both pure white (#FFFFFF) light-theme cards and dark (#202020) surfaces.
+    // Avoids Windows theme keys like SystemAccentColorLight1/2 which turn white in light mode.
+    private static readonly Windows.UI.Color[] PaletteColors =
+    [
+        Windows.UI.Color.FromArgb(255, 79, 107, 237),  // 0 Royal Blue / Indigo
+        Windows.UI.Color.FromArgb(255, 224, 83, 83),   // 1 Coral Red
+        Windows.UI.Color.FromArgb(255, 34, 160, 107),  // 2 Emerald Green
+        Windows.UI.Color.FromArgb(255, 230, 115, 0),   // 3 Vivid Orange
+        Windows.UI.Color.FromArgb(255, 142, 68, 173),  // 4 Purple / Violet
+        Windows.UI.Color.FromArgb(255, 0, 151, 167),   // 5 Teal / Cyan
+        Windows.UI.Color.FromArgb(255, 216, 27, 96),   // 6 Raspberry / Magenta
+        Windows.UI.Color.FromArgb(255, 217, 119, 6),   // 7 Amber / Dark Gold
+    ];
 
     public static Brush BrushFor(int index)
     {
-        try
-        {
-            var key = ColorKeys[Math.Abs(index) % ColorKeys.Length];
-            if (Application.Current.Resources[key] is Windows.UI.Color color)
-                return new SolidColorBrush(color);
-        }
-        catch
-        {
-            // Fall through to the neutral brush.
-        }
+        var color = PaletteColors[Math.Abs(index) % PaletteColors.Length];
+        return new SolidColorBrush(color);
+    }
 
-        return Neutral;
+    public static Windows.UI.Color ColorFor(int index)
+    {
+        return PaletteColors[Math.Abs(index) % PaletteColors.Length];
     }
 
     public static Brush Neutral => TryBrush("TextFillColorTertiaryBrush", Microsoft.UI.Colors.Gray);

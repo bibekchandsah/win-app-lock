@@ -1112,10 +1112,10 @@
                                         Height="180"/>
 
                                 <!-- Legend -->
-                                <ItemsRepeater x:Name="TopDomainsLegend"
-                                               Grid.Column="1"
-                                               VerticalAlignment="Center">
-                                    <ItemsRepeater.ItemTemplate>
+                                <ItemsControl x:Name="TopDomainsLegend"
+                                              Grid.Column="1"
+                                              VerticalAlignment="Center">
+                                    <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="local:TopDomainLegendItem">
                                             <Grid Margin="0,3" ColumnSpacing="8">
                                                 <Grid.ColumnDefinitions>
@@ -1143,8 +1143,8 @@
                                                            VerticalAlignment="Center"/>
                                             </Grid>
                                         </DataTemplate>
-                                    </ItemsRepeater.ItemTemplate>
-                                </ItemsRepeater>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
                         </StackPanel>
                     </Border>

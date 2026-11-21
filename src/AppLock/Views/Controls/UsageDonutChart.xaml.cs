@@ -182,17 +182,32 @@ public sealed partial class UsageDonutChart : UserControl
         string text = $"{value.Label} · {UsageFormat.Duration(value.Seconds)}";
         if (_hoverTip is { IsOpen: true } && Equals(_hoverTip.Content, text)) return;
 
-        _hoverTip ??= new ToolTip { Placement = PlacementMode.Mouse, PlacementTarget = RootGrid };
-        _hoverTip.Content = text;
-        _hoverTip.IsOpen = true;
+        try
+        {
+            _hoverTip ??= new ToolTip { Placement = PlacementMode.Mouse, PlacementTarget = RootGrid };
+            _hoverTip.XamlRoot = RootGrid.XamlRoot;
+            _hoverTip.Content = text;
+            _hoverTip.IsOpen = true;
+        }
+        catch
+        {
+            // Ignore any transient layout/visual-tree attachment issues
+        }
     }
 
     private void CloseHoverTip()
     {
         ShowCenterTotal();
 
-        if (_hoverTip is { IsOpen: true })
-            _hoverTip.IsOpen = false;
+        try
+        {
+            if (_hoverTip is { IsOpen: true })
+                _hoverTip.IsOpen = false;
+        }
+        catch
+        {
+            // Ignore
+        }
     }
 
     private void ShowCenterTotal()
