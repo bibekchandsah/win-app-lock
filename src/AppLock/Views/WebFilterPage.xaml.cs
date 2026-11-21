@@ -865,6 +865,7 @@ public sealed partial class WebFilterPage : Page
 
     private void UpdateActivityPagingUi()
     {
+        if (BlockedList == null) return;
         BlockedList.ItemsSource = null;
         BlockedList.ItemsSource = ViewModel.Activity.RecentBlocked;
         ActivityPrevPageButton.IsEnabled = ViewModel.Activity.CanGoPrevious;
@@ -904,7 +905,7 @@ public sealed partial class WebFilterPage : Page
 
     private void SortActivityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SortActivityComboBox == null) return;
+        if (SortActivityComboBox == null || BlockedList == null) return;
         ViewModel.Activity.SetSortOption(SortActivityComboBox.SelectedIndex);
         UpdateActivityPagingUi();
     }
