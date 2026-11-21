@@ -37,6 +37,7 @@ public static class DnsPacket
     public const int DefaultUdpPayloadSize = 512;
 
     public const ushort TypeA = 1;
+    public const ushort TypeCname = 5;
     public const ushort TypeAaaa = 28;
     public const ushort TypeOpt = 41;
 
@@ -329,5 +330,207 @@ public static class DnsPacket
     {
         data[offset] = (byte)(value >> 8);
         data[offset + 1] = (byte)value;
+    }
+
+    /// <summary>
+    /// Reads a domain name from a DNS packet at the given offset, following compression pointers.
+    /// </summary>
+    public static bool TryReadDomainName(ReadOnlySpan<byte> packet, int offset, out string name)
+    {
+        name = string.Empty;
+        var sb = new StringBuilder(64);
+        int jumps = 0;
+
+        while (true)
+        {
+            if (offset >= packet.Length) return false;
+
+            int len = packet[offset];
+
+            if ((len & 0xC0) == 0xC0)
+            {
+                if (offset + 1 >= packet.Length || ++jumps > MaxPointerJumps) return false;
+                offset = ((len & 0x3F) << 8) | packet[offset + 1];
+                continue;
+            }
+
+            if ((len & 0xC0) != 0) return false;
+            if (len == 0) break;
+
+            offset++;
+            if (offset + len > packet.Length) return false;
+
+            if (sb.Length > 0) sb.Append('.');
+            for (int i = 0; i < len; i++)
+            {
+                byte b = packet[offset + i];
+                char c = (char)b;
+                if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+                sb.Append(c);
+            }
+            offset += len;
+        }
+
+        name = sb.ToString();
+        return true;
+    }
+
+    /// <summary>
+    /// Extracts all CNAME target hostnames from the answer section of a DNS response.
+    /// Used for CNAME cloaking detection.
+    /// </summary>
+    public static List<string> ExtractCnameTargets(ReadOnlySpan<byte> response)
+    {
+        var targets = new List<string>();
+        if (response.Length < HeaderLength) return targets;
+
+        ushort flags = ReadU16(response, 2);
+        if ((flags & 0x8000) == 0) return targets; // Not a response
+
+        int questionCount = ReadU16(response, 4);
+        int answerCount = ReadU16(response, 6);
+        if (answerCount == 0) return targets;
+
+        int offset = HeaderLength;
+        for (int i = 0; i < questionCount; i++)
+        {
+            if (!TrySkipName(response, ref offset)) return targets;
+            offset += 4; // type + class
+            if (offset > response.Length) return targets;
+        }
+
+        for (int i = 0; i < answerCount; i++)
+        {
+            if (!TrySkipName(response, ref offset)) break;
+            if (offset + 10 > response.Length) break;
+
+            ushort type = ReadU16(response, offset);
+            int dataLength = ReadU16(response, offset + 8);
+            int rdataOffset = offset + 10;
+            offset += 10 + dataLength;
+            if (offset > response.Length) break;
+
+            if (type == TypeCname)
+            {
+                if (TryReadDomainName(response, rdataOffset, out var targetName) && !string.IsNullOrEmpty(targetName))
+                {
+                    targets.Add(targetName);
+                }
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>
+    /// Extracts IP addresses (A or AAAA) from the answer section of a DNS response.
+    /// </summary>
+    public static bool ExtractIpAnswers(ReadOnlySpan<byte> response, ushort expectedType, out List<System.Net.IPAddress> ips, out uint minTtl)
+    {
+        ips = new List<System.Net.IPAddress>();
+        minTtl = 300;
+
+        if (response.Length < HeaderLength) return false;
+        if ((ReadU16(response, 2) & 0x8000) == 0) return false;
+
+        int questionCount = ReadU16(response, 4);
+        int answerCount = ReadU16(response, 6);
+        if (answerCount == 0) return false;
+
+        int offset = HeaderLength;
+        for (int i = 0; i < questionCount; i++)
+        {
+            if (!TrySkipName(response, ref offset)) return false;
+            offset += 4;
+            if (offset > response.Length) return false;
+        }
+
+        uint min = uint.MaxValue;
+
+        for (int i = 0; i < answerCount; i++)
+        {
+            if (!TrySkipName(response, ref offset)) break;
+            if (offset + 10 > response.Length) break;
+
+            ushort type = ReadU16(response, offset);
+            uint ttl = BinaryPrimitives.ReadUInt32BigEndian(response.Slice(offset + 4, 4));
+            int dataLength = ReadU16(response, offset + 8);
+            int rdataOffset = offset + 10;
+            offset += 10 + dataLength;
+            if (offset > response.Length) break;
+
+            if (type == expectedType)
+            {
+                if (expectedType == TypeA && dataLength == 4)
+                {
+                    ips.Add(new System.Net.IPAddress(response.Slice(rdataOffset, 4)));
+                    if (ttl < min) min = ttl;
+                }
+                else if (expectedType == TypeAaaa && dataLength == 16)
+                {
+                    ips.Add(new System.Net.IPAddress(response.Slice(rdataOffset, 16)));
+                    if (ttl < min) min = ttl;
+                }
+            }
+        }
+
+        if (ips.Count == 0) return false;
+        minTtl = min == uint.MaxValue ? 300 : min;
+        return true;
+    }
+
+    /// <summary>
+    /// Builds a DNS response for the given query, returning the provided IP addresses as answers
+    /// under the original query name (pointing via compression pointer 0xC00C to the question).
+    /// Used by SafeSearch rewriter to answer search engine queries with the safe VIP addresses.
+    /// </summary>
+    public static byte[] BuildResponseWithIps(ReadOnlySpan<byte> request, in DnsQuery query, IReadOnlyList<System.Net.IPAddress> ips, uint ttl = 300)
+    {
+        if (ips == null || ips.Count == 0)
+        {
+            return BuildBlockedResponse(request, query, BlockedAnswer.NxDomain);
+        }
+
+        int answerCount = ips.Count;
+        int totalAnswerLength = 0;
+        foreach (var ip in ips)
+        {
+            int rdataLen = ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? 16 : 4;
+            totalAnswerLength += 12 + rdataLen; // 2(ptr) + 2(type) + 2(class) + 4(ttl) + 2(rdlen) + rdata
+        }
+
+        var response = new byte[HeaderLength + query.QuestionLength + totalAnswerLength];
+
+        // Header: QR=1, AA=0, TC=0, RD=(from query), RA=1, RCODE=0
+        WriteU16(response, 0, query.Id);
+        WriteU16(response, 2, (ushort)(0x8000 | 0x0080 | (query.Flags & 0x0100)));
+        WriteU16(response, 4, 1);                   // QDCOUNT = 1
+        WriteU16(response, 6, (ushort)answerCount); // ANCOUNT
+        WriteU16(response, 8, 0);                   // NSCOUNT = 0
+        WriteU16(response, 10, 0);                  // ARCOUNT = 0
+
+        // Question copied as-is from request
+        request.Slice(HeaderLength, query.QuestionLength).CopyTo(response.AsSpan(HeaderLength));
+
+        int offset = HeaderLength + query.QuestionLength;
+        foreach (var ip in ips)
+        {
+            bool isV6 = ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
+            ushort rtype = isV6 ? TypeAaaa : TypeA;
+            ushort rdataLen = (ushort)(isV6 ? 16 : 4);
+
+            WriteU16(response, offset, 0xC00C);       // pointer to question name
+            WriteU16(response, offset + 2, rtype);
+            WriteU16(response, offset + 4, 1);        // class IN
+            BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(offset + 6), ttl);
+            WriteU16(response, offset + 10, rdataLen);
+
+            byte[] ipBytes = ip.GetAddressBytes();
+            ipBytes.CopyTo(response.AsSpan(offset + 12));
+
+            offset += 12 + rdataLen;
+        }
+
+        return response;
     }
 }

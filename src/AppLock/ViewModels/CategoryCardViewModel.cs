@@ -147,6 +147,60 @@ public sealed partial class CategoryCardViewModel : ObservableObject
 
     public void DismissHint() => FirstEnableHintVisible = false;
 
+    // ── SafeSearch & YouTube Restricted Mode (Adult content sub-option) ───────
+
+    public bool IsAdultCategory => Id.Equals("adult", StringComparison.OrdinalIgnoreCase);
+
+    public Microsoft.UI.Xaml.Visibility AdultOptionsVisible =>
+        IsAdultCategory ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public bool EnforceSafeSearch
+    {
+        get => _settings.WebFilter.EnforceSafeSearch;
+        set
+        {
+            if (_settings.WebFilter.EnforceSafeSearch != value)
+            {
+                _settings.WebFilter.EnforceSafeSearch = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SafeSearchStatusText));
+                ServiceContainer.WebFilterService?.UpdateSafeSearch();
+            }
+        }
+    }
+
+    public int YouTubeModeIndex
+    {
+        get => (int)_settings.WebFilter.YouTubeMode;
+        set
+        {
+            if ((int)_settings.WebFilter.YouTubeMode != value)
+            {
+                _settings.WebFilter.YouTubeMode = (YouTubeRestriction)value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SafeSearchStatusText));
+                ServiceContainer.WebFilterService?.UpdateSafeSearch();
+            }
+        }
+    }
+
+    public string SafeSearchStatusText
+    {
+        get
+        {
+            string search = _settings.WebFilter.EnforceSafeSearch ? "Google ✓ Bing ✓ DuckDuckGo ✓" : "Search: Off";
+            string yt = _settings.WebFilter.YouTubeMode switch
+            {
+                YouTubeRestriction.Moderate => "Moderate",
+                YouTubeRestriction.Strict => "Strict",
+                _ => "Off"
+            };
+            return $"{search} · YouTube: {yt}";
+        }
+    }
+
     // ── Sub-services (e.g. for Social media) ──────────────────────────────────
 
     public System.Collections.ObjectModel.ObservableCollection<ServiceCardViewModel> SubServices { get; } = new();

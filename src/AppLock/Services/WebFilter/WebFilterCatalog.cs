@@ -138,6 +138,7 @@ public sealed class WebFilterCatalog
         Array.Empty<WebServiceSource>(),
         Array.Empty<string>(),
         DefaultProviders,
+        Array.Empty<string>(),
         string.Empty,
         null);
 
@@ -152,12 +153,14 @@ public sealed class WebFilterCatalog
     private readonly List<WebServiceSource> _services;
     private readonly List<string> _neverBlock;
     private readonly List<FilteredDnsProvider> _providers;
+    private readonly List<string> _googleDomains;
 
     private WebFilterCatalog(
         IEnumerable<WebFilterCategorySource> categories,
         IEnumerable<WebServiceSource> services,
         IEnumerable<string> neverBlock,
         IEnumerable<FilteredDnsProvider> providers,
+        IEnumerable<string> googleDomains,
         string assetsDirectory,
         string? loadError)
     {
@@ -165,6 +168,7 @@ public sealed class WebFilterCatalog
         _services = services.ToList();
         _neverBlock = neverBlock.ToList();
         _providers = providers.ToList();
+        _googleDomains = googleDomains.ToList();
         AssetsDirectory = assetsDirectory;
         LoadError = loadError;
     }
@@ -176,6 +180,8 @@ public sealed class WebFilterCatalog
     public IReadOnlyList<string> NeverBlock => _neverBlock;
 
     public IReadOnlyList<FilteredDnsProvider> Providers => _providers;
+
+    public IReadOnlyList<string> GoogleDomains => _googleDomains;
 
     public string AssetsDirectory { get; }
 
@@ -210,6 +216,7 @@ public sealed class WebFilterCatalog
                 Array.Empty<WebServiceSource>(),
                 Array.Empty<string>(),
                 DefaultProviders,
+                Array.Empty<string>(),
                 assetsDirectory,
                 "Block list catalogue (sources.json) is missing");
         }
@@ -245,7 +252,19 @@ public sealed class WebFilterCatalog
             // Load providers.json (filtered DNS providers); fall back to built-in list on error
             var providers = LoadProviders(assetsDirectory);
 
-            return new WebFilterCatalog(categories, services, neverBlock, providers, assetsDirectory, null);
+            var googleDomains = new List<string>();
+            string googleDomainsPath = Path.Combine(assetsDirectory, "google-domains.json");
+            if (File.Exists(googleDomainsPath))
+            {
+                try
+                {
+                    var gList = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(googleDomainsPath), JsonOptions);
+                    if (gList != null) googleDomains.AddRange(gList);
+                }
+                catch { }
+            }
+
+            return new WebFilterCatalog(categories, services, neverBlock, providers, googleDomains, assetsDirectory, null);
         }
         catch (Exception ex)
         {
@@ -254,6 +273,7 @@ public sealed class WebFilterCatalog
                 Array.Empty<WebServiceSource>(),
                 Array.Empty<string>(),
                 DefaultProviders,
+                Array.Empty<string>(),
                 assetsDirectory,
                 "Block list catalogue could not be read: " + ex.Message);
         }

@@ -112,6 +112,74 @@
                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                TextWrapping="Wrap"/>
 
+                    <!-- Adult content sub-options: SafeSearch & YouTube Restricted Mode -->
+                    <Border Visibility="{x:Bind AdultOptionsVisible, Mode=OneWay}"
+                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,4,0,0">
+                        <StackPanel Spacing="10">
+                            <!-- SafeSearch toggle -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Enforce SafeSearch (Google, Bing, DuckDuckGo)"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="Filters explicit search results across major search engines."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind EnforceSafeSearch, Mode=TwoWay}"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- YouTube Restricted Mode -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="YouTube Restricted Mode"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="Hides potentially mature videos identified by YouTube."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          SelectedIndex="{x:Bind YouTubeModeIndex, Mode=TwoWay}"
+                                          MinWidth="120"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Content="Off"/>
+                                    <ComboBoxItem Content="Moderate"/>
+                                    <ComboBoxItem Content="Strict"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <!-- Status line -->
+                            <TextBlock Text="{x:Bind SafeSearchStatusText, Mode=OneWay}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                            <!-- Disclaimer / Notice -->
+                            <TextBlock Text="Note: SafeSearch applies to Google, Bing, DuckDuckGo, and YouTube in browsers on this PC. It does not apply to other search engines or apps that bypass DNS."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Sub-services expander (e.g. for Social Media) -->
                     <Expander Header="Individual services"
                               IsExpanded="False"

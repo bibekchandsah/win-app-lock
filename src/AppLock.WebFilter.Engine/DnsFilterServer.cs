@@ -82,6 +82,7 @@ public sealed class DnsFilterServer : IAsyncDisposable
     private readonly IDnsFilterPolicy _policy;
     private readonly DnsCache? _cache;
     private readonly SemaphoreSlim _inFlight;
+    private SafeSearchRewriter? _safeSearchRewriter;
 
     private Socket? _udp;
     private Socket? _tcp;
@@ -90,13 +91,25 @@ public sealed class DnsFilterServer : IAsyncDisposable
     private Task? _tcpLoop;
     private bool _disposed;
 
-    public DnsFilterServer(DnsServerOptions options, IUpstreamResolver upstream, IDnsFilterPolicy policy, DnsCache? cache = null)
+    public DnsFilterServer(
+        DnsServerOptions options,
+        IUpstreamResolver upstream,
+        IDnsFilterPolicy policy,
+        DnsCache? cache = null,
+        SafeSearchRewriter? safeSearchRewriter = null)
     {
         _options = options;
         _upstream = upstream;
         _policy = policy;
         _cache = options.CacheEnabled ? cache ?? new DnsCache() : null;
+        _safeSearchRewriter = safeSearchRewriter;
         _inFlight = new SemaphoreSlim(Math.Max(1, options.MaxConcurrentQueries));
+    }
+
+    public SafeSearchRewriter? SafeSearchRewriter
+    {
+        get => _safeSearchRewriter;
+        set => _safeSearchRewriter = value;
     }
 
     public DnsServerStats Stats { get; } = new();
@@ -325,11 +338,23 @@ public sealed class DnsFilterServer : IAsyncDisposable
             return (DnsPacket.BuildBlockedResponse(packet, query, _options.BlockedAnswer), query);
         }
 
-        RaiseProcessed(query.Name, false, null);
+        // 1. SafeSearch and YouTube Restricted Mode rewriting (Milestone 11)
+        if (_safeSearchRewriter != null && _safeSearchRewriter.TryGetRewriteTarget(query.Name, out var targetHost))
+        {
+            var rewritten = await _safeSearchRewriter.RewriteQueryAsync(
+                _upstream, packet, query, targetHost, token).ConfigureAwait(false);
+
+            if (rewritten != null)
+            {
+                RaiseProcessed(query.Name, false, null);
+                return (rewritten, query);
+            }
+        }
 
         if (_cache != null && _cache.TryGet(query.Name, query.Type, query.Id, out var cached))
         {
             Stats.RecordCached();
+            RaiseProcessed(query.Name, false, null);
             return (cached, query);
         }
 
@@ -343,6 +368,23 @@ public sealed class DnsFilterServer : IAsyncDisposable
             return (null, query);
         }
 
+        // 2. CNAME cloaking check: inspect CNAME targets in upstream answers (Milestone 11)
+        var cnameTargets = DnsPacket.ExtractCnameTargets(upstream);
+        foreach (var cname in cnameTargets)
+        {
+            var cnameQuery = new DnsQuery(query.Id, query.Flags, cname, query.Type, query.Class, query.QuestionLength, query.UdpPayloadSize);
+            var cnameVerdict = _policy.Check(cnameQuery);
+            if (cnameVerdict.IsBlocked)
+            {
+                Stats.RecordBlocked();
+                string cnameReason = $"Cloaked via {cname} ({cnameVerdict.Reason ?? "Blocked"})";
+                RaiseBlocked(query.Name, cnameReason);
+                RaiseProcessed(query.Name, true, cnameReason);
+                return (DnsPacket.BuildBlockedResponse(packet, query, _options.BlockedAnswer), query);
+            }
+        }
+
+        RaiseProcessed(query.Name, false, null);
         _cache?.Set(query.Name, query.Type, upstream);
         return (upstream, query);
     }

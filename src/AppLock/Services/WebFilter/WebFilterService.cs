@@ -97,6 +97,28 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
     /// <summary>Clears the DNS cache of the running filter server.</summary>
     public void ClearCache() => _server?.ClearCache();
 
+    /// <summary>Updates SafeSearch and YouTube restriction rules on the running server and flushes cache.</summary>
+    public void UpdateSafeSearch()
+    {
+        if (_server != null)
+        {
+            _server.SafeSearchRewriter = CreateSafeSearchRewriter();
+            _server.ClearCache();
+        }
+    }
+
+    private SafeSearchRewriter CreateSafeSearchRewriter()
+    {
+        var googleDomains = _listService.Catalog.GoogleDomains;
+        var mode = _settings.WebFilter.YouTubeMode switch
+        {
+            YouTubeRestriction.Moderate => YouTubeRestrictionMode.Moderate,
+            YouTubeRestriction.Strict => YouTubeRestrictionMode.Strict,
+            _ => YouTubeRestrictionMode.Off
+        };
+        return new SafeSearchRewriter(_settings.WebFilter.EnforceSafeSearch, mode, googleDomains);
+    }
+
     /// <summary>
     /// Checks on startup whether DNS is currently pointing to loopback from an unexpected
     /// previous shutdown or kill, and repairs or starts the filter.
@@ -157,6 +179,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
 
             // 2. Select policy
             var policy = _listService.CreateDnsPolicy();
+            var safeSearchRewriter = CreateSafeSearchRewriter();
 
             // 3. Try candidate loopback addresses on port 53
             DnsFilterServer? startedServer = null;
@@ -174,7 +197,7 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
                     CacheEnabled = _settings.WebFilter.CacheEnabled
                 };
 
-                var server = new DnsFilterServer(options, _forwarder, policy);
+                var server = new DnsFilterServer(options, _forwarder, policy, safeSearchRewriter: safeSearchRewriter);
                 bool ok = await server.StartAsync().ConfigureAwait(false);
                 if (ok)
                 {
