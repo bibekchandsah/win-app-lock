@@ -236,7 +236,9 @@ public sealed partial class ScreenTimeViewModel : ObservableObject
         UnlockValue = unlocks.ToString();
         UnlockSubtext = previous > 0
             ? $"vs {previous} {range.Kind switch { UsageRangeKind.Today => "yesterday", UsageRangeKind.Week => "last week", _ => "last month" }}"
-            : "Not counted yet";
+            : unlocks > 0
+                ? range.Kind switch { UsageRangeKind.Today => "Today so far", UsageRangeKind.Week => "This week", _ => "This month" }
+                : "Not counted yet";
     }
 
     /// <summary>Top apps as ring segments; everything past the fifth app is folded into "Other".</summary>

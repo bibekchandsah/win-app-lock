@@ -458,7 +458,11 @@ public sealed class WebFilterService : IAsyncDisposable, IDisposable
 
                 try
                 {
-                    _firewallService.RemoveRulesAsync(_settings.WebFilter).GetAwaiter().GetResult();
+                    // Run on a threadpool thread with no SynchronizationContext so the
+                    // async continuations inside RemoveRulesAsync never try to marshal
+                    // back to the (already-blocked) UI thread → prevents deadlock on exit.
+                    Task.Run(() => _firewallService.RemoveRulesAsync(_settings.WebFilter))
+                        .GetAwaiter().GetResult();
                     _browserPolicyService.RemoveBrowserPolicies(_settings.WebFilter);
                 }
                 catch { }

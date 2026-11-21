@@ -655,6 +655,18 @@ public sealed partial class MainWindow : Window
                     System.Diagnostics.Debug.WriteLine("Authentication successful");
                     IdleService.Log("AppLock unlocked");
 
+                    // Record this AppLock unlock in Screen Time (Windows SessionUnlock is NOT fired
+                    // for AppLock's internal password prompt, so we track it here explicitly).
+                    try
+                    {
+                        if (ServiceContainer.ScreenTimeService.Sampler.IsRunning)
+                            ServiceContainer.ScreenTimeService.Store.RecordUnlock(DateOnly.FromDateTime(DateTime.Now));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[ScreenTime] unlock record failed: {ex.Message}");
+                    }
+
                     // Restore navigation rail. The page the user was on is kept; only an empty
                     // frame (first unlock after launch) is filled with the protection page.
                     Grid.SetColumn(ContentFrame, 1);
