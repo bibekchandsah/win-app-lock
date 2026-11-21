@@ -1,14 +1,21 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
+using AppLock.Services.WebFilter;
 using AppLock.ViewModels;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
+using Windows.Foundation;
 using Windows.System;
+using Windows.UI;
 
 namespace AppLock.Views;
 
@@ -863,9 +870,137 @@ public sealed partial class WebFilterPage : Page
         UpdateActivityPagingUi();
 
         var top = await logSvc.GetTopBlockedDomainsAsync(7, 10).ConfigureAwait(true);
-        var topRows = top.Select(t => new TopDomainRowViewModel(t)).ToList();
-        TopDomainsList.ItemsSource = topRows;
-        NoTopDomainsText.Visibility = topRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool hasData = top.Count > 0;
+        NoTopDomainsText.Visibility = hasData ? Visibility.Collapsed : Visibility.Visible;
+        TopDomainsChartGrid.Visibility = hasData ? Visibility.Visible : Visibility.Collapsed;
+
+        if (hasData)
+        {
+            DrawDonutChart(top);
+        }
+    }
+
+    // ── Donut chart palette (10 distinct colours) ──────────────────────────────
+    private static readonly Color[] DonutPalette =
+    [
+        Color.FromArgb(255, 0,   120, 212),   // 0 blue
+        Color.FromArgb(255, 0,   183, 148),   // 1 teal
+        Color.FromArgb(255, 255, 185,   0),   // 2 amber
+        Color.FromArgb(255, 209,  52,  56),   // 3 red
+        Color.FromArgb(255, 143,  65, 196),   // 4 purple
+        Color.FromArgb(255, 255, 140,   0),   // 5 orange
+        Color.FromArgb(255,  16, 137, 62),    // 6 green
+        Color.FromArgb(255, 232,  17, 135),   // 7 pink
+        Color.FromArgb(255, 100, 180, 255),   // 8 light blue
+        Color.FromArgb(255, 150, 150, 150),   // 9 grey (others)
+    ];
+
+    private void DrawDonutChart(List<TopBlockedDomain> items)
+    {
+        const double cx = 90, cy = 90, outerR = 80, innerR = 44, gap = 1.2;
+
+        DonutCanvas.Children.Clear();
+
+        double total = items.Sum(i => i.Count);
+        if (total == 0) return;
+
+        // Build legend items list
+        var legendItems = new List<TopDomainLegendItem>();
+
+        double startAngle = -90.0; // start at 12 o'clock
+        for (int idx = 0; idx < items.Count; idx++)
+        {
+            string domain = items[idx].Domain;
+            int count    = items[idx].Count;
+            Color col = DonutPalette[idx % DonutPalette.Length];
+            double sweepAngle = (count / total) * 360.0;
+
+            // Avoid ArcSegment degeneration on a full 360° sweep
+            double draw = Math.Min(sweepAngle - gap, 359.9);
+            if (draw <= 0) draw = 0.1;
+
+            var path = BuildArcPath(cx, cy, outerR, innerR, startAngle + gap / 2, draw, col);
+
+            // Tooltip shows domain + raw count + percentage
+            string tip = $"{domain}\n{count:N0}×  ({count / total:P1})";
+            ToolTipService.SetToolTip(path, tip);
+
+            DonutCanvas.Children.Add(path);
+
+            legendItems.Add(new TopDomainLegendItem
+            {
+                Domain     = domain,
+                CountLabel = $"{count:N0}×",
+                Color      = col
+            });
+
+            startAngle += sweepAngle;
+        }
+
+        TopDomainsLegend.ItemsSource = legendItems;
+    }
+
+    private static Microsoft.UI.Xaml.Shapes.Path BuildArcPath(
+        double cx, double cy,
+        double outerR, double innerR,
+        double startDeg, double sweepDeg,
+        Color fill)
+    {
+        static Point Polar(double cx, double cy, double r, double deg)
+        {
+            double rad = deg * Math.PI / 180.0;
+            return new Point(cx + r * Math.Cos(rad), cy + r * Math.Sin(rad));
+        }
+
+        bool large = sweepDeg > 180;
+        double endDeg = startDeg + sweepDeg;
+
+        Point outerStart = Polar(cx, cy, outerR, startDeg);
+        Point outerEnd   = Polar(cx, cy, outerR, endDeg);
+        Point innerEnd   = Polar(cx, cy, innerR, endDeg);
+        Point innerStart = Polar(cx, cy, innerR, startDeg);
+
+        var geom = new PathGeometry();
+        var fig  = new PathFigure { StartPoint = outerStart, IsClosed = true, IsFilled = true };
+
+        fig.Segments.Add(new ArcSegment
+        {
+            Point = outerEnd,
+            Size = new Size(outerR, outerR),
+            SweepDirection = SweepDirection.Clockwise,
+            IsLargeArc = large
+        });
+        fig.Segments.Add(new LineSegment { Point = innerEnd });
+        fig.Segments.Add(new ArcSegment
+        {
+            Point = innerStart,
+            Size = new Size(innerR, innerR),
+            SweepDirection = SweepDirection.Counterclockwise,
+            IsLargeArc = large
+        });
+
+        geom.Figures.Add(fig);
+
+        var path = new Microsoft.UI.Xaml.Shapes.Path
+        {
+            Data = geom,
+            Fill = new SolidColorBrush(fill),
+            StrokeThickness = 0
+        };
+
+        // Hover: lighten on enter, restore on exit
+        path.PointerEntered += (s, _) =>
+        {
+            if (s is Microsoft.UI.Xaml.Shapes.Path p)
+                p.Opacity = 0.75;
+        };
+        path.PointerExited += (s, _) =>
+        {
+            if (s is Microsoft.UI.Xaml.Shapes.Path p)
+                p.Opacity = 1.0;
+        };
+
+        return path;
     }
 
     private void UpdateActivityPagingUi()
@@ -920,8 +1055,12 @@ public sealed partial class WebFilterPage : Page
         if (RowsPerPageComboBox == null || BlockedList == null) return;
         if (RowsPerPageComboBox.SelectedItem is not ComboBoxItem item) return;
 
-        int tag = (int)item.Tag;
-        if (tag == 0)
+        // Tag is stored as string from XAML; parse safely
+        string tagStr = item.Tag?.ToString() ?? "0";
+        bool isCustom = tagStr == "0";
+        int tagVal = int.TryParse(tagStr, out int parsed) ? parsed : 0;
+
+        if (isCustom)
         {
             // Custom: show input dialog
             var dialog = new ContentDialog
@@ -945,15 +1084,14 @@ public sealed partial class WebFilterPage : Page
             if (result == ContentDialogResult.Primary && !double.IsNaN(box.Value))
             {
                 int custom = Math.Clamp((int)box.Value, 1, 2000);
-                // Update the Custom item tag so we remember it
-                RowsCustomItem.Tag = custom;
+                RowsCustomItem.Tag = custom.ToString();
                 RowsCustomItem.Content = $"Custom ({custom})";
                 ViewModel.Activity.SetPageSize(custom);
                 UpdateActivityPagingUi();
             }
             else
             {
-                // Revert to previous selection without triggering this handler again
+                // Revert to previous selection without re-triggering
                 RowsPerPageComboBox.SelectionChanged -= RowsPerPageComboBox_SelectionChanged;
                 SyncRowsPerPageComboBox();
                 RowsPerPageComboBox.SelectionChanged += RowsPerPageComboBox_SelectionChanged;
@@ -961,7 +1099,7 @@ public sealed partial class WebFilterPage : Page
         }
         else
         {
-            ViewModel.Activity.SetPageSize(tag);
+            ViewModel.Activity.SetPageSize(tagVal);
             UpdateActivityPagingUi();
         }
     }
@@ -972,13 +1110,15 @@ public sealed partial class WebFilterPage : Page
         int current = ViewModel.Activity.PageSize;
         foreach (var obj in RowsPerPageComboBox.Items)
         {
-            if (obj is ComboBoxItem ci && ci.Tag is int t && t == current)
+            if (obj is ComboBoxItem ci &&
+                int.TryParse(ci.Tag?.ToString(), out int t) &&
+                t != 0 && t == current)
             {
                 RowsPerPageComboBox.SelectedItem = ci;
                 return;
             }
         }
-        // Not found in fixed options — select the Custom item
+        // Not in fixed list — select Custom item
         RowsPerPageComboBox.SelectedItem = RowsCustomItem;
     }
 
@@ -1260,4 +1400,12 @@ public sealed partial class WebFilterPage : Page
         var dialog = new AppLock.Views.WebFilter.Dialogs.CreditsAndLicensesDialog(ViewModel.Catalog, XamlRoot);
         await dialog.ShowAsync();
     }
+}
+
+/// <summary>Lightweight data item for the donut-chart legend row.</summary>
+public sealed class TopDomainLegendItem
+{
+    public string Domain { get; init; } = string.Empty;
+    public string CountLabel { get; init; } = string.Empty;
+    public Windows.UI.Color Color { get; init; }
 }
