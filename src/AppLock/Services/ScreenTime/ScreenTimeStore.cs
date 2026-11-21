@@ -192,6 +192,25 @@ public sealed class ScreenTimeStore : IAsyncDisposable
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Sets an absolute unlock count for a day. Used by the Event Log backfill to seed
+    /// historical data for days the app was not running. Does NOT overwrite existing rows
+    /// (the caller checks GetUnlocks == 0 first), but uses INSERT OR IGNORE for safety.
+    /// </summary>
+    public void SetUnlocks(DateOnly day, int count)
+    {
+        EnsureInitialized();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT OR IGNORE INTO unlock_day (day, count) VALUES ($day, $count);
+            """;
+        command.Parameters.AddWithValue("$day", day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$count", count);
+        command.ExecuteNonQuery();
+    }
+
     /// <summary>Records how many seconds of an hour tracking actually ran (idle time included).</summary>
     public void RecordCoverage(DateOnly day, int hour, int trackedSeconds)
     {

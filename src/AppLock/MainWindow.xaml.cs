@@ -24,6 +24,22 @@ public sealed partial class MainWindow : Window
     [DllImport("comctl32.dll")]
     private static extern nint DefSubclassProc(nint hWnd, uint uMsg, nint wParam, nint lParam);
 
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSRegisterSessionNotification(nint hWnd, uint dwFlags);
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSUnRegisterSessionNotification(nint hWnd);
+
+    private const uint NOTIFY_FOR_THIS_SESSION = 0;
+    private const uint WM_WTSSESSION_CHANGE = 0x02B1;
+    private const int WTS_CONSOLE_CONNECT = 0x1;
+    private const int WTS_CONSOLE_DISCONNECT = 0x2;
+    private const int WTS_REMOTE_CONNECT = 0x3;
+    private const int WTS_REMOTE_DISCONNECT = 0x4;
+    private const int WTS_SESSION_LOGON = 0x5;
+    private const int WTS_SESSION_LOGOFF = 0x6;
+    private const int WTS_SESSION_LOCK = 0x7;
+    private const int WTS_SESSION_UNLOCK = 0x8;
+
     private const uint WM_HOTKEY = 0x0312;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DISPLAYCHANGE = 0x007E;
@@ -654,18 +670,6 @@ public sealed partial class MainWindow : Window
                     _isMainAuthenticated = true;
                     System.Diagnostics.Debug.WriteLine("Authentication successful");
                     IdleService.Log("AppLock unlocked");
-
-                    // Record this AppLock unlock in Screen Time (Windows SessionUnlock is NOT fired
-                    // for AppLock's internal password prompt, so we track it here explicitly).
-                    try
-                    {
-                        if (ServiceContainer.ScreenTimeService.Sampler.IsRunning)
-                            ServiceContainer.ScreenTimeService.Store.RecordUnlock(DateOnly.FromDateTime(DateTime.Now));
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[ScreenTime] unlock record failed: {ex.Message}");
-                    }
 
                     // Restore navigation rail. The page the user was on is kept; only an empty
                     // frame (first unlock after launch) is filled with the protection page.
@@ -1504,6 +1508,16 @@ public sealed partial class MainWindow : Window
         _subclassProc = WndProcSubclass;
         bool ok = SetWindowSubclass(_hwnd.Value, _subclassProc, 1, 0);
         System.Diagnostics.Debug.WriteLine($"WndProc subclass installed: {ok}");
+
+        try
+        {
+            bool wtsOk = WTSRegisterSessionNotification(_hwnd.Value, NOTIFY_FOR_THIS_SESSION);
+            System.Diagnostics.Debug.WriteLine($"WTSRegisterSessionNotification registered: {wtsOk}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"WTSRegisterSessionNotification failed: {ex.Message}");
+        }
     }
 
     private nint WndProcSubclass(nint hWnd, uint uMsg, nint wParam, nint lParam, nint uIdSubclass, nint dwRefData)
@@ -1520,6 +1534,35 @@ public sealed partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine($"WM_HOTKEY received: id={hotkeyId}");
             ServiceContainer.HotkeyService.ProcessHotkeyMessage(hotkeyId);
             return 0;
+        }
+
+        if (uMsg == WM_WTSSESSION_CHANGE)
+        {
+            int reason = (int)wParam;
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] WM_WTSSESSION_CHANGE: {reason}");
+            try
+            {
+                var sampler = ServiceContainer.ScreenTimeService?.Sampler;
+                if (sampler != null)
+                {
+                    if (reason == WTS_SESSION_LOCK || reason == WTS_CONSOLE_DISCONNECT || reason == WTS_REMOTE_DISCONNECT)
+                    {
+                        sampler.NotifySessionLock();
+                    }
+                    else if (reason == WTS_SESSION_UNLOCK)
+                    {
+                        sampler.NotifySessionUnlock();
+                    }
+                    else if (reason == WTS_CONSOLE_CONNECT || reason == WTS_REMOTE_CONNECT)
+                    {
+                        sampler.NotifySessionConnect();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] WM_WTSSESSION_CHANGE handling failed: {ex.Message}");
+            }
         }
         const uint WM_SIZE = 0x0005;
         if (uMsg == WM_SIZE)
@@ -2337,6 +2380,7 @@ public sealed partial class MainWindow : Window
         // Remove WndProc subclass
         if (_subclassProc != null)
         {
+            try { WTSUnRegisterSessionNotification(_hwnd.Value); } catch { }
             RemoveWindowSubclass(_hwnd.Value, _subclassProc, 1);
             _subclassProc = null;
         }

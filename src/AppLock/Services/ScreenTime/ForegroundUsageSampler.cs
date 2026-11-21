@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using AppLock.Models;
 using Microsoft.Win32;
 
@@ -104,6 +106,10 @@ public sealed class ForegroundUsageSampler : IDisposable
 
         _timer = new System.Threading.Timer(OnTimer, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         Debug.WriteLine("[ScreenTime] sampler started");
+
+        // Back-fill Windows lock/unlock events from the Security Event Log for days
+        // the app was not running (Event ID 4800 = locked, 4801 = unlocked).
+        Task.Run(BackfillFromEventLog);
     }
 
     public void Stop()
@@ -257,6 +263,23 @@ public sealed class ForegroundUsageSampler : IDisposable
         // Keep the callback tiny: the tick does all identity work and counting.
     }
 
+    public void NotifySessionLock()
+    {
+        _sessionAvailable = false;
+        FlushCoverage();
+    }
+
+    public void NotifySessionUnlock()
+    {
+        RecordUnlock();
+        _sessionAvailable = true;
+    }
+
+    public void NotifySessionConnect()
+    {
+        _sessionAvailable = true;
+    }
+
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
     {
         switch (e.Reason)
@@ -264,25 +287,93 @@ public sealed class ForegroundUsageSampler : IDisposable
             case SessionSwitchReason.SessionLock:
             case SessionSwitchReason.ConsoleDisconnect:
             case SessionSwitchReason.RemoteDisconnect:
-                _sessionAvailable = false;
-                FlushCoverage();
+                NotifySessionLock();
                 break;
             case SessionSwitchReason.SessionUnlock:
-                RecordUnlock();
-                _sessionAvailable = true;
+                NotifySessionUnlock();
                 break;
             case SessionSwitchReason.ConsoleConnect:
             case SessionSwitchReason.RemoteConnect:
-                _sessionAvailable = true;
+                NotifySessionConnect();
                 break;
         }
     }
+
+    /// <summary>
+    /// Reads the Windows Security Event Log for workstation unlock (Event ID 4801) events
+    /// and back-fills any days whose unlock count is not yet stored. This covers days before
+    /// the app started running. Runs once on a background thread at startup.
+    /// Silently skips if the Security log is not accessible.
+    /// </summary>
+    private void BackfillFromEventLog()
+    {
+        try
+        {
+            if (_store == null) return;
+
+            var settings = CurrentSettings;
+            int retentionDays = settings.RetentionDays > 0 ? Math.Min(settings.RetentionDays, 90) : 90;
+            var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+
+            // Count Event 4801 (workstation unlocked) per local calendar day.
+            var unlocksByDay = new Dictionary<DateOnly, int>();
+
+            var query = new EventLogQuery("Security", PathType.LogName,
+                $"*[System[(EventID=4801) and TimeCreated[@SystemTime >= '{cutoff:yyyy-MM-ddTHH:mm:ssZ}']]]");
+
+            using (var reader = new EventLogReader(query))
+            {
+                EventRecord? record;
+                while ((record = reader.ReadEvent()) != null)
+                {
+                    using (record)
+                    {
+                        if (record.TimeCreated is not { } ts) continue;
+                        var day = DateOnly.FromDateTime(ts.ToLocalTime());
+                        unlocksByDay.TryGetValue(day, out int existing);
+                        unlocksByDay[day] = existing + 1;
+                    }
+                }
+            }
+
+            // Write to the store only for days that have no row yet, to avoid
+            // double-counting days where the live sampler already recorded events.
+            foreach (var (day, count) in unlocksByDay)
+            {
+                try
+                {
+                    if (_store.GetUnlocks(day, day) == 0 && count > 0)
+                        _store.SetUnlocks(day, count);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ScreenTime] backfill write failed for {day}: {ex.Message}");
+                }
+            }
+
+            Debug.WriteLine($"[ScreenTime] Event Log backfill done: {unlocksByDay.Count} day(s) processed.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Debug.WriteLine("[ScreenTime] Security Event Log access denied – backfill skipped.");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ScreenTime] Event Log backfill error: {ex.Message}");
+        }
+    }
+
+    private DateTime _lastUnlockTime = DateTime.MinValue;
 
     /// <summary>Counted so the summary can show how many times the PC was unlocked today.</summary>
     private void RecordUnlock()
     {
         try
         {
+            var now = DateTime.UtcNow;
+            if ((now - _lastUnlockTime).TotalSeconds < 2) return;
+            _lastUnlockTime = now;
+
             if (CurrentSettings.TrackingEnabled && _store != null)
                 _store.RecordUnlock(DateOnly.FromDateTime(DateTime.Now));
         }
