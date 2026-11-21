@@ -147,6 +147,9 @@
                 <TextBlock Text="• CsWin32 for native interop"
                            FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="• Web Filter lists: StevenBlack hosts, Block List Project"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

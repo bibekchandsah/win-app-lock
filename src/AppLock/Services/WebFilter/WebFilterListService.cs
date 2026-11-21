@@ -554,6 +554,33 @@ public sealed class WebFilterListService : IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Downloads updates for all categories that define remote list URLs.
+    /// </summary>
+    public async Task<int> UpdateAllAsync(CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+        int updatedCount = 0;
+
+        foreach (var category in _catalog.Categories)
+        {
+            for (int i = 0; i < category.Sources.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(category.Sources[i].Url))
+                {
+                    try
+                    {
+                        var res = await UpdateSourceAsync(category.Id, i, cancellationToken).ConfigureAwait(false);
+                        if (res.Status == ListUpdateStatus.Updated) updatedCount++;
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        return updatedCount;
+    }
+
     private string SnapshotPath(string categoryId, int sourceIndex)
         => Path.Combine(_listsDirectory, $"{categoryId}.{sourceIndex}.snapshot");
 

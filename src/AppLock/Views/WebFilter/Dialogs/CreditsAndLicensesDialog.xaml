@@ -1,0 +1,84 @@
+<ContentDialog
+    x:Class="AppLock.Views.WebFilter.Dialogs.CreditsAndLicensesDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Credits &amp; Licenses"
+    CloseButtonText="Close"
+    DefaultButton="Close"
+    CornerRadius="8">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="540">
+        <StackPanel Spacing="16" MinWidth="480" MaxWidth="560" Padding="0,4,8,8">
+            <TextBlock Text="AppLock Web Filter uses open, community-maintained block lists and DNS services. We gratefully acknowledge the authors and maintainers for making their work freely available."
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+
+            <!-- Block lists section -->
+            <TextBlock Text="Block Lists" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+            <ItemsControl x:Name="SourcesList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="{Binding Attribution}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding LicenseText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                </StackPanel>
+                                <HyperlinkButton Grid.Column="1"
+                                                 Content="Website"
+                                                 Tag="{Binding Url}"
+                                                 Click="WebsiteLink_Click"
+                                                 Visibility="{Binding HasUrl}"
+                                                 VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- DNS Providers section -->
+            <TextBlock Text="Filtered DNS Providers" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+
+            <ItemsControl x:Name="ProvidersList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="{Binding Description}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <HyperlinkButton Grid.Column="1"
+                                                 Content="Website"
+                                                 Tag="{Binding WebsiteUrl}"
+                                                 Click="WebsiteLink_Click"
+                                                 VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

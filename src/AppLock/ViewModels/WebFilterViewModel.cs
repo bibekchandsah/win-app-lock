@@ -246,6 +246,34 @@ public partial class WebFilterViewModel : ObservableObject
         ServiceContainer.WebFilterService.ClearCache();
     }
 
+    public bool AutoUpdateLists
+    {
+        get => Filter.AutoUpdateLists;
+        set
+        {
+            if (Filter.AutoUpdateLists != value)
+            {
+                Filter.AutoUpdateLists = value;
+                _settingsStore.Save(_settings);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string BlockListsSummaryText => $"{_lists.CategoryCount} categories · ~{TotalDomains:N0} domains";
+
+    public WebFilterCatalog Catalog => _lists.Catalog;
+
+    public async Task<int> UpdateListsAsync()
+    {
+        int updated = await _lists.UpdateAllAsync();
+        RefreshCategoryDomainCounts();
+        OnPropertyChanged(nameof(TotalDomains));
+        OnPropertyChanged(nameof(BlockListsSummaryText));
+        OnPropertyChanged(nameof(StatusDetail));
+        return updated;
+    }
+
     public async Task<string> TestUpstreamAsync()
     {
         try

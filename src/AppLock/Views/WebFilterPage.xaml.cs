@@ -1000,4 +1000,33 @@ public sealed partial class WebFilterPage : Page
         ViewModel.ClearCache();
         ServiceContainer.NotificationService.ShowSuccess("Web Filter", "DNS cache cleared.");
     }
+
+    private async void UpdateListsButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateListsButton.IsEnabled = false;
+        UpdateListsResultText.Visibility = Visibility.Visible;
+        UpdateListsResultText.Text = "Checking for list updates...";
+
+        try
+        {
+            int updated = await ViewModel.UpdateListsAsync();
+            UpdateListsResultText.Text = updated > 0
+                ? $"Successfully updated {updated} list(s)."
+                : "All block lists are already up to date.";
+        }
+        catch (Exception ex)
+        {
+            UpdateListsResultText.Text = $"Update check failed: {ex.Message}";
+        }
+        finally
+        {
+            UpdateListsButton.IsEnabled = true;
+        }
+    }
+
+    private async void CreditsAndLicenses_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AppLock.Views.WebFilter.Dialogs.CreditsAndLicensesDialog(ViewModel.Catalog, XamlRoot);
+        await dialog.ShowAsync();
+    }
 }

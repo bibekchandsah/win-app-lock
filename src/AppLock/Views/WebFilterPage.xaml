@@ -1246,6 +1246,68 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Block lists card (M12, visible in Local mode) -->
+                    <Border Style="{StaticResource WebFilterCard}"
+                            Visibility="{x:Bind GetLocalOptionsVisibility(ViewModel.IsLocalMode), Mode=OneWay}">
+                        <StackPanel Spacing="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Block lists"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="Community-maintained open lists for adult content, gambling, malware, bypass tools, and more."
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ViewModel.BlockListsSummaryText, Mode=OneWay}"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                                    <TextBlock Text="Bundled snapshots loaded · Weekly automatic updates"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        x:Name="UpdateListsButton"
+                                        Content="Update now"
+                                        Click="UpdateListsButton_Click"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <TextBlock x:Name="UpdateListsResultText"
+                                       Visibility="Collapsed"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Update automatically"
+                                               Style="{StaticResource BodyTextBlockStyle}"/>
+                                    <TextBlock Text="Periodically check for list updates over HTTPS."
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsOn="{x:Bind ViewModel.AutoUpdateLists, Mode=TwoWay}"
+                                              OnContent="" OffContent="" MinWidth="0"/>
+                            </Grid>
+
+                            <!-- Credits & Licenses Link -->
+                            <HyperlinkButton Content="Credits &amp; licenses"
+                                             Click="CreditsAndLicenses_Click"
+                                             Padding="0,4"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Bypass protection card (M9) -->
                     <Border Style="{StaticResource WebFilterCard}">
                         <StackPanel Spacing="14">
