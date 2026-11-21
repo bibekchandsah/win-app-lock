@@ -76,8 +76,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\Assets\**\*">
+    <Content Include="..\..\Assets\**\*" Exclude="..\..\Assets\island-ui\**\*">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Assets\island-ui\dist\**\*">
+      <Link>Assets\island-ui\dist\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

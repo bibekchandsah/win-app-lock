@@ -29,8 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\Assets\**\*">
+    <None Include="..\..\Assets\**\*" Exclude="..\..\Assets\island-ui\**\*">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\Assets\island-ui\dist\**\*">
+      <Link>Assets\island-ui\dist\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
@@ -68,6 +72,7 @@
     <Compile Include="..\..\src\AppLock\Models\VolumeMixerSettings.cs" Link="Models\VolumeMixerSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\NotificationCustomSettings.cs" Link="Models\NotificationCustomSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\KeyboardSettings.cs" Link="Models\KeyboardSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\IslandSettings.cs" Link="Models\IslandSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockKeyIndicatorSettings.cs" Link="Models\LockKeyIndicatorSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
