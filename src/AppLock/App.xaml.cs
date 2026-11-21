@@ -33,8 +33,19 @@ public partial class App : Application
         InitializeComponent();
     }
 
+    /// <summary>Milestone 1 spike host: when set, the app runs only the island window.</summary>
+    private Island.Host.IslandWindow? _islandSpikeWindow;
+
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Island rendering spike: no main window, no first-run flow, just the notch.
+        if (Environment.GetCommandLineArgs().Any(a => a.Equals("--island-spike", StringComparison.OrdinalIgnoreCase)))
+        {
+            Island.Host.IslandSpikeLog.Write("app: starting island spike");
+            _islandSpikeWindow = new Island.Host.IslandWindow();
+            Island.Host.IslandSpikeLog.Write("app: island spike window created");
+            return;
+        }
 
         // Refresh a Run entry written by an older build so the next sign-in opens in the tray.
         AppLock.Services.ServiceContainer.StartupService.UpdateStartupCommandLine();

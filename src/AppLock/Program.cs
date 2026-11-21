@@ -78,6 +78,54 @@ public static class Program
             }
         }
 
+        // 3b. Island rendering spike (milestone 1): open only the island window, without the main app.
+        if (args.Length > 0 && Array.Exists(args, a => string.Equals(a, "--island-spike", StringComparison.OrdinalIgnoreCase)))
+        {
+            var spikeLog = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+                "AppLock", "Logs", "island-spike.log");
+            void SpikeLog(string message)
+            {
+                try
+                {
+                    System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(spikeLog)!);
+                    System.IO.File.AppendAllText(spikeLog, $"[{System.DateTime.Now:HH:mm:ss}] {message}{System.Environment.NewLine}");
+                }
+                catch { }
+            }
+
+            SpikeLog("island spike requested");
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => SpikeLog("unhandled: " + e.ExceptionObject);
+
+            try
+            {
+                XamlCheckProcessRequirements();
+                WinRT.ComWrappersSupport.InitializeComWrappers();
+                Microsoft.UI.Xaml.Application.Start((p) =>
+                {
+                    try
+                    {
+                        SpikeLog("application started");
+                        var context = new Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext(
+                            Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
+                        System.Threading.SynchronizationContext.SetSynchronizationContext(context);
+                        _ = new App();
+                        SpikeLog("app created");
+                    }
+                    catch (Exception ex)
+                    {
+                        SpikeLog("startup failed: " + ex);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                SpikeLog("spike failed: " + ex);
+            }
+
+            return;
+        }
+
         // 4. Normal AppLock instance — but only one at a time. A restarted instance waits for the old one
         //    to finish shutting down; a stray second launch gives up quietly instead of adding a window.
         if (!TryAcquireSingleInstance(TimeSpan.FromSeconds(8)))

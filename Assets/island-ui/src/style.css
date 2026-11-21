@@ -1,0 +1,142 @@
+:root {
+  color-scheme: dark;
+  --island-fill-closed: rgba(17, 17, 20, 0.949);
+  --island-fill-open: rgba(22, 22, 26, 0.969);
+  --island-text: #ffffff;
+  --island-text-dim: rgba(255, 255, 255, 0.7);
+  --island-text-faint: rgba(255, 255, 255, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  color: var(--island-text);
+}
+
+.page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* The single island body element. Its geometry is driven by one spring per frame. */
+.island {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  width: 420px;
+  height: 180px;
+  background: var(--island-fill-closed);
+  border-radius: 24px;
+  overflow: hidden;
+  will-change: clip-path, width, height;
+  contain: layout paint style;
+}
+
+/* Content is laid out once at the open size and never reflows during the motion. */
+.content {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 420px;
+  height: 180px;
+  margin-left: -210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 12px;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.clock {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--island-text);
+}
+
+.content .body-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.stats {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  color: var(--island-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--island-text-faint);
+}
+
+.spike-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.spike-controls button {
+  font: inherit;
+  font-size: 11px;
+  color: var(--island-text);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.spike-controls button[data-active='true'] {
+  background: rgba(120, 170, 255, 0.32);
+  border-color: rgba(150, 190, 255, 0.55);
+}
+
+.spike-controls button:focus-visible {
+  outline: 2px solid rgba(150, 190, 255, 0.9);
+  outline-offset: 1px;
+}
+
+.diag {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: pre;
+}
+
+.bench {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--island-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+  text-align: center;
+  min-height: 14px;
+}
