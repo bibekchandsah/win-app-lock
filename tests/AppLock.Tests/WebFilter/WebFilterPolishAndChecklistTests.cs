@@ -110,4 +110,35 @@ public class WebFilterPolishAndChecklistTests
         Assert.Single(restored.TempAllows);
         Assert.Equal("temp.example.com", restored.TempAllows[0].Domain);
     }
+
+    [Fact]
+    public void WebFilterSettings_AlwaysBlockAllow_ModelLogic_WorksCorrectly()
+    {
+        var settings = new WebFilterSettings();
+
+        // Add domains to Always Block
+        settings.AlwaysBlock.Add(new DomainEntry { Domain = "facebook.com", Note = "distracting", AddedUtc = DateTime.UtcNow });
+        settings.AlwaysBlock.Add(new DomainEntry { Domain = "youtube.com", Note = "entertainment", AddedUtc = DateTime.UtcNow });
+        settings.AlwaysBlock.Add(new DomainEntry { Domain = "instagram.com", Note = "social", AddedUtc = DateTime.UtcNow });
+
+        Assert.Equal(3, settings.AlwaysBlock.Count);
+
+        // Filter / Search simulation
+        string search = "tube";
+        var filtered = settings.AlwaysBlock.Where(d => d.Domain.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Single(filtered);
+        Assert.Equal("youtube.com", filtered[0].Domain);
+
+        // Clear all
+        settings.AlwaysBlock.Clear();
+        Assert.Empty(settings.AlwaysBlock);
+
+        // Always Allow
+        settings.AlwaysAllow.Add(new DomainEntry { Domain = "github.com", Note = "work", AddedUtc = DateTime.UtcNow });
+        settings.AlwaysAllow.Add(new DomainEntry { Domain = "gitlab.com", Note = "code", AddedUtc = DateTime.UtcNow });
+
+        Assert.Equal(2, settings.AlwaysAllow.Count);
+        settings.AlwaysAllow.Clear();
+        Assert.Empty(settings.AlwaysAllow);
+    }
 }

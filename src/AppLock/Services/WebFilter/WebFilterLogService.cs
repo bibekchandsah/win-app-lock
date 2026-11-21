@@ -238,6 +238,12 @@ LIMIT 1;
 
     public async Task<List<WebFilterLogGroup>> GetRecentBlockedGroupsAsync(int limit = 100)
     {
+        var groups = await GetBlockedGroupsAsync(null, null, limit * 5).ConfigureAwait(false);
+        return groups.Take(limit).ToList();
+    }
+
+    public async Task<List<WebFilterLogGroup>> GetBlockedGroupsAsync(DateTime? startDateUtc = null, DateTime? endDateUtc = null, int limit = 2000)
+    {
         await EnsureInitializedAsync().ConfigureAwait(false);
 
         var rawList = new List<(string Domain, string Reason, DateTime Time)>();
@@ -249,14 +255,21 @@ LIMIT 1;
             await conn.OpenAsync().ConfigureAwait(false);
 
             await using var cmd = conn.CreateCommand();
-            // Fetch up to 500 recent blocked events to group
-            cmd.CommandText = @"
-SELECT domain, reason, timestamp_utc
-FROM activity_log
-WHERE blocked = 1
-ORDER BY timestamp_utc DESC
-LIMIT 500;
-";
+            var sql = new System.Text.StringBuilder("SELECT domain, reason, timestamp_utc FROM activity_log WHERE blocked = 1");
+            if (startDateUtc.HasValue)
+            {
+                sql.Append(" AND timestamp_utc >= @start");
+                cmd.Parameters.AddWithValue("@start", startDateUtc.Value.ToString("o"));
+            }
+            if (endDateUtc.HasValue)
+            {
+                sql.Append(" AND timestamp_utc < @end");
+                cmd.Parameters.AddWithValue("@end", endDateUtc.Value.ToString("o"));
+            }
+            sql.Append(" ORDER BY timestamp_utc DESC LIMIT @limit;");
+            cmd.Parameters.AddWithValue("@limit", limit);
+            cmd.CommandText = sql.ToString();
+
             await using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
             while (await reader.ReadAsync().ConfigureAwait(false))
             {
@@ -271,20 +284,18 @@ LIMIT 500;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WebFilterLog] GetRecentBlockedGroupsAsync failed: {ex.Message}");
+            Debug.WriteLine($"[WebFilterLog] GetBlockedGroupsAsync failed: {ex.Message}");
         }
         finally
         {
             _dbGate.Release();
         }
 
-        // Group repeats: one row per domain per minute with count badge (spec 7.2)
         var groups = new List<WebFilterLogGroup>();
         var seen = new Dictionary<string, (DateTime LatestTime, string Reason, int Count)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in rawList)
         {
-            // Bucket key: domain + minute timestamp
             var minuteBucket = new DateTime(entry.Time.Year, entry.Time.Month, entry.Time.Day, entry.Time.Hour, entry.Time.Minute, 0, DateTimeKind.Utc);
             string key = $"{entry.Domain}@@{minuteBucket:yyyyMMddHHmm}@@{entry.Reason}";
 
@@ -298,7 +309,7 @@ LIMIT 500;
             }
         }
 
-        foreach (var pair in seen.OrderByDescending(p => p.Value.LatestTime).Take(limit))
+        foreach (var pair in seen.OrderByDescending(p => p.Value.LatestTime))
         {
             string domain = pair.Key.Split("@@")[0];
             groups.Add(new WebFilterLogGroup(domain, pair.Value.Reason, pair.Value.LatestTime, pair.Value.Count));

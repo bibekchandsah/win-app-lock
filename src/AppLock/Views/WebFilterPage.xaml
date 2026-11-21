@@ -467,18 +467,25 @@
         </Grid.RowDefinitions>
 
         <!-- Page header -->
-        <StackPanel Grid.Row="0" Padding="24,24,24,12" Spacing="8">
-            <TextBlock Text="Web Filter"
-                       Style="{StaticResource TitleTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-            <TextBlock Text="Block whole categories of websites or a single site for every browser on this PC"
-                       Style="{StaticResource BodyTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextWrapping="Wrap"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="24,14,24,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                <TextBlock Text="Web Filter"
+                           Style="{StaticResource TitleTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock Text="Block whole categories of websites or a single site for every browser on this PC"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
 
         <!-- Master switch and pause -->
-        <Border Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource WebFilterCard}" Padding="20,16">
+        <Border Grid.Row="1" Margin="24,0,24,6" Style="{StaticResource WebFilterCard}" Padding="16,10">
             <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -536,8 +543,8 @@
         </Border>
 
         <!-- Quick tool: check a website against the enabled lists -->
-        <Border Grid.Row="2" Margin="24,0,24,12" Style="{StaticResource WebFilterCard}" Padding="20,16">
-            <StackPanel Spacing="10">
+        <Border Grid.Row="2" Margin="24,0,24,6" Style="{StaticResource WebFilterCard}" Padding="16,10">
+            <StackPanel Spacing="6">
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -567,7 +574,7 @@
                 </Grid>
 
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ProgressRing Width="16" Height="16"
+                    <ProgressRing Width="14" Height="14"
                                   IsActive="{x:Bind ViewModel.IsChecking, Mode=OneWay}"/>
                     <TextBlock Text="{x:Bind ViewModel.ListStatus, Mode=OneWay}"
                                Style="{StaticResource CaptionTextBlockStyle}"
@@ -596,7 +603,7 @@
         </Border>
 
         <!-- Status area -->
-        <StackPanel Grid.Row="3" Padding="24,0,24,12" Spacing="8">
+        <StackPanel Grid.Row="3" Padding="24,0,24,6" Spacing="6">
             <InfoBar x:Name="NotElevatedInfoBar"
                      Severity="Warning"
                      Title="Administrator rights required"
@@ -647,14 +654,14 @@
 
         <!-- Honest scope note -->
         <TextBlock Grid.Row="4"
-                   Margin="24,0,24,12"
+                   Margin="24,0,24,6"
                    Text="Blocks domain names, not single pages: blocking a site blocks its whole domain. A VPN, a proxy or a browser's own secure DNS can get around it."
                    Style="{StaticResource CaptionTextBlockStyle}"
                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                    TextWrapping="Wrap"/>
 
         <!-- Tabs (Segmented pill bar) -->
-        <Border Grid.Row="5" Style="{StaticResource SegmentedTabContainer}" Margin="24,0,24,14">
+        <Border Grid.Row="5" Style="{StaticResource SegmentedTabContainer}" Margin="24,0,24,10">
             <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button x:Name="CategoriesTabButton"
                         Content="Categories"
@@ -780,19 +787,39 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Header actions: count + Import / Export -->
-                        <Grid>
-                            <TextBlock Text="{x:Bind ViewModel.AlwaysBlockCountLabel, Mode=OneWay}"
+                        <!-- Header actions: count + Search + Clear All + Import / Export -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{x:Bind ViewModel.AlwaysBlockCountLabel, Mode=OneWay}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}"
                                        VerticalAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <TextBox Grid.Column="1"
+                                     x:Name="AlwaysBlockSearchBox"
+                                     PlaceholderText="Search blocked domains..."
+                                     TextChanged="AlwaysBlockSearch_TextChanged"
+                                     HorizontalAlignment="Stretch"
+                                     MaxWidth="320"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                <Button x:Name="ClearAlwaysBlockButton"
+                                        Click="ClearAlwaysBlockButton_Click"
+                                        ToolTipService.ToolTip="Delete all domains in Always Block">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12"/>
+                                        <TextBlock Text="Delete All"/>
+                                    </StackPanel>
+                                </Button>
                                 <Button Content="Import..." Click="ImportAlwaysBlockButton_Click"/>
                                 <Button Content="Export..." Click="ExportAlwaysBlockButton_Click"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Items list -->
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.AlwaysBlockItems, Mode=OneWay}"
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.FilteredAlwaysBlockItems, Mode=OneWay}"
                                        ItemTemplate="{StaticResource DomainRowTemplate}"/>
                     </StackPanel>
 
@@ -830,19 +857,39 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Header actions: count + Import / Export -->
-                        <Grid>
-                            <TextBlock Text="{x:Bind ViewModel.AlwaysAllowCountLabel, Mode=OneWay}"
+                        <!-- Header actions: count + Search + Clear All + Import / Export -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{x:Bind ViewModel.AlwaysAllowCountLabel, Mode=OneWay}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}"
                                        VerticalAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <TextBox Grid.Column="1"
+                                     x:Name="AlwaysAllowSearchBox"
+                                     PlaceholderText="Search allowed domains..."
+                                     TextChanged="AlwaysAllowSearch_TextChanged"
+                                     HorizontalAlignment="Stretch"
+                                     MaxWidth="320"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                <Button x:Name="ClearAlwaysAllowButton"
+                                        Click="ClearAlwaysAllowButton_Click"
+                                        ToolTipService.ToolTip="Delete all domains in Always Allow">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12"/>
+                                        <TextBlock Text="Delete All"/>
+                                    </StackPanel>
+                                </Button>
                                 <Button Content="Import..." Click="ImportAlwaysAllowButton_Click"/>
                                 <Button Content="Export..." Click="ExportAlwaysAllowButton_Click"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Items list -->
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.AlwaysAllowItems, Mode=OneWay}"
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.FilteredAlwaysAllowItems, Mode=OneWay}"
                                        ItemTemplate="{StaticResource DomainRowTemplate}"/>
                     </StackPanel>
 
@@ -907,13 +954,57 @@
 
                     <!-- Blocked requests -->
                     <Border Style="{StaticResource WebFilterCard}" Padding="16">
-                        <StackPanel Spacing="10">
-                            <Grid>
-                                <TextBlock Text="Blocked requests"
+                        <StackPanel Spacing="12">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="Blocked requests"
                                            Style="{StaticResource BodyStrongTextBlockStyle}"
                                            VerticalAlignment="Center"/>
-                                <Button x:Name="RefreshActivityButton"
-                                        HorizontalAlignment="Right"
+
+                                <!-- Filter & Sort Bar -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <!-- Date Filter Pill -->
+                                    <Border Style="{StaticResource SegmentedTabContainer}">
+                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                            <Button x:Name="FilterTodayButton"
+                                                    Content="Today"
+                                                    Click="FilterToday_Click"
+                                                    Style="{StaticResource SegmentedTabButtonActive}"
+                                                    Padding="12,4"/>
+                                            <Button x:Name="FilterAllButton"
+                                                    Content="All time"
+                                                    Click="FilterAll_Click"
+                                                    Style="{StaticResource SegmentedTabButtonInactive}"
+                                                    Padding="12,4"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Calendar date picker -->
+                                    <CalendarDatePicker x:Name="ActivityDatePicker"
+                                                        PlaceholderText="Pick date"
+                                                        Width="130"/>
+
+                                    <!-- Sorting option -->
+                                    <ComboBox x:Name="SortActivityComboBox"
+                                              SelectedIndex="0"
+                                              SelectionChanged="SortActivityComboBox_SelectionChanged"
+                                              Width="140">
+                                        <ComboBoxItem Content="Newest first"/>
+                                        <ComboBoxItem Content="Oldest first"/>
+                                        <ComboBoxItem Content="Most requests"/>
+                                        <ComboBoxItem Content="Domain (A-Z)"/>
+                                        <ComboBoxItem Content="Domain (Z-A)"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <Button Grid.Column="2"
+                                        x:Name="RefreshActivityButton"
                                         Click="RefreshActivity_Click"
                                         Content="&#xE72C;"
                                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
@@ -923,19 +1014,59 @@
                                         ToolTipService.ToolTip="Refresh"/>
                             </Grid>
 
-                            <TextBlock Text="Most recent first. Repeats within a minute are grouped."
+                            <TextBlock Text="Repeats within a minute are grouped."
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
 
                             <!-- Empty state -->
                             <TextBlock x:Name="NoBlockedText"
-                                       Text="No blocked requests logged yet. Turn on the filter and browse to see blocked domains."
+                                       Text="No blocked requests logged for this period."
                                        Style="{StaticResource BodyTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                        TextWrapping="Wrap"/>
 
+                            <!-- Paged Rows List -->
                             <ItemsRepeater x:Name="BlockedList"
                                            ItemTemplate="{StaticResource LogRowTemplate}"/>
+
+                            <!-- Pagination Controls -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0"
+                                        x:Name="ActivityPrevPageButton"
+                                        Click="ActivityPrevPage_Click"
+                                        IsEnabled="False"
+                                        Padding="12,5">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE76B;" FontSize="11"/>
+                                        <TextBlock Text="Previous"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <TextBlock Grid.Column="1"
+                                           x:Name="ActivityPageSummaryText"
+                                           Text="0 items"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="2"
+                                        x:Name="ActivityNextPageButton"
+                                        Click="ActivityNextPage_Click"
+                                        IsEnabled="False"
+                                        Padding="12,5">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Next"/>
+                                        <FontIcon Glyph="&#xE76C;" FontSize="11"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

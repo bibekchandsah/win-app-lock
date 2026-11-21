@@ -51,6 +51,8 @@ public sealed partial class WebFilterPage : Page
         InitializeSettingsControls();
         ShowTab(ViewModel.IsProviderMode ? "settings" : "categories");
 
+        ActivityDatePicker.DateChanged += ActivityDatePicker_DateChanged;
+
         // Build initial (empty) cards immediately so the repeater is visible
         ViewModel.BuildCategoryCards();
         ViewModel.BuildServicesAndSites();
@@ -467,6 +469,40 @@ public sealed partial class WebFilterPage : Page
         }
     }
 
+    private void AlwaysBlockSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ViewModel.AlwaysBlockSearchQuery = AlwaysBlockSearchBox.Text;
+    }
+
+    private async void ClearAlwaysBlockButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.AlwaysBlockItems.Count == 0) return;
+
+        if (!await RequestAuthAsync("Enter your password to delete all domains from Always Block"))
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.Content.XamlRoot,
+            Title = "Delete all always blocked domains?",
+            Content = $"Are you sure you want to remove all {ViewModel.Filter.AlwaysBlock.Count} domain(s) from the Always Block list? This action cannot be undone.",
+            PrimaryButtonText = "Delete All",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            ViewModel.ClearAlwaysBlock();
+            AlwaysBlockInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysBlockInfoBar.Title = "Deleted";
+            AlwaysBlockInfoBar.Message = "All domains have been removed from the Always Block list.";
+            AlwaysBlockInfoBar.IsOpen = true;
+        }
+    }
+
     private async void ImportAlwaysBlockButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new WebFilter.Dialogs.ImportDomainsDialog("Always Block")
@@ -539,6 +575,40 @@ public sealed partial class WebFilterPage : Page
             AlwaysAllowInfoBar.Severity = isNeverBlock ? InfoBarSeverity.Informational : InfoBarSeverity.Error;
             AlwaysAllowInfoBar.Title = isNeverBlock ? "Already protected" : "Could not add";
             AlwaysAllowInfoBar.Message = message;
+            AlwaysAllowInfoBar.IsOpen = true;
+        }
+    }
+
+    private void AlwaysAllowSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ViewModel.AlwaysAllowSearchQuery = AlwaysAllowSearchBox.Text;
+    }
+
+    private async void ClearAlwaysAllowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.AlwaysAllowItems.Count == 0) return;
+
+        if (!await RequestAuthAsync("Enter your password to delete all domains from Always Allow"))
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.Content.XamlRoot,
+            Title = "Delete all always allowed domains?",
+            Content = $"Are you sure you want to remove all {ViewModel.Filter.AlwaysAllow.Count} domain(s) from the Always Allow list? This action cannot be undone.",
+            PrimaryButtonText = "Delete All",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            ViewModel.ClearAlwaysAllow();
+            AlwaysAllowInfoBar.Severity = InfoBarSeverity.Success;
+            AlwaysAllowInfoBar.Title = "Deleted";
+            AlwaysAllowInfoBar.Message = "All domains have been removed from the Always Allow list.";
             AlwaysAllowInfoBar.IsOpen = true;
         }
     }
@@ -784,15 +854,71 @@ public sealed partial class WebFilterPage : Page
         BlockedWeekNumber.Text = stats.BlockedThisWeek.ToString("N0");
         TopCategoryText.Text = stats.TopBlockedCategory;
 
-        var groups = await logSvc.GetRecentBlockedGroupsAsync(100).ConfigureAwait(true);
-        var rows = groups.Select(g => new LogRowViewModel(g)).ToList();
-        BlockedList.ItemsSource = rows;
-        NoBlockedText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        await ViewModel.Activity.RefreshAsync().ConfigureAwait(true);
+        UpdateActivityPagingUi();
 
         var top = await logSvc.GetTopBlockedDomainsAsync(7, 10).ConfigureAwait(true);
         var topRows = top.Select(t => new TopDomainRowViewModel(t)).ToList();
         TopDomainsList.ItemsSource = topRows;
         NoTopDomainsText.Visibility = topRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateActivityPagingUi()
+    {
+        BlockedList.ItemsSource = null;
+        BlockedList.ItemsSource = ViewModel.Activity.RecentBlocked;
+        ActivityPrevPageButton.IsEnabled = ViewModel.Activity.CanGoPrevious;
+        ActivityNextPageButton.IsEnabled = ViewModel.Activity.CanGoNext;
+        ActivityPageSummaryText.Text = ViewModel.Activity.PageSummary;
+        NoBlockedText.Visibility = ViewModel.Activity.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void FilterToday_Click(object sender, RoutedEventArgs e)
+    {
+        FilterTodayButton.Style = (Style)Resources["SegmentedTabButtonActive"];
+        FilterAllButton.Style = (Style)Resources["SegmentedTabButtonInactive"];
+        ActivityDatePicker.Date = null;
+        ViewModel.Activity.SetDateFilterMode("today");
+        UpdateActivityPagingUi();
+    }
+
+    private void FilterAll_Click(object sender, RoutedEventArgs e)
+    {
+        FilterAllButton.Style = (Style)Resources["SegmentedTabButtonActive"];
+        FilterTodayButton.Style = (Style)Resources["SegmentedTabButtonInactive"];
+        ActivityDatePicker.Date = null;
+        ViewModel.Activity.SetDateFilterMode("all");
+        UpdateActivityPagingUi();
+    }
+
+    private void ActivityDatePicker_DateChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (args.NewDate.HasValue)
+        {
+            FilterTodayButton.Style = (Style)Resources["SegmentedTabButtonInactive"];
+            FilterAllButton.Style = (Style)Resources["SegmentedTabButtonInactive"];
+            ViewModel.Activity.SetDateFilterMode("custom", args.NewDate.Value);
+            UpdateActivityPagingUi();
+        }
+    }
+
+    private void SortActivityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SortActivityComboBox == null) return;
+        ViewModel.Activity.SetSortOption(SortActivityComboBox.SelectedIndex);
+        UpdateActivityPagingUi();
+    }
+
+    private void ActivityPrevPage_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Activity.PreviousPage();
+        UpdateActivityPagingUi();
+    }
+
+    private void ActivityNextPage_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Activity.NextPage();
+        UpdateActivityPagingUi();
     }
 
     private async void RefreshActivity_Click(object sender, RoutedEventArgs e)

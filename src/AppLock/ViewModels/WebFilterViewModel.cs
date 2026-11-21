@@ -541,8 +541,90 @@ public partial class WebFilterViewModel : ObservableObject
     private readonly ObservableCollection<DomainItemViewModel> _alwaysBlockItems = new();
     public ObservableCollection<DomainItemViewModel> AlwaysBlockItems => _alwaysBlockItems;
 
+    private readonly ObservableCollection<DomainItemViewModel> _filteredAlwaysBlockItems = new();
+    public ObservableCollection<DomainItemViewModel> FilteredAlwaysBlockItems => _filteredAlwaysBlockItems;
+
     private readonly ObservableCollection<DomainItemViewModel> _alwaysAllowItems = new();
     public ObservableCollection<DomainItemViewModel> AlwaysAllowItems => _alwaysAllowItems;
+
+    private readonly ObservableCollection<DomainItemViewModel> _filteredAlwaysAllowItems = new();
+    public ObservableCollection<DomainItemViewModel> FilteredAlwaysAllowItems => _filteredAlwaysAllowItems;
+
+    private string _alwaysBlockSearchQuery = string.Empty;
+    public string AlwaysBlockSearchQuery
+    {
+        get => _alwaysBlockSearchQuery;
+        set
+        {
+            if (_alwaysBlockSearchQuery != value)
+            {
+                _alwaysBlockSearchQuery = value ?? string.Empty;
+                OnPropertyChanged();
+                RefreshFilteredAlwaysBlock();
+            }
+        }
+    }
+
+    private string _alwaysAllowSearchQuery = string.Empty;
+    public string AlwaysAllowSearchQuery
+    {
+        get => _alwaysAllowSearchQuery;
+        set
+        {
+            if (_alwaysAllowSearchQuery != value)
+            {
+                _alwaysAllowSearchQuery = value ?? string.Empty;
+                OnPropertyChanged();
+                RefreshFilteredAlwaysAllow();
+            }
+        }
+    }
+
+    public void RefreshFilteredAlwaysBlock()
+    {
+        _filteredAlwaysBlockItems.Clear();
+        var query = _alwaysBlockSearchQuery?.Trim();
+        var items = string.IsNullOrEmpty(query)
+            ? _alwaysBlockItems
+            : _alwaysBlockItems.Where(i => (i.Domain != null && i.Domain.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                                           (i.Note != null && i.Note.Contains(query, StringComparison.OrdinalIgnoreCase)));
+        foreach (var item in items)
+        {
+            _filteredAlwaysBlockItems.Add(item);
+        }
+    }
+
+    public void RefreshFilteredAlwaysAllow()
+    {
+        _filteredAlwaysAllowItems.Clear();
+        var query = _alwaysAllowSearchQuery?.Trim();
+        var items = string.IsNullOrEmpty(query)
+            ? _alwaysAllowItems
+            : _alwaysAllowItems.Where(i => (i.Domain != null && i.Domain.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                                           (i.Note != null && i.Note.Contains(query, StringComparison.OrdinalIgnoreCase)));
+        foreach (var item in items)
+        {
+            _filteredAlwaysAllowItems.Add(item);
+        }
+    }
+
+    public void ClearAlwaysBlock()
+    {
+        Filter.AlwaysBlock.Clear();
+        _alwaysBlockItems.Clear();
+        RefreshFilteredAlwaysBlock();
+        SaveSettings();
+        OnPropertyChanged(nameof(AlwaysBlockCountLabel));
+    }
+
+    public void ClearAlwaysAllow()
+    {
+        Filter.AlwaysAllow.Clear();
+        _alwaysAllowItems.Clear();
+        RefreshFilteredAlwaysAllow();
+        SaveSettings();
+        OnPropertyChanged(nameof(AlwaysAllowCountLabel));
+    }
 
     private readonly ObservableCollection<TempAllowItemViewModel> _activeTempAllows = new();
     public ObservableCollection<TempAllowItemViewModel> ActiveTempAllows => _activeTempAllows;
@@ -612,6 +694,9 @@ public partial class WebFilterViewModel : ObservableObject
 
         RefreshTempAllows();
 
+        RefreshFilteredAlwaysBlock();
+        RefreshFilteredAlwaysAllow();
+
         OnPropertyChanged(nameof(AlwaysBlockCountLabel));
         OnPropertyChanged(nameof(AlwaysAllowCountLabel));
     }
@@ -650,6 +735,7 @@ public partial class WebFilterViewModel : ObservableObject
         SaveSettings();
 
         _alwaysBlockItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysBlock, SaveSettings));
+        RefreshFilteredAlwaysBlock();
         OnPropertyChanged(nameof(AlwaysBlockCountLabel));
         return true;
     }
@@ -696,6 +782,7 @@ public partial class WebFilterViewModel : ObservableObject
         SaveSettings();
 
         _alwaysAllowItems.Insert(0, new DomainItemViewModel(entry, RemoveAlwaysAllow, SaveSettings));
+        RefreshFilteredAlwaysAllow();
         OnPropertyChanged(nameof(AlwaysAllowCountLabel));
         return true;
     }
@@ -735,6 +822,7 @@ public partial class WebFilterViewModel : ObservableObject
     {
         Filter.AlwaysBlock.Remove(item.Entry);
         _alwaysBlockItems.Remove(item);
+        RefreshFilteredAlwaysBlock();
         SaveSettings();
         OnPropertyChanged(nameof(AlwaysBlockCountLabel));
     }
@@ -743,6 +831,7 @@ public partial class WebFilterViewModel : ObservableObject
     {
         Filter.AlwaysAllow.Remove(item.Entry);
         _alwaysAllowItems.Remove(item);
+        RefreshFilteredAlwaysAllow();
         SaveSettings();
         OnPropertyChanged(nameof(AlwaysAllowCountLabel));
     }
@@ -771,6 +860,7 @@ public partial class WebFilterViewModel : ObservableObject
 
         if (added > 0)
         {
+            RefreshFilteredAlwaysBlock();
             SaveSettings();
             OnPropertyChanged(nameof(AlwaysBlockCountLabel));
         }
@@ -820,6 +910,7 @@ public partial class WebFilterViewModel : ObservableObject
 
         if (added > 0)
         {
+            RefreshFilteredAlwaysAllow();
             SaveSettings();
             OnPropertyChanged(nameof(AlwaysAllowCountLabel));
         }
