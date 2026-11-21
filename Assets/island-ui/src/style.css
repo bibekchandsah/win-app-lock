@@ -4,7 +4,6 @@
   --island-text: #ffffff;
   --island-text-dim: rgba(255, 255, 255, 0.72);
   --island-text-faint: rgba(255, 255, 255, 0.5);
-  --island-scale: 1;
 }
 
 * {
@@ -35,18 +34,24 @@ body {
   background: transparent;
 }
 
-/* The single island body element. Its geometry is driven by one spring per frame. */
-.island {
+/* The island body itself: cleared and redrawn every frame. */
+.body {
   position: absolute;
-  left: 8px;
+  left: 0;
   top: 0;
+  display: block;
+  pointer-events: none;
+}
+
+/* Clip container for content: follows the body shape but paints nothing itself. */
+.clip {
+  position: absolute;
+  top: 0;
+  left: 8px;
   width: 420px;
   height: 180px;
-  background: var(--island-fill);
-  border-radius: 24px;
   overflow: hidden;
-  will-change: clip-path, width, height;
-  contain: layout paint style;
+  background: transparent;
 }
 
 /* Content is laid out once at the open size and never reflows during the motion. */
@@ -54,22 +59,118 @@ body {
   position: absolute;
   left: 50%;
   top: 0;
-  width: 420px;
-  height: 180px;
-  margin-left: -210px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 10px 16px 12px;
+  width: 560px;
+  height: 250px;
+  margin-left: -280px;
 }
 
-.top-row {
+/* Folded notch: clock and battery, centred in the pill and hidden once the shell opens. */
+.folded-row {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 36px;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 18px;
+  white-space: nowrap;
+}
+
+.open-view {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  opacity: 0;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
   flex: none;
+}
+
+.tab-strip,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tab,
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--island-text-dim);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip {
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+}
+
+.tab.active,
+.chip.on {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--island-text);
+}
+
+.chip.on {
+  background: rgba(120, 170, 255, 0.24);
+}
+
+.tab:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid rgba(150, 190, 255, 0.9);
+  outline-offset: 1px;
+}
+
+.glyph {
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets';
+  font-size: 14px;
+  line-height: 1;
+}
+
+.shell-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--island-text-faint);
+}
+
+.placeholder-glyph {
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets';
+  font-size: 22px;
+  line-height: 1;
+}
+
+.placeholder-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .clock {
@@ -87,16 +188,9 @@ body {
   color: var(--island-text-dim);
 }
 
-/* Everything below the clock appears with the open motion. */
-.body-block {
+.shell-placeholder {
   flex: 1;
   width: 100%;
-  opacity: 0;
-  will-change: opacity;
-}
-
-.shell-placeholder {
-  height: 100%;
 }
 
 .debug {
@@ -134,11 +228,6 @@ body {
   border-radius: 6px;
   padding: 3px 8px;
   cursor: pointer;
-}
-
-.spike-controls button[data-active='true'] {
-  background: rgba(120, 170, 255, 0.32);
-  border-color: rgba(150, 190, 255, 0.55);
 }
 
 .spike-controls button:focus-visible {

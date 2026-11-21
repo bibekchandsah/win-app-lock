@@ -12,15 +12,16 @@ public static class IslandLayout
     public const int FoldedHeight = 36;
     public const int FoldedRadius = 18;
 
-    public const int OpenWidth = 420;
-    public const int OpenHeight = 180;
+    /// <summary>Open shell sizes per tab (island.md 6). The page is sized for the largest one.</summary>
+    public const int MaxOpenWidth = 620;
+    public const int MaxOpenHeight = 440;
     public const int OpenRadius = 24;
 
     public const int SideMargin = 8;
     public const int BottomMargin = 8;
 
-    public static int PageWidth => OpenWidth + (SideMargin * 2);
-    public static int PageHeight => OpenHeight + BottomMargin;
+    public static int PageWidth => MaxOpenWidth + (SideMargin * 2);
+    public static int PageHeight => MaxOpenHeight + BottomMargin;
 
     /// <summary>Clamps the size setting to the range the settings page offers.</summary>
     public static double SizeFactor(int sizePercent) => Math.Clamp(sizePercent, 70, 150) / 100d;

@@ -108,10 +108,48 @@ no remote anything). Every message is parsed in C#: envelope `{v:1,type,payload}
 type whitelist, range-checked `layout.target`, and per-field validation for `perf.report`; a
 malformed or unknown message is dropped and logged, never thrown.
 
+## The grey box (fixed)
+
+The WinUI `WebView2` control painted its default background — the dark theme colour `#202020` —
+behind the transparent page, so every part of the window the canvas did not cover showed a grey
+rectangle around/below the notch. Two things together remove it:
+
+1. `WebView.DefaultBackgroundColor` is set **before the window is shown** (in the constructor) and
+   re-asserted after `EnsureCoreWebView2Async`; setting it only later leaves the controller on its
+   default. `WebView2` has no `Background` property and no public `CoreWebView2Controller`, so this
+   control property is the only lever in this hosting mode.
+2. `SetWindowRgn` follows the island shape with **no padding**: the region is what keeps the
+   (still opaque) control surface off the desktop, so any padding shows as a grey rim.
+
+The whole page is still painted by the canvas (`clearRect` + `roundRect` every frame), which keeps
+stale pixels from being left behind while the shape shrinks.
+
+## Milestone 3: the open shell
+
+- The page is sized for the largest tab (Weather 620 × 290, Chat 600 × 440) plus the 8 px margin:
+  636 × 448 DIPs, scaled by the size setting. The window keeps that size while folded; only the
+  region follows the notch.
+- `TAB_SIZES` in `motion.ts` is the single table of per-tab design sizes; the tab strip, the body
+  rect and the host's `layout.target` all read it.
+- Hover uses the last rectangle the page reported (not a size recomputed in C#), so a tab switch
+  cannot desync the pointer area from the shape. It is still padded by 8 DIP of hysteresis.
+- A tab switch animates the shell from the drawn size to the new tab's size with its own spring
+  (`RESIZE_SPRING`), and reports the union of both rectangles as the region so the shape is never
+  clipped while shrinking.
+- The shell has the tab strip (icon + label for the active tab), and Quiet, Pin and Settings chips.
+  Pin keeps the shell open regardless of hover-out. Content is an empty placeholder per tab; the
+  modules land in milestones 5+.
+- `--tab=<id>` (host) and `?tab=<id>` (page) open the shell on a given tab instead of Home.
+- Frame budget on this machine (1920 × 1080, 60 Hz), 100 open/close cycles of the canvas body:
+  p50 16.7 ms, p95 16.9 ms, p99 17.0 ms, max 33.3 ms — PASS (`bench.txt`).
+
 ## Known gaps (later milestones)
 
 - Typing while the island has focus (`input.focusRequested` → clear `MA_NOACTIVATE`, activate,
-  restore afterwards) is not implemented yet.
+  restore afterwards) is not implemented yet. Because the island never activates, the page gets no
+  keyboard events: the keyboard hooks (`Ctrl+Tab`, arrows, `Esc`) are wired but cannot fire until
+  focus handling exists. Mouse clicks on tabs and chips do work (the window receives them without
+  activating).
 - `WDA_EXCLUDEFROMCAPTURE`, per-monitor DPI changes, multi-monitor choice, pin/quiet, settings,
   and the Chat WebView2 profile belong to milestones 2–15.
 - Hover polling costs one `GetCursorPos` per 33 ms; it is paused with the island's visibility
@@ -124,4 +162,5 @@ cd Assets/island-ui && npm ci && npm run build
 dotnet build src/AppLock/AppLock.csproj -c Release
 src/AppLock/bin/x64/Release/net8.0-windows10.0.19041.0/AppLock.exe --island-spike          # show the island
 src/AppLock/bin/x64/Release/net8.0-windows10.0.19041.0/AppLock.exe --island-spike --bench  # write bench.txt
+src/AppLock/bin/x64/Release/net8.0-windows10.0.19041.0/AppLock.exe --island-spike --tab=chat
 ```

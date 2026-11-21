@@ -108,6 +108,9 @@ public sealed partial class IslandWindow : Window
 
     private IslandSettings _settings;
     private double _scale = 1;
+
+    /// <summary>Island rectangle in page CSS pixels, as last reported by the UI.</summary>
+    private (int X, int Y, int W, int H) _islandRect;
     private bool _hoverTargetOpen;
     private bool _hoverInside;
     private bool _isVisible = true;
@@ -128,6 +131,10 @@ public sealed partial class IslandWindow : Window
         _benchFile = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AppLock", "island", "bench.txt");
+
+        // Must be set before the WebView2 is shown: the controller takes its background from the
+        // control when the core is created, and otherwise paints the theme colour (#202020).
+        WebView.DefaultBackgroundColor = Colors.Transparent;
 
         ConfigureWindowChrome();
         ApplyWindowGeometry();
@@ -226,10 +233,14 @@ public sealed partial class IslandWindow : Window
         AppWindow.MoveAndResize(rect);
 
         double factor = IslandLayout.SizeFactor(_settings.SizePercent);
+        int foldedWidth = (int)Math.Round(IslandLayout.FoldedWidth * factor);
+        int foldedHeight = (int)Math.Round(IslandLayout.FoldedHeight * factor);
+        int foldedLeft = (pageWidth - foldedWidth) / 2;
+        _islandRect = (foldedLeft, 0, foldedWidth, foldedHeight);
         UpdateHitRegion(
-            side: (pageWidth / 2) - (int)Math.Round(IslandLayout.FoldedWidth * factor / 2),
-            width: (int)Math.Round(IslandLayout.FoldedWidth * factor),
-            height: (int)Math.Round(IslandLayout.FoldedHeight * factor),
+            side: foldedLeft,
+            width: foldedWidth,
+            height: foldedHeight,
             radius: (int)Math.Round(IslandLayout.FoldedRadius * factor));
     }
 
@@ -239,7 +250,10 @@ public sealed partial class IslandWindow : Window
     /// </summary>
     private void UpdateHitRegion(int side, int width, int height, int radius)
     {
-        int pad = 2;
+        // The WinUI XAML content island clears its surface to the theme colour (#202020 in dark),
+        // so the window region is what keeps that colour off the desktop. Padding it would show a
+        // grey rim around the notch, so the region follows the shape itself.
+        int pad = 0;
         int left = (int)Math.Round(side * _scale) - pad;
         int top = -pad;
         int right = (int)Math.Round((side + width) * _scale) + pad;
@@ -316,6 +330,9 @@ public sealed partial class IslandWindow : Window
             return;
         }
 
+        // Re-assert transparency after init (the control resets it when the core is created).
+        WebView.DefaultBackgroundColor = Colors.Transparent;
+
         var webSettings = core.Settings;
         webSettings.AreDefaultContextMenusEnabled = false;
         webSettings.AreDevToolsEnabled = false;
@@ -348,10 +365,29 @@ public sealed partial class IslandWindow : Window
             Environment.GetCommandLineArgs(),
             a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase));
 
-        string url = "https://island.appassets/index.html" + (bench ? "?bench=1&cycles=100" : string.Empty);
+        string? tab = ReadTabArgument();
+        string query = bench ? "?bench=1&cycles=100" : tab is null ? string.Empty : $"?tab={tab}";
+        string url = "https://island.appassets/index.html" + query;
         core.Navigate(url);
         IslandSpikeLog.Write($"webview: navigating to {url}");
     }
+
+    /// <summary>--tab=chat opens the shell on that tab instead of Home.</summary>
+    private static string? ReadTabArgument()
+    {
+        foreach (string arg in Environment.GetCommandLineArgs())
+        {
+            if (!arg.StartsWith("--tab=", StringComparison.OrdinalIgnoreCase)) continue;
+            string value = arg[6..].ToLowerInvariant();
+            return TabIds.Contains(value) ? value : null;
+        }
+        return null;
+    }
+
+    private static readonly HashSet<string> TabIds = new(StringComparer.Ordinal)
+    {
+        "home", "clipboard", "shelf", "text", "chat", "note", "weather", "controls",
+    };
 
     private void PostRaw(string json)
     {
@@ -479,24 +515,14 @@ public sealed partial class IslandWindow : Window
         if (!_isVisible || WebView.CoreWebView2 == null || !GetCursorPos(out POINT cursor)) return;
 
         var origin = AppWindow.Position;
-        double factor = IslandLayout.SizeFactor(_settings.SizePercent);
-        int islandLeft = _hoverTargetOpen
-            ? IslandLayout.SideMargin
-            : (IslandLayout.PageWidth - (int)(IslandLayout.FoldedWidth * factor)) / 2;
-        int islandWidth = _hoverTargetOpen
-            ? IslandLayout.OpenWidth
-            : (int)Math.Round(IslandLayout.FoldedWidth * factor);
-        int islandHeight = _hoverTargetOpen
-            ? IslandLayout.OpenHeight
-            : (int)Math.Round(IslandLayout.FoldedHeight * factor);
 
-        // A little hysteresis keeps the pointer on the edge from flapping. islandLeft/Width/Height
-        // are already in page CSS pixels, so only the DPI scale is applied here.
+        // The rectangle the page last reported (folded notch or the active tab's shell), padded a
+        // little so the pointer on the edge does not flap.
         int pad = (int)Math.Round(8 * _scale);
-        int left = origin.X + (int)Math.Round(islandLeft * _scale) - pad;
-        int right = origin.X + (int)Math.Round((islandLeft + islandWidth) * _scale) + pad;
+        int left = origin.X + (int)Math.Round(_islandRect.X * _scale) - pad;
+        int right = origin.X + (int)Math.Round((_islandRect.X + _islandRect.W) * _scale) + pad;
         int top = origin.Y - pad;
-        int bottom = origin.Y + (int)Math.Round(islandHeight * _scale) + pad;
+        int bottom = origin.Y + (int)Math.Round(_islandRect.H * _scale) + pad;
 
         bool inside = cursor.X >= left && cursor.X <= right && cursor.Y >= top && cursor.Y <= bottom;
         if (inside == _hoverInside) return;
@@ -520,6 +546,7 @@ public sealed partial class IslandWindow : Window
         if (radius < 0 || radius > 64) return;
 
         _hoverTargetOpen = phase == "open";
+        _islandRect = (x, 0, w, h);
         UpdateHitRegion(x, w, h, radius);
     }
 

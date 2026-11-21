@@ -5,20 +5,29 @@
   import { post, onMessage } from './bridge';
   import {
     DEFAULT_SETTINGS,
+    RESIZE_SPRING,
     SPRING,
+    TAB_ORDER,
+    TAB_SIZES,
     TIMING,
     clamp01,
     geometryOf,
-    lerp,
+    lerpRect,
     type Geometry,
     type IslandSnapshot,
+    type Rect,
+    type TabId,
   } from './motion';
 
   const monitor = new FrameMonitor();
   const spring = new Spring(SPRING.stiffness, SPRING.damping, SPRING.mass);
+  const sizeSpring = new Spring(RESIZE_SPRING.stiffness, RESIZE_SPRING.damping, RESIZE_SPRING.mass, 1);
 
-  let islandEl: HTMLDivElement;
-  let bodyBlockEl: HTMLDivElement;
+  let canvasEl: HTMLCanvasElement;
+  let clipEl: HTMLDivElement;
+  let contentEl: HTMLDivElement;
+  let foldedViewEl: HTMLDivElement;
+  let openViewEl: HTMLDivElement;
   let clockEl: HTMLSpanElement;
   let batteryEl: HTMLSpanElement;
   let statsEl: HTMLDivElement;
@@ -26,10 +35,15 @@
   let debugPanelEl: HTMLDivElement;
 
   let settings: IslandSnapshot = { ...DEFAULT_SETTINGS };
-  let geometry: Geometry = geometryOf(settings);
-  let variant: 'clip' | 'size' = 'clip';
+  // ?tab=<id> opens the shell on a tab (used by --tab on the host and by the spike runs).
+  const requestedTab = new URLSearchParams(location.search).get('tab') as TabId | null;
+  let activeTab: TabId = requestedTab && requestedTab in TAB_SIZES ? requestedTab : 'home';
+  let geometry: Geometry = geometryOf(settings, activeTab);
   const debug = new URLSearchParams(location.search).has('debug')
     || new URLSearchParams(location.search).has('bench');
+
+  let context: CanvasRenderingContext2D | null = null;
+  let dpr = 1;
 
   let target = 0;
   let raf = 0;
@@ -40,46 +54,76 @@
   let benchRunning = false;
   let paused = false;
 
+  /** Tab switches animate from the previous shell size to the new one. */
+  let sizing: { from: Rect; to: Rect } | null = null;
+  /** Last body rect drawn, so a tab switch starts from what is on screen. */
+  let drawnOpen: Rect = geometry.open;
+
+  let pinned = false;
+  let quiet = false;
+
   // ── Shape ─────────────────────────────────────────────────────────────────
 
-  function apply(p: number): void {
-    if (!islandEl) return;
+  function sizeCanvas(): void {
+    if (!canvasEl) return;
+    dpr = window.devicePixelRatio || 1;
+    canvasEl.width = Math.round(geometry.pageW * dpr);
+    canvasEl.height = Math.round(geometry.pageH * dpr);
+    canvasEl.style.width = `${geometry.pageW}px`;
+    canvasEl.style.height = `${geometry.pageH}px`;
 
-    const progress = clamp01(p);
-    const { open, folded, topRadius, bottomRadius } = geometry;
-    const top = lerp(topRadius, topRadius, progress);
-    const bottom = lerp(lerp(folded.r, bottomRadius, progress), bottomRadius, 0);
-
-    if (variant === 'clip') {
-      const insetX = (1 - progress) * ((open.w - folded.w) / 2);
-      const insetBottom = (1 - progress) * (open.h - folded.h);
-      const radiusTop = lerp(topRadius, topRadius, progress);
-      const radiusBottom = lerp(folded.r, bottomRadius, progress);
-      islandEl.style.width = `${open.w}px`;
-      islandEl.style.height = `${open.h}px`;
-      islandEl.style.left = `${(geometry.pageW - open.w) / 2}px`;
-      islandEl.style.borderRadius = '0px';
-      islandEl.style.clipPath =
-        `inset(0px ${insetX}px ${insetBottom}px ${insetX}px round ` +
-        `${radiusTop}px ${radiusTop}px ${radiusBottom}px ${radiusBottom}px)`;
-    } else {
-      const w = lerp(folded.w, open.w, progress);
-      const h = lerp(folded.h, open.h, progress);
-      islandEl.style.clipPath = 'none';
-      islandEl.style.width = `${w}px`;
-      islandEl.style.height = `${h}px`;
-      islandEl.style.left = `${(geometry.pageW - w) / 2}px`;
-      islandEl.style.borderRadius =
-        `${top}px ${top}px ${lerp(folded.r, bottom, progress)}px ${lerp(folded.r, bottom, progress)}px`;
-    }
-
-    islandEl.style.background = settings.fill;
-    bodyBlockEl.style.opacity = String(clamp01((progress - 0.45) / 0.4));
+    context = canvasEl.getContext('2d');
+    context?.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function setVariant(next: 'clip' | 'size'): void {
-    variant = next;
-    apply(spring.value);
+  function currentOpenRect(): Rect {
+    return sizing ? lerpRect(sizing.from, sizing.to, sizeSpring.value) : geometry.open;
+  }
+
+  /**
+   * The body is painted on a canvas that is cleared first, so a shrinking shape can never leave
+   * stale pixels behind (the transparent WebView2 surface has no other way to clear them).
+   */
+  function apply(p: number): void {
+    const progress = clamp01(p);
+    const { folded, pageW, topRadius, bottomRadius } = geometry;
+    const open = currentOpenRect();
+    drawnOpen = open;
+
+    const w = progress >= 1 ? open.w : progress <= 0 ? folded.w : folded.w + (open.w - folded.w) * progress;
+    const h = progress >= 1 ? open.h : progress <= 0 ? folded.h : folded.h + (open.h - folded.h) * progress;
+    const x = (pageW - w) / 2;
+    const radiusTop = topRadius;
+    const radiusBottom = progress >= 1 ? bottomRadius : folded.r + (bottomRadius - folded.r) * progress;
+
+    if (context) {
+      context.clearRect(0, 0, pageW, geometry.pageH);
+      context.beginPath();
+      context.roundRect(x, 0, w, h, [
+        radiusTop,
+        radiusTop,
+        radiusBottom,
+        radiusBottom,
+      ]);
+      context.fillStyle = settings.fill;
+      context.fill();
+    }
+
+    if (clipEl) {
+      clipEl.style.left = `${x}px`;
+      clipEl.style.width = `${w}px`;
+      clipEl.style.height = `${h}px`;
+      clipEl.style.borderRadius =
+        `${radiusTop}px ${radiusTop}px ${radiusBottom}px ${radiusBottom}px`;
+    }
+
+    if (openViewEl) {
+      const fade = clamp01((progress - 0.45) / 0.4);
+      openViewEl.style.opacity = String(sizing ? fade * clamp01(0.35 + 0.65 * sizeSpring.value) : fade);
+      openViewEl.style.visibility = progress > 0.02 ? 'visible' : 'hidden';
+    }
+    if (foldedViewEl) foldedViewEl.style.opacity = String(1 - clamp01(progress * 2.2));
+    if (debug && statsEl) statsEl.textContent = formatStats(monitor.live());
   }
 
   // ── Spring loop ───────────────────────────────────────────────────────────
@@ -88,11 +132,12 @@
     const dt = lastFrame > 0 ? Math.min(0.05, (now - lastFrame) / 1000) : 1 / 60;
     lastFrame = now;
     monitor.tick(now);
-    const settled = spring.step(dt, target);
-    apply(spring.value);
-    if (debug && statsEl) statsEl.textContent = formatStats(monitor.live());
 
-    if (settled) {
+    const foldSettled = spring.step(dt, target);
+    const resizeSettled = sizing ? sizeSpring.step(dt, 1) : true;
+    apply(spring.value);
+
+    if (foldSettled && resizeSettled) {
       raf = 0;
       lastFrame = 0;
       onSettled();
@@ -109,13 +154,17 @@
   }
 
   function onSettled(): void {
+    if (sizing) {
+      sizing = null;
+      if (target === 1) sendLayout('open');
+      return;
+    }
     if (target === 0) sendLayout('folded');
   }
 
   // ── Host notifications ────────────────────────────────────────────────────
 
-  function sendLayout(phase: 'open' | 'folded'): void {
-    const rect = phase === 'open' ? geometry.open : geometry.folded;
+  function sendLayout(phase: 'open' | 'folded', rect: Rect = geometry.open): void {
     post('layout.target', {
       phase,
       x: Math.round((geometry.pageW - rect.w) / 2),
@@ -127,21 +176,22 @@
     });
   }
 
+  /** While a tab resizes the region must cover both sizes, so the shape is never clipped. */
+  function sendUnionLayout(from: Rect, to: Rect): void {
+    sendLayout('open', {
+      w: Math.max(from.w, to.w),
+      h: Math.max(from.h, to.h),
+      r: Math.max(from.r, to.r),
+    });
+  }
+
   function applySettings(next: IslandSnapshot): void {
     settings = next;
-    geometry = geometryOf(next);
-
-    const root = document.documentElement;
-    root.style.setProperty('--island-fill', next.fill);
-    root.style.setProperty('--island-text', next.text);
-    root.style.setProperty('--island-text-dim', next.dimText);
-    root.style.setProperty('--island-text-faint', next.faintText);
-    root.style.setProperty('--island-scale', String(next.sizePercent / 100));
-
-    clockEl.style.display = next.showClock ? '' : 'none';
-    if (!next.showBattery) batteryEl.style.display = 'none';
-
+    geometry = geometryOf(next, activeTab);
+    sizeCanvas();
     apply(spring.value);
+
+    if (clockEl) clockEl.style.display = next.showClock ? '' : 'none';
   }
 
   function setClock(hhmm: string): void {
@@ -160,7 +210,28 @@
       return;
     }
     batteryEl.style.display = '';
-    batteryEl.textContent = `${Math.round(percent)}%${charging ? ' ⚡' : ''}`;
+    batteryEl.textContent = `${Math.round(percent)}%${charging ? ' \u26A1' : ''}`;
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+
+  function selectTab(id: TabId): void {
+    if (id === activeTab || target === 0) return;
+
+    const from = drawnOpen;
+    activeTab = id;
+    geometry = geometryOf(settings, id);
+    sizeCanvas();
+    sizing = { from, to: geometry.open };
+    sizeSpring.snapTo(0);
+    sendUnionLayout(from, geometry.open);
+    schedule();
+  }
+
+  function cycleTab(delta: number): void {
+    const index = TAB_ORDER.indexOf(activeTab);
+    const next = TAB_ORDER[(index + delta + TAB_ORDER.length) % TAB_ORDER.length];
+    selectTab(next);
   }
 
   // ── Hover ─────────────────────────────────────────────────────────────────
@@ -174,7 +245,7 @@
   }
 
   function hoverOut(): void {
-    if (benchRunning) return;
+    if (benchRunning || pinned) return;
     clearTimeout(openTimer);
     if (target === 0) return;
     clearTimeout(closeTimer);
@@ -182,17 +253,44 @@
   }
 
   function startOpen(): void {
+    sizing = null;
     sendLayout('open');
     target = 1;
     schedule();
   }
 
   function startClose(): void {
+    openTimer && clearTimeout(openTimer);
+    sizing = null;
     target = 0;
     schedule();
   }
 
-  // ── Benchmark (milestone 3 reports) ───────────────────────────────────────
+  function onKeyDown(event: KeyboardEvent): void {
+    if (target === 0) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      startClose();
+      return;
+    }
+    if (event.ctrlKey && event.key === 'Tab') {
+      event.preventDefault();
+      cycleTab(event.shiftKey ? -1 : 1);
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      cycleTab(1);
+      return;
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      cycleTab(-1);
+    }
+  }
+
+  // ── Benchmark ─────────────────────────────────────────────────────────────
 
   function animateTo(value: number, holdMs: number): Promise<void> {
     target = value;
@@ -208,52 +306,57 @@
 
     const cycles = Number(new URLSearchParams(location.search).get('cycles') ?? '100') || 100;
 
-    for (const next of ['clip', 'size'] as const) {
-      setVariant(next);
-      spring.snapTo(0);
-      target = 0;
-      apply(0);
-      if (benchEl) benchEl.textContent = `${next}: warming up…`;
-      await new Promise((resolve) => setTimeout(resolve, 150));
+    spring.snapTo(0);
+    target = 0;
+    apply(0);
+    if (benchEl) benchEl.textContent = 'warming up\u2026';
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-      monitor.begin();
-      for (let i = 0; i < cycles; i++) {
-        await animateTo(1, TIMING.benchLeg);
-        await animateTo(0, TIMING.benchLeg);
-      }
-      const stats = monitor.end();
-      const budget95 = 1.25 * stats.refresh;
-      const budgetMax = 2 * stats.refresh;
-      const pass = stats.p95 <= budget95 && stats.max <= budgetMax;
-      if (benchEl) {
-        benchEl.textContent =
-          `${next}: p95 ${stats.p95.toFixed(1)} · max ${stats.max.toFixed(1)} · ${pass ? 'PASS' : 'FAIL'}`;
-      }
-      post('perf.report', {
-        variant: next,
-        cycles,
-        ...stats,
-        p95Pass: stats.p95 <= budget95,
-        maxPass: stats.max <= budgetMax,
-        text: `${pass ? 'PASS' : 'FAIL'} p95 ${stats.p95.toFixed(1)} (<=${budget95.toFixed(1)}) max ${stats.max.toFixed(1)} (<=${budgetMax.toFixed(1)})`,
-      });
+    monitor.begin();
+    for (let i = 0; i < cycles; i++) {
+      if (i % 2 === 0) sendLayout('open');
+      await animateTo(1, TIMING.benchLeg);
+      await animateTo(0, TIMING.benchLeg);
     }
+    const stats = monitor.end();
+    const budget95 = 1.25 * stats.refresh;
+    const budgetMax = 2 * stats.refresh;
+    const pass = stats.p95 <= budget95 && stats.max <= budgetMax;
+
+    if (benchEl) {
+      benchEl.textContent = `canvas: p95 ${stats.p95.toFixed(1)} \u00B7 max ${stats.max.toFixed(1)} \u00B7 ${pass ? 'PASS' : 'FAIL'}`;
+    }
+
+    post('perf.report', {
+      variant: 'canvas',
+      cycles,
+      ...stats,
+      text: `${pass ? 'PASS' : 'FAIL'} p95 ${stats.p95.toFixed(1)} (<=${budget95.toFixed(1)}) max ${stats.max.toFixed(1)} (<=${budgetMax.toFixed(1)})`,
+    });
 
     spring.snapTo(0);
     target = 0;
     apply(0);
     benchRunning = false;
-    post('perf.done', { variants: 2, cycles });
+    post('perf.done', { cycles });
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   onMount(() => {
+    sizeCanvas();
     applySettings({ ...DEFAULT_SETTINGS });
     tickClock();
     clockTimer = setInterval(tickClock, 1000);
 
     if (debug) debugPanelEl.style.display = 'flex';
+
+    const onResize = (): void => {
+      sizeCanvas();
+      apply(spring.value);
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('keydown', onKeyDown);
 
     onMessage((message) => {
       switch (message.type) {
@@ -291,16 +394,15 @@
       }
     });
 
-    post('ui.ready', {
-      variant,
-      page: { w: geometry.pageW, h: geometry.pageH },
-    });
+    post('ui.ready', { page: { w: geometry.pageW, h: geometry.pageH } });
 
     if (new URLSearchParams(location.search).has('bench')) {
       setTimeout(() => void runBenchmark(), 500);
     }
 
     return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onKeyDown);
       if (clockTimer) clearInterval(clockTimer);
       clearTimeout(openTimer);
       clearTimeout(closeTimer);
@@ -309,40 +411,79 @@
   });
 </script>
 
-<div class="page">
-  <div
-    class="island"
-    bind:this={islandEl}
-    role="presentation"
-    onpointerenter={hoverIn}
-    onpointerleave={hoverOut}
-  >
-    <div class="content">
-      <div class="top-row">
+<div class="page" role="presentation">
+  <canvas class="body" bind:this={canvasEl} aria-hidden="true"></canvas>
+
+  <div class="clip" bind:this={clipEl}>
+    <div
+      class="content"
+      bind:this={contentEl}
+      style={`width:${Math.round(geometry.open.w)}px;height:${Math.round(geometry.open.h)}px;margin-left:${-Math.round(geometry.open.w / 2)}px`}
+    >
+      <div class="folded-row" bind:this={foldedViewEl}>
         <span class="clock" bind:this={clockEl}>--:--</span>
-        <span class="battery" bind:this={batteryEl} aria-live="off"></span>
+        <span class="battery" bind:this={batteryEl}></span>
       </div>
 
-      <div class="body-block" bind:this={bodyBlockEl}>
-        <!-- Milestone 3 fills this shell with tabs, cards and the command bar. -->
-        <div class="shell-placeholder"></div>
-      </div>
-    </div>
-
-    <div class="debug" bind:this={debugPanelEl}>
-      {#if debug}
-        <div class="stats" bind:this={statsEl}>frame —</div>
-        <div class="spike-controls">
-          <button type="button" data-active={variant === 'clip'} onclick={() => setVariant('clip')}>
-            A · clip-path
-          </button>
-          <button type="button" data-active={variant === 'size'} onclick={() => setVariant('size')}>
-            B · width/height
-          </button>
-          <button type="button" onclick={() => void runBenchmark()}>Run benchmark</button>
+      <div class="open-view" bind:this={openViewEl}>
+      <div class="tabs" role="tablist" aria-label="Island tabs">
+        <div class="tab-strip">
+          {#each TAB_ORDER as id (id)}
+            <button
+              type="button"
+              class:active={id === activeTab}
+              class="tab"
+              role="tab"
+              aria-selected={id === activeTab}
+              title={TAB_SIZES[id].label}
+              onclick={() => selectTab(id)}
+            >
+              <span class="glyph" aria-hidden="true">{TAB_SIZES[id].icon}</span>
+              {#if id === activeTab}<span class="tab-label">{TAB_SIZES[id].label}</span>{/if}
+            </button>
+          {/each}
         </div>
-        <div class="bench" bind:this={benchEl} aria-live="polite"></div>
-      {/if}
+
+        <div class="actions">
+          <button
+            type="button"
+            class="chip"
+            class:on={quiet}
+            title="Quiet: pause live cards"
+            onclick={() => (quiet = !quiet)}
+          >
+            <span class="glyph" aria-hidden="true">{'\uE708'}</span>
+          </button>
+          <button
+            type="button"
+            class="chip"
+            class:on={pinned}
+            title="Keep the island open"
+            onclick={() => (pinned = !pinned)}
+          >
+            <span class="glyph" aria-hidden="true">{'\uE718'}</span>
+          </button>
+          <button type="button" class="chip" title="Island settings">
+            <span class="glyph" aria-hidden="true">{'\uE115'}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="shell-body">
+        <span class="placeholder-glyph" aria-hidden="true">{TAB_SIZES[activeTab].icon}</span>
+        <span class="placeholder-label">{TAB_SIZES[activeTab].label}</span>
+      </div>
+      </div>
     </div>
+  </div>
+
+  <div class="debug" bind:this={debugPanelEl}>
+    {#if debug}
+      <div class="stats" bind:this={statsEl}>frame \u2014</div>
+      <div class="spike-controls">
+        <button type="button" onclick={() => void runBenchmark()}>Run benchmark</button>
+      </div>
+      <div class="bench" bind:this={benchEl} aria-live="polite"></div>
+    {/if}
   </div>
 </div>
