@@ -14,20 +14,37 @@
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="8">
-                <FontIcon Glyph="&#xE787;" FontSize="11" Foreground="#88FFFFFF" />
-                <TextBlock x:Name="FoldedClockText"
-                           Text="12:45"
-                           FontFamily="Segoe UI Variable Display"
-                           FontWeight="SemiBold"
-                           FontSize="12"
-                           Foreground="#E0FFFFFF"
-                           VerticalAlignment="Center" />
-                <TextBlock x:Name="FoldedBatteryText"
-                           Text="98%"
-                           FontFamily="Segoe UI Variable Small"
-                           FontSize="11"
-                           Foreground="#88FFFFFF"
-                           VerticalAlignment="Center" />
+                <!-- Clock -->
+                <StackPanel x:Name="ClockContainer"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE823;" FontSize="11" Foreground="#99FFFFFF" />
+                    <TextBlock x:Name="FoldedClockText"
+                               Text="12:45"
+                               FontFamily="Segoe UI Variable Display"
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               Foreground="#F0FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Battery -->
+                <StackPanel x:Name="BatteryContainer"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center">
+                    <FontIcon x:Name="BatteryIcon"
+                              Glyph="&#xE83F;"
+                              FontSize="12"
+                              Foreground="#99FFFFFF" />
+                    <TextBlock x:Name="FoldedBatteryText"
+                               Text="100%"
+                               FontFamily="Segoe UI Variable Small"
+                               FontSize="11"
+                               Foreground="#C0FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </Grid>
 
@@ -46,7 +63,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Header / Title -->
+                <!-- Header -->
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE7F4;" FontSize="14" Foreground="#60CDFF" />
                     <TextBlock Text="Window Island"
@@ -60,13 +77,14 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Center Content / Benchmark Readout -->
+                <!-- Center Content / Stats -->
                 <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="6">
-                    <TextBlock Text="Composition Spring Spike (Milestone 1)"
+                    <TextBlock x:Name="NotchSubtitleText"
+                               Text="Windows Native Notch · Foundation"
                                FontSize="12"
-                               Foreground="#C0FFFFFF" />
+                               Foreground="#D0FFFFFF" />
                     <TextBlock x:Name="FrameStatsText"
-                               Text="Frame-time: p50 16.7ms · p95 16.8ms · max 17.2ms"
+                               Text="Frame-time: p50 16.7ms · p95 17.5ms · max 38.4ms"
                                FontFamily="Consolas"
                                FontSize="11"
                                Foreground="#4CC2FF" />
@@ -79,7 +97,7 @@
                                Foreground="#70FFFFFF"
                                HorizontalAlignment="Left" />
                     <TextBlock x:Name="BenchStatusText"
-                               Text="60 fps compositor verified"
+                               Text="Dedicated UI Thread · 60 fps"
                                FontSize="11"
                                Foreground="#6CCB5F"
                                HorizontalAlignment="Right" />

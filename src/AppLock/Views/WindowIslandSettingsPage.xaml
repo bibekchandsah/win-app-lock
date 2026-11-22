@@ -7,60 +7,106 @@
     mc:Ignorable="d">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Padding="24" Spacing="14" MaxWidth="760" HorizontalAlignment="Left">
+        <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
 
-            <TextBlock Text="Window Island" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock
-                Text="A native WinUI 3 notch at the top of the screen drawn with the Composition API — clock, battery and quick controls, animated with springs."
-                TextWrapping="Wrap"
-                Opacity="0.7" />
+            <StackPanel Spacing="4">
+                <TextBlock Text="Window Island" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock
+                    Text="A native WinUI 3 notch at the top of the screen drawn with the Composition API — clock, battery and quick controls on an independent, lag-free UI thread."
+                    TextWrapping="Wrap"
+                    Opacity="0.7" />
+            </StackPanel>
 
-            <InfoBar
-                x:Name="ComingSoonBar"
-                IsOpen="True"
-                IsClosable="False"
-                Severity="Informational"
-                Title="Coming soon"
-                Message="Window Island is under development. Enable the toggle to reserve the setting; the native notch will appear in a future milestone." />
+            <!-- Main Enable Card -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Enable Window Island" FontWeight="SemiBold" />
+                        <TextBlock Text="Runs a hardware-accelerated dynamic bar pinned to the top of your screen"
+                                   FontSize="12" Opacity="0.6" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  x:Name="EnabledToggle"
+                                  Toggled="OnSettingChanged" />
+                </Grid>
+            </Border>
 
-            <ToggleSwitch
-                x:Name="EnabledToggle"
-                Header="Enable Window Island"
-                Toggled="OnSettingChanged" />
+            <!-- Appearance Settings -->
+            <TextBlock Text="Appearance" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
 
-            <ComboBox x:Name="PositionBox" Header="Position" SelectionChanged="OnSelectionChanged" Width="240">
-                <ComboBoxItem Content="Top center" Tag="TopCenter" />
-                <ComboBoxItem Content="Top left" Tag="TopLeft" />
-                <ComboBoxItem Content="Top right" Tag="TopRight" />
-            </ComboBox>
+            <Grid ColumnSpacing="16" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <ComboBox x:Name="ShapeBox" Header="Shape" SelectionChanged="OnSelectionChanged" Width="240">
-                <ComboBoxItem Content="Notch (flush with screen edge)" Tag="Notch" />
-                <ComboBoxItem Content="Capsule (floating pill)" Tag="Capsule" />
-            </ComboBox>
+                <ComboBox x:Name="ShapeBox" Grid.Column="0" Header="Shape" SelectionChanged="OnSelectionChanged" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Notch (flush with screen edge)" Tag="Notch" />
+                    <ComboBoxItem Content="Capsule (floating pill)" Tag="Capsule" />
+                </ComboBox>
 
-            <ComboBox x:Name="ThemeBox" Header="Theme" SelectionChanged="OnSelectionChanged" Width="240">
+                <ComboBox x:Name="PositionBox" Grid.Column="1" Header="Position" SelectionChanged="OnSelectionChanged" HorizontalAlignment="Stretch">
+                    <ComboBoxItem Content="Top center" Tag="TopCenter" />
+                    <ComboBoxItem Content="Top left" Tag="TopLeft" />
+                    <ComboBoxItem Content="Top right" Tag="TopRight" />
+                </ComboBox>
+            </Grid>
+
+            <ComboBox x:Name="ThemeBox" Header="Theme" SelectionChanged="OnSelectionChanged" Width="260">
                 <ComboBoxItem Content="System default" Tag="System" />
                 <ComboBoxItem Content="Light" Tag="Light" />
                 <ComboBoxItem Content="Dark" Tag="Dark" />
             </ComboBox>
 
             <StackPanel Spacing="4">
-                <TextBlock Text="Size" Opacity="0.7" FontSize="12"/>
+                <TextBlock Text="Size Scale" Opacity="0.7" FontSize="12"/>
                 <Slider x:Name="SizeSlider" Minimum="60" Maximum="150" TickFrequency="10"
-                        ValueChanged="OnSliderChanged" Width="300" HorizontalAlignment="Left"/>
+                        ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="SizeLabelText" FontSize="12" Opacity="0.6"/>
             </StackPanel>
 
             <StackPanel Spacing="4">
-                <TextBlock Text="Opacity" Opacity="0.7" FontSize="12"/>
+                <TextBlock Text="Surface Opacity" Opacity="0.7" FontSize="12"/>
                 <Slider x:Name="OpacitySlider" Minimum="40" Maximum="100" TickFrequency="5"
-                        ValueChanged="OnSliderChanged" Width="300" HorizontalAlignment="Left"/>
+                        ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="OpacityLabelText" FontSize="12" Opacity="0.6"/>
             </StackPanel>
 
-            <ToggleSwitch x:Name="ShowClockToggle" Header="Show clock" Toggled="OnSettingChanged" />
-            <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery" Toggled="OnSettingChanged" />
+            <StackPanel Spacing="4">
+                <TextBlock Text="Vertical Offset (DIPs)" Opacity="0.7" FontSize="12"/>
+                <Slider x:Name="YOffsetSlider" Minimum="-10" Maximum="50" TickFrequency="2"
+                        ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
+                <TextBlock x:Name="YOffsetLabelText" FontSize="12" Opacity="0.6"/>
+            </StackPanel>
+
+            <!-- Folded Content Settings -->
+            <TextBlock Text="Folded Notch Indicators" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+
+            <StackPanel Spacing="10">
+                <ToggleSwitch x:Name="ShowClockToggle" Header="Show clock" Toggled="OnSettingChanged" />
+                <StackPanel Margin="28,0,0,0" Spacing="8" Visibility="{x:Bind ShowClockToggle.IsOn, Mode=OneWay}">
+                    <CheckBox x:Name="TimeFormat24HCheck" Content="24-hour format (e.g. 14:30 vs 2:30 PM)" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+                    <CheckBox x:Name="ShowSecondsCheck" Content="Show seconds" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+                </StackPanel>
+
+                <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery percentage &amp; status" Toggled="OnSettingChanged" />
+            </StackPanel>
+
+            <!-- Global Hotkey -->
+            <TextBlock Text="Shortcut" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <StackPanel Spacing="6">
+                <TextBlock Text="Global hotkey to toggle Window Island" Opacity="0.7" FontSize="12"/>
+                <TextBox x:Name="HotkeyBox" Width="260" HorizontalAlignment="Left" TextChanged="OnHotkeyChanged" />
+                <TextBlock Text="Default: Ctrl+Shift+W" FontSize="11" Opacity="0.5" />
+            </StackPanel>
 
         </StackPanel>
     </ScrollViewer>

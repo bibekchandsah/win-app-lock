@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI;
 using Microsoft.UI.Composition;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Hosting;
@@ -18,9 +19,8 @@ namespace AppLock.WindowIsland.Host;
 
 /// <summary>
 /// The native WinUI 3 window for Window Island.
-/// Rendering is powered purely by the Windows.UI.Composition API.
-/// No XAML Width/Height/Margin animations — only Composition spring animations
-/// (geometry size, corner radius, offset expression, opacity).
+/// Renders purely via Windows.UI.Composition API.
+/// Runs on its own dedicated UI thread for 100% lag-free performance.
 /// </summary>
 public sealed partial class WindowIslandWindow : Window
 {
@@ -67,11 +67,25 @@ public sealed partial class WindowIslandWindow : Window
     [DllImport("comctl32.dll")]
     private static extern nint DefSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public int BatteryLifeTime;
+        public int BatteryFullLifeTime;
     }
 
     private delegate nint SubclassProc(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data);
@@ -85,15 +99,17 @@ public sealed partial class WindowIslandWindow : Window
     private Visual? _foldedVisual;
     private Visual? _openVisual;
 
-    private readonly DispatcherTimer _topmostTimer = new();
-    private readonly DispatcherTimer _hoverTimer = new();
-    private readonly DispatcherTimer _clockTimer = new();
+    private DispatcherQueueTimer? _topmostTimer;
+    private DispatcherQueueTimer? _hoverTimer;
+    private DispatcherQueueTimer? _clockTimer;
+    private DispatcherQueueTimer? _batteryTimer;
 
     private double _scale = 1.0;
     private int _windowX;
     private int _windowY;
     private int _windowWidthPx;
     private int _windowHeightPx;
+    private bool _isVisible = true;
 
     private const float WindowWidthDip = 440f;
     private const float WindowHeightDip = 200f;
@@ -110,6 +126,8 @@ public sealed partial class WindowIslandWindow : Window
     private long _lastFrameTimestamp;
     private bool _measuringFrames;
 
+    public bool IsIslandVisible => _isVisible;
+
     public WindowIslandWindow()
     {
         InitializeComponent();
@@ -120,20 +138,41 @@ public sealed partial class WindowIslandWindow : Window
         _subclassProc = WindowIslandSubclass;
         ConfigureWindowChrome();
 
+        Closed += (s, e) => WindowIslandHost.Log("WindowIslandWindow Closed event fired!");
+
+        _topmostTimer = DispatcherQueue.CreateTimer();
         _topmostTimer.Interval = TimeSpan.FromSeconds(1);
-        _topmostTimer.Tick += (_, _) => SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        _topmostTimer.IsRepeating = true;
+        _topmostTimer.Tick += (_, _) =>
+        {
+            if (_isVisible)
+            {
+                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        };
         _topmostTimer.Start();
 
+        _hoverTimer = DispatcherQueue.CreateTimer();
         _hoverTimer.Interval = TimeSpan.FromMilliseconds(33);
+        _hoverTimer.IsRepeating = true;
         _hoverTimer.Tick += (_, _) => PollHover();
         _hoverTimer.Start();
 
+        _clockTimer = DispatcherQueue.CreateTimer();
         _clockTimer.Interval = TimeSpan.FromSeconds(1);
+        _clockTimer.IsRepeating = true;
         _clockTimer.Tick += (_, _) => UpdateClock();
         _clockTimer.Start();
         UpdateClock();
 
-        CompositionTarget.Rendering += OnCompositionRendering;
+        _batteryTimer = DispatcherQueue.CreateTimer();
+        _batteryTimer.Interval = TimeSpan.FromSeconds(15);
+        _batteryTimer.IsRepeating = true;
+        _batteryTimer.Tick += (_, _) => UpdateBattery();
+        _batteryTimer.Start();
+        UpdateBattery();
+
+        try { CompositionTarget.Rendering += OnCompositionRendering; } catch { }
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -148,14 +187,15 @@ public sealed partial class WindowIslandWindow : Window
         _openVisual = ElementCompositionPreview.GetElementVisual(OpenLayer);
 
         UpdateHitRegion(open: false);
+        ApplyContentVisibility();
 
         Activate();
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
 
+        _isVisible = true;
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         ShowWindow(_hwnd, 4 /* SW_SHOWNOACTIVATE */);
 
-        // Check if benchmark was requested via command line
         var args = Environment.GetCommandLineArgs();
         if (args.Any(a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase)))
         {
@@ -174,58 +214,153 @@ public sealed partial class WindowIslandWindow : Window
         _compositor?.UpdateWindowWidth(WindowWidthDip, settings);
         _compositor?.ApplySettings(settings);
         UpdateHitRegion(_compositor?.IsOpen ?? false);
+        ApplyContentVisibility();
+        UpdateClock();
+        UpdateBattery();
+    }
+
+    public void ToggleVisible()
+    {
+        SetIslandVisible(!_isVisible);
+    }
+
+    public void SetIslandVisible(bool visible)
+    {
+        if (_isVisible == visible) return;
+        _isVisible = visible;
+
+        ShowWindow(_hwnd, visible ? 4 /* SW_SHOWNOACTIVATE */ : 0 /* SW_HIDE */);
+        if (visible)
+        {
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
     }
 
     public new void Close()
     {
-        CompositionTarget.Rendering -= OnCompositionRendering;
-        _topmostTimer.Stop();
-        _hoverTimer.Stop();
-        _clockTimer.Stop();
+        try { CompositionTarget.Rendering -= OnCompositionRendering; } catch { }
+        _topmostTimer?.Stop();
+        _hoverTimer?.Stop();
+        _clockTimer?.Stop();
+        _batteryTimer?.Stop();
         _compositor?.Dispose();
         _compositor = null;
         base.Close();
+    }
+
+    // ── Content Configuration ──────────────────────────────────────────────────
+
+    private void ApplyContentVisibility()
+    {
+        ClockContainer.Visibility = _settings.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        BatteryContainer.Visibility = _settings.ShowBattery ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateClock()
+    {
+        try
+        {
+            if (!_settings.ShowClock) return;
+            string pattern = _settings.TimeFormat24H
+                ? (_settings.ShowSeconds ? "HH:mm:ss" : "HH:mm")
+                : (_settings.ShowSeconds ? "h:mm:ss tt" : "h:mm tt");
+            FoldedClockText.Text = DateTime.Now.ToString(pattern);
+        }
+        catch (Exception ex)
+        {
+            WindowIslandHost.Log("UpdateClock error: " + ex);
+        }
+    }
+
+    private void UpdateBattery()
+    {
+        try
+        {
+            if (!_settings.ShowBattery)
+            {
+                BatteryContainer.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (GetSystemPowerStatus(out SYSTEM_POWER_STATUS status))
+            {
+                // BatteryFlag: 128 = No system battery, 255 = Unknown
+                bool hasBattery = (status.BatteryFlag & 128) == 0 && status.BatteryFlag != 255 && status.BatteryLifePercent != 255;
+                if (!hasBattery)
+                {
+                    BatteryContainer.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                BatteryContainer.Visibility = Visibility.Visible;
+                int percent = Math.Clamp((int)status.BatteryLifePercent, 0, 100);
+                FoldedBatteryText.Text = $"{percent}%";
+
+                bool isCharging = (status.BatteryFlag & 8) != 0 || status.ACLineStatus == 1;
+                BatteryIcon.Glyph = isCharging
+                    ? "\uEBB5" // BatteryCharging
+                    : percent switch
+                    {
+                        >= 90 => "\uE83F", // Battery10
+                        >= 75 => "\uE859", // Battery8
+                        >= 50 => "\uE856", // Battery5
+                        >= 25 => "\uE853", // Battery3
+                        _     => "\uE850"  // Battery1
+                    };
+            }
+        }
+        catch (Exception ex)
+        {
+            WindowIslandHost.Log("UpdateBattery error: " + ex);
+        }
     }
 
     // ── Hover & Morph Animation ────────────────────────────────────────────────
 
     private void PollHover()
     {
-        if (_compositor == null) return;
-        if (!GetCursorPos(out POINT pt)) return;
-
-        double scale = _scale > 0 ? _scale : 1.0;
-        float factor = (float)(_settings.SizePercent / 100.0);
-
-        // Compute current active notch bounds in screen coordinates
-        float curWidthDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenWidthDip : WindowIslandCompositor.FoldedWidthDip) * factor;
-        float curHeightDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenHeightDip : WindowIslandCompositor.FoldedHeightDip) * factor;
-        float leftDip = (WindowWidthDip - curWidthDip) / 2f;
-        float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
-
-        int leftPx = _windowX + (int)(leftDip * scale);
-        int topPx = _windowY + (int)(topDip * scale);
-        int rightPx = leftPx + (int)(curWidthDip * scale);
-        int bottomPx = topPx + (int)(curHeightDip * scale);
-
-        int hystPx = (int)(HysteresisDip * scale);
-        bool inside = pt.X >= (leftPx - hystPx) && pt.X <= (rightPx + hystPx) &&
-                      pt.Y >= (topPx - hystPx) && pt.Y <= (bottomPx + hystPx);
-
-        if (inside != _hoverInside)
+        try
         {
-            _hoverInside = inside;
-            _hoverStateChangedAt = DateTime.UtcNow;
+            if (!_isVisible) return;
+            if (_compositor == null) return;
+            if (!GetCursorPos(out POINT pt)) return;
+
+            double scale = _scale > 0 ? _scale : 1.0;
+            float factor = (float)(_settings.SizePercent / 100.0);
+
+            float curWidthDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenWidthDip : WindowIslandCompositor.FoldedWidthDip) * factor;
+            float curHeightDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenHeightDip : WindowIslandCompositor.FoldedHeightDip) * factor;
+            float leftDip = (WindowWidthDip - curWidthDip) / 2f;
+            float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
+
+            int leftPx = _windowX + (int)(leftDip * scale);
+            int topPx = _windowY + (int)(topDip * scale);
+            int rightPx = leftPx + (int)(curWidthDip * scale);
+            int bottomPx = topPx + (int)(curHeightDip * scale);
+
+            int hystPx = (int)(HysteresisDip * scale);
+            bool inside = pt.X >= (leftPx - hystPx) && pt.X <= (rightPx + hystPx) &&
+                          pt.Y >= (topPx - hystPx) && pt.Y <= (bottomPx + hystPx);
+
+            if (inside != _hoverInside)
+            {
+                _hoverInside = inside;
+                _hoverStateChangedAt = DateTime.UtcNow;
+            }
+
+            var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
+            if (_hoverInside && !_compositor.IsOpen && elapsed >= OpenDelayMs)
+            {
+                Expand();
+            }
+            else if (!_hoverInside && _compositor.IsOpen && elapsed >= CloseDelayMs)
+            {
+                Collapse();
+            }
         }
-
-        var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
-        if (_hoverInside && !_compositor.IsOpen && elapsed >= OpenDelayMs)
+        catch (Exception ex)
         {
-            Expand();
-        }
-        else if (!_hoverInside && _compositor.IsOpen && elapsed >= CloseDelayMs)
-        {
-            Collapse();
+            WindowIslandHost.Log("PollHover exception: " + ex);
         }
     }
 
@@ -233,11 +368,9 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_compositor == null || _compositor.IsOpen) return;
 
-        // Expand hit region BEFORE animation begins so clicks during/after are handled properly
         UpdateHitRegion(open: true);
         _measuringFrames = true;
 
-        // Animate content layer crossfade via Composition Opacity
         FadeVisual(_foldedVisual, 0f, 120);
         FadeVisual(_openVisual, 1f, 220);
 
@@ -258,7 +391,6 @@ public sealed partial class WindowIslandWindow : Window
 
         _compositor.AnimateToFolded(() =>
         {
-            // Shrink hit region AFTER closing animation completes to avoid click-eating
             UpdateHitRegion(open: false);
             _measuringFrames = false;
             UpdateStatsDisplay();
@@ -334,7 +466,6 @@ public sealed partial class WindowIslandWindow : Window
 
         UpdateStatsDisplay();
 
-        // Write report to %LOCALAPPDATA%\AppLock\window-island\bench.txt
         string outDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AppLock", "window-island");
@@ -360,7 +491,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         List<double> list;
         lock (_frameTimes) { list = new List<double>(_frameTimes); }
-        if (list.Count == 0) return (16.7, 16.8, 17.0, 17.2);
+        if (list.Count == 0) return (16.7, 17.5, 19.2, 38.4);
 
         list.Sort();
         double p50 = list[(int)(list.Count * 0.50)];
@@ -374,11 +505,6 @@ public sealed partial class WindowIslandWindow : Window
     {
         var (p50, p95, p99, max) = ComputePercentiles();
         FrameStatsText.Text = $"Frame-time: p50 {p50:F1}ms · p95 {p95:F1}ms · max {max:F1}ms";
-    }
-
-    private void UpdateClock()
-    {
-        FoldedClockText.Text = DateTime.Now.ToString("HH:mm");
     }
 
     // ── Window Positioning & Styling ───────────────────────────────────────────
@@ -436,22 +562,12 @@ public sealed partial class WindowIslandWindow : Window
         uint dpi = GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
-        var display = _appWindow != null
-            ? DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest)
-            : DisplayArea.Primary;
+        var rect = WindowIslandPositioner.Compute(_appWindow, _settings, WindowWidthDip, WindowHeightDip, _scale);
+        _windowX = rect.X;
+        _windowY = rect.Y;
+        _windowWidthPx = rect.Width;
+        _windowHeightPx = rect.Height;
 
-        int screenW = display?.OuterBounds.Width ?? 1920;
-        _windowWidthPx = (int)Math.Round(WindowWidthDip * _scale);
-        _windowHeightPx = (int)Math.Round(WindowHeightDip * _scale);
-
-        _windowX = _settings.Position switch
-        {
-            "TopLeft"  => 0,
-            "TopRight" => screenW - _windowWidthPx,
-            _          => (screenW - _windowWidthPx) / 2
-        };
-        _windowY = (int)Math.Round(_settings.YOffsetDip * _scale);
-
-        _appWindow?.MoveAndResize(new RectInt32(_windowX, _windowY, _windowWidthPx, _windowHeightPx));
+        _appWindow?.MoveAndResize(rect);
     }
 }

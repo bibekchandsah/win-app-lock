@@ -47,7 +47,7 @@ public partial class App : Application
         // Window Island (Native Composition) spike: no main window, runs native composition notch
         if (Environment.GetCommandLineArgs().Any(a => a.Equals("--window-island-spike", StringComparison.OrdinalIgnoreCase)))
         {
-            WindowIsland.Host.WindowIslandHost.Instance.Start(ignoreEnabledSetting: true);
+            WindowIsland.Host.WindowIslandHost.Instance.Start(ignoreEnabledSetting: true, useDedicatedThread: false);
             return;
         }
 

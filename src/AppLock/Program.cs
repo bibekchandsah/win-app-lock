@@ -23,6 +23,15 @@ public static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        try
+        {
+            string startLog = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+                "AppLock", "Logs", "startup.log");
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(startLog)!);
+            System.IO.File.AppendAllText(startLog, $"[{System.DateTime.Now:HH:mm:ss.fff}] Main entered with {args.Length} args: {string.Join(" ", args)}{System.Environment.NewLine}");
+        }
+        catch { }
         // 1. If running as Watchdog, execute pure headless monitoring loop
         if (args.Length > 1 && args[0] == "--watchdog" && int.TryParse(args[1], out int parentPid))
         {

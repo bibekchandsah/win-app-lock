@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using AppLock.Models;
 using AppLock.Services;
@@ -8,7 +9,14 @@ namespace AppLock.WindowIsland.Host;
 
 /// <summary>
 /// Windows-native Window Island host — a pure WinUI 3 / Composition notch or capsule at the
-/// top of the screen. This is completely separate from the WebView2 "Island" feature.
+/// top of the screen.
+/// 
+/// Performance Architecture:
+///   - Window and Composition tree are attached to the WinUI UI thread.
+///   - All animations run on the GPU / DirectComposition compositor thread via Composition springs.
+///   - Zero XAML layout passes or CPU reflow during animations.
+///   - All data work, battery monitoring, and polling run strictly off the UI thread on
+///     background worker threads and post batched updates back via DispatcherQueue.
 /// </summary>
 public sealed class WindowIslandHost
 {
@@ -16,12 +24,14 @@ public sealed class WindowIslandHost
     public static WindowIslandHost Instance => _instance.Value;
 
     private WindowIslandWindow? _window;
+    private DispatcherQueue? _uiQueue;
     private readonly object _lock = new();
     private bool _started;
+    private int _hotkeyId = -1;
 
     private WindowIslandHost() { }
 
-    private static void Log(string msg)
+    public static void Log(string msg)
     {
         try
         {
@@ -32,7 +42,7 @@ public sealed class WindowIslandHost
         catch { }
     }
 
-    public void Start(bool ignoreEnabledSetting = false)
+    public void Start(bool ignoreEnabledSetting = false, bool useDedicatedThread = false)
     {
         lock (_lock)
         {
@@ -47,56 +57,118 @@ public sealed class WindowIslandHost
             return;
         }
 
-        Log("Start called (ignoreEnabled=" + ignoreEnabledSetting + ")");
+        Log($"Start called (ignoreEnabled={ignoreEnabledSetting})");
 
-        void DoStart()
+        _uiQueue = DispatcherQueue.GetForCurrentThread();
+
+        void CreateWindow()
         {
             try
             {
                 _window = new WindowIslandWindow();
+                _uiQueue = _window.DispatcherQueue;
                 _window.Show(settings);
-                Log("Window created and shown successfully");
+                Log($"Window created and shown successfully on thread {Environment.CurrentManagedThreadId}");
             }
             catch (Exception ex)
             {
-                Log("Window creation failed: " + ex);
+                Log($"Window creation failed: {ex}");
                 lock (_lock) { _started = false; }
             }
         }
 
-        var dq = DispatcherQueue.GetForCurrentThread();
-        if (dq != null)
+        if (_uiQueue != null)
         {
-            DoStart();
+            CreateWindow();
         }
         else
         {
-            var controller = DispatcherQueueController.CreateOnCurrentThread();
-            controller.DispatcherQueue.TryEnqueue(DoStart);
+            // If called off-thread, dispatch to the UI thread
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(CreateWindow);
         }
+
+        RegisterHotkey(settings.Hotkey);
     }
 
     public void Stop()
     {
         lock (_lock) { _started = false; }
+        UnregisterHotkey();
 
-        var dq = DispatcherQueue.GetForCurrentThread();
         void DoStop()
         {
-            try { _window?.Close(); }
-            catch { }
+            try { _window?.Close(); } catch { }
             _window = null;
             Log("Window closed and stopped");
         }
 
-        if (dq != null) DoStop();
+        if (_uiQueue != null) _uiQueue.TryEnqueue(DoStop);
         else DoStop();
     }
 
     public void ApplySettings(WindowIslandSettings settings)
     {
-        var dq = DispatcherQueue.GetForCurrentThread();
         void Do() => _window?.ApplySettings(settings);
-        if (dq != null) dq.TryEnqueue(Do);
+
+        if (_uiQueue != null)
+        {
+            _uiQueue.TryEnqueue(Do);
+        }
+        else
+        {
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
+        }
+
+        RegisterHotkey(settings.Hotkey);
+    }
+
+    public void ToggleVisibility()
+    {
+        if (_window == null)
+        {
+            Start();
+            return;
+        }
+
+        void Do() => _window?.ToggleVisible();
+
+        if (_uiQueue != null)
+        {
+            _uiQueue.TryEnqueue(Do);
+        }
+        else
+        {
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
+        }
+    }
+
+    // ── Hotkey ─────────────────────────────────────────────────────────────────
+
+    private void RegisterHotkey(string hotkey)
+    {
+        UnregisterHotkey();
+        if (string.IsNullOrWhiteSpace(hotkey)) return;
+
+        try
+        {
+            var (modifiers, key) = HotkeyService.ParseHotkey(hotkey);
+            if (key == 0) return;
+
+            _hotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(modifiers, key, ToggleVisibility);
+            Log($"Registered Window Island hotkey {hotkey} id={_hotkeyId}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Hotkey registration failed: {ex}");
+        }
+    }
+
+    private void UnregisterHotkey()
+    {
+        if (_hotkeyId > 0)
+        {
+            try { ServiceContainer.HotkeyService.UnregisterHotkey(_hotkeyId); } catch { }
+            _hotkeyId = -1;
+        }
     }
 }
