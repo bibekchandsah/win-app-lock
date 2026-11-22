@@ -28,9 +28,24 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(ShapeBox, s.Shape);
         SelectComboItem(ThemeBox, s.Theme);
 
-        SizeSlider.Value    = s.SizePercent;
-        OpacitySlider.Value = s.OpacityPercent;
-        YOffsetSlider.Value = s.YOffsetDip;
+        SizeSlider.Minimum    = 60;
+        SizeSlider.Maximum    = 150;
+        SizeSlider.StepFrequency = 10;
+        SizeSlider.TickFrequency = 10;
+        SizeSlider.Value      = s.SizePercent;
+
+        OpacitySlider.Minimum    = 40;
+        OpacitySlider.Maximum    = 100;
+        OpacitySlider.StepFrequency = 5;
+        OpacitySlider.TickFrequency = 5;
+        OpacitySlider.Value      = s.OpacityPercent;
+
+        YOffsetSlider.Minimum    = -10;
+        YOffsetSlider.Maximum    = 50;
+        YOffsetSlider.StepFrequency = 2;
+        YOffsetSlider.TickFrequency = 2;
+        YOffsetSlider.Value      = s.YOffsetDip;
+
         UpdateSizeLabel();
         UpdateOpacityLabel();
         UpdateYOffsetLabel();
