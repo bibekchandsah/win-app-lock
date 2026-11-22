@@ -88,18 +88,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.SetWindowIslandEnabled(s.Enabled);
 
-        if (s.Enabled != prevEnabled)
-        {
-            if (s.Enabled)
-            {
-                WindowIslandHost.Instance.Start(ignoreEnabledSetting: false, useDedicatedThread: true);
-            }
-            else
-            {
-                WindowIslandHost.Instance.Stop();
-            }
-        }
-        else if (s.Enabled)
+        if (s.Enabled)
         {
             WindowIslandHost.Instance.ApplySettings(s);
         }

@@ -830,8 +830,9 @@ public sealed partial class WindowIslandWindow : Window
         uint dpi = GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
-        float winW = _compositor?.IsOpen == true ? WindowWidthDip : WindowIslandCompositor.FoldedWidthDip + 40f;
-        float winH = _compositor?.IsOpen == true ? IslandMotion.TabSize(_activeTab).H + 60f : WindowIslandCompositor.FoldedHeightDip + 20f;
+        // The window is always sized to WindowWidthDip so the notch is centered properly
+        float winW = WindowWidthDip;
+        float winH = IslandMotion.TabSize(_activeTab).H + 60f;
 
         var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
         _windowX        = rect.X;
