@@ -29,6 +29,7 @@ using AppLock.WindowIsland.Modules;
 using AppLock.WindowIsland.Modules.Chat;
 using AppLock.WindowIsland.Modules.Controls;
 using AppLock.WindowIsland.Modules.Notifications;
+using AppLock.WindowIsland.Modules.Text;
 using AppLock.WindowIsland.Modules.Weather;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
@@ -491,6 +492,7 @@ public sealed partial class WindowIslandWindow : Window
         // Refresh clipboard / shelf / notes on switch
         if (_activeTab == 1) _clipboardState?.Refresh();
         if (_activeTab == 2) RefreshShelfUI();
+        if (_activeTab == 3) RefreshTextUI();
         if (_activeTab == 4)
         {
             ResetChatIdleTimer();
@@ -3355,5 +3357,183 @@ public sealed partial class WindowIslandWindow : Window
     private void ChatDownloadWebView2_Click(object sender, RoutedEventArgs e)
     {
         _ = Windows.System.Launcher.LaunchUriAsync(new Uri("https://go.microsoft.com/fwlink/p/?LinkId=2124703"));
+    }
+
+    // ── Milestone 14: Text tab (Text Tools & Transforms) ─────────────────────
+
+    private bool _textLoadingClipboard;
+
+    private void RefreshTextUI()
+    {
+        if (string.IsNullOrEmpty(TextInputBox.Text))
+        {
+            _ = LoadClipboardIntoTextTabAsync();
+        }
+        else
+        {
+            UpdateTextStats();
+        }
+    }
+
+    private async Task LoadClipboardIntoTextTabAsync()
+    {
+        if (_textLoadingClipboard) return;
+        _textLoadingClipboard = true;
+        try
+        {
+            var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                string text = await content.GetTextAsync();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        TextInputBox.Text = text;
+                        UpdateTextStats();
+                    });
+                }
+            }
+        }
+        catch { }
+        finally
+        {
+            _textLoadingClipboard = false;
+        }
+    }
+
+    private void UpdateTextStats()
+    {
+        var stats = WindowIslandTextManager.ComputeStatistics(TextInputBox.Text);
+        TextStatsSummaryText.Text = $"{stats.Words} words · {stats.Characters} chars";
+        TextStatsDetailedText.Text = $"Lines: {stats.Lines} · Words: {stats.Words} · Chars: {stats.Characters} (no spaces: {stats.CharactersNoSpaces})";
+    }
+
+    private void TextInputBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateTextStats();
+    }
+
+    private void TextUpperBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.ToUpperCase(TextInputBox.Text);
+    }
+
+    private void TextLowerBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.ToLowerCase(TextInputBox.Text);
+    }
+
+    private void TextTitleBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.ToTitleCase(TextInputBox.Text);
+    }
+
+    private void TextTrimBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.TrimText(TextInputBox.Text);
+    }
+
+    private void TextNoBreaksBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.RemoveLineBreaks(TextInputBox.Text);
+    }
+
+    private void TextSortBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = WindowIslandTextManager.SortLines(TextInputBox.Text);
+    }
+
+    private void TextClearBtn_Click(object sender, RoutedEventArgs e)
+    {
+        TextInputBox.Text = string.Empty;
+    }
+
+    private void TextFetchClipboardBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _ = LoadClipboardIntoTextTabAsync();
+    }
+
+    private void TextCopyResultBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(TextInputBox.Text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+
+            TextCopyResultBtnText.Text = "Copied!";
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(1500);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                TextCopyResultBtnText.Text = "Copy";
+                timer.Stop();
+            };
+            timer.Start();
+        }
+        catch { }
+    }
+
+    private async void TextPastePlainBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string plain = string.Empty;
+            if (!string.IsNullOrEmpty(TextInputBox.Text))
+            {
+                plain = WindowIslandTextManager.StripFormatting(TextInputBox.Text);
+            }
+            else
+            {
+                var content = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (content.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                {
+                    plain = WindowIslandTextManager.StripFormatting(await content.GetTextAsync());
+                }
+            }
+
+            if (!string.IsNullOrEmpty(plain))
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(plain);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            }
+
+            var target = _previousForegroundWindow != nint.Zero ? _previousForegroundWindow : GetForegroundWindow();
+            Collapse();
+            await Task.Delay(180);
+            await WindowIslandTextManager.PasteToWindowAsync(target);
+        }
+        catch { }
+    }
+
+    private async void TextPasteToAppBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(TextInputBox.Text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+
+            var target = _previousForegroundWindow != nint.Zero ? _previousForegroundWindow : GetForegroundWindow();
+            Collapse();
+            await Task.Delay(180);
+            await WindowIslandTextManager.PasteToWindowAsync(target);
+        }
+        catch { }
+    }
+
+    private async void TextDictationBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var target = _previousForegroundWindow != nint.Zero ? _previousForegroundWindow : GetForegroundWindow();
+            Collapse();
+            await Task.Delay(180);
+            await WindowIslandTextManager.TriggerDictationAsync(target);
+        }
+        catch { }
     }
 }

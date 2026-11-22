@@ -177,6 +177,8 @@
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" Link="WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" />
     <!-- Window Island Chat (Milestone 13) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Chat\WindowIslandChatManager.cs" Link="WindowIsland\Modules\Chat\WindowIslandChatManager.cs" />
+    <!-- Window Island Text (Milestone 14) -->
+    <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Text\WindowIslandTextManager.cs" Link="WindowIsland\Modules\Text\WindowIslandTextManager.cs" />
   </ItemGroup>
 
   <ItemGroup>

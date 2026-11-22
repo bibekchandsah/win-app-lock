@@ -44,7 +44,7 @@ public static class IslandMotion
     public static readonly (float W, float H) TabSizeHome      = (520f, 250f);
     public static readonly (float W, float H) TabSizeClipboard = (480f, 300f);
     public static readonly (float W, float H) TabSizeShelf     = (480f, 220f);
-    public static readonly (float W, float H) TabSizeText      = (480f, 260f);
+    public static readonly (float W, float H) TabSizeText      = (500f, 260f);
     public static readonly (float W, float H) TabSizeChat      = (600f, 440f);
     public static readonly (float W, float H) TabSizeNote      = (540f, 280f);
     public static readonly (float W, float H) TabSizeWeather   = (620f, 290f);
