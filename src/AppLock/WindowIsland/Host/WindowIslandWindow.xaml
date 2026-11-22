@@ -4,7 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Grid x:Name="RootGrid" Background="Transparent">
-        <!-- Folded Content Layer -->
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             FOLDED LAYER — clock + battery (shown when island is collapsed)
+        ═══════════════════════════════════════════════════════════════════ -->
         <Grid x:Name="FoldedLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
@@ -25,6 +28,7 @@
                                FontFamily="Segoe UI Variable Display"
                                FontWeight="SemiBold"
                                FontSize="12"
+                               CharacterSpacing="0"
                                Foreground="#F0FFFFFF"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -48,61 +52,373 @@
             </StackPanel>
         </Grid>
 
-        <!-- Open Content Layer -->
+        <!-- ═══════════════════════════════════════════════════════════════
+             OPEN LAYER — tab strip + content (shown when island is expanded)
+        ═══════════════════════════════════════════════════════════════════ -->
         <Grid x:Name="OpenLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
-              Width="420"
-              Height="180"
+              Width="560"
+              Height="240"
               Opacity="0"
               IsHitTestVisible="False">
-            <Grid Margin="20,16,20,16">
+
+            <Grid Margin="16,10,16,12">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="40" />  <!-- Tab bar row -->
+                    <RowDefinition Height="*"  />  <!-- Content area -->
+                    <RowDefinition Height="20" />  <!-- Frame stats row -->
                 </Grid.RowDefinitions>
 
-                <!-- Header -->
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE7F4;" FontSize="14" Foreground="#60CDFF" />
-                    <TextBlock Text="Window Island"
-                               FontWeight="SemiBold"
-                               FontSize="14"
-                               Foreground="#F0FFFFFF" />
-                    <Border Background="#20FFFFFF" CornerRadius="4" Padding="6,2">
-                        <TextBlock Text="Native Composition"
-                                   FontSize="10"
-                                   Foreground="#90FFFFFF" />
-                    </Border>
-                </StackPanel>
+                <!-- ── Tab Bar ──────────────────────────────────────────────── -->
+                <Grid Grid.Row="0">
+                    <!-- Left: 8 tab buttons -->
+                    <StackPanel x:Name="TabStrip"
+                                Orientation="Horizontal"
+                                Spacing="2"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left">
 
-                <!-- Center Content / Stats -->
-                <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="6">
-                    <TextBlock x:Name="NotchSubtitleText"
-                               Text="Windows Native Notch · Foundation"
-                               FontSize="12"
-                               Foreground="#D0FFFFFF" />
-                    <TextBlock x:Name="FrameStatsText"
-                               Text="Frame-time: p50 16.7ms · p95 17.5ms · max 38.4ms"
-                               FontFamily="Consolas"
-                               FontSize="11"
-                               Foreground="#4CC2FF" />
-                </StackPanel>
+                        <!-- Home -->
+                        <Button x:Name="TabHome"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="0"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Home">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabHomeIcon" Glyph="&#xE80F;" FontSize="13" />
+                                <TextBlock x:Name="TabHomeText" Text="Home" FontSize="11" />
+                            </StackPanel>
+                        </Button>
 
-                <!-- Footer / Status -->
+                        <!-- Clipboard -->
+                        <Button x:Name="TabClipboard"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="1"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Clipboard">
+                            <FontIcon x:Name="TabClipboardIcon" Glyph="&#xF0E3;" FontSize="13" />
+                        </Button>
+
+                        <!-- Shelf -->
+                        <Button x:Name="TabShelf"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="2"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Shelf">
+                            <FontIcon x:Name="TabShelfIcon" Glyph="&#xE8F1;" FontSize="13" />
+                        </Button>
+
+                        <!-- Text -->
+                        <Button x:Name="TabText"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="3"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Text tools">
+                            <FontIcon x:Name="TabTextIcon" Glyph="&#xE8D2;" FontSize="13" />
+                        </Button>
+
+                        <!-- Chat -->
+                        <Button x:Name="TabChat"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="4"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Chat (AI)">
+                            <FontIcon x:Name="TabChatIcon" Glyph="&#xE8BD;" FontSize="13" />
+                        </Button>
+
+                        <!-- Note -->
+                        <Button x:Name="TabNote"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="5"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Note &amp; Timer">
+                            <FontIcon x:Name="TabNoteIcon" Glyph="&#xE70B;" FontSize="13" />
+                        </Button>
+
+                        <!-- Weather -->
+                        <Button x:Name="TabWeather"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="6"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Weather">
+                            <FontIcon x:Name="TabWeatherIcon" Glyph="&#xE9CA;" FontSize="13" />
+                        </Button>
+
+                        <!-- Controls -->
+                        <Button x:Name="TabControls"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="7"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Controls">
+                            <FontIcon x:Name="TabControlsIcon" Glyph="&#xE713;" FontSize="13" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Right: Quiet chip + Pin + Settings -->
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="4"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right">
+
+                        <!-- Quiet chip (hide cards temporarily) -->
+                        <ToggleButton x:Name="QuietButton"
+                                      Style="{StaticResource QuietButtonStyle}"
+                                      ToolTipService.ToolTip="Quiet — pause live cards"
+                                      Click="OnQuietClick">
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                <FontIcon Glyph="&#xE74F;" FontSize="11" />
+                                <TextBlock Text="Quiet" FontSize="10" />
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <!-- Pin open -->
+                        <ToggleButton x:Name="PinButton"
+                                      Style="{StaticResource PinButtonStyle}"
+                                      ToolTipService.ToolTip="Pin open"
+                                      Click="OnPinClick">
+                            <FontIcon Glyph="&#xE840;" FontSize="13" />
+                        </ToggleButton>
+
+                        <!-- Settings -->
+                        <Button Style="{StaticResource TabButtonStyle}"
+                                ToolTipService.ToolTip="Island settings"
+                                Click="OnIslandSettingsClick">
+                            <FontIcon Glyph="&#xE713;" FontSize="13" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── Content Area ─────────────────────────────────────────── -->
+                <Grid x:Name="ContentHost" Grid.Row="1">
+
+                    <!-- Tab indicator strip (1px line under tab buttons, slides to active tab) -->
+                    <Border x:Name="TabIndicator"
+                            Width="24" Height="2"
+                            Background="#60CDFF"
+                            CornerRadius="1"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Left"
+                            Margin="0,-2,0,0" />
+
+                    <!-- Home tab placeholder -->
+                    <Grid x:Name="ContentHome" Opacity="1">
+                        <TextBlock Text="Home"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Clipboard tab placeholder -->
+                    <Grid x:Name="ContentClipboard" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Clipboard"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Shelf tab placeholder -->
+                    <Grid x:Name="ContentShelf" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Shelf"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Text tab placeholder -->
+                    <Grid x:Name="ContentText" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Text Tools"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Chat tab placeholder -->
+                    <Grid x:Name="ContentChat" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Chat (AI)"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Note tab placeholder -->
+                    <Grid x:Name="ContentNote" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Note &amp; Timer"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Weather tab placeholder -->
+                    <Grid x:Name="ContentWeather" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Weather"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Controls tab placeholder -->
+                    <Grid x:Name="ContentControls" Opacity="0" Visibility="Collapsed">
+                        <TextBlock Text="Controls"
+                                   FontSize="12"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Grid>
+
+                <!-- ── Frame stats overlay ──────────────────────────────────── -->
                 <Grid Grid.Row="2">
-                    <TextBlock Text="Hover to expand · Move out to fold"
-                               FontSize="11"
-                               Foreground="#70FFFFFF"
-                               HorizontalAlignment="Left" />
+                    <TextBlock x:Name="FrameStatsText"
+                               Text=""
+                               FontFamily="Consolas"
+                               FontSize="10"
+                               Foreground="#4CC2FF"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center" />
                     <TextBlock x:Name="BenchStatusText"
-                               Text="Dedicated UI Thread · 60 fps"
-                               FontSize="11"
+                               Text=""
+                               FontFamily="Consolas"
+                               FontSize="10"
                                Foreground="#6CCB5F"
-                               HorizontalAlignment="Right" />
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- Resources for tab button styles -->
+        <Grid.Resources>
+            <Style x:Key="TabButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="#C0FFFFFF" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="MinWidth" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Root"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Content}" />
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#20FFFFFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#30FFFFFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="QuietButtonStyle" TargetType="ToggleButton">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="#30FFFFFF" />
+                <Setter Property="Foreground" Value="#A0FFFFFF" />
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="Height" Value="26" />
+                <Setter Property="CornerRadius" Value="13" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Root"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Content}"
+                                                  Foreground="{TemplateBinding Foreground}" />
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#15FFFFFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Checked">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#25FFFFFF" />
+                                                <Setter Target="Root.BorderBrush" Value="#60CDFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="PinButtonStyle" TargetType="ToggleButton">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="#A0FFFFFF" />
+                <Setter Property="Padding" Value="6,4" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Root"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Content}"
+                                                  Foreground="{TemplateBinding Foreground}" />
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#20FFFFFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Checked">
+                                            <VisualState.Setters>
+                                                <Setter Target="Root.Background" Value="#20FFFFFF" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
     </Grid>
 </Window>

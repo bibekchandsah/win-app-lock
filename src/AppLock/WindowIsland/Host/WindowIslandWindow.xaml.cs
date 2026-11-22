@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI;
@@ -10,39 +11,43 @@ using Microsoft.UI.Composition;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
+using Windows.System;
 using AppLock.Models;
+using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace AppLock.WindowIsland.Host;
 
 /// <summary>
 /// The native WinUI 3 window for Window Island.
-/// Renders purely via Windows.UI.Composition API.
-/// Runs on its own dedicated UI thread for 100% lag-free performance.
+/// Milestone 3: full tab strip, keyboard navigation, interruptible springs,
+/// pin/quiet buttons, frame-stats overlay and benchmark.
 /// </summary>
 public sealed partial class WindowIslandWindow : Window
 {
     // ── Win32 constants ────────────────────────────────────────────────────────
-    private const int GWL_EXSTYLE = -20;
-    private const nint WS_EX_TOPMOST    = 0x0000_0008;
-    private const nint WS_EX_TOOLWINDOW = 0x0000_0080;
-    private const uint SWP_NOMOVE       = 0x0002;
-    private const uint SWP_NOSIZE       = 0x0001;
-    private const uint SWP_NOACTIVATE   = 0x0010;
-    private const uint SWP_SHOWWINDOW   = 0x0040;
-    private const uint WM_MOUSEACTIVATE = 0x0021;
-    private const uint WM_DPICHANGED    = 0x02E0;
-    private const int  MA_NOACTIVATE    = 3;
+    private const int   GWL_EXSTYLE      = -20;
+    private const nint  WS_EX_TOPMOST    = 0x0000_0008;
+    private const nint  WS_EX_TOOLWINDOW = 0x0000_0080;
+    private const uint  SWP_NOMOVE       = 0x0002;
+    private const uint  SWP_NOSIZE       = 0x0001;
+    private const uint  SWP_NOACTIVATE   = 0x0010;
+    private const uint  SWP_SHOWWINDOW   = 0x0040;
+    private const uint  WM_MOUSEACTIVATE = 0x0021;
+    private const uint  WM_DPICHANGED    = 0x02E0;
+    private const int   MA_NOACTIVATE    = 3;
     private static readonly nint HWND_TOPMOST = new(-1);
 
     private const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    private const uint DWMWCP_DONOTROUND = 1;
-    private const uint DWMWA_BORDER_COLOR = 34;
-    private const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
-    private const uint DWMWA_NCRENDERING_POLICY = 2;
-    private const uint DWMNCRP_DISABLED = 1;
+    private const uint DWMWCP_DONOTROUND              = 1;
+    private const uint DWMWA_BORDER_COLOR             = 34;
+    private const uint DWMWA_COLOR_NONE               = 0xFFFFFFFE;
+    private const uint DWMWA_NCRENDERING_POLICY        = 2;
+    private const uint DWMNCRP_DISABLED               = 1;
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern nint GetWindowLongPtr(nint hWnd, int nIndex);
@@ -66,16 +71,11 @@ public sealed partial class WindowIslandWindow : Window
     private static extern bool SetWindowSubclass(nint hWnd, SubclassProc proc, nint id, nint data);
     [DllImport("comctl32.dll")]
     private static extern nint DefSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct POINT
-    {
-        public int X;
-        public int Y;
-    }
+    private struct POINT { public int X; public int Y; }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SYSTEM_POWER_STATUS
@@ -84,45 +84,52 @@ public sealed partial class WindowIslandWindow : Window
         public byte BatteryFlag;
         public byte BatteryLifePercent;
         public byte SystemStatusFlag;
-        public int BatteryLifeTime;
-        public int BatteryFullLifeTime;
+        public int  BatteryLifeTime;
+        public int  BatteryFullLifeTime;
     }
 
     private delegate nint SubclassProc(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data);
 
+    // ── Tab definitions ────────────────────────────────────────────────────────
+    private static readonly string[] TabNames = { "Home", "Clipboard", "Shelf", "Text", "Chat", "Note", "Weather", "Controls" };
+    private const int TabCount = 8;
+
     // ── Fields ─────────────────────────────────────────────────────────────────
-    private readonly nint _hwnd;
-    private readonly AppWindow? _appWindow;
+    private readonly nint         _hwnd;
+    private readonly AppWindow?   _appWindow;
     private readonly SubclassProc _subclassProc;
-    private WindowIslandSettings _settings = new();
+    private WindowIslandSettings  _settings = new();
     private WindowIslandCompositor? _compositor;
     private Visual? _foldedVisual;
     private Visual? _openVisual;
 
-    private DispatcherQueueTimer? _topmostTimer;
-    private DispatcherQueueTimer? _hoverTimer;
-    private DispatcherQueueTimer? _clockTimer;
-    private DispatcherQueueTimer? _batteryTimer;
+    private DQTimer? _topmostTimer;
+    private DQTimer? _hoverTimer;
+    private DQTimer? _clockTimer;
+    private DQTimer? _batteryTimer;
 
     private double _scale = 1.0;
-    private int _windowX;
-    private int _windowY;
-    private int _windowWidthPx;
-    private int _windowHeightPx;
-    private bool _isVisible = true;
+    private int    _windowX, _windowY, _windowWidthPx, _windowHeightPx;
+    private bool   _isVisible = true;
+    private bool   _isPinned;
+    private bool   _isQuiet;
 
-    private const float WindowWidthDip = 440f;
-    private const float WindowHeightDip = 200f;
+    // Window size adapts to current tab
+    private float WindowWidthDip => IslandMotion.WindowWidthForTab(_activeTab);
+    private const float WindowHeightDip = 300f; // generous — content clips inside
 
     // Hover state machine
-    private bool _hoverInside;
+    private bool     _hoverInside;
     private DateTime _hoverStateChangedAt = DateTime.MinValue;
-    private const int OpenDelayMs = 150;
-    private const int CloseDelayMs = 350;
-    private const int HysteresisDip = 8;
+
+    // Tab state
+    private int _activeTab      = 0;
+    private int _previousTab    = 0;
+    private Grid[] _tabContents = Array.Empty<Grid>();
+    private Button[] _tabButtons = Array.Empty<Button>();
 
     // Frame-time measurement
-    private readonly List<double> _frameTimes = new(1024);
+    private readonly List<double> _frameTimes = new(2048);
     private long _lastFrameTimestamp;
     private bool _measuringFrames;
 
@@ -131,14 +138,35 @@ public sealed partial class WindowIslandWindow : Window
     public WindowIslandWindow()
     {
         InitializeComponent();
-        _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _hwnd      = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_hwnd));
-        Title = "Window Island";
+        Title      = "Window Island";
 
         _subclassProc = WindowIslandSubclass;
         ConfigureWindowChrome();
 
-        Closed += (s, e) => WindowIslandHost.Log("WindowIslandWindow Closed event fired!");
+        Closed += (s, e) => WindowIslandHost.Log("WindowIslandWindow Closed");
+
+        // Wire up tab content array for quick indexed access
+        _tabContents = new Grid[]
+        {
+            ContentHome, ContentClipboard, ContentShelf, ContentText,
+            ContentChat, ContentNote, ContentWeather, ContentControls
+        };
+        _tabButtons = new Button[]
+        {
+            TabHome, TabClipboard, TabShelf, TabText,
+            TabChat, TabNote, TabWeather, TabControls
+        };
+
+        // Grab composition visuals for layer fading
+        _foldedVisual = null; // set after Show() attaches the compositor
+        _openVisual   = null;
+
+        // Keyboard navigation
+        RootGrid.KeyDown += OnKeyDown;
+
+        // ── Timers ──────────────────────────────────────────────────────────────
 
         _topmostTimer = DispatcherQueue.CreateTimer();
         _topmostTimer.Interval = TimeSpan.FromSeconds(1);
@@ -146,9 +174,7 @@ public sealed partial class WindowIslandWindow : Window
         _topmostTimer.Tick += (_, _) =>
         {
             if (_isVisible)
-            {
                 SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            }
         };
         _topmostTimer.Start();
 
@@ -182,12 +208,15 @@ public sealed partial class WindowIslandWindow : Window
         _settings = settings;
         PositionAndSize();
 
-        _compositor = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
+        _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
         _foldedVisual = ElementCompositionPreview.GetElementVisual(FoldedLayer);
-        _openVisual = ElementCompositionPreview.GetElementVisual(OpenLayer);
+        _openVisual   = ElementCompositionPreview.GetElementVisual(OpenLayer);
 
+        // Wire up composition visuals for tab content slides
+        UpdateTabVisuals();
         UpdateHitRegion(open: false);
         ApplyContentVisibility();
+        UpdateTabHighlight(animate: false);
 
         Activate();
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
@@ -219,21 +248,15 @@ public sealed partial class WindowIslandWindow : Window
         UpdateBattery();
     }
 
-    public void ToggleVisible()
-    {
-        SetIslandVisible(!_isVisible);
-    }
+    public void ToggleVisible() => SetIslandVisible(!_isVisible);
 
     public void SetIslandVisible(bool visible)
     {
         if (_isVisible == visible) return;
         _isVisible = visible;
-
-        ShowWindow(_hwnd, visible ? 4 /* SW_SHOWNOACTIVATE */ : 0 /* SW_HIDE */);
+        ShowWindow(_hwnd, visible ? 4 : 0 /* SW_HIDE */);
         if (visible)
-        {
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        }
     }
 
     public new void Close()
@@ -248,11 +271,246 @@ public sealed partial class WindowIslandWindow : Window
         base.Close();
     }
 
+    // ── Tab Switching ──────────────────────────────────────────────────────────
+
+    private void SwitchTab(int tabIndex, bool animate = true)
+    {
+        if (tabIndex < 0 || tabIndex >= TabCount) return;
+        if (tabIndex == _activeTab) return;
+
+        _previousTab = _activeTab;
+        _activeTab   = tabIndex;
+
+        // Show new content, collapse previous
+        for (int i = 0; i < TabCount; i++)
+        {
+            _tabContents[i].Visibility = (i == _activeTab || i == _previousTab)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        UpdateTabVisuals();
+        UpdateTabHighlight(animate);
+
+        if (animate)
+        {
+            AnimateTabSwitch(_previousTab, _activeTab);
+        }
+        else
+        {
+            for (int i = 0; i < TabCount; i++)
+            {
+                var v = ElementCompositionPreview.GetElementVisual(_tabContents[i]);
+                v.Opacity = i == _activeTab ? 1f : 0f;
+                v.Offset  = Vector3.Zero;
+            }
+            _tabContents[_previousTab].Visibility = Visibility.Collapsed;
+        }
+
+        // Spring the shape to the new tab's size
+        _compositor?.AnimateToTab(_activeTab);
+        _compositor?.UpdateWindowWidth(WindowWidthDip, _settings);
+        PositionAndSize();
+    }
+
+    private void AnimateTabSwitch(int fromTab, int toTab)
+    {
+        var fromVisual = ElementCompositionPreview.GetElementVisual(_tabContents[fromTab]);
+        var toVisual   = ElementCompositionPreview.GetElementVisual(_tabContents[toTab]);
+        var comp       = fromVisual.Compositor;
+
+        bool goingRight = toTab > fromTab;
+        float slideDip  = IslandMotion.TabSlideDip;
+
+        // Outgoing: fade out + slide out
+        var fadeOut = comp.CreateScalarKeyFrameAnimation();
+        fadeOut.InsertKeyFrame(1f, 0f);
+        fadeOut.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+
+        var slideOut = comp.CreateVector3KeyFrameAnimation();
+        slideOut.InsertKeyFrame(0f, Vector3.Zero);
+        slideOut.InsertKeyFrame(1f, new Vector3(goingRight ? -slideDip : slideDip, 0, 0));
+        slideOut.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+
+        fromVisual.StartAnimation("Opacity", fadeOut);
+        fromVisual.StartAnimation("Offset",  slideOut);
+
+        // Incoming: start offset, fade in + slide to zero
+        toVisual.Opacity = 0f;
+        toVisual.Offset  = new Vector3(goingRight ? slideDip : -slideDip, 0, 0);
+
+        var fadeIn = comp.CreateScalarKeyFrameAnimation();
+        fadeIn.InsertKeyFrame(1f, 1f);
+        fadeIn.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+
+        var slideIn = comp.CreateVector3KeyFrameAnimation();
+        slideIn.InsertKeyFrame(1f, Vector3.Zero);
+        slideIn.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+
+        var batch = comp.CreateScopedBatch(CompositionBatchTypes.Animation);
+        batch.Completed += (_, _) =>
+        {
+            // After animation: collapse the previous tab
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _tabContents[fromTab].Visibility = Visibility.Collapsed;
+            });
+        };
+        toVisual.StartAnimation("Opacity", fadeIn);
+        toVisual.StartAnimation("Offset",  slideIn);
+        batch.End();
+    }
+
+    private void UpdateTabVisuals()
+    {
+        // Snap all non-active tabs to hidden
+        for (int i = 0; i < TabCount; i++)
+        {
+            var v = ElementCompositionPreview.GetElementVisual(_tabContents[i]);
+            if (i != _activeTab)
+            {
+                v.Opacity = 0f;
+                v.Offset  = Vector3.Zero;
+            }
+        }
+    }
+
+    private void UpdateTabHighlight(bool animate)
+    {
+        // Highlight the active tab button text/icon color
+        for (int i = 0; i < TabCount; i++)
+        {
+            bool active = (i == _activeTab);
+            if (_tabButtons[i] != null)
+            {
+                _tabButtons[i].Foreground = new SolidColorBrush(active
+                    ? Windows.UI.Color.FromArgb(255, 96, 205, 255)   // #60CDFF accent
+                    : Windows.UI.Color.FromArgb(192, 255, 255, 255)); // #C0FFFFFF default
+            }
+        }
+
+        // Slide the tab indicator to the correct position
+        // Each tab button is ~40px wide with 2px spacing
+        if (animate)
+        {
+            var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
+            var anim = v.Compositor.CreateVector3KeyFrameAnimation();
+            float targetX = _activeTab * 42f; // approximate tab button stride
+            anim.InsertKeyFrame(1f, new Vector3(targetX, 0f, 0f));
+            anim.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+            v.StartAnimation("Offset", anim);
+        }
+        else
+        {
+            var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
+            v.Offset = new Vector3(_activeTab * 42f, 0f, 0f);
+        }
+    }
+
+    // ── Tab Button Click Handler ───────────────────────────────────────────────
+
+    private void OnTabButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int idx))
+        {
+            SwitchTab(idx);
+        }
+    }
+
+    private void OnPinClick(object sender, RoutedEventArgs e)
+    {
+        _isPinned = PinButton.IsChecked == true;
+        WindowIslandHost.Log($"Pin = {_isPinned}");
+    }
+
+    private void OnQuietClick(object sender, RoutedEventArgs e)
+    {
+        _isQuiet = QuietButton.IsChecked == true;
+        WindowIslandHost.Log($"Quiet = {_isQuiet}");
+    }
+
+    private void OnIslandSettingsClick(object sender, RoutedEventArgs e)
+    {
+        // Open the Window Island settings page in the main app
+        App.MainWindowInstance?.DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                // Navigate the main window to the Island settings page
+                (App.MainWindowInstance as MainWindow)?.NavigateToWindowIslandSettings();
+            }
+            catch { }
+        });
+    }
+
+    // ── Keyboard Navigation ────────────────────────────────────────────────────
+
+    private void OnKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case VirtualKey.Escape:
+                // Esc closes the island (unless pinned)
+                if (!_isPinned)
+                {
+                    Collapse();
+                }
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Tab when IsCtrlDown():
+                // Ctrl+Tab — next tab
+                SwitchTab((_activeTab + 1) % TabCount);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Tab when IsCtrlDown() && IsShiftDown():
+                // Ctrl+Shift+Tab — previous tab
+                SwitchTab((_activeTab + TabCount - 1) % TabCount);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Left when IsCtrlDown():
+                SwitchTab((_activeTab + TabCount - 1) % TabCount);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Right when IsCtrlDown():
+                SwitchTab((_activeTab + 1) % TabCount);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Number1:
+            case VirtualKey.Number2:
+            case VirtualKey.Number3:
+            case VirtualKey.Number4:
+            case VirtualKey.Number5:
+            case VirtualKey.Number6:
+            case VirtualKey.Number7:
+            case VirtualKey.Number8:
+                if (IsCtrlDown())
+                {
+                    int idx = (int)e.Key - (int)VirtualKey.Number1;
+                    SwitchTab(idx);
+                    e.Handled = true;
+                }
+                break;
+        }
+    }
+
+    private static bool IsCtrlDown()
+        => Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+           .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+    private static bool IsShiftDown()
+        => Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
+           .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
     // ── Content Configuration ──────────────────────────────────────────────────
 
     private void ApplyContentVisibility()
     {
-        ClockContainer.Visibility = _settings.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        ClockContainer.Visibility   = _settings.ShowClock   ? Visibility.Visible : Visibility.Collapsed;
         BatteryContainer.Visibility = _settings.ShowBattery ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -266,10 +524,7 @@ public sealed partial class WindowIslandWindow : Window
                 : (_settings.ShowSeconds ? "h:mm:ss tt" : "h:mm tt");
             FoldedClockText.Text = DateTime.Now.ToString(pattern);
         }
-        catch (Exception ex)
-        {
-            WindowIslandHost.Log("UpdateClock error: " + ex);
-        }
+        catch (Exception ex) { WindowIslandHost.Log("UpdateClock error: " + ex); }
     }
 
     private void UpdateBattery()
@@ -284,8 +539,9 @@ public sealed partial class WindowIslandWindow : Window
 
             if (GetSystemPowerStatus(out SYSTEM_POWER_STATUS status))
             {
-                // BatteryFlag: 128 = No system battery, 255 = Unknown
-                bool hasBattery = (status.BatteryFlag & 128) == 0 && status.BatteryFlag != 255 && status.BatteryLifePercent != 255;
+                bool hasBattery = (status.BatteryFlag & 128) == 0
+                                  && status.BatteryFlag != 255
+                                  && status.BatteryLifePercent != 255;
                 if (!hasBattery)
                 {
                     BatteryContainer.Visibility = Visibility.Collapsed;
@@ -298,21 +554,18 @@ public sealed partial class WindowIslandWindow : Window
 
                 bool isCharging = (status.BatteryFlag & 8) != 0 || status.ACLineStatus == 1;
                 BatteryIcon.Glyph = isCharging
-                    ? "\uEBB5" // BatteryCharging
+                    ? "\uEBB5"
                     : percent switch
                     {
-                        >= 90 => "\uE83F", // Battery10
-                        >= 75 => "\uE859", // Battery8
-                        >= 50 => "\uE856", // Battery5
-                        >= 25 => "\uE853", // Battery3
-                        _     => "\uE850"  // Battery1
+                        >= 90 => "\uE83F",
+                        >= 75 => "\uE859",
+                        >= 50 => "\uE856",
+                        >= 25 => "\uE853",
+                        _     => "\uE850"
                     };
             }
         }
-        catch (Exception ex)
-        {
-            WindowIslandHost.Log("UpdateBattery error: " + ex);
-        }
+        catch (Exception ex) { WindowIslandHost.Log("UpdateBattery error: " + ex); }
     }
 
     // ── Hover & Morph Animation ────────────────────────────────────────────────
@@ -321,63 +574,68 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            if (!_isVisible) return;
-            if (_compositor == null) return;
+            if (!_isVisible || _compositor == null) return;
             if (!GetCursorPos(out POINT pt)) return;
 
             double scale = _scale > 0 ? _scale : 1.0;
             float factor = (float)(_settings.SizePercent / 100.0);
 
-            float curWidthDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenWidthDip : WindowIslandCompositor.FoldedWidthDip) * factor;
-            float curHeightDip = (_compositor.IsOpen ? WindowIslandCompositor.OpenHeightDip : WindowIslandCompositor.FoldedHeightDip) * factor;
+            float curWidthDip  = (_compositor.IsOpen
+                ? IslandMotion.TabSize(_activeTab).W
+                : WindowIslandCompositor.FoldedWidthDip) * factor;
+            float curHeightDip = (_compositor.IsOpen
+                ? IslandMotion.TabSize(_activeTab).H
+                : WindowIslandCompositor.FoldedHeightDip) * factor;
+
             float leftDip = (WindowWidthDip - curWidthDip) / 2f;
-            float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
+            float topDip  = _settings.Shape == "Capsule" ? 6f : 0f;
 
-            int leftPx = _windowX + (int)(leftDip * scale);
-            int topPx = _windowY + (int)(topDip * scale);
-            int rightPx = leftPx + (int)(curWidthDip * scale);
-            int bottomPx = topPx + (int)(curHeightDip * scale);
+            int leftPx   = _windowX + (int)(leftDip * scale);
+            int topPx    = _windowY + (int)(topDip  * scale);
+            int rightPx  = leftPx + (int)(curWidthDip  * scale);
+            int bottomPx = topPx  + (int)(curHeightDip * scale);
 
-            int hystPx = (int)(HysteresisDip * scale);
-            bool inside = pt.X >= (leftPx - hystPx) && pt.X <= (rightPx + hystPx) &&
-                          pt.Y >= (topPx - hystPx) && pt.Y <= (bottomPx + hystPx);
+            int hystPx = (int)(IslandMotion.HoverHysteresisDip * scale);
+            bool inside = pt.X >= (leftPx - hystPx) && pt.X <= (rightPx  + hystPx)
+                       && pt.Y >= (topPx  - hystPx) && pt.Y <= (bottomPx + hystPx);
 
             if (inside != _hoverInside)
             {
-                _hoverInside = inside;
+                _hoverInside         = inside;
                 _hoverStateChangedAt = DateTime.UtcNow;
             }
 
             var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
-            if (_hoverInside && !_compositor.IsOpen && elapsed >= OpenDelayMs)
+            if (_hoverInside && !_compositor.IsOpen && elapsed >= IslandMotion.HoverOpenDelayMs)
             {
                 Expand();
             }
-            else if (!_hoverInside && _compositor.IsOpen && elapsed >= CloseDelayMs)
+            else if (!_hoverInside && _compositor.IsOpen && elapsed >= IslandMotion.HoverCloseDelayMs)
             {
-                Collapse();
+                if (!_isPinned) Collapse();
             }
         }
-        catch (Exception ex)
-        {
-            WindowIslandHost.Log("PollHover exception: " + ex);
-        }
+        catch (Exception ex) { WindowIslandHost.Log("PollHover exception: " + ex); }
     }
 
     public void Expand()
     {
         if (_compositor == null || _compositor.IsOpen) return;
 
+        // Update window size BEFORE animation (must be large enough to show open state)
+        _compositor.UpdateWindowWidth(WindowWidthDip, _settings);
+        PositionAndSize();
         UpdateHitRegion(open: true);
+        OpenLayer.IsHitTestVisible = true;
         _measuringFrames = true;
 
-        FadeVisual(_foldedVisual, 0f, 120);
-        FadeVisual(_openVisual, 1f, 220);
+        FadeVisual(_foldedVisual, 0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_openVisual,   1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
-        _compositor.AnimateToOpen(() =>
+        _compositor.AnimateToOpen(_activeTab, () =>
         {
             _measuringFrames = false;
-            UpdateStatsDisplay();
+            DispatcherQueue.TryEnqueue(UpdateStatsDisplay);
         });
     }
 
@@ -386,21 +644,33 @@ public sealed partial class WindowIslandWindow : Window
         if (_compositor == null || !_compositor.IsOpen) return;
 
         _measuringFrames = true;
-        FadeVisual(_openVisual, 0f, 120);
-        FadeVisual(_foldedVisual, 1f, 200);
+        OpenLayer.IsHitTestVisible = false;
+
+        FadeVisual(_openVisual,   0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_foldedVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
         _compositor.AnimateToFolded(() =>
         {
-            UpdateHitRegion(open: false);
-            _measuringFrames = false;
-            UpdateStatsDisplay();
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                UpdateHitRegion(open: false);
+                _measuringFrames = false;
+                UpdateStatsDisplay();
+                // Shrink window back to folded size
+                PositionAndSize();
+            });
         });
     }
 
-    private void FadeVisual(Visual? visual, float targetOpacity, int durationMs)
+    private void FadeVisual(Visual? visual, float targetOpacity, int durationMs, int delayMs = 0)
     {
         if (visual == null) return;
         var anim = visual.Compositor.CreateScalarKeyFrameAnimation();
+        if (delayMs > 0)
+        {
+            anim.InsertKeyFrame(0f, visual.Opacity);
+            anim.DelayTime = TimeSpan.FromMilliseconds(delayMs);
+        }
         anim.InsertKeyFrame(1f, targetOpacity);
         anim.Duration = TimeSpan.FromMilliseconds(durationMs);
         visual.StartAnimation("Opacity", anim);
@@ -410,26 +680,23 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateHitRegion(bool open)
     {
-        double scale = _scale > 0 ? _scale : 1.0;
-        float factor = (float)(_settings.SizePercent / 100.0);
+        double scale  = _scale > 0 ? _scale : 1.0;
+        float factor  = (float)(_settings.SizePercent / 100.0);
 
-        float widthDip = (open ? WindowIslandCompositor.OpenWidthDip : WindowIslandCompositor.FoldedWidthDip) * factor;
-        float heightDip = (open ? WindowIslandCompositor.OpenHeightDip : WindowIslandCompositor.FoldedHeightDip) * factor;
+        float widthDip  = (open ? IslandMotion.TabSize(_activeTab).W : WindowIslandCompositor.FoldedWidthDip) * factor;
+        float heightDip = (open ? IslandMotion.TabSize(_activeTab).H : WindowIslandCompositor.FoldedHeightDip) * factor;
         float radiusDip = (open ? WindowIslandCompositor.OpenRadiusDip : WindowIslandCompositor.FoldedRadiusDip) * factor;
-        float leftDip = (WindowWidthDip - widthDip) / 2f;
-        float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
+        float leftDip   = (WindowWidthDip - widthDip) / 2f;
+        float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
 
-        int leftPx = (int)Math.Round(leftDip * scale);
-        int topPx = (int)Math.Round(topDip * scale);
-        int rightPx = (int)Math.Round((leftDip + widthDip) * scale);
-        int bottomPx = (int)Math.Round((topDip + heightDip) * scale);
+        int leftPx    = (int)Math.Round(leftDip * scale);
+        int topPx     = (int)Math.Round(topDip  * scale);
+        int rightPx   = (int)Math.Round((leftDip + widthDip)  * scale);
+        int bottomPx  = (int)Math.Round((topDip  + heightDip) * scale);
         int ellipsePx = (int)Math.Round(radiusDip * 2 * scale);
 
         nint rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
-        if (rgn != nint.Zero)
-        {
-            SetWindowRgn(_hwnd, rgn, true);
-        }
+        if (rgn != nint.Zero) SetWindowRgn(_hwnd, rgn, true);
     }
 
     // ── Frame Timing & Benchmark ───────────────────────────────────────────────
@@ -442,49 +709,56 @@ public sealed partial class WindowIslandWindow : Window
             double dtMs = (now - _lastFrameTimestamp) * 1000.0 / Stopwatch.Frequency;
             if (_measuringFrames && dtMs > 1.0 && dtMs < 500.0)
             {
-                lock (_frameTimes)
-                {
-                    _frameTimes.Add(dtMs);
-                }
+                lock (_frameTimes) { _frameTimes.Add(dtMs); }
             }
         }
         _lastFrameTimestamp = now;
     }
 
-    public async Task RunBenchmarkAsync(int cycles = 100)
+    public async Task RunBenchmarkAsync(int cycles = 200)
     {
-        BenchStatusText.Text = $"Running benchmark ({cycles} cycles)...";
+        BenchStatusText.Text = $"Bench ({cycles} cycles)…";
         lock (_frameTimes) { _frameTimes.Clear(); }
 
         for (int i = 0; i < cycles; i++)
         {
             Expand();
-            await Task.Delay(350);
+            await Task.Delay(380);
             Collapse();
-            await Task.Delay(350);
+            await Task.Delay(380);
+        }
+
+        // Also run tab-switch cycles
+        for (int i = 0; i < 50; i++)
+        {
+            Expand();
+            await Task.Delay(200);
+            SwitchTab((i + 1) % TabCount);
+            await Task.Delay(200);
+            Collapse();
+            await Task.Delay(200);
         }
 
         UpdateStatsDisplay();
 
-        string outDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AppLock", "window-island");
+        string outDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "window-island");
         Directory.CreateDirectory(outDir);
         string benchPath = Path.Combine(outDir, "bench.txt");
 
         var (p50, p95, p99, max) = ComputePercentiles();
         bool pass = p95 <= 20.9 && max <= 33.4;
 
-        string report = $"Window Island Native Composition Benchmark ({DateTime.UtcNow:O})\n" +
-                        $"Cycles: {cycles}\n" +
-                        $"p50: {p50:F1}ms\n" +
-                        $"p95: {p95:F1}ms\n" +
-                        $"p99: {p99:F1}ms\n" +
-                        $"max: {max:F1}ms\n" +
-                        $"Verdict: {(pass ? "PASS" : "WARN (under budget)")}\n";
+        string report =
+            $"Window Island Native Composition Benchmark ({DateTime.UtcNow:O})\n" +
+            $"Cycles: {cycles} open/close + 50 tab-switch\n" +
+            $"p50: {p50:F1}ms\n" +
+            $"p95: {p95:F1}ms\n" +
+            $"p99: {p99:F1}ms\n" +
+            $"max: {max:F1}ms\n" +
+            $"Verdict: {(pass ? "PASS" : "WARN")}\n";
 
         await File.WriteAllTextAsync(benchPath, report);
-        BenchStatusText.Text = $"Benchmark complete · p95: {p95:F1}ms ({(pass ? "PASS" : "WARN")})";
+        BenchStatusText.Text = $"p95={p95:F1}ms {(pass ? "PASS ✓" : "WARN")}";
     }
 
     private (double p50, double p95, double p99, double max) ComputePercentiles()
@@ -492,7 +766,6 @@ public sealed partial class WindowIslandWindow : Window
         List<double> list;
         lock (_frameTimes) { list = new List<double>(_frameTimes); }
         if (list.Count == 0) return (16.7, 17.5, 19.2, 38.4);
-
         list.Sort();
         double p50 = list[(int)(list.Count * 0.50)];
         double p95 = list[(int)(list.Count * 0.95)];
@@ -503,8 +776,8 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateStatsDisplay()
     {
-        var (p50, p95, p99, max) = ComputePercentiles();
-        FrameStatsText.Text = $"Frame-time: p50 {p50:F1}ms · p95 {p95:F1}ms · max {max:F1}ms";
+        var (p50, p95, _, max) = ComputePercentiles();
+        FrameStatsText.Text = $"p50 {p50:F1} · p95 {p95:F1} · max {max:F1} ms";
     }
 
     // ── Window Positioning & Styling ───────────────────────────────────────────
@@ -514,10 +787,10 @@ public sealed partial class WindowIslandWindow : Window
         if (_appWindow?.Presenter is OverlappedPresenter presenter)
         {
             presenter.SetBorderAndTitleBar(false, false);
-            presenter.IsResizable = false;
-            presenter.IsMaximizable = false;
-            presenter.IsMinimizable = false;
-            presenter.IsAlwaysOnTop = true;
+            presenter.IsResizable     = false;
+            presenter.IsMaximizable   = false;
+            presenter.IsMinimizable   = false;
+            presenter.IsAlwaysOnTop   = true;
         }
 
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
@@ -540,11 +813,7 @@ public sealed partial class WindowIslandWindow : Window
 
     private nint WindowIslandSubclass(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data)
     {
-        if (msg == WM_MOUSEACTIVATE)
-        {
-            return MA_NOACTIVATE;
-        }
-
+        if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
         if (msg == WM_DPICHANGED)
         {
             DispatcherQueue.TryEnqueue(() =>
@@ -553,7 +822,6 @@ public sealed partial class WindowIslandWindow : Window
                 UpdateHitRegion(_compositor?.IsOpen ?? false);
             });
         }
-
         return DefSubclassProc(hWnd, msg, wParam, lParam);
     }
 
@@ -562,10 +830,13 @@ public sealed partial class WindowIslandWindow : Window
         uint dpi = GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
-        var rect = WindowIslandPositioner.Compute(_appWindow, _settings, WindowWidthDip, WindowHeightDip, _scale);
-        _windowX = rect.X;
-        _windowY = rect.Y;
-        _windowWidthPx = rect.Width;
+        float winW = _compositor?.IsOpen == true ? WindowWidthDip : WindowIslandCompositor.FoldedWidthDip + 40f;
+        float winH = _compositor?.IsOpen == true ? IslandMotion.TabSize(_activeTab).H + 60f : WindowIslandCompositor.FoldedHeightDip + 20f;
+
+        var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
+        _windowX        = rect.X;
+        _windowY        = rect.Y;
+        _windowWidthPx  = rect.Width;
         _windowHeightPx = rect.Height;
 
         _appWindow?.MoveAndResize(rect);

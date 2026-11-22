@@ -68,21 +68,21 @@
 
             <StackPanel Spacing="4">
                 <TextBlock Text="Size Scale" Opacity="0.7" FontSize="12"/>
-                <Slider x:Name="SizeSlider" Minimum="60" Maximum="150" TickFrequency="10"
+                <Slider x:Name="SizeSlider" Maximum="150" Minimum="60" TickFrequency="10"
                         ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="SizeLabelText" FontSize="12" Opacity="0.6"/>
             </StackPanel>
 
             <StackPanel Spacing="4">
                 <TextBlock Text="Surface Opacity" Opacity="0.7" FontSize="12"/>
-                <Slider x:Name="OpacitySlider" Minimum="40" Maximum="100" TickFrequency="5"
+                <Slider x:Name="OpacitySlider" Maximum="100" Minimum="40" TickFrequency="5"
                         ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="OpacityLabelText" FontSize="12" Opacity="0.6"/>
             </StackPanel>
 
             <StackPanel Spacing="4">
                 <TextBlock Text="Vertical Offset (DIPs)" Opacity="0.7" FontSize="12"/>
-                <Slider x:Name="YOffsetSlider" Minimum="-10" Maximum="50" TickFrequency="2"
+                <Slider x:Name="YOffsetSlider" Maximum="50" Minimum="-10" TickFrequency="2"
                         ValueChanged="OnSliderChanged" Width="320" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="YOffsetLabelText" FontSize="12" Opacity="0.6"/>
             </StackPanel>

@@ -13,6 +13,9 @@ namespace AppLock.WindowIsland.Host;
 /// Builds and animates the Window Island notch shape using the Windows.UI.Composition API only.
 /// No XAML Width/Height/Margin animations — all motion is driven by Composition spring
 /// animations on Geometry Size, CornerRadius, and ExpressionAnimations on Offset.
+/// 
+/// Interruptible: calling AnimateToOpen() while closing (and vice-versa) retargets the
+/// FinalValue from the current in-flight position — no jump, no restart.
 /// </summary>
 public sealed class WindowIslandCompositor : IDisposable
 {
@@ -22,49 +25,50 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
     private readonly CompositionSpriteShape _bodyShape;
 
-    // Design dimensions in DIPs
-    public const float FoldedWidthDip = 176f;
+    // Design dimensions in DIPs (folded)
+    public const float FoldedWidthDip  = 176f;
     public const float FoldedHeightDip = 32f;
     public const float FoldedRadiusDip = 16f;
 
-    public const float OpenWidthDip = 420f;
-    public const float OpenHeightDip = 180f;
+    // Open defaults — overridden per-tab
+    public const float OpenWidthDip  = 520f;
+    public const float OpenHeightDip = 240f;
     public const float OpenRadiusDip = 24f;
 
-    private float _sizeFactor = 1.0f;
-    private float _windowWidthDip = 440f;
-    private bool _isOpen;
-    private bool _disposed;
+    private float _sizeFactor    = 1.0f;
+    private float _windowWidthDip = 560f;
+    private bool  _isOpen;
+    private bool  _disposed;
+
+    // Current target tab size (may change per tab switch)
+    private float _openTargetW = OpenWidthDip;
+    private float _openTargetH = OpenHeightDip;
 
     public bool IsOpen => _isOpen;
 
     public WindowIslandCompositor(UIElement hostElement, WindowIslandSettings settings, float windowWidthDip)
     {
-        _compositor = ElementCompositionPreview.GetElementVisual(hostElement).Compositor;
+        _compositor    = ElementCompositionPreview.GetElementVisual(hostElement).Compositor;
         _windowWidthDip = windowWidthDip;
-        _sizeFactor = (float)(settings.SizePercent / 100.0);
+        _sizeFactor    = (float)(settings.SizePercent / 100.0);
 
         _rootVisual = _compositor.CreateContainerVisual();
         _rootVisual.RelativeSizeAdjustment = Vector2.One;
 
         // Notch body geometry
         _bodyGeometry = _compositor.CreateRoundedRectangleGeometry();
-        float initialWidth = FoldedWidthDip * _sizeFactor;
+        float initialWidth  = FoldedWidthDip  * _sizeFactor;
         float initialHeight = FoldedHeightDip * _sizeFactor;
         float initialRadius = FoldedRadiusDip * _sizeFactor;
-        _bodyGeometry.Size = new Vector2(initialWidth, initialHeight);
+        _bodyGeometry.Size         = new Vector2(initialWidth, initialHeight);
         _bodyGeometry.CornerRadius = new Vector2(initialRadius, initialRadius);
 
         // Body shape
         _bodyShape = _compositor.CreateSpriteShape(_bodyGeometry);
         _bodyShape.FillBrush = GetBodyBrush(settings);
 
-        // Expression animation keeping the notch centered horizontally: (windowWidth - geom.Size.X) / 2
-        var centerAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0, yOffset)");
-        centerAnim.SetReferenceParameter("geom", _bodyGeometry);
-        centerAnim.SetScalarParameter("windowWidth", _windowWidthDip);
-        centerAnim.SetScalarParameter("yOffset", settings.Shape == "Capsule" ? 6f : 0f);
-        _bodyShape.StartAnimation("Offset", centerAnim);
+        // Expression animation: keep the notch centered horizontally
+        RefreshCenterAnimation(settings.Shape);
 
         _shapeVisual = _compositor.CreateShapeVisual();
         _shapeVisual.RelativeSizeAdjustment = Vector2.One;
@@ -76,66 +80,70 @@ public sealed class WindowIslandCompositor : IDisposable
         ApplySettings(settings);
     }
 
-    public void AnimateToOpen(Action? onCompleted = null)
+    // ── Public API ─────────────────────────────────────────────────────────────
+
+    /// <summary>Animate to open state for the given tab index (or default if -1).</summary>
+    public void AnimateToOpen(int tabIndex = 0, Action? onCompleted = null)
     {
-        if (_disposed || _isOpen) return;
+        if (_disposed) return;
+
+        var (tw, th) = IslandMotion.TabSize(tabIndex);
+        _openTargetW = tw;
+        _openTargetH = th;
         _isOpen = true;
 
-        float targetWidth = OpenWidthDip * _sizeFactor;
-        float targetHeight = OpenHeightDip * _sizeFactor;
+        float targetWidth  = _openTargetW * _sizeFactor;
+        float targetHeight = _openTargetH * _sizeFactor;
         float targetRadius = OpenRadiusDip * _sizeFactor;
 
         AnimateShape(
             new Vector2(targetWidth, targetHeight),
             new Vector2(targetRadius, targetRadius),
-            dampingRatio: 0.72f,
-            periodMs: 320,
+            dampingRatio: IslandMotion.OpenDampingRatio,
+            periodMs:     IslandMotion.OpenPeriodMs,
             onCompleted);
     }
 
     public void AnimateToFolded(Action? onCompleted = null)
     {
-        if (_disposed || !_isOpen) return;
+        if (_disposed) return;
         _isOpen = false;
 
-        float targetWidth = FoldedWidthDip * _sizeFactor;
+        float targetWidth  = FoldedWidthDip  * _sizeFactor;
         float targetHeight = FoldedHeightDip * _sizeFactor;
         float targetRadius = FoldedRadiusDip * _sizeFactor;
 
         AnimateShape(
             new Vector2(targetWidth, targetHeight),
             new Vector2(targetRadius, targetRadius),
-            dampingRatio: 0.90f,
-            periodMs: 260,
+            dampingRatio: IslandMotion.CloseDampingRatio,
+            periodMs:     IslandMotion.ClosePeriodMs,
             onCompleted);
     }
 
-    private void AnimateShape(Vector2 targetSize, Vector2 targetRadius, float dampingRatio, int periodMs, Action? onCompleted)
+    /// <summary>
+    /// Switch to a different tab size while already open.
+    /// Uses a quick spring retarget — no jump.
+    /// </summary>
+    public void AnimateToTab(int tabIndex, Action? onCompleted = null)
     {
-        // Composition Spring Vector2 animations for smooth, physical, interruptible motion
-        var sizeAnim = _compositor.CreateSpringVector2Animation();
-        sizeAnim.DampingRatio = dampingRatio;
-        sizeAnim.Period = TimeSpan.FromMilliseconds(periodMs);
-        sizeAnim.FinalValue = targetSize;
+        if (_disposed || !_isOpen) return;
 
-        var radiusAnim = _compositor.CreateSpringVector2Animation();
-        radiusAnim.DampingRatio = dampingRatio;
-        radiusAnim.Period = TimeSpan.FromMilliseconds(periodMs);
-        radiusAnim.FinalValue = targetRadius;
+        var (tw, th) = IslandMotion.TabSize(tabIndex);
+        _openTargetW = tw;
+        _openTargetH = th;
 
-        if (onCompleted != null)
-        {
-            var batch = _compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
-            batch.Completed += (_, _) => onCompleted();
-            _bodyGeometry.StartAnimation("Size", sizeAnim);
-            _bodyGeometry.StartAnimation("CornerRadius", radiusAnim);
-            batch.End();
-        }
-        else
-        {
-            _bodyGeometry.StartAnimation("Size", sizeAnim);
-            _bodyGeometry.StartAnimation("CornerRadius", radiusAnim);
-        }
+        float targetWidth  = _openTargetW * _sizeFactor;
+        float targetHeight = _openTargetH * _sizeFactor;
+        float targetRadius = OpenRadiusDip * _sizeFactor;
+
+        // Retarget spring from current in-flight position
+        AnimateShape(
+            new Vector2(targetWidth, targetHeight),
+            new Vector2(targetRadius, targetRadius),
+            dampingRatio: IslandMotion.OpenDampingRatio,
+            periodMs:     IslandMotion.OpenPeriodMs,
+            onCompleted);
     }
 
     public void UpdateWindowWidth(float windowWidthDip, WindowIslandSettings settings)
@@ -143,12 +151,7 @@ public sealed class WindowIslandCompositor : IDisposable
         if (_disposed) return;
         _windowWidthDip = windowWidthDip;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
-
-        var centerAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0, yOffset)");
-        centerAnim.SetReferenceParameter("geom", _bodyGeometry);
-        centerAnim.SetScalarParameter("windowWidth", _windowWidthDip);
-        centerAnim.SetScalarParameter("yOffset", settings.Shape == "Capsule" ? 6f : 0f);
-        _bodyShape.StartAnimation("Offset", centerAnim);
+        RefreshCenterAnimation(settings.Shape);
     }
 
     public void ApplySettings(WindowIslandSettings settings)
@@ -165,23 +168,14 @@ public sealed class WindowIslandCompositor : IDisposable
 
         _bodyShape.FillBrush = GetBodyBrush(settings);
 
-        // Update target dimensions according to open/folded state
-        float width = (_isOpen ? OpenWidthDip : FoldedWidthDip) * _sizeFactor;
-        float height = (_isOpen ? OpenHeightDip : FoldedHeightDip) * _sizeFactor;
-        float radius = (_isOpen ? OpenRadiusDip : FoldedRadiusDip) * _sizeFactor;
-        _bodyGeometry.Size = new Vector2(width, height);
-        _bodyGeometry.CornerRadius = new Vector2(radius, radius);
-    }
+        RefreshCenterAnimation(settings.Shape);
 
-    private CompositionBrush GetBodyBrush(WindowIslandSettings settings)
-    {
-        var color = settings.Theme switch
-        {
-            "Light" => Color.FromArgb(235, 245, 245, 245),
-            "Dark"  => Color.FromArgb(235, 24, 24, 24),
-            _       => Color.FromArgb(235, 24, 24, 24) // System defaults to dark
-        };
-        return _compositor.CreateColorBrush(color);
+        // Snap to current logical state (no animation for settings change)
+        float width  = (_isOpen ? _openTargetW : FoldedWidthDip)  * _sizeFactor;
+        float height = (_isOpen ? _openTargetH : FoldedHeightDip) * _sizeFactor;
+        float radius = (_isOpen ? OpenRadiusDip : FoldedRadiusDip) * _sizeFactor;
+        _bodyGeometry.Size         = new Vector2(width, height);
+        _bodyGeometry.CornerRadius = new Vector2(radius, radius);
     }
 
     public void Dispose()
@@ -192,5 +186,57 @@ public sealed class WindowIslandCompositor : IDisposable
         _bodyShape.Dispose();
         _shapeVisual.Dispose();
         _rootVisual.Dispose();
+    }
+
+    // ── Internal helpers ───────────────────────────────────────────────────────
+
+    private void AnimateShape(Vector2 targetSize, Vector2 targetRadius, float dampingRatio, int periodMs, Action? onCompleted)
+    {
+        // Using SpringVector2NaturalMotionAnimation retargets from current in-flight position.
+        // This is the key to interruptible animations — just update FinalValue.
+        var sizeAnim = _compositor.CreateSpringVector2Animation();
+        sizeAnim.DampingRatio = dampingRatio;
+        sizeAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
+        sizeAnim.FinalValue   = targetSize;
+
+        var radiusAnim = _compositor.CreateSpringVector2Animation();
+        radiusAnim.DampingRatio = dampingRatio;
+        radiusAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
+        radiusAnim.FinalValue   = targetRadius;
+
+        if (onCompleted != null)
+        {
+            var batch = _compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
+            batch.Completed += (_, _) => onCompleted();
+            _bodyGeometry.StartAnimation("Size", sizeAnim);
+            _bodyGeometry.StartAnimation("CornerRadius", radiusAnim);
+            batch.End();
+        }
+        else
+        {
+            _bodyGeometry.StartAnimation("Size", sizeAnim);
+            _bodyGeometry.StartAnimation("CornerRadius", radiusAnim);
+        }
+    }
+
+    private void RefreshCenterAnimation(string shape)
+    {
+        float yOffset = shape == "Capsule" ? 6f : 0f;
+        var centerAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0, yOffset)");
+        centerAnim.SetReferenceParameter("geom", _bodyGeometry);
+        centerAnim.SetScalarParameter("windowWidth", _windowWidthDip);
+        centerAnim.SetScalarParameter("yOffset", yOffset);
+        _bodyShape.StartAnimation("Offset", centerAnim);
+    }
+
+    private CompositionBrush GetBodyBrush(WindowIslandSettings settings)
+    {
+        var color = settings.Theme switch
+        {
+            "Light" => Color.FromArgb(240, 245, 245, 245),
+            "Dark"  => Color.FromArgb(240, 20, 20, 20),
+            _       => Color.FromArgb(240, 20, 20, 20)
+        };
+        return _compositor.CreateColorBrush(color);
     }
 }

@@ -2527,6 +2527,27 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>Navigate to the Window Island settings page (called from WindowIslandWindow).</summary>
+    public void NavigateToWindowIslandSettings()
+    {
+        try
+        {
+            // Bring the main window to focus
+            _appWindow?.Show();
+            Activate();
+
+            // Navigate to Others page, then to Window Island settings
+            if (ContentFrame.CurrentSourcePageType != typeof(Views.WindowIslandSettingsPage))
+            {
+                ContentFrame.Navigate(typeof(Views.WindowIslandSettingsPage));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WindowIsland] NavigateToWindowIslandSettings error: {ex.Message}");
+        }
+    }
+
     internal void HideImmediately()
     {
         if (_appWindow != null)
