@@ -262,6 +262,36 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- Window Island Card Template -->
+        <DataTemplate x:Key="IslandTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Window Island"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="A dynamic bar at the top of your screen"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind IslandEnabled, Mode=TwoWay}"
+                                  Toggled="IslandToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+                <Button Content="Open Window Island settings"
+                        Click="OpenIslandSettings_Click"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Template Selector -->
         <local:CardContentTemplateSelector x:Key="CardContentSelector"
                                            BrightnessTemplate="{StaticResource BrightnessTemplate}"
@@ -273,7 +303,8 @@
                                            KeyboardTemplate="{StaticResource KeyboardTemplate}"
                                            WifiTemplate="{StaticResource WifiTemplate}"
                                            SpeedMeterTemplate="{StaticResource SpeedMeterTemplate}"
-                                           PcCheckerTemplate="{StaticResource PcCheckerTemplate}"/>
+                                           PcCheckerTemplate="{StaticResource PcCheckerTemplate}"
+                                           IslandTemplate="{StaticResource IslandTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

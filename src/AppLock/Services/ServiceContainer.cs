@@ -773,6 +773,27 @@ public static class ServiceContainer
         SpeedMeterEnabledChanged?.Invoke(null, enabled);
     }
 
+    // ── Window Island ─────────────────────────────────────────────────────────
+
+    public static event EventHandler<bool>? IslandEnabledChanged;
+
+    public static void SetIslandEnabled(bool enabled)
+    {
+        Settings.Island.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            AppLock.Island.Host.IslandHost.Instance.Start();
+        }
+        else
+        {
+            AppLock.Island.Host.IslandHost.Instance.Stop();
+        }
+
+        IslandEnabledChanged?.Invoke(null, enabled);
+    }
+
     // ── Volume Mixer ──────────────────────────────────────────────────────────
 
     public static AppLock.Services.VolumeMixer.VolumeOverlayService? VolumeOverlayService => _volumeOverlayService;

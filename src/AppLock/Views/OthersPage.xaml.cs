@@ -21,6 +21,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? WifiTemplate { get; set; }
     public DataTemplate? SpeedMeterTemplate { get; set; }
     public DataTemplate? PcCheckerTemplate { get; set; }
+    public DataTemplate? IslandTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -38,6 +39,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "wifi" => WifiTemplate,
                 "speedmeter" => SpeedMeterTemplate,
                 "pcchecker" => PcCheckerTemplate,
+                "island" => IslandTemplate,
                 _ => null
             };
         }
@@ -135,6 +137,8 @@ public sealed partial class OthersPage : Page
         ServiceContainer.NotificationCustomizerEnabledChanged += OnNotificationCustomizerEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged += OnSpeedMeterEnabledChanged;
+        ServiceContainer.IslandEnabledChanged -= OnIslandEnabledChanged;
+        ServiceContainer.IslandEnabledChanged += OnIslandEnabledChanged;
         ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
         ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
 
@@ -146,6 +150,7 @@ public sealed partial class OthersPage : Page
         UpdateVolumeMixerCardState();
         UpdateNotificationCardState();
         UpdateSpeedMeterCardState();
+        UpdateIslandCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -159,8 +164,10 @@ public sealed partial class OthersPage : Page
         ServiceContainer.VolumeMixerEnabledChanged -= OnVolumeMixerEnabledChanged;
         ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
+        ServiceContainer.IslandEnabledChanged -= OnIslandEnabledChanged;
     }
 
+    private void OnIslandEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateIslandCardState);
     private void OnSpeedMeterEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateSpeedMeterCardState);
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
@@ -368,6 +375,17 @@ public sealed partial class OthersPage : Page
                 Status = "",
                 StatusVisibility = Visibility.Collapsed,
                 SpeedMeterEnabled = ServiceContainer.Settings.SpeedMeter.Enabled
+            },
+            new UtilityCard
+            {
+                Id = "island",
+                Order = 90,
+                Icon = "\uE7F4",
+                Title = "Window Island",
+                Description = "A dynamic bar at the top of your screen",
+                Status = "",
+                StatusVisibility = Visibility.Collapsed,
+                IslandEnabled = ServiceContainer.Settings.Island.Enabled
             }
         };
 
@@ -445,6 +463,28 @@ public sealed partial class OthersPage : Page
     private void OpenPcChecker_Click(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(PcCheckerPage));
+    }
+
+    private void OpenIslandSettings_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(IslandSettingsPage));
+    }
+
+    private void IslandToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle || toggle.DataContext is not UtilityCard card) return;
+
+        ServiceContainer.SetIslandEnabled(toggle.IsOn);
+        card.IslandEnabled = toggle.IsOn;
+        card.Status = toggle.IsOn ? "On" : "Off";
+    }
+
+    private void UpdateIslandCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "island");
+        if (card == null) return;
+
+        card.IslandEnabled = ServiceContainer.Settings.Island.Enabled;
     }
 
     /// <summary>The card switch and the settings page share one setting, so both stay in sync.</summary>
@@ -756,6 +796,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_speedMeterEnabled != value)
             {
                 _speedMeterEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _islandEnabled;
+    public bool IslandEnabled
+    {
+        get => _islandEnabled;
+        set
+        {
+            if (_islandEnabled != value)
+            {
+                _islandEnabled = value;
                 OnPropertyChanged();
             }
         }

@@ -2416,6 +2416,15 @@ public sealed partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Shutdown error: {ex.Message}");
         }
 
+        try
+        {
+            AppLock.Island.Host.IslandHost.Instance.Stop();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Island] Shutdown error: {ex.Message}");
+        }
+
         // Hand the shell's toast banner windows back untouched, otherwise a toast that was mid
         // animation keeps the shared window hidden/transparent after we exit.
         ServiceContainer.ShutdownNotificationCustomizer();
