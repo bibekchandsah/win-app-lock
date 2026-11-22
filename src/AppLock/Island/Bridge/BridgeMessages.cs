@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using AppLock.Island.Events;
 using AppLock.Models;
 
 namespace AppLock.Island.Bridge;
@@ -20,6 +21,8 @@ public static class BridgeMessages
     public const string StateHover = "state.hover";
     public const string AnimPause = "anim.pause";
     public const string AnimResume = "anim.resume";
+    public const string EventCard = "event.card";
+    public const string EventCardClear = "event.card.clear";
 
     public static string Envelope(string type, object? payload)
     {
@@ -67,6 +70,14 @@ public static class BridgeMessages
             hardwareAcceleration = settings.HardwareAcceleration,
             showClock = settings.ShowClock,
             showBattery = settings.ShowBattery,
+            cards = new
+            {
+                volume = settings.ShowVolumeCard,
+                capsLock = settings.ShowCapsLockCard,
+                clipboard = settings.ShowClipboardCard,
+                screenshot = settings.ShowScreenshotCard,
+                stayMs = settings.CardStayMs,
+            },
             hotkey = settings.Hotkey,
             fill = palette.Fill,
             text = palette.Text,
@@ -94,4 +105,24 @@ public static class BridgeMessages
     {
         return Envelope(StateHover, new { inside });
     }
+
+    /// <summary>A live card for the folded pill. <paramref name="animate"/> is false when an existing card is updated in place.</summary>
+    public static string CardMessage(IslandCard card, bool animate)
+    {
+        return Envelope(EventCard, new
+        {
+            id = card.Kind,
+            kind = card.Kind,
+            icon = card.Icon,
+            title = card.Title,
+            detail = card.Detail,
+            accent = card.Accent,
+            value = card.Value,
+            stayMs = card.StayMs,
+            priority = (int)card.Priority,
+            animate,
+        });
+    }
+
+    public static string CardClearMessage() => Envelope(EventCardClear, null);
 }

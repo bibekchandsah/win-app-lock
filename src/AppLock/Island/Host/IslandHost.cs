@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
+using AppLock.Island.Events;
+using AppLock.Models;
 using AppLock.Services;
 using Microsoft.UI.Dispatching;
 
@@ -15,6 +17,10 @@ public sealed class IslandHost
     public static IslandHost Instance { get; } = new();
 
     private IslandWindow? _window;
+    private LiveEventQueue? _cards;
+    private LockKeyCardSource? _lockKeys;
+    private ScreenshotCardSource? _screenshots;
+    private IslandVolumeController? _volume;
     private DispatcherQueueTimer? _clockTimer;
     private DispatcherQueueTimer? _batteryTimer;
     private int _hotkeyId = -1;
@@ -48,6 +54,26 @@ public sealed class IslandHost
             _window.Ready += OnWindowReady;
             _window.Closed += OnWindowClosed;
 
+            _cards = new LiveEventQueue(
+                queue,
+                json => _window?.PostRaw(json),
+                () => _window == null || _window.IsHovered || !_window.IsVisible);
+
+            _window.MotionStarted += duration => _cards?.HoldForMotion(duration);
+            _window.WheelTurned += OnWheelTurned;
+            _window.VolumeRequested += OnVolumeRequested;
+
+            _lockKeys = new LockKeyCardSource(queue);
+            _lockKeys.CapsLockChanged += OnCapsLockChanged;
+            _lockKeys.Start();
+
+            _window.Clipboard.Captured += OnClipboardCaptured;
+            _window.Clipboard.Start();
+
+            _screenshots = new ScreenshotCardSource(queue);
+            _screenshots.Saved += OnScreenshotSaved;
+            _screenshots.Start(settings.ScreenshotsFolder);
+
             _clockTimer = queue.CreateTimer();
             _clockTimer.Interval = TimeSpan.FromSeconds(1);
             _clockTimer.IsRepeating = true;
@@ -80,10 +106,23 @@ public sealed class IslandHost
         _clockTimer = null;
         _batteryTimer = null;
 
+        _lockKeys?.Dispose();
+        _lockKeys = null;
+        _screenshots?.Dispose();
+        _screenshots = null;
+        _cards?.Dispose();
+        _cards = null;
+        _volume?.Dispose();
+        _volume = null;
+
         if (_window != null)
         {
             _window.Ready -= OnWindowReady;
             _window.Closed -= OnWindowClosed;
+            _window.WheelTurned -= OnWheelTurned;
+            _window.VolumeRequested -= OnVolumeRequested;
+            _window.Clipboard.Captured -= OnClipboardCaptured;
+            _window.Clipboard.Dispose();
             _window.Close();
             _window = null;
         }
@@ -111,6 +150,7 @@ public sealed class IslandHost
 
         _window.SetIslandVisible(true);
         _window.ApplySettings(settings);
+        _screenshots?.Start(settings.ScreenshotsFolder);
     }
 
     public void ToggleVisibility()
@@ -135,6 +175,93 @@ public sealed class IslandHost
         _window = null;
         _clockTimer?.Stop();
         _batteryTimer?.Stop();
+    }
+
+    // ── Live cards (island.md 5.2) ────────────────────────────────────────────
+
+    private void OnCapsLockChanged(bool on)
+    {
+        var settings = ServiceContainer.Settings.Island;
+        if (!settings.ShowCapsLockCard) return;
+
+        IslandSpikeLog.Write($"card: caps {(on ? "on" : "off")}");
+        _cards?.Push(new IslandCard(
+            Kind: "locks",
+            Icon: on ? "\uE72E" : "\uE785",
+            Title: on ? "Caps Lock on" : "Caps Lock off",
+            Detail: string.Empty,
+            Accent: on ? "#FFD15C" : "#FFFFFF",
+            Priority: IslandCardPriority.LockKey,
+            StayMs: settings.CardStayMs));
+    }
+
+    private void OnClipboardCaptured(ClipboardCardInfo info)
+    {
+        var settings = ServiceContainer.Settings.Island;
+        if (!settings.ShowClipboardCard) return;
+
+        bool image = info.Kind == "clipboard.image";
+        IslandSpikeLog.Write($"card: {info.Kind}");
+        _cards?.Push(new IslandCard(
+            Kind: info.Kind,
+            Icon: image ? "\uE91B" : "\uE8C8",
+            Title: info.Title,
+            Detail: info.Detail,
+            Accent: "#FFFFFF",
+            Priority: IslandCardPriority.Clipboard,
+            StayMs: settings.CardStayMs));
+    }
+
+    private void OnScreenshotSaved(string fileName)
+    {
+        var settings = ServiceContainer.Settings.Island;
+        if (!settings.ShowScreenshotCard) return;
+
+        IslandSpikeLog.Write($"card: screenshot {fileName}");
+        _cards?.Push(new IslandCard(
+            Kind: "screenshot",
+            Icon: "\uE722",
+            Title: "Screenshot saved",
+            Detail: fileName,
+            Accent: "#FFFFFF",
+            Priority: IslandCardPriority.Screenshot,
+            StayMs: settings.CardStayMs));
+    }
+
+    private void OnWheelTurned(int notches)
+    {
+        var settings = ServiceContainer.Settings.Island;
+        if (!settings.ShowVolumeCard) return;
+
+        _volume ??= new IslandVolumeController();
+        int value = _volume.Step(notches * 2);
+        if (value < 0) return;
+
+        PushVolumeCard(value, settings);
+    }
+
+    private void OnVolumeRequested(int percent)
+    {
+        var settings = ServiceContainer.Settings.Island;
+        _volume ??= new IslandVolumeController();
+        int value = _volume.Set(percent);
+        if (value < 0 || !settings.ShowVolumeCard) return;
+
+        PushVolumeCard(value, settings);
+    }
+
+    private void PushVolumeCard(int value, IslandSettings settings)
+    {
+        IslandSpikeLog.Write($"card: volume {value}%");
+        _cards?.Push(new IslandCard(
+            Kind: "volume",
+            Icon: value == 0 ? "\uE74F" : "\uE767",
+            Title: "Volume",
+            Detail: $"{value}%",
+            Accent: "#FFFFFF",
+            Priority: IslandCardPriority.Volume,
+            StayMs: settings.CardStayMs,
+            Value: value));
     }
 
     private void OnClockTick()

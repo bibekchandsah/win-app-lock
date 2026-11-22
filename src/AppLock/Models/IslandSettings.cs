@@ -1,9 +1,17 @@
+using AppLock.Island.Events;
+
 namespace AppLock.Models;
 
-/// <summary>
-/// Persisted Island settings. The island UI renders from these over the bridge; the host owns
-/// the window, position, scale and visibility.
-/// </summary>
+/// <summary>How long a live card stays on screen (island.md 5.2).</summary>
+public enum IslandCardDuration
+{
+    Shorter = 0,
+    Usual = 1,
+    Longer = 2,
+}
+
+/// <summary>Persisted Island settings. The island UI renders from these over the bridge; the host owns
+/// the window, position, scale and visibility.</summary>
 public sealed class IslandSettings
 {
     /// <summary>Show the notch at all.</summary>
@@ -36,5 +44,28 @@ public sealed class IslandSettings
     /// <summary>Folded notch shows the battery level.</summary>
     public bool ShowBattery { get; set; } = true;
 
+    /// <summary>How long a live card stays before it collapses again.</summary>
+    public IslandCardDuration CardDuration { get; set; } = IslandCardDuration.Usual;
+
+    /// <summary>Live events: each card can be turned off (island.md 12).</summary>
+    public bool ShowVolumeCard { get; set; } = true;
+
+    public bool ShowCapsLockCard { get; set; } = true;
+
+    public bool ShowClipboardCard { get; set; } = true;
+
+    public bool ShowScreenshotCard { get; set; } = true;
+
+    /// <summary>Screenshots folder to watch; empty means Pictures\Screenshots.</summary>
+    public string ScreenshotsFolder { get; set; } = string.Empty;
+
     public IslandSettings Clone() => (IslandSettings)MemberwiseClone();
+
+    /// <summary>Stay time of a card in milliseconds.</summary>
+    public int CardStayMs => CardDuration switch
+    {
+        IslandCardDuration.Shorter => 2000,
+        IslandCardDuration.Longer => 6000,
+        _ => 3500,
+    };
 }

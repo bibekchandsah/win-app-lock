@@ -3,6 +3,8 @@
 export type Rect = { w: number; h: number; r: number };
 
 export const FOLDED: Rect = { w: 196, h: 36, r: 18 };
+/** A live card is a temporary expansion of the folded pill (island.md 5.2). */
+export const CARD: Rect = { w: 344, h: 58, r: 18 };
 
 /** Open shell sizes per tab, in design DIPs at 100% scale (island.md 6). */
 export const TAB_SIZES = {

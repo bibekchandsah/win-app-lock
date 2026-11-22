@@ -4,6 +4,7 @@
   import { FrameMonitor, formatStats } from './perf';
   import { post, onMessage } from './bridge';
   import {
+    CARD,
     DEFAULT_SETTINGS,
     RESIZE_SPRING,
     SPRING,
@@ -22,12 +23,23 @@
   const monitor = new FrameMonitor();
   const spring = new Spring(SPRING.stiffness, SPRING.damping, SPRING.mass);
   const sizeSpring = new Spring(RESIZE_SPRING.stiffness, RESIZE_SPRING.damping, RESIZE_SPRING.mass, 1);
+  const cardSpring = new Spring(SPRING.stiffness, SPRING.damping, SPRING.mass, 0);
+
+  type Card = {
+    kind: string;
+    icon: string;
+    title: string;
+    detail: string;
+    accent: string;
+    value: number;
+  };
 
   let canvasEl: HTMLCanvasElement;
   let clipEl: HTMLDivElement;
   let contentEl: HTMLDivElement;
   let foldedViewEl: HTMLDivElement;
   let openViewEl: HTMLDivElement;
+  let cardEl: HTMLDivElement;
   let clockEl: HTMLSpanElement;
   let batteryEl: HTMLSpanElement;
   let statsEl: HTMLDivElement;
@@ -62,6 +74,10 @@
   let pinned = false;
   let quiet = false;
 
+  let card: Card | null = null;
+  let cardTarget = 0;
+  let cardFading = false;
+
   // ── Shape ─────────────────────────────────────────────────────────────────
 
   function sizeCanvas(): void {
@@ -80,13 +96,21 @@
     return sizing ? lerpRect(sizing.from, sizing.to, sizeSpring.value) : geometry.open;
   }
 
+  /** The pill, expanded by a live card when one is showing. */
+  function currentFoldedRect(): Rect {
+    const t = clamp01(cardSpring.value);
+    const k = geometry.folded.w / 196;
+    return lerpRect(geometry.folded, { w: CARD.w * k, h: CARD.h * k, r: CARD.r * k }, t);
+  }
+
   /**
    * The body is painted on a canvas that is cleared first, so a shrinking shape can never leave
    * stale pixels behind (the transparent WebView2 surface has no other way to clear them).
    */
   function apply(p: number): void {
     const progress = clamp01(p);
-    const { folded, pageW, topRadius, bottomRadius } = geometry;
+    const { pageW, topRadius, bottomRadius } = geometry;
+    const folded = currentFoldedRect();
     const open = currentOpenRect();
     drawnOpen = open;
 
@@ -122,7 +146,12 @@
       openViewEl.style.opacity = String(sizing ? fade * clamp01(0.35 + 0.65 * sizeSpring.value) : fade);
       openViewEl.style.visibility = progress > 0.02 ? 'visible' : 'hidden';
     }
-    if (foldedViewEl) foldedViewEl.style.opacity = String(1 - clamp01(progress * 2.2));
+    if (foldedViewEl) foldedViewEl.style.opacity = String((1 - clamp01(progress * 2.2)) * (1 - clamp01(cardSpring.value)));
+    if (cardEl) {
+      cardEl.style.opacity = String(clamp01(cardSpring.value) * (1 - clamp01(progress * 2.2)));
+      cardEl.style.visibility = cardSpring.value > 0.01 ? 'visible' : 'hidden';
+    }
+
     if (debug && statsEl) statsEl.textContent = formatStats(monitor.live());
   }
 
@@ -135,9 +164,10 @@
 
     const foldSettled = spring.step(dt, target);
     const resizeSettled = sizing ? sizeSpring.step(dt, 1) : true;
+    const cardSettled = cardSpring.step(dt, cardTarget);
     apply(spring.value);
 
-    if (foldSettled && resizeSettled) {
+    if (foldSettled && resizeSettled && cardSettled) {
       raf = 0;
       lastFrame = 0;
       onSettled();
@@ -159,7 +189,39 @@
       if (target === 1) sendLayout('open');
       return;
     }
-    if (target === 0) sendLayout('folded');
+
+    if (cardFading && cardTarget === 0) {
+      cardFading = false;
+      card = null;
+    }
+
+    if (target === 0) sendLayout('folded', currentFoldedRect());
+  }
+
+  // ── Live cards ────────────────────────────────────────────────────────────
+
+  function showCard(next: Card, animate: boolean): void {
+    card = next;
+    cardFading = false;
+    cardTarget = 1;
+
+    if (animate) {
+      // The region must cover the card straight away, before the pill grows.
+      sendLayout('folded', {
+        w: Math.max(geometry.folded.w, CARD.w * (geometry.folded.w / 196)),
+        h: Math.max(geometry.folded.h, CARD.h * (geometry.folded.h / 36)),
+        r: CARD.r,
+      });
+    }
+
+    schedule();
+  }
+
+  function clearCard(): void {
+    if (!card) return;
+    cardFading = true;
+    cardTarget = 0;
+    schedule();
   }
 
   // ── Host notifications ────────────────────────────────────────────────────
@@ -266,6 +328,17 @@
     schedule();
   }
 
+  /** The wheel over the folded pill changes the system volume (island.md 5.1). */
+  function onWheel(event: WheelEvent): void {
+    if (target !== 0 || sizing) return;
+    event.preventDefault();
+
+    // One wheel notch is about 100 px; a fast flick carries several, so the step follows it.
+    const notches = Math.min(3, Math.max(1, Math.round(Math.abs(event.deltaY) / 100)));
+    const delta = event.deltaY === 0 ? 0 : event.deltaY < 0 ? notches : -notches;
+    if (delta !== 0) post('volume.step', { delta });
+  }
+
   function onKeyDown(event: KeyboardEvent): void {
     if (target === 0) return;
 
@@ -357,6 +430,7 @@
     };
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('wheel', onWheel, { passive: false });
 
     onMessage((message) => {
       switch (message.type) {
@@ -383,6 +457,27 @@
           else hoverOut();
           break;
         }
+        case 'event.card': {
+          const payload = message.payload as
+            | { kind?: string; icon?: string; title?: string; detail?: string; accent?: string; value?: number; animate?: boolean }
+            | undefined;
+          if (!payload || !payload.kind || !payload.title) break;
+          showCard(
+            {
+              kind: payload.kind,
+              icon: payload.icon ?? '',
+              title: payload.title,
+              detail: payload.detail ?? '',
+              accent: payload.accent ?? '#FFFFFF',
+              value: typeof payload.value === 'number' ? payload.value : -1,
+            },
+            payload.animate !== false,
+          );
+          break;
+        }
+        case 'event.card.clear':
+          clearCard();
+          break;
         case 'anim.pause':
           paused = true;
           clearTimeout(openTimer);
@@ -403,6 +498,7 @@
     return () => {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('wheel', onWheel);
       if (clockTimer) clearInterval(clockTimer);
       clearTimeout(openTimer);
       clearTimeout(closeTimer);
@@ -423,6 +519,19 @@
       <div class="folded-row" bind:this={foldedViewEl}>
         <span class="clock" bind:this={clockEl}>--:--</span>
         <span class="battery" bind:this={batteryEl}></span>
+      </div>
+
+      <div class="card" bind:this={cardEl}>
+        <span class="card-icon" style={`color:${card?.accent ?? '#fff'}`}>{card?.icon ?? ''}</span>
+        <div class="card-text">
+          <span class="card-title">{card?.title ?? ''}</span>
+          {#if card && card.detail}<span class="card-detail">{card.detail}</span>{/if}
+        </div>
+        {#if card && card.kind === 'volume'}
+          <div class="card-bar" aria-hidden="true">
+            <div class="card-bar-fill" style={`width:${Math.max(0, Math.min(100, card.value))}%`}></div>
+          </div>
+        {/if}
       </div>
 
       <div class="open-view" bind:this={openViewEl}>
@@ -479,7 +588,7 @@
 
   <div class="debug" bind:this={debugPanelEl}>
     {#if debug}
-      <div class="stats" bind:this={statsEl}>frame \u2014</div>
+      <div class="stats" bind:this={statsEl}>frame —</div>
       <div class="spike-controls">
         <button type="button" onclick={() => void runBenchmark()}>Run benchmark</button>
       </div>

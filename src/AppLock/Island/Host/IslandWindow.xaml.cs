@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using AppLock.Island.Bridge;
+using AppLock.Island.Events;
 using AppLock.Models;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -32,6 +33,7 @@ public sealed partial class IslandWindow : Window
     private const uint SWP_SHOWWINDOW = 0x0040;
     private const uint WM_MOUSEACTIVATE = 0x0021;
     private const uint WM_DPICHANGED = 0x02E0;
+    private const uint WM_MOUSEWHEEL = 0x020A;
     private const int MA_NOACTIVATE = 3;
 
     // Windows 11 DWM attributes: a transparent window still gets a 1px border and OS rounding
@@ -96,6 +98,8 @@ public sealed partial class IslandWindow : Window
         "state.hover",
         "input.focusRequested",
         "input.focusReleased",
+        "volume.set",
+        "volume.step",
     };
 
     private readonly IntPtr _hwnd;
@@ -118,6 +122,17 @@ public sealed partial class IslandWindow : Window
     /// <summary>Raised once the page has loaded and the first snapshot can be sent.</summary>
     public event Action? Ready;
 
+    /// <summary>Mouse wheel over the island; the value is the number of notches (positive = up).</summary>
+    public event Action<int>? WheelTurned;
+
+    /// <summary>An open/close animation started and will run for this long.</summary>
+    public event Action<int>? MotionStarted;
+
+    /// <summary>The page asked for an absolute volume in percent.</summary>
+    public event Action<int>? VolumeRequested;
+
+    public ClipboardCardSource Clipboard { get; }
+
     public IslandWindow(IslandSettings settings)
     {
         InitializeComponent();
@@ -126,6 +141,7 @@ public sealed partial class IslandWindow : Window
         _hwnd = WindowNative.GetWindowHandle(this);
         _subclassProc = IslandSubclassProc;
         Title = "Island";
+        Clipboard = new ClipboardCardSource(DispatcherQueue, _hwnd);
 
         _contentDir = Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist");
         _benchFile = Path.Combine(
@@ -159,6 +175,8 @@ public sealed partial class IslandWindow : Window
     }
 
     public bool IsVisible => _isVisible;
+
+    public bool IsHovered => _hoverInside;
 
     // ── Window ───────────────────────────────────────────────────────────────
 
@@ -200,6 +218,16 @@ public sealed partial class IslandWindow : Window
     private IntPtr IslandSubclassProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr id, IntPtr data)
     {
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+
+        if (Clipboard.HandleMessage(msg)) return IntPtr.Zero;
+
+        if (msg == WM_MOUSEWHEEL)
+        {
+            // Wheel over the notch changes the system volume; consumed so nothing else reacts.
+            int delta = (short)((long)wParam >> 16);
+            if (delta != 0) WheelTurned?.Invoke(Math.Sign(delta));
+            return IntPtr.Zero;
+        }
 
         if (msg == WM_DPICHANGED)
         {
@@ -389,7 +417,7 @@ public sealed partial class IslandWindow : Window
         "home", "clipboard", "shelf", "text", "chat", "note", "weather", "controls",
     };
 
-    private void PostRaw(string json)
+    public void PostRaw(string json)
     {
         try
         {
@@ -496,6 +524,22 @@ public sealed partial class IslandWindow : Window
                     Ready?.Invoke();
                     break;
 
+                case "volume.set":
+                    if (root.TryGetProperty("payload", out var volume) && volume.ValueKind == JsonValueKind.Object
+                        && TryReadInt(volume, "percent", out int percent))
+                    {
+                        VolumeRequested?.Invoke(Math.Clamp(percent, 0, 100));
+                    }
+                    break;
+
+                case "volume.step":
+                    if (root.TryGetProperty("payload", out var stepPayload) && stepPayload.ValueKind == JsonValueKind.Object
+                        && TryReadInt(stepPayload, "delta", out int delta) && delta != 0)
+                    {
+                        WheelTurned?.Invoke(Math.Clamp(delta, -3, 3));
+                    }
+                    break;
+
                 case "perf.done":
                 case "hover.state":
                 case "state.hover":
@@ -539,15 +583,18 @@ public sealed partial class IslandWindow : Window
         if (!TryReadInt(payload, "w", out int w) || !TryReadInt(payload, "h", out int h)) return;
         if (!TryReadInt(payload, "r", out int radius)) return;
 
-        // The UI is untrusted: only the two layouts this host offers are accepted.
+        // The UI is untrusted: only the layouts this host offers are accepted.
         if (phase != "open" && phase != "folded") return;
         var (pageWidth, pageHeight) = IslandLayout.PageSize(_settings.SizePercent);
         if (x < 0 || x > pageWidth || w <= 0 || w > pageWidth || h <= 0 || h > pageHeight) return;
         if (radius < 0 || radius > 64) return;
 
-        _hoverTargetOpen = phase == "open";
         _islandRect = (x, 0, w, h);
+        _hoverTargetOpen = phase == "open";
         UpdateHitRegion(x, w, h, radius);
+
+        // The page is about to animate: hold non-visual updates until it settles (island.md 5).
+        MotionStarted?.Invoke(TryReadInt(payload, "durationMs", out int duration) ? duration : 0);
     }
 
     private void HandlePerfReport(JsonElement root)

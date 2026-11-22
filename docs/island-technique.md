@@ -143,6 +143,45 @@ stale pixels from being left behind while the shape shrinks.
 - Frame budget on this machine (1920 × 1080, 60 Hz), 100 open/close cycles of the canvas body:
   p50 16.7 ms, p95 16.9 ms, p99 17.0 ms, max 33.3 ms — PASS (`bench.txt`).
 
+## Milestone 4: live event engine and the first cards
+
+- `Island/Events/LiveEventQueue.cs` is the single queue from island.md 5.2: one visible card,
+  same-kind coalescing (volume dragging and two copies in a row update the card in place),
+  higher priority replaces, lower waits (max 5, oldest low priority dropped), the countdown
+  pauses while the pointer is on the island, and no card is shown for ~60 ms after an open/close
+  motion starts (`HoldForMotion`) so the animation keeps its frame budget.
+- Sources: `LockKeyCardSource` polls `GetKeyState` at 10 Hz (island.md allows polling; a second
+  global keyboard hook next to AppLock's is avoided), `ClipboardCardSource` is an
+  `AddClipboardFormatListener` on the island HWND that stores nothing and honours
+  `ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory = 0`,
+  `ScreenshotCardSource` watches the screenshots folder (falling back to its parent when the
+  folder does not exist yet or is deleted while the island runs) and `IslandVolumeController`
+  wraps the existing NAudio `SpeakerVolumeService`.
+- The wheel over the folded pill is handled in the page (`wheel` → `volume.step`), not in the
+  window procedure: once WebView2 is under the pointer its child window receives `WM_MOUSEWHEEL`,
+  so a window-level subclass never sees it.
+- Cards render in the folded pill only (`FOLDED` → `CARD` 344 × 58 via its own spring); the region
+  is grown to the card rect before the pill expands so the pointer area is correct immediately.
+- Card toggles and the stay duration (2 s / 3.5 s / 6 s) live in `IslandSettings` and travel in
+  `settings.snapshot.cards`; the settings page shows them in milestone 16.
+- Frame budget after this milestone: 100 open/close cycles, p50 16.7 ms, p95 16.9 ms, p99 17.0 ms,
+  max 33.3 ms — PASS.
+
+## Why the shape has a mask, and what that costs during motion
+
+WinUI 3 cannot render WebView2 with a transparent background: WebView2 is *external content*, and
+"it's not possible to give a WebView2 a transparent background" (Windows App SDK visual-layer docs;
+see also microsoft-ui-xaml#2992 and #6527). The control's surface is the theme colour (`#202020` in
+dark), so the opaque window region (`SetWindowRgn`) is what keeps it off the desktop — and the
+region is only updated at animation boundaries, because updating it per frame cost a dropped frame
+(max 83.6 ms against a 33.4 ms budget, measured).
+
+Consequence: during the ~300 ms open/close motion the region is the *target* rect while the shape
+is still smaller, so a thin band of `#202020` is visible around the moving shape. Fixing that
+properly needs **Candidate 2** from island-webview2.md 4.2 (Win32 `WS_EX_NOREDIRECTIONBITMAP`
+window + `CoreWebView2CompositionController` + DirectComposition, forwarding input), which renders
+the page with real per-pixel alpha and needs no region at all.
+
 ## Known gaps (later milestones)
 
 - Typing while the island has focus (`input.focusRequested` → clear `MA_NOACTIVATE`, activate,
@@ -154,6 +193,9 @@ stale pixels from being left behind while the shape shrinks.
   and the Chat WebView2 profile belong to milestones 2–15.
 - Hover polling costs one `GetCursorPos` per 33 ms; it is paused with the island's visibility
   rules later.
+- A volume change also makes Windows show its own volume flyout next to the Island's card; Windows
+  has no supported way to suppress it (follow-up: decide whether to hide the card or keep both).
+- The region/opaque-surface limitation above (grey band during motion) until Candidate 2 lands.
 
 ## Reproduce
 
