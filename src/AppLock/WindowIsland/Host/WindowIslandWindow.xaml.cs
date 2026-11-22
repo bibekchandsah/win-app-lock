@@ -142,6 +142,13 @@ public sealed partial class WindowIslandWindow : Window
     private int                               _selectedCommandIndex;
     private nint                              _previousForegroundWindow = nint.Zero;
 
+    // Milestone 9: Note & Timer & Reminders
+    private WindowIslandNotesStore?           _notesStore;
+    private WindowIslandReminderStore?        _reminderStore;
+    private WindowIslandTimer?                _timer;
+    private string?                           _activeNoteId;
+    private bool                              _noteUpdating;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -255,6 +262,16 @@ public sealed partial class WindowIslandWindow : Window
         _fileIndex = new WindowIslandFileIndex();
         _fileIndex.StartBackgroundIndexing();
         _commandService = new WindowIslandCommandService(_fileIndex, _launcher!);
+
+        // Milestone 9: Note, Timer, Reminders
+        _notesStore = new WindowIslandNotesStore();
+        _notesStore.Changed += () => DispatcherQueue.TryEnqueue(RefreshNotesUI);
+        _reminderStore = new WindowIslandReminderStore();
+        _reminderStore.Changed += () => DispatcherQueue.TryEnqueue(RefreshRemindersUI);
+        _reminderStore.ReminderTriggered += OnReminderTriggered;
+        _timer = new WindowIslandTimer();
+        _timer.Tick += (rem, prog) => DispatcherQueue.TryEnqueue(() => OnTimerTick(rem, prog));
+        _timer.Finished += () => DispatcherQueue.TryEnqueue(OnTimerFinished);
 
         // ── Timers ──────────────────────────────────────────────────────────────
 
@@ -374,6 +391,11 @@ public sealed partial class WindowIslandWindow : Window
         _fileIndex?.Dispose();
         _fileIndex = null;
         _commandService = null;
+        _reminderStore?.Dispose();
+        _reminderStore = null;
+        _timer?.Dispose();
+        _timer = null;
+        _notesStore = null;
 
         _eventQueue?.Dispose();
         _eventQueue = null;
@@ -409,9 +431,14 @@ public sealed partial class WindowIslandWindow : Window
         }
         else StopHomeState();
 
-        // Refresh clipboard / shelf on switch
+        // Refresh clipboard / shelf / notes on switch
         if (_activeTab == 1) _clipboardState?.Refresh();
         if (_activeTab == 2) RefreshShelfUI();
+        if (_activeTab == 5)
+        {
+            RefreshNotesUI();
+            RefreshRemindersUI();
+        }
 
         // Show new content, collapse previous
         for (int i = 0; i < TabCount; i++)
@@ -2054,5 +2081,282 @@ public sealed partial class WindowIslandWindow : Window
             }
             e.Handled = true;
         }
+    }
+
+    // ── Milestone 9: Note & Timer & Reminders ─────────────────────────────────
+
+    private void RefreshNotesUI()
+    {
+        if (_notesStore == null) return;
+        var notes = _notesStore.Notes;
+
+        NoteTabStrip.Children.Clear();
+
+        if (notes.Count == 0) return;
+
+        if (string.IsNullOrEmpty(_activeNoteId) || !notes.Any(n => n.Id == _activeNoteId))
+        {
+            _activeNoteId = notes[0].Id;
+        }
+
+        foreach (var note in notes)
+        {
+            bool isAct = (note.Id == _activeNoteId);
+            var btn = new Button
+            {
+                Content = note.Title,
+                FontSize = 10,
+                Padding = new Thickness(8, 2, 8, 2),
+                CornerRadius = new CornerRadius(4),
+                Background = isAct
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(50, 96, 205, 255))
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)),
+                Foreground = isAct
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 205, 255))
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                Tag = note.Id
+            };
+            btn.Click += (s, _) =>
+            {
+                if (s is Button b && b.Tag is string nid)
+                {
+                    _activeNoteId = nid;
+                    RefreshNotesUI();
+                }
+            };
+            NoteTabStrip.Children.Add(btn);
+        }
+
+        var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
+        _noteUpdating = true;
+        NoteContentBox.Text = activeNote.Content;
+        _noteUpdating = false;
+    }
+
+    private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var note = _notesStore?.CreateNote();
+        if (note != null)
+        {
+            _activeNoteId = note.Id;
+            RefreshNotesUI();
+            NoteContentBox.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void NoteCopyBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(NoteContentBox.Text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+        }
+        catch { }
+    }
+
+    private void NoteDeleteBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_activeNoteId)) return;
+        _notesStore?.DeleteNote(_activeNoteId);
+        _activeNoteId = null;
+        RefreshNotesUI();
+    }
+
+    private void NoteContentBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId)) return;
+        _notesStore?.UpdateNote(_activeNoteId, NoteContentBox.Text);
+    }
+
+    // ── Timer UI ──────────────────────────────────────────────────────────────
+
+    private void OnTimerTick(TimeSpan remaining, double progress)
+    {
+        TimerDisplay.Text = _timer?.FormatRemaining() ?? "00:00";
+
+        if (_timer?.State == IslandTimerState.Running)
+        {
+            FoldedTimerMini.Visibility = Visibility.Visible;
+            FoldedTimerText.Text = _timer.FormatRemaining();
+        }
+        else
+        {
+            FoldedTimerMini.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnTimerFinished()
+    {
+        FoldedTimerMini.Visibility = Visibility.Collapsed;
+        TimerStartBtn.Content = "Start";
+
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "timer",
+            Icon: "\uE916",
+            Title: "Timer finished",
+            Detail: "Time's up!",
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.ReminderTimer,
+            StayMs: 6000));
+
+        try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+    }
+
+    private void TimerPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is string minsStr && int.TryParse(minsStr, out int mins))
+        {
+            _timer?.Start(TimeSpan.FromMinutes(mins));
+            TimerStartBtn.Content = "Pause";
+        }
+    }
+
+    private void TimerStartBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_timer == null) return;
+
+        if (_timer.State == IslandTimerState.Running)
+        {
+            _timer.Pause();
+            TimerStartBtn.Content = "Resume";
+        }
+        else if (_timer.State == IslandTimerState.Paused)
+        {
+            _timer.Resume();
+            TimerStartBtn.Content = "Pause";
+        }
+        else
+        {
+            _timer.Start(_timer.Remaining > TimeSpan.Zero ? _timer.Remaining : TimeSpan.FromMinutes(5));
+            TimerStartBtn.Content = "Pause";
+        }
+    }
+
+    private void TimerResetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _timer?.Reset();
+        TimerStartBtn.Content = "Start";
+        FoldedTimerMini.Visibility = Visibility.Collapsed;
+    }
+
+    // ── Reminders UI ──────────────────────────────────────────────────────────
+
+    private void RefreshRemindersUI()
+    {
+        if (_reminderStore == null) return;
+        var list = _reminderStore.ActiveReminders;
+
+        ReminderList.Children.Clear();
+
+        if (list.Count == 0)
+        {
+            var empty = new TextBlock
+            {
+                Text = "No active reminders",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+            ReminderList.Children.Add(empty);
+            return;
+        }
+
+        foreach (var rem in list)
+        {
+            var row = BuildReminderRow(rem);
+            ReminderList.Children.Add(row);
+        }
+    }
+
+    private Grid BuildReminderRow(IslandReminder rem)
+    {
+        var grid = new Grid
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(6, 3, 4, 3)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new FontIcon
+        {
+            Glyph = "\uEA8F",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 140, 0)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0)
+        };
+        Grid.SetColumn(icon, 0);
+        grid.Children.Add(icon);
+
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock
+        {
+            Text = rem.Title,
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var relTime = new TextBlock
+        {
+            Text = WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc),
+            FontSize = 8,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+        };
+        stack.Children.Add(title);
+        stack.Children.Add(relTime);
+        Grid.SetColumn(stack, 1);
+        grid.Children.Add(stack);
+
+        // Complete ✓ button
+        var doneBtn = new Button
+        {
+            Content = new FontIcon { Glyph = "\uE73E", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 108, 203, 95)) },
+            Style = (Style)RootGrid.Resources["TabButtonStyle"],
+            Width = 20, Height = 20,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTipService.SetToolTip(doneBtn, "Mark completed");
+        doneBtn.Click += (_, _) => _reminderStore?.Complete(rem.Id);
+        Grid.SetColumn(doneBtn, 2);
+        grid.Children.Add(doneBtn);
+
+        return grid;
+    }
+
+    private void ReminderQuickInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            string text = ReminderQuickInput.Text.Trim();
+            if (!string.IsNullOrEmpty(text))
+            {
+                _reminderStore?.AddFromPhrase(text);
+                ReminderQuickInput.Text = string.Empty;
+            }
+            e.Handled = true;
+        }
+    }
+
+    private void OnReminderTriggered(IslandReminder reminder)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _eventQueue?.Push(new WindowIslandCard(
+                Kind: "reminder",
+                Icon: "\uEA8F",
+                Title: "Reminder",
+                Detail: reminder.Title,
+                AccentHex: "#FF8C00",
+                Priority: WindowIslandCardPriority.ReminderTimer,
+                StayMs: 0));
+
+            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
+        });
     }
 }

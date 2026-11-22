@@ -166,6 +166,21 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Folded timer mini (shows countdown when timer is running) -->
+                <StackPanel x:Name="FoldedTimerMini"
+                            Orientation="Horizontal"
+                            Spacing="3"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE916;" FontSize="10" Foreground="#60CDFF" />
+                    <TextBlock x:Name="FoldedTimerText"
+                               Text="05:00"
+                               FontFamily="Segoe UI Variable Small"
+                               FontSize="11"
+                               Foreground="#60CDFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
                 <!-- Clock -->
                 <StackPanel x:Name="ClockContainer"
                             Orientation="Horizontal"
@@ -998,13 +1013,186 @@
                                    VerticalAlignment="Center" />
                     </Grid>
 
-                    <!-- Note tab placeholder -->
+                    <!-- Note & Timer tab -->
                     <Grid x:Name="ContentNote" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Note &amp; Timer"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"   /> <!-- Left: Notes editor -->
+                            <ColumnDefinition Width="200" /> <!-- Right: Timer & Reminders -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ── Left: Note Editor ── -->
+                        <Grid Grid.Column="0" Margin="0,0,10,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /> <!-- Note Tab Strip + actions -->
+                                <RowDefinition Height="*"    /> <!-- Text editor -->
+                            </Grid.RowDefinitions>
+
+                            <!-- Note headers + tools -->
+                            <Grid Grid.Row="0" Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"    />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Note tabs (horizontally scrollable) -->
+                                <ScrollViewer Grid.Column="0"
+                                              HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Disabled"
+                                              HorizontalScrollMode="Enabled">
+                                    <StackPanel x:Name="NoteTabStrip"
+                                                Orientation="Horizontal"
+                                                Spacing="4" />
+                                </ScrollViewer>
+
+                                <!-- Add note, Copy note, Delete note -->
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            Spacing="2">
+                                    <Button x:Name="NoteAddBtn"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Width="24" Height="24"
+                                            Padding="0"
+                                            Click="NoteAddBtn_Click"
+                                            ToolTipService.ToolTip="Add new note">
+                                        <FontIcon Glyph="&#xE710;" FontSize="11" />
+                                    </Button>
+                                    <Button x:Name="NoteCopyBtn"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Width="24" Height="24"
+                                            Padding="0"
+                                            Click="NoteCopyBtn_Click"
+                                            ToolTipService.ToolTip="Copy note content">
+                                        <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                                    </Button>
+                                    <Button x:Name="NoteDeleteBtn"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Width="24" Height="24"
+                                            Padding="0"
+                                            Click="NoteDeleteBtn_Click"
+                                            ToolTipService.ToolTip="Delete current note">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="11" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Multi-line text box -->
+                            <TextBox x:Name="NoteContentBox"
+                                     Grid.Row="1"
+                                     PlaceholderText="Write anything here: an order number, a to-do list, a code snippet. It saves itself."
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontSize="11"
+                                     Background="#15FFFFFF"
+                                     Foreground="#F0FFFFFF"
+                                     BorderBrush="#25FFFFFF"
+                                     CornerRadius="6"
+                                     Padding="8,6"
+                                     TextChanged="NoteContentBox_TextChanged" />
+                        </Grid>
+
+                        <!-- ── Right: Timer & Reminders ── -->
+                        <Grid Grid.Column="1">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /> <!-- Timer panel -->
+                                <RowDefinition Height="Auto" /> <!-- Divider -->
+                                <RowDefinition Height="*"    /> <!-- Reminders panel -->
+                            </Grid.RowDefinitions>
+
+                            <!-- Timer Section -->
+                            <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"    />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE916;" FontSize="11" Foreground="#60CDFF" />
+                                        <TextBlock Text="TIMER"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#60FFFFFF"
+                                                   CharacterSpacing="80" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="TimerDisplay"
+                                               Grid.Column="1"
+                                               Text="05:00"
+                                               FontFamily="Consolas"
+                                               FontWeight="SemiBold"
+                                               FontSize="15"
+                                               Foreground="#60CDFF"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Preset buttons row -->
+                                <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center">
+                                    <Button Content="5m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="5" />
+                                    <Button Content="10m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="10" />
+                                    <Button Content="15m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="15" />
+                                    <Button Content="25m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="25" />
+                                </StackPanel>
+
+                                <!-- Timer control buttons -->
+                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                                    <Button x:Name="TimerStartBtn"
+                                            Content="Start"
+                                            FontSize="10"
+                                            FontWeight="SemiBold"
+                                            Padding="10,2"
+                                            CornerRadius="4"
+                                            Background="#2560CDFF"
+                                            Foreground="#60CDFF"
+                                            Click="TimerStartBtn_Click" />
+                                    <Button x:Name="TimerResetBtn"
+                                            Content="Reset"
+                                            FontSize="10"
+                                            Padding="8,2"
+                                            CornerRadius="4"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Click="TimerResetBtn_Click" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Divider -->
+                            <Border Grid.Row="1" Height="1" Background="#20FFFFFF" Margin="0,0,0,6" />
+
+                            <!-- Reminders Section -->
+                            <Grid Grid.Row="2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*"    />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
+                                    <FontIcon Glyph="&#xEA8F;" FontSize="10" Foreground="#FF8C00" />
+                                    <TextBlock Text="REMINDERS"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               Foreground="#60FFFFFF"
+                                               CharacterSpacing="80" />
+                                </StackPanel>
+
+                                <!-- Quick add input box -->
+                                <TextBox x:Name="ReminderQuickInput"
+                                         Grid.Row="1"
+                                         PlaceholderText="Call mum in 10m…"
+                                         FontSize="10"
+                                         Background="#15FFFFFF"
+                                         Foreground="#F0FFFFFF"
+                                         BorderBrush="#25FFFFFF"
+                                         CornerRadius="5"
+                                         Padding="6,3"
+                                         Margin="0,0,0,4"
+                                         KeyDown="ReminderQuickInput_KeyDown" />
+
+                                <!-- Reminders List -->
+                                <ScrollViewer Grid.Row="2"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel x:Name="ReminderList" Spacing="2" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Grid>
                     </Grid>
 
                     <!-- Weather tab placeholder -->
