@@ -21,8 +21,10 @@ using Windows.System;
 using AppLock.Island.Events;
 using AppLock.Island.Modules;
 using AppLock.Models;
+using AppLock.Services;
 using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules;
+using AppLock.WindowIsland.Modules.Weather;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace AppLock.WindowIsland.Host;
@@ -149,6 +151,9 @@ public sealed partial class WindowIslandWindow : Window
     private string?                           _activeNoteId;
     private bool                              _noteUpdating;
 
+    // Milestone 10: Weather
+    private bool                              _showingWeeklyWeather;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -273,6 +278,11 @@ public sealed partial class WindowIslandWindow : Window
         _timer.Tick += (rem, prog) => DispatcherQueue.TryEnqueue(() => OnTimerTick(rem, prog));
         _timer.Finished += () => DispatcherQueue.TryEnqueue(OnTimerFinished);
 
+        // Milestone 10: Weather
+        WindowIslandWeatherService.Instance.WeatherUpdated += OnWeatherUpdated;
+        WindowIslandWeatherService.Instance.RainWarningTriggered += OnRainWarningTriggered;
+        UpdateFoldedWeatherMini();
+
         // ── Timers ──────────────────────────────────────────────────────────────
 
         _topmostTimer = DispatcherQueue.CreateTimer();
@@ -360,6 +370,7 @@ public sealed partial class WindowIslandWindow : Window
         ApplyContentVisibility();
         UpdateClock();
         UpdateBattery();
+        UpdateFoldedWeatherMini();
     }
 
     public void ToggleVisible() => SetIslandVisible(!_isVisible);
@@ -438,6 +449,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             RefreshNotesUI();
             RefreshRemindersUI();
+        }
+        if (_activeTab == 6)
+        {
+            RefreshWeatherUI();
         }
 
         // Show new content, collapse previous
@@ -1242,7 +1257,9 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             // Folded mini
+            _isMediaPlaying = snap.Playing;
             FoldedMediaMini.Visibility = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
+            UpdateFoldedWeatherMini();
             if (snap.Playing) StartEqTimer(); else StopEqTimer();
         }
         catch (Exception ex) { WindowIslandHost.Log("OnMediaUpdated: " + ex.Message); }
@@ -2184,11 +2201,13 @@ public sealed partial class WindowIslandWindow : Window
         {
             FoldedTimerMini.Visibility = Visibility.Collapsed;
         }
+        UpdateFoldedWeatherMini();
     }
 
     private void OnTimerFinished()
     {
         FoldedTimerMini.Visibility = Visibility.Collapsed;
+        UpdateFoldedWeatherMini();
         TimerStartBtn.Content = "Start";
 
         _eventQueue?.Push(new WindowIslandCard(
@@ -2238,6 +2257,7 @@ public sealed partial class WindowIslandWindow : Window
         _timer?.Reset();
         TimerStartBtn.Content = "Start";
         FoldedTimerMini.Visibility = Visibility.Collapsed;
+        UpdateFoldedWeatherMini();
     }
 
     // ── Reminders UI ──────────────────────────────────────────────────────────
@@ -2358,5 +2378,360 @@ public sealed partial class WindowIslandWindow : Window
 
             try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
         });
+    }
+
+    // ── Milestone 10: Weather Tab & Indicators ─────────────────────────────────
+
+    private void OnWeatherUpdated(object? sender, WeatherForecastData? data)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_activeTab == 6) RefreshWeatherUI();
+            UpdateFoldedWeatherMini();
+        });
+    }
+
+    private void OnRainWarningTriggered(object? sender, WindowIslandCard card)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _eventQueue?.Push(card);
+            try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
+        });
+    }
+
+    private void RefreshWeatherUI()
+    {
+        var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
+        if (string.IsNullOrWhiteSpace(settings.WeatherCity))
+        {
+            WeatherCityOverlay.Visibility = Visibility.Visible;
+            WeatherSearchCancel.Visibility = Visibility.Collapsed;
+            WeatherCityText.Text = "No city set";
+            WeatherBigTemp.Text = "--";
+            WeatherConditionText.Text = "Tap to set location";
+            WeatherFeelsLikeText.Text = "Feels like -- · H: -- L: --";
+            WeatherOutlookText.Text = "Please enter your city to fetch weather data.";
+            WeatherHoursStack.Children.Clear();
+            WeatherWeekStack.Children.Clear();
+            return;
+        }
+
+        WeatherSearchCancel.Visibility = Visibility.Visible;
+
+        var weather = WindowIslandWeatherService.Instance.CurrentWeather;
+        if (weather == null)
+        {
+            WeatherCityText.Text = settings.WeatherCity;
+            WeatherBigTemp.Text = "--";
+            WeatherConditionText.Text = "Loading...";
+            WeatherFeelsLikeText.Text = "Fetching forecast from MET Norway...";
+            _ = WindowIslandWeatherService.Instance.RefreshAsync();
+            return;
+        }
+
+        WeatherCityText.Text = string.IsNullOrEmpty(weather.CityName) ? settings.WeatherCity : weather.CityName;
+        WeatherBigTemp.Text = WindowIslandWeatherService.FormatTemp(weather.CurrentTempC, settings.WeatherUnits);
+        WeatherConditionIcon.Glyph = weather.IconGlyph;
+        WeatherConditionText.Text = weather.ConditionText;
+        WeatherFeelsLikeText.Text = $"Feels like {WindowIslandWeatherService.FormatTemp(weather.FeelsLikeC, settings.WeatherUnits)} · H: {WindowIslandWeatherService.FormatTemp(weather.HighC, settings.WeatherUnits)} L: {WindowIslandWeatherService.FormatTemp(weather.LowC, settings.WeatherUnits)}";
+        WeatherOutlookText.Text = weather.SummaryOutlook;
+        WeatherUpdatedText.Text = GetFriendlyUpdatedTime(weather.UpdatedTime);
+
+        // Metric Tiles
+        WeatherWindText.Text = $"{WindowIslandWeatherService.FormatSpeed(weather.WindSpeedMps, settings.WeatherUnits)} {weather.WindDirectionCompass}";
+        WeatherHumidityText.Text = $"{(int)Math.Round(weather.HumidityPercent)}% · Dew {WindowIslandWeatherService.FormatTemp(weather.DewPointC, settings.WeatherUnits)}";
+        WeatherPressureText.Text = $"{(int)Math.Round(weather.PressureHpa)} hPa · {weather.PressureTrend}";
+        WeatherSunText.Text = $"{(weather.Sunrise.Year > 2000 ? weather.Sunrise.ToString("HH:mm") : "--:--")} · {(weather.Sunset.Year > 2000 ? weather.Sunset.ToString("HH:mm") : "--:--")}";
+        WeatherPrecipText.Text = $"{weather.PrecipitationTodayMm:0.0} mm";
+        WeatherUvText.Text = $"{weather.UvIndex:0.0} ({weather.UvLevel})";
+
+        // Build hourly & week forecast items
+        BuildWeatherHourlyItems(weather.Hourly, settings.WeatherUnits);
+        BuildWeatherDailyItems(weather.Daily, settings.WeatherUnits);
+
+        WeatherHoursScroll.Visibility = _showingWeeklyWeather ? Visibility.Collapsed : Visibility.Visible;
+        WeatherWeekScroll.Visibility  = _showingWeeklyWeather ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateFoldedWeatherMini();
+    }
+
+    private void BuildWeatherHourlyItems(IReadOnlyList<WeatherHourlyPoint> hourly, string units)
+    {
+        WeatherHoursStack.Children.Clear();
+        if (hourly == null || hourly.Count == 0) return;
+
+        bool isFirst = true;
+        foreach (var pt in hourly.Take(16))
+        {
+            var itemBorder = new Border
+            {
+                Background = new SolidColorBrush(ColorHelper.FromArgb(isFirst ? (byte)0x28 : (byte)0x15, 0xFF, 0xFF, 0xFF)),
+                BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(isFirst ? (byte)0x35 : (byte)0x20, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(6, 4, 6, 4),
+                Width = 44
+            };
+
+            var sp = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+
+            string timeLabel = isFirst ? "Now" : pt.Time.ToString("HH:mm");
+            sp.Children.Add(new TextBlock
+            {
+                Text = timeLabel,
+                FontSize = 9,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            sp.Children.Add(new FontIcon
+            {
+                Glyph = pt.IconGlyph,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(pt.SymbolCode.Contains("rain") || pt.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            sp.Children.Add(new TextBlock
+            {
+                Text = WindowIslandWeatherService.FormatTemp(pt.TempC, units),
+                FontSize = 10,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            if (pt.PrecipitationMm > 0)
+            {
+                sp.Children.Add(new TextBlock
+                {
+                    Text = $"{pt.PrecipitationMm:0.0}",
+                    FontSize = 8,
+                    Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0x60, 0xCD, 0xFF)),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+            }
+
+            itemBorder.Child = sp;
+            WeatherHoursStack.Children.Add(itemBorder);
+            isFirst = false;
+        }
+    }
+
+    private void BuildWeatherDailyItems(IReadOnlyList<WeatherDailyPoint> daily, string units)
+    {
+        WeatherWeekStack.Children.Clear();
+        if (daily == null || daily.Count == 0) return;
+
+        foreach (var d in daily)
+        {
+            var itemBorder = new Border
+            {
+                Background = new SolidColorBrush(ColorHelper.FromArgb(0x15, 0xFF, 0xFF, 0xFF)),
+                BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 4, 8, 4),
+                Width = 54
+            };
+
+            var sp = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+
+            sp.Children.Add(new TextBlock
+            {
+                Text = d.DayName,
+                FontSize = 9,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            sp.Children.Add(new FontIcon
+            {
+                Glyph = d.IconGlyph,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(d.SymbolCode.Contains("rain") || d.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            sp.Children.Add(new TextBlock
+            {
+                Text = $"{WindowIslandWeatherService.FormatTemp(d.TempHighC, units)}/{WindowIslandWeatherService.FormatTemp(d.TempLowC, units)}",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            itemBorder.Child = sp;
+            WeatherWeekStack.Children.Add(itemBorder);
+        }
+    }
+
+    private static string GetFriendlyUpdatedTime(DateTime updatedUtc)
+    {
+        var diff = DateTime.UtcNow - updatedUtc;
+        if (diff.TotalSeconds < 60) return "Updated just now";
+        if (diff.TotalMinutes < 60) return $"Updated {(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"Updated {(int)diff.TotalHours}h ago";
+        return $"Updated {updatedUtc.ToLocalTime():g}";
+    }
+
+    private void UpdateFoldedWeatherMini()
+    {
+        var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
+        if (!settings.WeatherTempOnIsland || _isMediaPlaying || _timer?.State == IslandTimerState.Running)
+        {
+            FoldedWeatherMini.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var weather = WindowIslandWeatherService.Instance.CurrentWeather;
+        if (weather != null && !string.IsNullOrWhiteSpace(settings.WeatherCity))
+        {
+            FoldedWeatherMini.Visibility = Visibility.Visible;
+            FoldedWeatherTemp.Text = WindowIslandWeatherService.FormatTemp(weather.CurrentTempC, settings.WeatherUnits);
+            FoldedWeatherIcon.Glyph = weather.IconGlyph;
+        }
+        else
+        {
+            FoldedWeatherMini.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void WeatherChangeCityBtn_Click(object sender, RoutedEventArgs e)
+    {
+        WeatherCityOverlay.Visibility = Visibility.Visible;
+        WeatherSearchInput.Focus(FocusState.Programmatic);
+    }
+
+    private void WeatherSearchCancel_Click(object sender, RoutedEventArgs e)
+    {
+        WeatherCityOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void WeatherSearchInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            PerformCitySearch();
+            e.Handled = true;
+        }
+    }
+
+    private void WeatherSearchSubmit_Click(object sender, RoutedEventArgs e)
+    {
+        PerformCitySearch();
+    }
+
+    private async void PerformCitySearch()
+    {
+        string query = WeatherSearchInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(query)) return;
+
+        WeatherSearchSubmit.IsEnabled = false;
+        WeatherSearchFeedback.Text = "Searching locations...";
+        WeatherSearchFeedback.Visibility = Visibility.Visible;
+        WeatherSearchResultsStack.Children.Clear();
+
+        try
+        {
+            var results = await WindowIslandWeatherService.Instance.SearchCitiesAsync(query);
+            if (results != null && results.Count > 0)
+            {
+                WeatherSearchFeedback.Visibility = Visibility.Collapsed;
+                foreach (var loc in results)
+                {
+                    var btn = new Button
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        HorizontalContentAlignment = HorizontalAlignment.Left,
+                        Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                        BorderThickness = new Thickness(0),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(8, 6, 8, 6),
+                        Margin = new Thickness(0, 2, 0, 2)
+                    };
+
+                    var sp = new StackPanel { Spacing = 2 };
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = loc.DisplayName,
+                        FontSize = 11,
+                        Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"{loc.Latitude:F2}, {loc.Longitude:F2}",
+                        FontSize = 9,
+                        Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF))
+                    });
+                    btn.Content = sp;
+
+                    btn.Click += async (_, _) =>
+                    {
+                        WeatherCityOverlay.Visibility = Visibility.Collapsed;
+                        WeatherSearchFeedback.Visibility = Visibility.Collapsed;
+                        await WindowIslandWeatherService.Instance.SetLocationAsync(loc.DisplayName, loc.Latitude, loc.Longitude);
+                        RefreshWeatherUI();
+                    };
+
+                    WeatherSearchResultsStack.Children.Add(btn);
+                }
+            }
+            else
+            {
+                WeatherSearchFeedback.Text = "No locations found. Please check spelling.";
+                WeatherSearchFeedback.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            WeatherSearchFeedback.Text = $"Search failed: {ex.Message}";
+            WeatherSearchFeedback.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            WeatherSearchSubmit.IsEnabled = true;
+        }
+    }
+
+    private async void WeatherRefreshBtn_Click(object sender, RoutedEventArgs e)
+    {
+        WeatherRefreshBtn.IsEnabled = false;
+        WeatherUpdatedText.Text = "Updating...";
+        try
+        {
+            await WindowIslandWeatherService.Instance.RefreshAsync(force: true);
+            RefreshWeatherUI();
+        }
+        catch { }
+        finally
+        {
+            WeatherRefreshBtn.IsEnabled = true;
+        }
+    }
+
+    private void WeatherBtnHours_Click(object sender, RoutedEventArgs e)
+    {
+        _showingWeeklyWeather = false;
+        WeatherHoursScroll.Visibility = Visibility.Visible;
+        WeatherWeekScroll.Visibility = Visibility.Collapsed;
+        WeatherBtnHours.Background = new SolidColorBrush(ColorHelper.FromArgb(0x25, 0xFF, 0xFF, 0xFF));
+        WeatherBtnHours.Foreground = new SolidColorBrush(Colors.White);
+        WeatherBtnWeek.Background = new SolidColorBrush(Colors.Transparent);
+        WeatherBtnWeek.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
+    }
+
+    private void WeatherBtnWeek_Click(object sender, RoutedEventArgs e)
+    {
+        _showingWeeklyWeather = true;
+        WeatherHoursScroll.Visibility = Visibility.Collapsed;
+        WeatherWeekScroll.Visibility = Visibility.Visible;
+        WeatherBtnWeek.Background = new SolidColorBrush(ColorHelper.FromArgb(0x25, 0xFF, 0xFF, 0xFF));
+        WeatherBtnWeek.Foreground = new SolidColorBrush(Colors.White);
+        WeatherBtnHours.Background = new SolidColorBrush(Colors.Transparent);
+        WeatherBtnHours.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
     }
 }

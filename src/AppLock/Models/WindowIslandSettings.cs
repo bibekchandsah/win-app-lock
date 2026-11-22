@@ -58,5 +58,13 @@ public sealed class WindowIslandSettings
     public bool CardClipboardEnabled  { get; set; } = true;
     public bool CardScreenshotEnabled { get; set; } = true;
 
+    // ── Milestone 10: Weather Settings ───────────────────────────────────────
+    public string WeatherCity { get; set; } = string.Empty;
+    public double WeatherLatitude { get; set; } = 0.0;
+    public double WeatherLongitude { get; set; } = 0.0;
+    public string WeatherUnits { get; set; } = "metric"; // "metric" (°C, m/s) or "imperial" (°F, mph)
+    public bool WeatherTempOnIsland { get; set; } = true;
+    public bool WeatherRainWarning { get; set; } = true;
+
     public WindowIslandSettings Clone() => (WindowIslandSettings)MemberwiseClone();
 }

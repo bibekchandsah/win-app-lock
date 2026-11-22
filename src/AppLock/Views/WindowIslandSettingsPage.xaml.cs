@@ -61,6 +61,12 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardScreenshotToggle.IsOn = s.CardScreenshotEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
+        WeatherCityBox.Text = s.WeatherCity;
+        WeatherCityStatus.Text = string.IsNullOrEmpty(s.WeatherCity) ? "No city configured (Weather tab is dormant)" : $"Saved: {s.WeatherCity} ({s.WeatherLatitude:F2}, {s.WeatherLongitude:F2})";
+        SelectComboItem(WeatherUnitsBox, s.WeatherUnits);
+        WeatherTempOnIslandToggle.IsOn = s.WeatherTempOnIsland;
+        WeatherRainWarningToggle.IsOn  = s.WeatherRainWarning;
+
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
         _loading = false;
@@ -121,6 +127,9 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardClipboardEnabled  = CardClipboardToggle.IsOn;
         s.CardScreenshotEnabled = CardScreenshotToggle.IsOn;
         s.CardStayDuration      = TagOf(CardStayBox) ?? s.CardStayDuration;
+        s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
+        s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;
+        s.WeatherRainWarning    = WeatherRainWarningToggle.IsOn;
         s.Hotkey        = HotkeyBox.Text.Trim();
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
@@ -129,6 +138,39 @@ public sealed partial class WindowIslandSettingsPage : Page
         if (s.Enabled)
         {
             WindowIslandHost.Instance.ApplySettings(s);
+        }
+    }
+
+    private async void WeatherSearchBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string query = WeatherCityBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(query)) return;
+
+        WeatherSearchBtn.IsEnabled = false;
+        WeatherCityStatus.Text = "Searching...";
+
+        try
+        {
+            var results = await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.SearchCitiesAsync(query);
+            if (results != null && results.Count > 0)
+            {
+                var first = results[0];
+                await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.SetLocationAsync(first.DisplayName, first.Latitude, first.Longitude);
+                WeatherCityStatus.Text = $"Saved: {first.DisplayName} ({first.Latitude:F2}, {first.Longitude:F2})";
+                WeatherCityBox.Text = first.DisplayName;
+            }
+            else
+            {
+                WeatherCityStatus.Text = "No locations found. Please check spelling.";
+            }
+        }
+        catch (Exception ex)
+        {
+            WeatherCityStatus.Text = $"Search failed: {ex.Message}";
+        }
+        finally
+        {
+            WeatherSearchBtn.IsEnabled = true;
         }
     }
 

@@ -181,6 +181,21 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
 
+                <!-- Folded weather mini (shows temperature + weather icon) -->
+                <StackPanel x:Name="FoldedWeatherMini"
+                            Orientation="Horizontal"
+                            Spacing="3"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <FontIcon x:Name="FoldedWeatherIcon" Glyph="&#xE706;" FontSize="10" Foreground="#FFD700" />
+                    <TextBlock x:Name="FoldedWeatherTemp"
+                               Text="21°"
+                               FontFamily="Segoe UI Variable Small"
+                               FontSize="11"
+                               Foreground="#D0FFFFFF"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
                 <!-- Clock -->
                 <StackPanel x:Name="ClockContainer"
                             Orientation="Horizontal"
@@ -1195,13 +1210,337 @@
                         </Grid>
                     </Grid>
 
-                    <!-- Weather tab placeholder -->
+                    <!-- ═══════════════════════════════════════════════════════════
+                         WEATHER TAB (Milestone 10)
+                    ════════════════════════════════════════════════════════════ -->
                     <Grid x:Name="ContentWeather" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Weather"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="215"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left Card: Current Conditions & Outlook -->
+                            <Border Grid.Column="0"
+                                    Background="#18FFFFFF"
+                                    BorderBrush="#25FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12,10,12,8">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- City header + change button -->
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="WeatherCityText"
+                                                   Text="No city set"
+                                                   FontFamily="Segoe UI Variable Display"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="#F0FFFFFF"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1"
+                                                x:Name="WeatherChangeCityBtn"
+                                                Click="WeatherChangeCityBtn_Click"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Padding="4,2"
+                                                Margin="4,0,0,0"
+                                                ToolTipService.ToolTip="Change location">
+                                            <FontIcon Glyph="&#xE70F;" FontSize="10" Foreground="#80FFFFFF"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Temperature & Condition Icon -->
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,2,0,0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="WeatherBigTemp"
+                                                   Text="--"
+                                                   FontFamily="Segoe UI Variable Display"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="36"
+                                                   Foreground="#FFFFFFFF"
+                                                   VerticalAlignment="Center"/>
+                                        <FontIcon x:Name="WeatherConditionIcon"
+                                                  Glyph="&#xE706;"
+                                                  FontSize="24"
+                                                  Foreground="#FFD700"
+                                                  VerticalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- Condition & Feels Like -->
+                                    <StackPanel Grid.Row="2" Spacing="1">
+                                        <TextBlock x:Name="WeatherConditionText"
+                                                   Text="Tap to set location"
+                                                   FontFamily="Segoe UI Variable Small"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Foreground="#E0FFFFFF"/>
+                                        <TextBlock x:Name="WeatherFeelsLikeText"
+                                                   Text="Feels like -- · H: -- L: --"
+                                                   FontFamily="Segoe UI Variable Small"
+                                                   FontSize="11"
+                                                   Foreground="#90FFFFFF"/>
+                                    </StackPanel>
+
+                                    <!-- Summary Outlook -->
+                                    <TextBlock Grid.Row="3"
+                                               x:Name="WeatherOutlookText"
+                                               Text="Data from MET Norway. Tap location to configure."
+                                               FontFamily="Segoe UI Variable Small"
+                                               FontSize="10"
+                                               Foreground="#80FFFFFF"
+                                               TextWrapping="Wrap"
+                                               MaxLines="2"
+                                               Margin="0,4,0,0"/>
+
+                                    <!-- Footer: Refresh + Attribution -->
+                                    <Grid Grid.Row="5" Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Button x:Name="WeatherRefreshBtn"
+                                                    Click="WeatherRefreshBtn_Click"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="3"
+                                                    ToolTipService.ToolTip="Refresh weather">
+                                                <FontIcon Glyph="&#xE72C;" FontSize="10" Foreground="#A0FFFFFF"/>
+                                            </Button>
+                                            <TextBlock x:Name="WeatherUpdatedText"
+                                                       Text="Updated just now"
+                                                       FontFamily="Segoe UI Variable Small"
+                                                       FontSize="9"
+                                                       Foreground="#70FFFFFF"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="MET Norway"
+                                                   FontFamily="Segoe UI Variable Small"
+                                                   FontSize="9"
+                                                   Foreground="#50FFFFFF"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <!-- Right Card: Hours/Week Forecast + Metric Tiles -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="74"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Hours / Week Tab Selector -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
+                                    <Button x:Name="WeatherBtnHours"
+                                            Content="Hourly"
+                                            Click="WeatherBtnHours_Click"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Background="#25FFFFFF"
+                                            BorderThickness="0"
+                                            CornerRadius="4"
+                                            Foreground="#FFFFFFFF"/>
+                                    <Button x:Name="WeatherBtnWeek"
+                                            Content="7-Day"
+                                            Click="WeatherBtnWeek_Click"
+                                            Padding="10,2"
+                                            FontSize="11"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="4"
+                                            Foreground="#90FFFFFF"/>
+                                </StackPanel>
+
+                                <!-- Forecast View -->
+                                <Grid Grid.Row="1">
+                                    <!-- Hourly Scroll Strip -->
+                                    <ScrollViewer x:Name="WeatherHoursScroll"
+                                                  HorizontalScrollBarVisibility="Hidden"
+                                                  VerticalScrollBarVisibility="Disabled">
+                                        <StackPanel x:Name="WeatherHoursStack"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6"
+                                                    Padding="1,2,1,2"/>
+                                    </ScrollViewer>
+
+                                    <!-- 7-Day Outlook Strip -->
+                                    <ScrollViewer x:Name="WeatherWeekScroll"
+                                                  HorizontalScrollBarVisibility="Hidden"
+                                                  VerticalScrollBarVisibility="Disabled"
+                                                  Visibility="Collapsed">
+                                        <StackPanel x:Name="WeatherWeekStack"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6"
+                                                    Padding="1,2,1,2"/>
+                                    </ScrollViewer>
+                                </Grid>
+
+                                <!-- 6 Metric Tiles -->
+                                <Grid Grid.Row="2" Margin="0,6,0,0" RowSpacing="5" ColumnSpacing="5">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Wind Tile -->
+                                    <Border Grid.Row="0" Grid.Column="0" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE728;" FontSize="10" Foreground="#60CDFF"/>
+                                                <TextBlock Text="Wind" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherWindText" Text="-- m/s" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Humidity Tile -->
+                                    <Border Grid.Row="0" Grid.Column="1" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE958;" FontSize="10" Foreground="#60CDFF"/>
+                                                <TextBlock Text="Humidity" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherHumidityText" Text="-- %" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Pressure Tile -->
+                                    <Border Grid.Row="0" Grid.Column="2" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xEC4A;" FontSize="10" Foreground="#60CDFF"/>
+                                                <TextBlock Text="Pressure" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherPressureText" Text="-- hPa" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Sun Tile (Sunrise/Sunset) -->
+                                    <Border Grid.Row="1" Grid.Column="0" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE706;" FontSize="10" Foreground="#FFD700"/>
+                                                <TextBlock Text="Sun" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherSunText" Text="-- · --" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Precipitation Tile -->
+                                    <Border Grid.Row="1" Grid.Column="1" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE754;" FontSize="10" Foreground="#60CDFF"/>
+                                                <TextBlock Text="Rain Today" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherPrecipText" Text="0.0 mm" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- UV Index Tile -->
+                                    <Border Grid.Row="1" Grid.Column="2" Background="#12FFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,4">
+                                        <StackPanel Spacing="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE706;" FontSize="10" Foreground="#FF9800"/>
+                                                <TextBlock Text="UV Index" FontSize="9" Foreground="#80FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="WeatherUvText" Text="0 (Low)" FontSize="11" FontWeight="SemiBold" Foreground="#F0FFFFFF"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                </Grid>
+                            </Grid>
+                        </Grid>
+
+                        <!-- ── City Search Overlay ──────────────────────────────── -->
+                        <Border x:Name="WeatherCityOverlay"
+                                Background="#F2181920"
+                                BorderBrush="#35FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16,14"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Spacing="2">
+                                    <TextBlock Text="Where should the weather be for?"
+                                               FontFamily="Segoe UI Variable Display"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="#FFFFFFFF"/>
+                                    <TextBlock Text="Type your city. Your location is never guessed from your IP address."
+                                               FontFamily="Segoe UI Variable Small"
+                                               FontSize="11"
+                                               Foreground="#90FFFFFF"/>
+                                </StackPanel>
+
+                                <!-- Search row -->
+                                <Grid Grid.Row="1" Margin="0,10,0,8" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="WeatherSearchInput"
+                                             PlaceholderText="e.g. London, Tokyo, New York, Oslo"
+                                             KeyDown="WeatherSearchInput_KeyDown"
+                                             CornerRadius="4"/>
+                                    <Button Grid.Column="1"
+                                            x:Name="WeatherSearchSubmit"
+                                            Content="Search"
+                                            Click="WeatherSearchSubmit_Click"
+                                            CornerRadius="4"/>
+                                    <Button Grid.Column="2"
+                                            x:Name="WeatherSearchCancel"
+                                            Content="Cancel"
+                                            Click="WeatherSearchCancel_Click"
+                                            CornerRadius="4"
+                                            Background="Transparent"
+                                            BorderThickness="0"/>
+                                </Grid>
+
+                                <TextBlock Grid.Row="2"
+                                           x:Name="WeatherSearchFeedback"
+                                           Text=""
+                                           FontSize="11"
+                                           Foreground="#80FFFFFF"
+                                           Margin="0,0,0,4"
+                                           Visibility="Collapsed"/>
+
+                                <!-- Results list -->
+                                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="WeatherSearchResultsStack" Spacing="4"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
                     </Grid>
 
                     <!-- Controls tab placeholder -->

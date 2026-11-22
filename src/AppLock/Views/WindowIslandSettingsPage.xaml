@@ -143,6 +143,26 @@
                 </ComboBox>
             </StackPanel>
 
+            <!-- Weather (Milestone 10) -->
+            <TextBlock Text="Weather" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Configured City" Opacity="0.7" FontSize="12"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="WeatherCityBox" Width="260" PlaceholderText="e.g. London, Tokyo, New York" />
+                    <Button x:Name="WeatherSearchBtn" Content="Set City" Click="WeatherSearchBtn_Click" />
+                </StackPanel>
+                <TextBlock x:Name="WeatherCityStatus" FontSize="11" Opacity="0.6"/>
+
+                <ComboBox x:Name="WeatherUnitsBox" Header="Units" SelectionChanged="OnSelectionChanged" Width="260">
+                    <ComboBoxItem Content="Metric (°C · m/s)" Tag="metric" />
+                    <ComboBoxItem Content="Imperial (°F · mph)" Tag="imperial" />
+                </ComboBox>
+
+                <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Header="Show temperature on folded island" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="WeatherRainWarningToggle" Header="Warn about rain and snow (card ~1h before)" Toggled="OnSettingChanged" />
+            </StackPanel>
+
             <!-- Global Hotkey -->
             <TextBlock Text="Shortcut" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
             <StackPanel Spacing="6">
