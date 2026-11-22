@@ -79,6 +79,10 @@ public sealed partial class WindowIslandWindow : Window
     private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(nint hWnd);
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
+    private const uint WDA_NONE = 0x00000000;
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, int cbAttribute);
     [DllImport("gdi32.dll")]
@@ -429,6 +433,23 @@ public sealed partial class WindowIslandWindow : Window
             _visibilityService.VisibilityChanged  += OnIslandVisibilityChanged;
             _visibilityService.EdgeDwellTriggered += OnEdgeDwellTriggered;
             _visibilityService.Start();
+        }
+
+        // Milestone 16: Polish, Lite mode, Display Affinity, Frame Stats
+        try
+        {
+            SetWindowDisplayAffinity(_hwnd, settings.ExcludeFromCapture ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+        }
+        catch { }
+
+        if (_clockTimer != null)
+        {
+            _clockTimer.Interval = settings.LiteMode ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(1);
+        }
+
+        if (FrameStatsRow != null)
+        {
+            FrameStatsRow.Visibility = settings.ShowFrameStats ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -869,7 +890,9 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
-            if (_hoverInside && !_compositor.IsOpen && elapsed >= IslandMotion.HoverOpenDelayMs)
+            int openDelay = _settings.OpenDelayMs > 0 ? _settings.OpenDelayMs : IslandMotion.HoverOpenDelayMs;
+            int closeDelay = _settings.CloseDelayMs > 0 ? _settings.CloseDelayMs : IslandMotion.HoverCloseDelayMs;
+            if (_hoverInside && !_compositor.IsOpen && elapsed >= openDelay)
             {
                 if (_eventQueue?.HasVisibleCard == true)
                 {
@@ -877,7 +900,7 @@ public sealed partial class WindowIslandWindow : Window
                 }
                 Expand();
             }
-            else if (!_hoverInside && _compositor.IsOpen && elapsed >= IslandMotion.HoverCloseDelayMs)
+            else if (!_hoverInside && _compositor.IsOpen && elapsed >= closeDelay)
             {
                 if (!_isPinned) Collapse();
             }
@@ -1038,6 +1061,9 @@ public sealed partial class WindowIslandWindow : Window
         Directory.CreateDirectory(outDir);
         string benchPath = Path.Combine(outDir, "bench.txt");
 
+        string islandDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
+        Directory.CreateDirectory(islandDir);
+
         var (p50, p95, p99, max) = ComputePercentiles();
         bool pass = p95 <= 20.9 && max <= 33.4;
 
@@ -1051,6 +1077,7 @@ public sealed partial class WindowIslandWindow : Window
             $"Verdict: {(pass ? "PASS" : "WARN")}\n";
 
         await File.WriteAllTextAsync(benchPath, report);
+        await File.WriteAllTextAsync(Path.Combine(islandDir, "bench.txt"), report);
         BenchStatusText.Text = $"p95={p95:F1}ms {(pass ? "PASS ✓" : "WARN")}";
     }
 

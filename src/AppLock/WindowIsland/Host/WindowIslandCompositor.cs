@@ -24,6 +24,7 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly ShapeVisual _shapeVisual;
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
     private readonly CompositionSpriteShape _bodyShape;
+    private WindowIslandSettings _settings;
 
     // Design dimensions in DIPs (folded)
     public const float FoldedWidthDip  = 176f;
@@ -59,6 +60,7 @@ public sealed class WindowIslandCompositor : IDisposable
 
     public WindowIslandCompositor(UIElement hostElement, WindowIslandSettings settings, float windowWidthDip)
     {
+        _settings      = settings;
         _compositor    = ElementCompositionPreview.GetElementVisual(hostElement).Compositor;
         _windowWidthDip = windowWidthDip;
         _sizeFactor    = (float)(settings.SizePercent / 100.0);
@@ -214,6 +216,7 @@ public sealed class WindowIslandCompositor : IDisposable
     public void ApplySettings(WindowIslandSettings settings)
     {
         if (_disposed) return;
+        _settings = settings;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
 
         // Animate opacity via Composition
@@ -249,18 +252,60 @@ public sealed class WindowIslandCompositor : IDisposable
 
     private void AnimateShape(Vector2 targetSize, Vector2 targetRadius, float dampingRatio, int periodMs, Action? onCompleted)
     {
-        // Using SpringVector2NaturalMotionAnimation retargets from current in-flight position.
-        // This is the key to interruptible animations — just update FinalValue.
-        var sizeAnim = _compositor.CreateSpringVector2Animation();
-        sizeAnim.DampingRatio = dampingRatio;
-        sizeAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
-        sizeAnim.FinalValue   = targetSize;
+        bool reducedMotion = _settings.ReducedMotion;
+        try
+        {
+            var uiSettings = new Windows.UI.ViewManagement.UISettings();
+            if (!uiSettings.AnimationsEnabled) reducedMotion = true;
+        }
+        catch { }
 
-        var radiusAnim = _compositor.CreateSpringVector2Animation();
-        radiusAnim.DampingRatio = dampingRatio;
-        radiusAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
-        radiusAnim.FinalValue   = targetRadius;
+        if (_settings.LiteMode)
+        {
+            // Simple 120 ms linear fade / keyframe animation (no springs)
+            var sizeAnim = _compositor.CreateVector2KeyFrameAnimation();
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(120);
+            sizeAnim.InsertKeyFrame(1.0f, targetSize);
 
+            var radiusAnim = _compositor.CreateVector2KeyFrameAnimation();
+            radiusAnim.Duration = TimeSpan.FromMilliseconds(120);
+            radiusAnim.InsertKeyFrame(1.0f, targetRadius);
+
+            RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
+        }
+        else if (reducedMotion)
+        {
+            // 80 ms fade / fast transition for reduced motion
+            var sizeAnim = _compositor.CreateVector2KeyFrameAnimation();
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(80);
+            sizeAnim.InsertKeyFrame(1.0f, targetSize);
+
+            var radiusAnim = _compositor.CreateVector2KeyFrameAnimation();
+            radiusAnim.Duration = TimeSpan.FromMilliseconds(80);
+            radiusAnim.InsertKeyFrame(1.0f, targetRadius);
+
+            RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
+        }
+        else
+        {
+            // Using SpringVector2NaturalMotionAnimation retargets from current in-flight position.
+            // This is the key to interruptible animations — just update FinalValue.
+            var sizeAnim = _compositor.CreateSpringVector2Animation();
+            sizeAnim.DampingRatio = dampingRatio;
+            sizeAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
+            sizeAnim.FinalValue   = targetSize;
+
+            var radiusAnim = _compositor.CreateSpringVector2Animation();
+            radiusAnim.DampingRatio = dampingRatio;
+            radiusAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
+            radiusAnim.FinalValue   = targetRadius;
+
+            RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
+        }
+    }
+
+    private void RunBatchOrDirect(CompositionAnimation sizeAnim, CompositionAnimation radiusAnim, Action? onCompleted)
+    {
         if (onCompleted != null)
         {
             var batch = _compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
@@ -288,12 +333,17 @@ public sealed class WindowIslandCompositor : IDisposable
 
     private CompositionBrush GetBodyBrush(WindowIslandSettings settings)
     {
-        var color = settings.Theme switch
-        {
-            "Light" => Color.FromArgb(240, 245, 245, 245),
-            "Dark"  => Color.FromArgb(240, 20, 20, 20),
-            _       => Color.FromArgb(240, 20, 20, 20)
-        };
-        return _compositor.CreateColorBrush(color);
+        Color baseColor = WindowIslandColorHelper.ResolveBaseColor(settings);
+        byte alpha = settings.LiteMode
+            ? (byte)255
+            : (byte)Math.Clamp((int)(255 * (settings.OpacityPercent / 100.0)), 0, 255);
+
+        return _compositor.CreateColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
     }
+
+    public static Color ResolveBaseColor(WindowIslandSettings settings)
+        => WindowIslandColorHelper.ResolveBaseColor(settings);
+
+    public static Color HexToColor(string hex)
+        => WindowIslandColorHelper.HexToColor(hex);
 }

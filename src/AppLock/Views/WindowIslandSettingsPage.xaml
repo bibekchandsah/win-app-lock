@@ -93,6 +93,18 @@
                 <ComboBoxItem Content="Dark" Tag="Dark" />
             </ComboBox>
 
+            <ComboBox x:Name="IslandColorBox" Header="Island Color" SelectionChanged="OnSelectionChanged" Width="260">
+                <ComboBoxItem Content="Default (Auto black/white)" Tag="Default" />
+                <ComboBoxItem Content="Dark Navy" Tag="Navy" />
+                <ComboBoxItem Content="Deep Indigo" Tag="Indigo" />
+                <ComboBoxItem Content="Forest Green" Tag="Green" />
+                <ComboBoxItem Content="Rich Maroon" Tag="Maroon" />
+                <ComboBoxItem Content="Warm Brown" Tag="Brown" />
+                <ComboBoxItem Content="Soft Cream" Tag="Cream" />
+                <ComboBoxItem Content="Fresh Mint" Tag="Mint" />
+                <ComboBoxItem Content="Gentle Lavender" Tag="Lavender" />
+            </ComboBox>
+
             <StackPanel Spacing="4">
                 <TextBlock Text="Size Scale" Opacity="0.7" FontSize="12"/>
                 <Slider x:Name="SizeSlider" Width="320" HorizontalAlignment="Left"
@@ -240,6 +252,82 @@
                 <TextBox x:Name="HotkeyBox" Width="260" HorizontalAlignment="Left" TextChanged="OnHotkeyChanged" />
                 <TextBlock Text="Default: Ctrl+Shift+W" FontSize="11" Opacity="0.5" />
             </StackPanel>
+
+            <!-- Polish & Performance (Milestone 16) -->
+            <TextBlock Text="Performance &amp; Polish" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <StackPanel Spacing="10">
+                <ToggleSwitch x:Name="LiteModeToggle"
+                              Header="Lite mode — fewer effects (solid background, 120 ms fades, low CPU)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ReducedMotionToggle"
+                              Header="Reduced motion (80 ms fast transitions, skip equalizers)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ExcludeFromCaptureToggle"
+                              Header="Hide island from screenshots and screen recordings"
+                              Toggled="OnSettingChanged" />
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Hover Open Delay (ms)" Opacity="0.7" FontSize="12"/>
+                    <Slider x:Name="OpenDelaySlider" Width="320" HorizontalAlignment="Left"
+                            Minimum="0" Maximum="600" StepFrequency="25" TickFrequency="50"
+                            ValueChanged="OnDelaySliderChanged" />
+                    <TextBlock x:Name="OpenDelayLabelText" FontSize="12" Opacity="0.6"/>
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Hover Close Delay (ms)" Opacity="0.7" FontSize="12"/>
+                    <Slider x:Name="CloseDelaySlider" Width="320" HorizontalAlignment="Left"
+                            Minimum="0" Maximum="1500" StepFrequency="50" TickFrequency="100"
+                            ValueChanged="OnDelaySliderChanged" />
+                    <TextBlock x:Name="CloseDelayLabelText" FontSize="12" Opacity="0.6"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- About & Privacy (Milestone 16) -->
+            <TextBlock Text="About &amp; Privacy" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Network &amp; Privacy Summary" FontWeight="SemiBold" FontSize="13" />
+                    <TextBlock Text="• MET Norway: Weather forecasts queried from api.met.no&#x0a;• OpenStreetMap Nominatim: City location search queried from nominatim.openstreetmap.org&#x0a;• Chat Tab: Selected AI assistants run directly in sandboxed WebView2&#x0a;• Shortcuts Bar: Favicon icons downloaded directly for pinned web links&#x0a;• Zero Telemetry: No analytics, tracking or crash data is transmitted&#x0a;• 100% Local Storage: All notes, history, shelf and caches stay in %LOCALAPPDATA%\AppLock\island\"
+                               FontSize="12"
+                               Opacity="0.8"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Text="Credits &amp; Open-Source Licenses" FontWeight="SemiBold" FontSize="13" Margin="0,6,0,0" />
+                    <TextBlock Text="• ZXing.Net (Apache License 2.0) — QR code generation&#x0a;• MET Norway Weather API (CC BY 4.0) — Forecast data&#x0a;• OpenStreetMap contributors (ODbL) — Geocoding data&#x0a;• Microsoft Windows App SDK &amp; WinUI 3 (MIT License)"
+                               FontSize="12"
+                               Opacity="0.8"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Developer Tools (Milestone 16) -->
+            <TextBlock Text="Developer Tools" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="10">
+                    <ToggleSwitch x:Name="FrameStatsToggle"
+                                  Header="Show live frame-time &amp; FPS overlay on the island"
+                                  Toggled="OnSettingChanged" />
+
+                    <Button x:Name="RunBenchmarkBtn"
+                            Content="Run Animation Benchmark (Cycles: 50 open/close)"
+                            Click="RunBenchmarkBtn_Click" />
+
+                    <TextBlock x:Name="BenchmarkResultText"
+                               Text="No benchmark executed in this session."
+                               FontSize="12"
+                               Opacity="0.7"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
 
         </StackPanel>
     </ScrollViewer>

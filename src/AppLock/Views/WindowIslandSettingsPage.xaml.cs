@@ -27,6 +27,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(PositionBox, s.Position);
         SelectComboItem(ShapeBox, s.Shape);
         SelectComboItem(ThemeBox, s.Theme);
+        SelectComboItem(IslandColorBox, s.IslandColor);
 
         SizeSlider.Minimum    = 60;
         SizeSlider.Maximum    = 150;
@@ -95,6 +96,15 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
         ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());
 
+        // Milestone 16: Polish, Lite mode, Delays, Frame Stats
+        LiteModeToggle.IsOn           = s.LiteMode;
+        ReducedMotionToggle.IsOn      = s.ReducedMotion;
+        ExcludeFromCaptureToggle.IsOn = s.ExcludeFromCapture;
+        OpenDelaySlider.Value         = s.OpenDelayMs;
+        CloseDelaySlider.Value        = s.CloseDelayMs;
+        FrameStatsToggle.IsOn         = s.ShowFrameStats;
+        UpdateDelayLabels();
+
         _loading = false;
     }
 
@@ -143,6 +153,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Position      = TagOf(PositionBox) ?? s.Position;
         s.Shape         = TagOf(ShapeBox)    ?? s.Shape;
         s.Theme         = TagOf(ThemeBox)    ?? s.Theme;
+        s.IslandColor   = TagOf(IslandColorBox) ?? s.IslandColor;
         s.SizePercent   = (int)SizeSlider.Value;
         s.OpacityPercent = (int)OpacitySlider.Value;
         s.YOffsetDip    = (int)YOffsetSlider.Value;
@@ -180,6 +191,14 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.ChosenApps                 = ChosenAppsBox.Text
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
+
+        // Milestone 16: Polish, Lite mode, Delays, Frame Stats
+        s.LiteMode           = LiteModeToggle.IsOn;
+        s.ReducedMotion      = ReducedMotionToggle.IsOn;
+        s.ExcludeFromCapture = ExcludeFromCaptureToggle.IsOn;
+        s.OpenDelayMs        = (int)OpenDelaySlider.Value;
+        s.CloseDelayMs       = (int)CloseDelaySlider.Value;
+        s.ShowFrameStats     = FrameStatsToggle.IsOn;
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.SetWindowIslandEnabled(s.Enabled);
@@ -249,4 +268,38 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void UpdateYOffsetLabel()
         => YOffsetLabelText.Text = $"{(int)YOffsetSlider.Value} DIPs";
+
+    private void OnDelaySliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        UpdateDelayLabels();
+        Save();
+    }
+
+    private void UpdateDelayLabels()
+    {
+        if (OpenDelayLabelText != null && OpenDelaySlider != null)
+            OpenDelayLabelText.Text = $"{(int)OpenDelaySlider.Value} ms";
+        if (CloseDelayLabelText != null && CloseDelaySlider != null)
+            CloseDelayLabelText.Text = $"{(int)CloseDelaySlider.Value} ms";
+    }
+
+    private async void RunBenchmarkBtn_Click(object sender, RoutedEventArgs e)
+    {
+        RunBenchmarkBtn.IsEnabled = false;
+        BenchmarkResultText.Text = "Running benchmark cycles (opening/closing/measuring p95)…";
+
+        try
+        {
+            var report = await WindowIslandHost.Instance.RunBenchmarkAsync(50);
+            BenchmarkResultText.Text = report;
+        }
+        catch (Exception ex)
+        {
+            BenchmarkResultText.Text = $"Benchmark failed: {ex.Message}";
+        }
+        finally
+        {
+            RunBenchmarkBtn.IsEnabled = true;
+        }
+    }
 }

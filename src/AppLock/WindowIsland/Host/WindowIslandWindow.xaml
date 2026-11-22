@@ -2112,7 +2112,7 @@
                 </Grid>
 
                 <!-- ── Frame stats overlay ──────────────────────────────────── -->
-                <Grid Grid.Row="2">
+                <Grid x:Name="FrameStatsRow" Grid.Row="2">
                     <TextBlock x:Name="FrameStatsText"
                                Text=""
                                FontFamily="Consolas"

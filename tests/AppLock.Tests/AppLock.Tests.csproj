@@ -181,6 +181,8 @@
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Text\WindowIslandTextManager.cs" Link="WindowIsland\Modules\Text\WindowIslandTextManager.cs" />
     <!-- Window Island Visibility Rules (Milestone 15) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Services\WindowIslandVisibilityService.cs" Link="WindowIsland\Services\WindowIslandVisibilityService.cs" />
+    <!-- Window Island Polish & Color (Milestone 16) -->
+    <Compile Include="..\..\src\AppLock\WindowIsland\Host\WindowIslandColorHelper.cs" Link="WindowIsland\Host\WindowIslandColorHelper.cs" />
   </ItemGroup>
 
   <ItemGroup>

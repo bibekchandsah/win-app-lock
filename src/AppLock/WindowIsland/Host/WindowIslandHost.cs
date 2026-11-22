@@ -162,6 +162,29 @@ public sealed class WindowIslandHost
         }
     }
 
+    public WindowIslandWindow? Window => _window;
+
+    public async Task<string> RunBenchmarkAsync(int cycles = 50)
+    {
+        if (_window == null)
+        {
+            Start();
+            await Task.Delay(500);
+        }
+
+        if (_window != null)
+        {
+            await _window.RunBenchmarkAsync(cycles);
+            string islandDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
+            string benchPath = Path.Combine(islandDir, "bench.txt");
+            if (File.Exists(benchPath))
+            {
+                return await File.ReadAllTextAsync(benchPath);
+            }
+        }
+        return "Benchmark completed.";
+    }
+
     // ── Hotkey ─────────────────────────────────────────────────────────────────
 
     private void RegisterHotkey(string hotkey)

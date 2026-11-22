@@ -130,6 +130,28 @@ public sealed class WindowIslandSettings
     /// <summary>Position island under top taskbar if taskbar is docked at top.</summary>
     public bool UnderTopTaskbar { get; set; } = true;
 
+    // ── Milestone 16: Settings Completion & Polish ───────────────────────────
+    /// <summary>Lite mode: disable shadow, 100% opacity, 120ms transitions, 30 fps equalizer, 1 min clock.</summary>
+    public bool LiteMode { get; set; } = false;
+
+    /// <summary>Force reduced motion (80ms transitions, skip staggers & equalizer animations).</summary>
+    public bool ReducedMotion { get; set; } = false;
+
+    /// <summary>Exclude the island window from screenshots and screen recordings (WDA_EXCLUDEFROMCAPTURE).</summary>
+    public bool ExcludeFromCapture { get; set; } = false;
+
+    /// <summary>Island color swatch: "Default", "Navy", "Indigo", "Green", "Maroon", "Brown", "Cream", "Mint", "Lavender", or hex.</summary>
+    public string IslandColor { get; set; } = "Default";
+
+    /// <summary>Hover open delay in milliseconds (default: 150 ms).</summary>
+    public int OpenDelayMs { get; set; } = 150;
+
+    /// <summary>Hover close delay in milliseconds (default: 350 ms).</summary>
+    public int CloseDelayMs { get; set; } = 350;
+
+    /// <summary>Show developer frame-stats overlay on the island.</summary>
+    public bool ShowFrameStats { get; set; } = false;
+
     public WindowIslandSettings Clone()
     {
         var clone = (WindowIslandSettings)MemberwiseClone();
