@@ -25,6 +25,7 @@ using AppLock.Services;
 using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules;
 using AppLock.WindowIsland.Modules.Controls;
+using AppLock.WindowIsland.Modules.Notifications;
 using AppLock.WindowIsland.Modules.Weather;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
@@ -162,6 +163,10 @@ public sealed partial class WindowIslandWindow : Window
     private bool                              _shutdownConfirming;
     private bool                              _controlsBrightnessChanging;
 
+    // Milestone 12: Notifications, VPN, battery alert cards, mic/cam dots
+    private bool _micDotActive;
+    private bool _camDotActive;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -296,6 +301,12 @@ public sealed partial class WindowIslandWindow : Window
         // Milestone 11: Controls
         WindowIslandControlsService.Instance.ControlsStateChanged += (_, _) => DispatcherQueue.TryEnqueue(RefreshControlsUI);
 
+        // Milestone 12: VPN / battery alert cards / mic-cam dots
+        WindowIslandNotificationService.Instance.VpnStateChanged    += OnVpnStateChanged;
+        WindowIslandNotificationService.Instance.BatteryLowCard     += OnBatteryLowCard;
+        WindowIslandNotificationService.Instance.BatteryChargingCard += OnBatteryChargingCard;
+        WindowIslandNotificationService.Instance.MicCamStateChanged  += OnMicCamStateChanged;
+
         // ── Timers ──────────────────────────────────────────────────────────────
 
         _topmostTimer = DispatcherQueue.CreateTimer();
@@ -384,6 +395,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateClock();
         UpdateBattery();
         UpdateFoldedWeatherMini();
+        UpdateMicCamDots();
     }
 
     public void ToggleVisible() => SetIslandVisible(!_isVisible);
@@ -431,6 +443,12 @@ public sealed partial class WindowIslandWindow : Window
         _screenshotSource = null;
         _volumeController?.Dispose();
         _volumeController = null;
+
+        // Milestone 12
+        WindowIslandNotificationService.Instance.VpnStateChanged     -= OnVpnStateChanged;
+        WindowIslandNotificationService.Instance.BatteryLowCard      -= OnBatteryLowCard;
+        WindowIslandNotificationService.Instance.BatteryChargingCard -= OnBatteryChargingCard;
+        WindowIslandNotificationService.Instance.MicCamStateChanged  -= OnMicCamStateChanged;
 
         _compositor?.Dispose();
         _compositor = null;
@@ -2415,6 +2433,98 @@ public sealed partial class WindowIslandWindow : Window
             _eventQueue?.Push(card);
             try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
         });
+    }
+
+    // ── Milestone 12: VPN / battery / mic-cam handlers ────────────────────────
+
+    private void OnVpnStateChanged(object? sender, VpnStateChangedArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_settings.CardVpnEnabled) return;
+            int stayMs = _settings.GetCardStayMs();
+            if (e.Connected)
+            {
+                string name = string.IsNullOrWhiteSpace(e.AdapterName) ? "VPN" : e.AdapterName;
+                _eventQueue?.Push(new WindowIslandCard(
+                    "vpn", "\uE701", "VPN Connected", name,
+                    "#00B4D8", WindowIslandCardPriority.Vpn, stayMs));
+            }
+            else
+            {
+                _eventQueue?.Push(new WindowIslandCard(
+                    "vpn", "\uE701", "VPN Disconnected", "No active VPN",
+                    "#808080", WindowIslandCardPriority.Vpn, stayMs));
+            }
+        });
+    }
+
+    private void OnBatteryLowCard(object? sender, BatteryCardArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_settings.CardBatteryLowEnabled) return;
+            string accentHex = e.Percent <= 10 ? "#FF4444" : "#FF8C00";
+            int stayMs = _settings.GetCardStayMs();
+            _eventQueue?.Push(new WindowIslandCard(
+                "battery-low", "\uE850", "Battery Low",
+                $"{e.Percent}% remaining — please plug in",
+                accentHex, WindowIslandCardPriority.Battery, stayMs, e.Percent));
+            try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+        });
+    }
+
+    private void OnBatteryChargingCard(object? sender, BatteryCardArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_settings.CardChargingEnabled) return;
+            int stayMs = _settings.GetCardStayMs();
+            var (icon, title, detail, accent) = e.Kind switch
+            {
+                BatteryCardKind.ChargingStarted  => ("\uEBB5", "Charging Started",   $"{e.Percent}%", "#22CC44"),
+                BatteryCardKind.ChargingComplete => ("\uE83F", "Fully Charged",      "100% — unplug to save battery health", "#22CC44"),
+                BatteryCardKind.Unplugged        => ("\uE850", "Charger Unplugged",  $"{e.Percent}% remaining", "#FF8C00"),
+                _                                => ("\uE83F", "Battery", $"{e.Percent}%", "#808080")
+            };
+            _eventQueue?.Push(new WindowIslandCard(
+                "battery-charging", icon, title, detail,
+                accent, WindowIslandCardPriority.Battery, stayMs, e.Percent));
+        });
+    }
+
+    private void OnMicCamStateChanged(object? sender, MicCamStateArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _micDotActive = e.MicActive;
+            _camDotActive = e.CamActive;
+            UpdateMicCamDots();
+        });
+    }
+
+    private void UpdateMicCamDots()
+    {
+        bool enabled = _settings.MicCamDotsEnabled;
+        bool anyActive = enabled && (_micDotActive || _camDotActive);
+
+        MicCamDotsContainer.Visibility = anyActive ? Visibility.Visible : Visibility.Collapsed;
+        MicDot.Visibility = (enabled && _micDotActive) ? Visibility.Visible : Visibility.Collapsed;
+        CamDot.Visibility = (enabled && _camDotActive) ? Visibility.Visible : Visibility.Collapsed;
+
+        // Update tooltips with app names (fetched synchronously from the service)
+        if (_micDotActive)
+        {
+            var (_, micApp, _, _) = WindowIslandNotificationService.GetMicCamState();
+            ToolTipService.SetToolTip(MicDot,
+                string.IsNullOrEmpty(micApp) ? "Microphone in use" : $"Microphone: {micApp}");
+        }
+        if (_camDotActive)
+        {
+            var (_, _, _, camApp) = WindowIslandNotificationService.GetMicCamState();
+            ToolTipService.SetToolTip(CamDot,
+                string.IsNullOrEmpty(camApp) ? "Camera in use" : $"Camera: {camApp}");
+        }
     }
 
     private void RefreshWeatherUI()

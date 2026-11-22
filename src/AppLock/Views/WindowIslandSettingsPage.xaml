@@ -136,6 +136,21 @@
                 <ToggleSwitch x:Name="CardClipboardToggle" Header="Clipboard copy (text and images)" Toggled="OnSettingChanged" />
                 <ToggleSwitch x:Name="CardScreenshotToggle" Header="Screenshot saved alert" Toggled="OnSettingChanged" />
 
+                <!-- Milestone 12 card toggles -->
+                <ToggleSwitch x:Name="CardVpnToggle" Header="VPN connect / disconnect" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="CardBatteryLowToggle" Header="Low battery alert (20 %, 10 %, 5 %)" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="CardChargingToggle" Header="Charger plugged / unplugged" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="MicCamDotsToggle" Header="Mic / camera indicator dots on folded island" Toggled="OnSettingChanged" />
+
+                <!-- Windows Notifications — unavailable without package identity -->
+                <StackPanel Spacing="4" Opacity="0.55">
+                    <TextBlock Text="Windows Notifications" FontWeight="SemiBold" FontSize="13" />
+                    <TextBlock TextWrapping="Wrap" FontSize="12"
+                               Text="Not available in this build — AppLock runs as an unpackaged app. Package identity (MSIX) is required to listen to Windows notifications." />
+                    <HyperlinkButton Content="Open Windows Notification Settings"
+                                     NavigateUri="ms-settings:notifications" />
+                </StackPanel>
+
                 <ComboBox x:Name="CardStayBox" Header="Card display duration" SelectionChanged="OnSelectionChanged" Width="260">
                     <ComboBoxItem Content="Shorter (2.0s)" Tag="Shorter" />
                     <ComboBoxItem Content="Usual (3.5s)" Tag="Usual" />

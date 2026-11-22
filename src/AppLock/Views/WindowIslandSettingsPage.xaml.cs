@@ -59,6 +59,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardVolumeToggle.IsOn     = s.CardVolumeEnabled;
         CardClipboardToggle.IsOn  = s.CardClipboardEnabled;
         CardScreenshotToggle.IsOn = s.CardScreenshotEnabled;
+        CardVpnToggle.IsOn        = s.CardVpnEnabled;
+        CardBatteryLowToggle.IsOn = s.CardBatteryLowEnabled;
+        CardChargingToggle.IsOn   = s.CardChargingEnabled;
+        MicCamDotsToggle.IsOn     = s.MicCamDotsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
         WeatherCityBox.Text = s.WeatherCity;
@@ -127,6 +131,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardClipboardEnabled  = CardClipboardToggle.IsOn;
         s.CardScreenshotEnabled = CardScreenshotToggle.IsOn;
         s.CardStayDuration      = TagOf(CardStayBox) ?? s.CardStayDuration;
+        s.CardVpnEnabled        = CardVpnToggle.IsOn;
+        s.CardBatteryLowEnabled = CardBatteryLowToggle.IsOn;
+        s.CardChargingEnabled   = CardChargingToggle.IsOn;
+        s.MicCamDotsEnabled     = MicCamDotsToggle.IsOn;
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;
         s.WeatherRainWarning    = WeatherRainWarningToggle.IsOn;

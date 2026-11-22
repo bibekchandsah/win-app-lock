@@ -66,5 +66,18 @@ public sealed class WindowIslandSettings
     public bool WeatherTempOnIsland { get; set; } = true;
     public bool WeatherRainWarning { get; set; } = true;
 
+    // ── Milestone 12: Notification / Alert Card Settings ─────────────────────
+    /// <summary>Push a card when VPN connects or disconnects.</summary>
+    public bool CardVpnEnabled        { get; set; } = true;
+
+    /// <summary>Push cards at 20 %, 10 %, 5 % battery while discharging.</summary>
+    public bool CardBatteryLowEnabled { get; set; } = true;
+
+    /// <summary>Push a card when charging starts or finishes.</summary>
+    public bool CardChargingEnabled   { get; set; } = true;
+
+    /// <summary>Show orange/green mic/camera indicator dots on the folded island.</summary>
+    public bool MicCamDotsEnabled     { get; set; } = true;
+
     public WindowIslandSettings Clone() => (WindowIslandSettings)MemberwiseClone();
 }

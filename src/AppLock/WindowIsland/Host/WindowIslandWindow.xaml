@@ -228,6 +228,25 @@
                                Foreground="#C0FFFFFF"
                                VerticalAlignment="Center" />
                 </StackPanel>
+
+                <!-- Milestone 12: Mic / Camera indicator dots -->
+                <!-- Orange dot = microphone active, Green dot = camera active -->
+                <StackPanel x:Name="MicCamDotsContainer"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Ellipse x:Name="MicDot"
+                             Width="6" Height="6"
+                             Fill="#FFAA00"
+                             Visibility="Collapsed"
+                             ToolTipService.ToolTip="Microphone in use" />
+                    <Ellipse x:Name="CamDot"
+                             Width="6" Height="6"
+                             Fill="#22CC44"
+                             Visibility="Collapsed"
+                             ToolTipService.ToolTip="Camera in use" />
+                </StackPanel>
             </StackPanel>
         </Grid>
 

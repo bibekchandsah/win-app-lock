@@ -173,6 +173,8 @@
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\WindowIslandWeatherService.cs" Link="WindowIsland\Modules\Weather\WindowIslandWeatherService.cs" />
     <!-- Window Island Controls (Milestone 11) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Controls\WindowIslandControlsService.cs" Link="WindowIsland\Modules\Controls\WindowIslandControlsService.cs" />
+    <!-- Window Island Notifications (Milestone 12) -->
+    <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" Link="WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" />
   </ItemGroup>
 
   <ItemGroup>
