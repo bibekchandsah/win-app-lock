@@ -28,6 +28,7 @@ public sealed class WindowIslandHost
     private readonly object _lock = new();
     private bool _started;
     private int _hotkeyId = -1;
+    private int _cmdHotkeyId = -1;
 
     private WindowIslandHost() { }
 
@@ -142,11 +143,43 @@ public sealed class WindowIslandHost
         }
     }
 
+    public void OpenCommandBar()
+    {
+        if (_window == null)
+        {
+            Start();
+        }
+
+        void Do() => _window?.OpenCommandBar();
+
+        if (_uiQueue != null)
+        {
+            _uiQueue.TryEnqueue(Do);
+        }
+        else
+        {
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
+        }
+    }
+
     // ── Hotkey ─────────────────────────────────────────────────────────────────
 
     private void RegisterHotkey(string hotkey)
     {
         UnregisterHotkey();
+
+        // Register Command Bar hotkey (Alt+Space)
+        try
+        {
+            var (cmdMods, cmdKey) = HotkeyService.ParseHotkey("Alt+Space");
+            _cmdHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(cmdMods, cmdKey, OpenCommandBar);
+            Log($"Registered Command Bar hotkey Alt+Space id={_cmdHotkeyId}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Command Bar hotkey registration failed: {ex}");
+        }
+
         if (string.IsNullOrWhiteSpace(hotkey)) return;
 
         try
@@ -169,6 +202,12 @@ public sealed class WindowIslandHost
         {
             try { ServiceContainer.HotkeyService.UnregisterHotkey(_hotkeyId); } catch { }
             _hotkeyId = -1;
+        }
+
+        if (_cmdHotkeyId > 0)
+        {
+            try { ServiceContainer.HotkeyService.UnregisterHotkey(_cmdHotkeyId); } catch { }
+            _cmdHotkeyId = -1;
         }
     }
 }

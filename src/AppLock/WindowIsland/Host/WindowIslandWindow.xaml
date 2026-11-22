@@ -256,6 +256,81 @@
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════════
+             COMMAND BAR LAYER — Alt+Space or Command Tile
+        ═══════════════════════════════════════════════════════════════════ -->
+        <Grid x:Name="CommandLayer"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              Width="520"
+              Height="270"
+              Opacity="0"
+              IsHitTestVisible="False">
+            <Grid Margin="16,10,16,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /> <!-- Search Box -->
+                    <RowDefinition Height="*"    /> <!-- Results list -->
+                    <RowDefinition Height="Auto" /> <!-- Footer shortcuts -->
+                </Grid.RowDefinitions>
+
+                <!-- Search Input Box -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*"    />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0"
+                              Glyph="&#xE721;"
+                              FontSize="13"
+                              Foreground="#60CDFF"
+                              VerticalAlignment="Center"
+                              Margin="4,0,8,0" />
+                    <TextBox x:Name="CommandInput"
+                             Grid.Column="1"
+                             PlaceholderText="Search files, apps, commands, or calculate…"
+                             FontSize="12"
+                             Background="Transparent"
+                             BorderBrush="Transparent"
+                             Foreground="#F0FFFFFF"
+                             Padding="2,4"
+                             TextChanged="CommandInput_TextChanged"
+                             KeyDown="CommandInput_KeyDown" />
+                    <Button x:Name="CommandCloseBtn"
+                            Grid.Column="2"
+                            Style="{StaticResource TabButtonStyle}"
+                            Width="26" Height="26"
+                            Click="CommandClose_Click"
+                            ToolTipService.ToolTip="Close (Esc)">
+                        <FontIcon Glyph="&#xE711;" FontSize="11" />
+                    </Button>
+                </Grid>
+
+                <!-- Divider -->
+                <Border Grid.Row="0"
+                        Height="1"
+                        Background="#20FFFFFF"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,0,-2" />
+
+                <!-- Results List -->
+                <ScrollViewer Grid.Row="1"
+                              Margin="0,6,0,6"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="CommandResultList" Spacing="2" />
+                </ScrollViewer>
+
+                <!-- Footer Hints -->
+                <Grid Grid.Row="2" Margin="0,4,0,0">
+                    <TextBlock Text="↵ Open  ·  Ctrl+↵ In folder  ·  Alt+↵ Copy  ·  Esc Close"
+                               FontSize="9"
+                               Foreground="#50FFFFFF"
+                               HorizontalAlignment="Center" />
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════════
              OPEN LAYER — tab strip + content (shown when island is expanded)
         ═══════════════════════════════════════════════════════════════════ -->
         <Grid x:Name="OpenLayer"

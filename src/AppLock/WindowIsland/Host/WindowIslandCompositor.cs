@@ -44,6 +44,7 @@ public sealed class WindowIslandCompositor : IDisposable
     private float _windowWidthDip = 560f;
     private bool  _isOpen;
     private bool  _isCard;
+    private bool  _isCommand;
     private bool  _disposed;
 
     // Current target tab size (may change per tab switch)
@@ -54,6 +55,7 @@ public sealed class WindowIslandCompositor : IDisposable
 
     public bool IsOpen => _isOpen;
     public bool IsCard => _isCard;
+    public bool IsCommand => _isCommand;
 
     public WindowIslandCompositor(UIElement hostElement, WindowIslandSettings settings, float windowWidthDip)
     {
@@ -101,6 +103,7 @@ public sealed class WindowIslandCompositor : IDisposable
         _openTargetH = th;
         _isOpen = true;
         _isCard = false;
+        _isCommand = false;
 
         float targetWidth  = _openTargetW * _sizeFactor;
         float targetHeight = _openTargetH * _sizeFactor;
@@ -120,6 +123,7 @@ public sealed class WindowIslandCompositor : IDisposable
         if (_disposed) return;
         _isCard = true;
         _isOpen = false;
+        _isCommand = false;
         _cardTargetW = widthDip;
         _cardTargetH = heightDip;
 
@@ -135,11 +139,32 @@ public sealed class WindowIslandCompositor : IDisposable
             onCompleted);
     }
 
+    /// <summary>Animate notch into Command Bar expansion.</summary>
+    public void AnimateToCommand(float widthDip = 520f, float heightDip = 270f, Action? onCompleted = null)
+    {
+        if (_disposed) return;
+        _isCommand = true;
+        _isOpen = false;
+        _isCard = false;
+
+        float targetWidth  = widthDip * _sizeFactor;
+        float targetHeight = heightDip * _sizeFactor;
+        float targetRadius = OpenRadiusDip * _sizeFactor;
+
+        AnimateShape(
+            new Vector2(targetWidth, targetHeight),
+            new Vector2(targetRadius, targetRadius),
+            dampingRatio: IslandMotion.OpenDampingRatio,
+            periodMs:     IslandMotion.OpenPeriodMs,
+            onCompleted);
+    }
+
     public void AnimateToFolded(Action? onCompleted = null)
     {
         if (_disposed) return;
         _isOpen = false;
         _isCard = false;
+        _isCommand = false;
 
         float targetWidth  = FoldedWidthDip  * _sizeFactor;
         float targetHeight = FoldedHeightDip * _sizeFactor;

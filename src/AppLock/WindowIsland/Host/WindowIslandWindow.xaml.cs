@@ -66,6 +66,10 @@ public sealed partial class WindowIslandWindow : Window
     private static extern uint GetDpiForWindow(nint hWnd);
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT point);
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, int cbAttribute);
     [DllImport("gdi32.dll")]
@@ -107,6 +111,7 @@ public sealed partial class WindowIslandWindow : Window
     private WindowIslandCompositor? _compositor;
     private Visual? _foldedVisual;
     private Visual? _cardVisual;
+    private Visual? _commandVisual;
     private Visual? _openVisual;
 
     private WindowIslandEventQueue? _eventQueue;
@@ -129,6 +134,13 @@ public sealed partial class WindowIslandWindow : Window
 
     // Milestone 7: Launcher
     private WindowIslandLauncher?             _launcher;
+
+    // Milestone 8: Command bar & File index
+    private WindowIslandFileIndex?            _fileIndex;
+    private WindowIslandCommandService?       _commandService;
+    private List<CommandBarItem>              _currentCommandItems = new();
+    private int                               _selectedCommandIndex;
+    private nint                              _previousForegroundWindow = nint.Zero;
 
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
@@ -239,6 +251,11 @@ public sealed partial class WindowIslandWindow : Window
         _launcher.Changed += () => DispatcherQueue.TryEnqueue(RefreshLauncherUI);
         RefreshLauncherUI();
 
+        // Milestone 8: Command bar & File index
+        _fileIndex = new WindowIslandFileIndex();
+        _fileIndex.StartBackgroundIndexing();
+        _commandService = new WindowIslandCommandService(_fileIndex, _launcher!);
+
         // ── Timers ──────────────────────────────────────────────────────────────
 
         _topmostTimer = DispatcherQueue.CreateTimer();
@@ -281,9 +298,10 @@ public sealed partial class WindowIslandWindow : Window
         _settings = settings;
 
         _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
-        _foldedVisual = ElementCompositionPreview.GetElementVisual(FoldedLayer);
-        _cardVisual   = ElementCompositionPreview.GetElementVisual(CardLayer);
-        _openVisual   = ElementCompositionPreview.GetElementVisual(OpenLayer);
+        _foldedVisual  = ElementCompositionPreview.GetElementVisual(FoldedLayer);
+        _cardVisual    = ElementCompositionPreview.GetElementVisual(CardLayer);
+        _commandVisual = ElementCompositionPreview.GetElementVisual(CommandLayer);
+        _openVisual    = ElementCompositionPreview.GetElementVisual(OpenLayer);
 
         // Wire up composition visuals for tab content slides
         UpdateTabVisuals();
@@ -353,6 +371,9 @@ public sealed partial class WindowIslandWindow : Window
         _clipboardState = null;
         _shelf = null;
         _launcher = null;
+        _fileIndex?.Dispose();
+        _fileIndex = null;
+        _commandService = null;
 
         _eventQueue?.Dispose();
         _eventQueue = null;
@@ -685,7 +706,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            if (!_isVisible || _compositor == null) return;
+            if (!_isVisible || _compositor == null || _compositor.IsCommand) return;
             if (!GetCursorPos(out POINT pt)) return;
 
             double scale = _scale > 0 ? _scale : 1.0;
@@ -800,14 +821,14 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Hit Region & Click-Through ─────────────────────────────────────────────
 
-    private void UpdateHitRegion(bool open, bool isCard = false)
+    private void UpdateHitRegion(bool open, bool isCard = false, bool isCommand = false)
     {
         double scale  = _scale > 0 ? _scale : 1.0;
         float factor  = (float)(_settings.SizePercent / 100.0);
 
-        float widthDip  = (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
-        float heightDip = (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
-        float radiusDip = (open ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip)) * factor;
+        float widthDip  = isCommand ? 520f : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
+        float heightDip = isCommand ? 270f : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip) * factor;
         float leftDip   = (WindowWidthDip - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
 
@@ -1336,8 +1357,7 @@ public sealed partial class WindowIslandWindow : Window
 
     private void TileCommand_Click(object sender, RoutedEventArgs e)
     {
-        // Placeholder — Milestone 8 (command bar)
-        WindowIslandHost.Log("Command tile pressed — command bar coming in Milestone 8");
+        OpenCommandBar();
     }
 
     private async Task RunTileAsync(string id)
@@ -1793,6 +1813,246 @@ public sealed partial class WindowIslandWindow : Window
         catch (Exception ex)
         {
             WindowIslandHost.Log("LauncherRow_Drop: " + ex.Message);
+        }
+    }
+
+    // ── Milestone 8: Command Bar & Actions ─────────────────────────────────────
+
+    public void OpenCommandBar()
+    {
+        if (_compositor == null) return;
+        if (!_isVisible) SetIslandVisible(true);
+
+        _previousForegroundWindow = GetForegroundWindow();
+        SetForegroundWindow(_hwnd);
+
+        _compositor.UpdateWindowWidth(WindowWidthDip, _settings);
+        PositionAndSize();
+        UpdateHitRegion(open: false, isCard: false, isCommand: true);
+
+        CommandLayer.IsHitTestVisible = true;
+        OpenLayer.IsHitTestVisible    = false;
+        _measuringFrames = true;
+
+        FadeVisual(_foldedVisual,  0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_cardVisual,    0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+
+        _compositor.AnimateToCommand(520f, 270f, () =>
+        {
+            _measuringFrames = false;
+        });
+
+        CommandInput.Text = string.Empty;
+        ExecuteCommandQuery(string.Empty);
+        CommandInput.Focus(FocusState.Programmatic);
+    }
+
+    public void CloseCommandBar()
+    {
+        if (_compositor == null || !_compositor.IsCommand) return;
+
+        CommandLayer.IsHitTestVisible = false;
+        FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_foldedVisual,  1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+
+        _compositor.AnimateToFolded(() =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                UpdateHitRegion(open: false, isCard: false, isCommand: false);
+                _measuringFrames = false;
+                PositionAndSize();
+
+                if (_previousForegroundWindow != nint.Zero)
+                {
+                    SetForegroundWindow(_previousForegroundWindow);
+                    _previousForegroundWindow = nint.Zero;
+                }
+            });
+        });
+        UpdateHitRegion(open: false, isCard: false, isCommand: false);
+    }
+
+    private void CommandInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ExecuteCommandQuery(CommandInput.Text);
+    }
+
+    private void CommandClose_Click(object sender, RoutedEventArgs e)
+    {
+        CloseCommandBar();
+    }
+
+    private void ExecuteCommandQuery(string query)
+    {
+        _currentCommandItems = _commandService?.Query(query) ?? new List<CommandBarItem>();
+        _selectedCommandIndex = 0;
+        RenderCommandResults();
+    }
+
+    private void RenderCommandResults()
+    {
+        CommandResultList.Children.Clear();
+
+        if (_currentCommandItems.Count == 0)
+        {
+            var hint = new TextBlock
+            {
+                Text = "Type a file name, app name, math (e.g. 2*(3+4)), or command (lock, note, weather)…",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 24, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
+            CommandResultList.Children.Add(hint);
+            return;
+        }
+
+        for (int i = 0; i < _currentCommandItems.Count; i++)
+        {
+            var item = _currentCommandItems[i];
+            bool isSel = (i == _selectedCommandIndex);
+            var row = BuildCommandResultRow(item, isSel, i);
+            CommandResultList.Children.Add(row);
+        }
+    }
+
+    private Border BuildCommandResultRow(CommandBarItem item, bool isSelected, int index)
+    {
+        var border = new Border
+        {
+            Background = isSelected
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 96, 205, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            BorderBrush = isSelected
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 96, 205, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 5, 8, 5)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var icon = new FontIcon
+        {
+            Glyph = item.IconGlyph,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(HexToColor(item.AccentHex)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 8, 0)
+        };
+        Grid.SetColumn(icon, 0);
+        grid.Children.Add(icon);
+
+        var stack = new StackPanel { Spacing = 1 };
+        var title = new TextBlock
+        {
+            Text = item.Title,
+            FontSize = 11,
+            FontWeight = isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var sub = new TextBlock
+        {
+            Text = item.Subtitle,
+            FontSize = 9,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        stack.Children.Add(title);
+        stack.Children.Add(sub);
+        Grid.SetColumn(stack, 1);
+        grid.Children.Add(stack);
+
+        border.Child = grid;
+
+        border.PointerEntered += (_, _) =>
+        {
+            _selectedCommandIndex = index;
+            RenderCommandResults();
+        };
+
+        border.PointerPressed += async (_, _) =>
+        {
+            _selectedCommandIndex = index;
+            await ExecuteSelectedCommandAsync(false);
+        };
+
+        return border;
+    }
+
+    private async Task ExecuteSelectedCommandAsync(bool showInFolder)
+    {
+        if (_selectedCommandIndex < 0 || _selectedCommandIndex >= _currentCommandItems.Count)
+            return;
+
+        var item = _currentCommandItems[_selectedCommandIndex];
+        if (showInFolder)
+        {
+            _commandService?.ShowInFolder(item);
+        }
+        else
+        {
+            await (_commandService?.ExecuteAsync(item, idx => SwitchTab(idx), () => OnIslandSettingsClick(this, new RoutedEventArgs())) ?? Task.CompletedTask);
+        }
+
+        CloseCommandBar();
+    }
+
+    private async void CommandInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CloseCommandBar();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Down)
+        {
+            if (_currentCommandItems.Count > 0)
+            {
+                _selectedCommandIndex = (_selectedCommandIndex + 1) % _currentCommandItems.Count;
+                RenderCommandResults();
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Up)
+        {
+            if (_currentCommandItems.Count > 0)
+            {
+                _selectedCommandIndex = (_selectedCommandIndex + _currentCommandItems.Count - 1) % _currentCommandItems.Count;
+                RenderCommandResults();
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            bool ctrl = IsCtrlDown();
+            bool alt  = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            if (alt && _selectedCommandIndex >= 0 && _selectedCommandIndex < _currentCommandItems.Count)
+            {
+                _commandService?.CopyPathOrData(_currentCommandItems[_selectedCommandIndex]);
+                CloseCommandBar();
+            }
+            else
+            {
+                await ExecuteSelectedCommandAsync(ctrl);
+            }
+            e.Handled = true;
         }
     }
 }
