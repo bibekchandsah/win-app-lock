@@ -55,12 +55,30 @@ public sealed partial class WindowIslandSettingsPage : Page
         ShowSecondsCheck.IsChecked = s.ShowSeconds;
         ShowBatteryToggle.IsOn = s.ShowBattery;
 
+        CardCapsLockToggle.IsOn   = s.CardCapsLockEnabled;
+        CardVolumeToggle.IsOn     = s.CardVolumeEnabled;
+        CardClipboardToggle.IsOn  = s.CardClipboardEnabled;
+        CardScreenshotToggle.IsOn = s.CardScreenshotEnabled;
+        SelectComboItem(CardStayBox, s.CardStayDuration);
+
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
         _loading = false;
     }
 
     // ── Event handlers ─────────────────────────────────────────────────────────
+
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Frame.CanGoBack)
+        {
+            Frame.GoBack();
+        }
+        else
+        {
+            Frame.Navigate(typeof(OthersPage));
+        }
+    }
 
     private void OnSettingChanged(object sender, RoutedEventArgs e) => Save();
 
@@ -98,6 +116,11 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.TimeFormat24H = TimeFormat24HCheck.IsChecked ?? true;
         s.ShowSeconds   = ShowSecondsCheck.IsChecked ?? false;
         s.ShowBattery   = ShowBatteryToggle.IsOn;
+        s.CardCapsLockEnabled   = CardCapsLockToggle.IsOn;
+        s.CardVolumeEnabled     = CardVolumeToggle.IsOn;
+        s.CardClipboardEnabled  = CardClipboardToggle.IsOn;
+        s.CardScreenshotEnabled = CardScreenshotToggle.IsOn;
+        s.CardStayDuration      = TagOf(CardStayBox) ?? s.CardStayDuration;
         s.Hotkey        = HotkeyBox.Text.Trim();
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);

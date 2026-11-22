@@ -355,7 +355,9 @@ public sealed partial class MainWindow : Window
                         pageType == typeof(KeyboardPage) ||
                         pageType == typeof(SpeedMeterPage) ||
                         pageType == typeof(PcCheckerPage) ||
-                        pageType == typeof(RingLightPage);
+                        pageType == typeof(RingLightPage) ||
+                        pageType == typeof(Views.IslandSettingsPage) ||
+                        pageType == typeof(Views.WindowIslandSettingsPage);
 
         bool isDark = IsDarkMode;
         var windowAccentColor = GetWindowAccentColor();

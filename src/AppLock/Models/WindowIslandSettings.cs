@@ -42,5 +42,21 @@ public sealed class WindowIslandSettings
     /// <summary>Vertical offset in DIPs from top of screen.</summary>
     public int YOffsetDip { get; set; } = 0;
 
+    // ── Milestone 4: Live Card Settings ───────────────────────────────────────
+    /// <summary>Card stay duration: "Shorter" (2000ms), "Usual" (3500ms), "Longer" (6000ms).</summary>
+    public string CardStayDuration { get; set; } = "Usual";
+
+    public int GetCardStayMs() => CardStayDuration switch
+    {
+        "Shorter" => 2000,
+        "Longer"  => 6000,
+        _         => 3500
+    };
+
+    public bool CardCapsLockEnabled   { get; set; } = true;
+    public bool CardVolumeEnabled     { get; set; } = true;
+    public bool CardClipboardEnabled  { get; set; } = true;
+    public bool CardScreenshotEnabled { get; set; } = true;
+
     public WindowIslandSettings Clone() => (WindowIslandSettings)MemberwiseClone();
 }

@@ -17,7 +17,9 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
+using AppLock.Island.Events;
 using AppLock.Models;
+using AppLock.WindowIsland.Events;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace AppLock.WindowIsland.Host;
@@ -101,7 +103,14 @@ public sealed partial class WindowIslandWindow : Window
     private WindowIslandSettings  _settings = new();
     private WindowIslandCompositor? _compositor;
     private Visual? _foldedVisual;
+    private Visual? _cardVisual;
     private Visual? _openVisual;
+
+    private WindowIslandEventQueue? _eventQueue;
+    private LockKeyCardSource?      _lockKeySource;
+    private IslandVolumeController? _volumeController;
+    private ClipboardCardSource?    _clipboardSource;
+    private ScreenshotCardSource?   _screenshotSource;
 
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
@@ -161,7 +170,29 @@ public sealed partial class WindowIslandWindow : Window
 
         // Grab composition visuals for layer fading
         _foldedVisual = null; // set after Show() attaches the compositor
+        _cardVisual   = null;
         _openVisual   = null;
+
+        _eventQueue = new WindowIslandEventQueue(
+            DispatcherQueue,
+            onShow: OnShowCard,
+            onClear: OnClearCard,
+            isHovered: () => _hoverInside,
+            canShow: () => _compositor?.IsOpen != true);
+
+        _volumeController = new IslandVolumeController();
+
+        _lockKeySource = new LockKeyCardSource(DispatcherQueue);
+        _lockKeySource.CapsLockChanged += OnCapsLockChanged;
+        _lockKeySource.Start();
+
+        _clipboardSource = new ClipboardCardSource(DispatcherQueue, _hwnd);
+        _clipboardSource.Captured += OnClipboardCaptured;
+        _clipboardSource.Start();
+
+        _screenshotSource = new ScreenshotCardSource(DispatcherQueue);
+        _screenshotSource.Saved += OnScreenshotSaved;
+        _screenshotSource.Start(null);
 
         // Keyboard navigation
         RootGrid.KeyDown += OnKeyDown;
@@ -206,20 +237,23 @@ public sealed partial class WindowIslandWindow : Window
     public void Show(WindowIslandSettings settings)
     {
         _settings = settings;
-        PositionAndSize();
 
         _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
         _foldedVisual = ElementCompositionPreview.GetElementVisual(FoldedLayer);
+        _cardVisual   = ElementCompositionPreview.GetElementVisual(CardLayer);
         _openVisual   = ElementCompositionPreview.GetElementVisual(OpenLayer);
 
         // Wire up composition visuals for tab content slides
         UpdateTabVisuals();
-        UpdateHitRegion(open: false);
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
 
         Activate();
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
+
+        // Position & hit region after Activate() ensures window geometry is respected
+        PositionAndSize();
+        UpdateHitRegion(open: false);
 
         _isVisible = true;
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -266,6 +300,18 @@ public sealed partial class WindowIslandWindow : Window
         _hoverTimer?.Stop();
         _clockTimer?.Stop();
         _batteryTimer?.Stop();
+
+        _eventQueue?.Dispose();
+        _eventQueue = null;
+        _lockKeySource?.Dispose();
+        _lockKeySource = null;
+        _clipboardSource?.Dispose();
+        _clipboardSource = null;
+        _screenshotSource?.Dispose();
+        _screenshotSource = null;
+        _volumeController?.Dispose();
+        _volumeController = null;
+
         _compositor?.Dispose();
         _compositor = null;
         base.Close();
@@ -582,10 +628,10 @@ public sealed partial class WindowIslandWindow : Window
 
             float curWidthDip  = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).W
-                : WindowIslandCompositor.FoldedWidthDip) * factor;
+                : (_compositor.IsCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
             float curHeightDip = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).H
-                : WindowIslandCompositor.FoldedHeightDip) * factor;
+                : (_compositor.IsCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
 
             float leftDip = (WindowWidthDip - curWidthDip) / 2f;
             float topDip  = _settings.Shape == "Capsule" ? 6f : 0f;
@@ -608,6 +654,10 @@ public sealed partial class WindowIslandWindow : Window
             var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
             if (_hoverInside && !_compositor.IsOpen && elapsed >= IslandMotion.HoverOpenDelayMs)
             {
+                if (_eventQueue?.HasVisibleCard == true)
+                {
+                    _eventQueue.Clear();
+                }
                 Expand();
             }
             else if (!_hoverInside && _compositor.IsOpen && elapsed >= IslandMotion.HoverCloseDelayMs)
@@ -622,6 +672,11 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_compositor == null || _compositor.IsOpen) return;
 
+        if (_eventQueue?.HasVisibleCard == true)
+        {
+            _eventQueue.Clear();
+        }
+
         // Update window size BEFORE animation (must be large enough to show open state)
         _compositor.UpdateWindowWidth(WindowWidthDip, _settings);
         PositionAndSize();
@@ -629,6 +684,7 @@ public sealed partial class WindowIslandWindow : Window
         OpenLayer.IsHitTestVisible = true;
         _measuringFrames = true;
 
+        FadeVisual(_cardVisual,   0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_foldedVisual, 0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_openVisual,   1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
@@ -653,13 +709,14 @@ public sealed partial class WindowIslandWindow : Window
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                UpdateHitRegion(open: false);
+                UpdateHitRegion(open: false, isCard: false);
                 _measuringFrames = false;
                 UpdateStatsDisplay();
                 // Shrink window back to folded size
                 PositionAndSize();
             });
         });
+        UpdateHitRegion(open: false, isCard: false);
     }
 
     private void FadeVisual(Visual? visual, float targetOpacity, int durationMs, int delayMs = 0)
@@ -678,14 +735,14 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Hit Region & Click-Through ─────────────────────────────────────────────
 
-    private void UpdateHitRegion(bool open)
+    private void UpdateHitRegion(bool open, bool isCard = false)
     {
         double scale  = _scale > 0 ? _scale : 1.0;
         float factor  = (float)(_settings.SizePercent / 100.0);
 
-        float widthDip  = (open ? IslandMotion.TabSize(_activeTab).W : WindowIslandCompositor.FoldedWidthDip) * factor;
-        float heightDip = (open ? IslandMotion.TabSize(_activeTab).H : WindowIslandCompositor.FoldedHeightDip) * factor;
-        float radiusDip = (open ? WindowIslandCompositor.OpenRadiusDip : WindowIslandCompositor.FoldedRadiusDip) * factor;
+        float widthDip  = (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
+        float heightDip = (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float radiusDip = (open ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip)) * factor;
         float leftDip   = (WindowWidthDip - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
 
@@ -814,15 +871,162 @@ public sealed partial class WindowIslandWindow : Window
     private nint WindowIslandSubclass(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data)
     {
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+        if (_clipboardSource?.HandleMessage(msg) == true)
+        {
+            return DefSubclassProc(hWnd, msg, wParam, lParam);
+        }
         if (msg == WM_DPICHANGED)
         {
             DispatcherQueue.TryEnqueue(() =>
             {
                 PositionAndSize();
-                UpdateHitRegion(_compositor?.IsOpen ?? false);
+                UpdateHitRegion(_compositor?.IsOpen ?? false, _compositor?.IsCard ?? false);
             });
         }
         return DefSubclassProc(hWnd, msg, wParam, lParam);
+    }
+
+    // ── Milestone 4: Live Cards & Event Engine ─────────────────────────────────
+
+    private void OnRootGridPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        var props = e.GetCurrentPoint(RootGrid).Properties;
+        int delta = props.MouseWheelDelta;
+        if (delta == 0) return;
+        e.Handled = true;
+        AdjustVolume(delta > 0 ? 2 : -2);
+    }
+
+    private void AdjustVolume(int delta)
+    {
+        if (!_settings.CardVolumeEnabled) return;
+        int newVol = _volumeController?.Step(delta) ?? -1;
+        if (newVol < 0) return;
+        int stay = _settings.GetCardStayMs();
+        string icon = newVol == 0 ? "\uE74F" : (newVol < 33 ? "\uE992" : (newVol < 66 ? "\uE993" : "\uE995"));
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "volume",
+            Icon: icon,
+            Title: "Volume",
+            Detail: $"{newVol}%",
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.Volume,
+            StayMs: stay,
+            Value: newVol));
+    }
+
+    private void OnCapsLockChanged(bool isOn)
+    {
+        if (!_settings.CardCapsLockEnabled) return;
+        int stay = _settings.GetCardStayMs();
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "capslock",
+            Icon: "\uE7BA",
+            Title: "Caps Lock",
+            Detail: isOn ? "On" : "Off",
+            AccentHex: isOn ? "#FFD700" : "#C0FFFFFF",
+            Priority: WindowIslandCardPriority.CapsLock,
+            StayMs: stay));
+    }
+
+    private void OnClipboardCaptured(ClipboardCardInfo info)
+    {
+        if (!_settings.CardClipboardEnabled) return;
+        int stay = _settings.GetCardStayMs();
+        bool isImage = info.Kind == "clipboard.image";
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "clipboard",
+            Icon: isImage ? "\uEB9F" : "\uE77F",
+            Title: info.Title,
+            Detail: info.Detail,
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.Clipboard,
+            StayMs: stay));
+    }
+
+    private void OnScreenshotSaved(string path)
+    {
+        if (!_settings.CardScreenshotEnabled) return;
+        int stay = _settings.GetCardStayMs();
+        string name = Path.GetFileName(path);
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "screenshot",
+            Icon: "\uE722",
+            Title: "Screenshot saved",
+            Detail: name,
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.Screenshot,
+            StayMs: stay));
+    }
+
+    private void OnShowCard(WindowIslandCard card, bool animate)
+    {
+        CardIcon.Glyph = card.Icon;
+        CardTitle.Text = card.Title;
+        CardDetail.Text = card.Detail;
+        CardIcon.Foreground = new SolidColorBrush(HexToColor(card.AccentHex));
+
+        if (card.Value >= 0)
+        {
+            CardProgressBar.Value = card.Value;
+            CardProgressBar.Visibility = Visibility.Visible;
+            CardValueText.Text = $"{card.Value}%";
+            CardValueText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CardProgressBar.Visibility = Visibility.Collapsed;
+            CardValueText.Visibility = Visibility.Collapsed;
+        }
+
+        if (animate)
+        {
+            _compositor?.AnimateToCard(270f, 38f);
+            FadeVisual(_foldedVisual, 0f, 100);
+            FadeVisual(_cardVisual, 1f, 160, delayMs: 40);
+            UpdateHitRegion(open: false, isCard: true);
+        }
+    }
+
+    private void OnClearCard()
+    {
+        FadeVisual(_cardVisual, 0f, 100);
+        FadeVisual(_foldedVisual, 1f, 160, delayMs: 40);
+        _compositor?.AnimateToFolded(() =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                UpdateHitRegion(open: false, isCard: false);
+            });
+        });
+        UpdateHitRegion(open: false, isCard: false);
+    }
+
+    private static Windows.UI.Color HexToColor(string hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return Windows.UI.Color.FromArgb(255, 255, 255, 255);
+        hex = hex.TrimStart('#');
+        try
+        {
+            if (hex.Length == 6)
+            {
+                return Windows.UI.Color.FromArgb(
+                    255,
+                    Convert.ToByte(hex.Substring(0, 2), 16),
+                    Convert.ToByte(hex.Substring(2, 2), 16),
+                    Convert.ToByte(hex.Substring(4, 2), 16));
+            }
+            if (hex.Length == 8)
+            {
+                return Windows.UI.Color.FromArgb(
+                    Convert.ToByte(hex.Substring(0, 2), 16),
+                    Convert.ToByte(hex.Substring(2, 2), 16),
+                    Convert.ToByte(hex.Substring(4, 2), 16),
+                    Convert.ToByte(hex.Substring(6, 2), 16));
+            }
+        }
+        catch { }
+        return Windows.UI.Color.FromArgb(255, 255, 255, 255);
     }
 
     private void PositionAndSize()

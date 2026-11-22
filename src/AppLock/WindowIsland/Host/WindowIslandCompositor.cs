@@ -30,6 +30,11 @@ public sealed class WindowIslandCompositor : IDisposable
     public const float FoldedHeightDip = 32f;
     public const float FoldedRadiusDip = 16f;
 
+    // Card dimensions in DIPs
+    public const float CardDefaultWidthDip  = 270f;
+    public const float CardDefaultHeightDip = 38f;
+    public const float CardDefaultRadiusDip = 19f;
+
     // Open defaults — overridden per-tab
     public const float OpenWidthDip  = 520f;
     public const float OpenHeightDip = 240f;
@@ -38,13 +43,17 @@ public sealed class WindowIslandCompositor : IDisposable
     private float _sizeFactor    = 1.0f;
     private float _windowWidthDip = 560f;
     private bool  _isOpen;
+    private bool  _isCard;
     private bool  _disposed;
 
     // Current target tab size (may change per tab switch)
     private float _openTargetW = OpenWidthDip;
     private float _openTargetH = OpenHeightDip;
+    private float _cardTargetW = CardDefaultWidthDip;
+    private float _cardTargetH = CardDefaultHeightDip;
 
     public bool IsOpen => _isOpen;
+    public bool IsCard => _isCard;
 
     public WindowIslandCompositor(UIElement hostElement, WindowIslandSettings settings, float windowWidthDip)
     {
@@ -91,6 +100,7 @@ public sealed class WindowIslandCompositor : IDisposable
         _openTargetW = tw;
         _openTargetH = th;
         _isOpen = true;
+        _isCard = false;
 
         float targetWidth  = _openTargetW * _sizeFactor;
         float targetHeight = _openTargetH * _sizeFactor;
@@ -104,10 +114,32 @@ public sealed class WindowIslandCompositor : IDisposable
             onCompleted);
     }
 
+    /// <summary>Animate notch into a live card expansion.</summary>
+    public void AnimateToCard(float widthDip = CardDefaultWidthDip, float heightDip = CardDefaultHeightDip, Action? onCompleted = null)
+    {
+        if (_disposed) return;
+        _isCard = true;
+        _isOpen = false;
+        _cardTargetW = widthDip;
+        _cardTargetH = heightDip;
+
+        float targetWidth  = widthDip * _sizeFactor;
+        float targetHeight = heightDip * _sizeFactor;
+        float targetRadius = MathF.Min(CardDefaultRadiusDip, heightDip / 2f) * _sizeFactor;
+
+        AnimateShape(
+            new Vector2(targetWidth, targetHeight),
+            new Vector2(targetRadius, targetRadius),
+            dampingRatio: IslandMotion.CardInDampingRatio,
+            periodMs:     IslandMotion.CardInPeriodMs,
+            onCompleted);
+    }
+
     public void AnimateToFolded(Action? onCompleted = null)
     {
         if (_disposed) return;
         _isOpen = false;
+        _isCard = false;
 
         float targetWidth  = FoldedWidthDip  * _sizeFactor;
         float targetHeight = FoldedHeightDip * _sizeFactor;
@@ -171,9 +203,9 @@ public sealed class WindowIslandCompositor : IDisposable
         RefreshCenterAnimation(settings.Shape);
 
         // Snap to current logical state (no animation for settings change)
-        float width  = (_isOpen ? _openTargetW : FoldedWidthDip)  * _sizeFactor;
-        float height = (_isOpen ? _openTargetH : FoldedHeightDip) * _sizeFactor;
-        float radius = (_isOpen ? OpenRadiusDip : FoldedRadiusDip) * _sizeFactor;
+        float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : FoldedWidthDip))  * _sizeFactor;
+        float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : FoldedHeightDip)) * _sizeFactor;
+        float radius = (_isOpen ? OpenRadiusDip : (_isCard ? MathF.Min(CardDefaultRadiusDip, _cardTargetH / 2f) : FoldedRadiusDip)) * _sizeFactor;
         _bodyGeometry.Size         = new Vector2(width, height);
         _bodyGeometry.CornerRadius = new Vector2(radius, radius);
     }
