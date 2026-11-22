@@ -127,6 +127,9 @@ public sealed partial class WindowIslandWindow : Window
     private WindowIslandClipboardState?       _clipboardState;
     private AppLock.Island.Modules.IslandShelf? _shelf;
 
+    // Milestone 7: Launcher
+    private WindowIslandLauncher?             _launcher;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -230,6 +233,11 @@ public sealed partial class WindowIslandWindow : Window
         _clipboardState.ItemsLoaded += OnClipboardItemsLoaded;
         _shelf = new AppLock.Island.Modules.IslandShelf();
         _shelf.Changed += () => DispatcherQueue.TryEnqueue(RefreshShelfUI);
+
+        // Milestone 7: Launcher
+        _launcher = new WindowIslandLauncher();
+        _launcher.Changed += () => DispatcherQueue.TryEnqueue(RefreshLauncherUI);
+        RefreshLauncherUI();
 
         // ── Timers ──────────────────────────────────────────────────────────────
 
@@ -344,6 +352,7 @@ public sealed partial class WindowIslandWindow : Window
 
         _clipboardState = null;
         _shelf = null;
+        _launcher = null;
 
         _eventQueue?.Dispose();
         _eventQueue = null;
@@ -372,7 +381,11 @@ public sealed partial class WindowIslandWindow : Window
         _activeTab   = tabIndex;
 
         // Start/stop home background sampler based on tab
-        if (_activeTab == 0) StartHomeState();
+        if (_activeTab == 0)
+        {
+            StartHomeState();
+            RefreshLauncherUI();
+        }
         else StopHomeState();
 
         // Refresh clipboard / shelf on switch
@@ -1597,5 +1610,189 @@ public sealed partial class WindowIslandWindow : Window
             }
         }
         catch (Exception ex) { WindowIslandHost.Log("ShelfDrop: " + ex.Message); }
+    }
+
+    // ── Milestone 7: Launcher ──────────────────────────────────────────────────
+
+    private void RefreshLauncherUI()
+    {
+        if (_launcher == null) return;
+        var items = _launcher.Items;
+
+        // Keep LauncherEmptyText and LauncherAddBtn in LauncherList
+        // Clear all dynamically added shortcut buttons
+        while (LauncherList.Children.Count > 2)
+            LauncherList.Children.RemoveAt(1);
+
+        LauncherEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Insert items between LauncherEmptyText (index 0) and LauncherAddBtn (last)
+        int insertIndex = 1;
+        foreach (var item in items)
+        {
+            var btn = BuildShortcutTile(item);
+            LauncherList.Children.Insert(insertIndex++, btn);
+        }
+    }
+
+    private Button BuildShortcutTile(IslandShortcut item)
+    {
+        var btn = new Button
+        {
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(2),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            Tag = item.Id
+        };
+        ToolTipService.SetToolTip(btn, string.IsNullOrEmpty(item.Name) ? item.Target : $"{item.Name}\n{item.Target}");
+
+        // Content: image or fallback icon
+        if (!string.IsNullOrEmpty(item.IconFile) && System.IO.File.Exists(item.IconFile))
+        {
+            try
+            {
+                var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(item.IconFile));
+                btn.Content = new Image
+                {
+                    Source = bmp,
+                    Width = 18,
+                    Height = 18,
+                    Stretch = Stretch.Uniform
+                };
+            }
+            catch
+            {
+                btn.Content = CreateFallbackIcon(item);
+            }
+        }
+        else
+        {
+            btn.Content = CreateFallbackIcon(item);
+        }
+
+        // Left-click: Ctrl = OpenFolder, normal = Launch
+        btn.Click += (_, _) =>
+        {
+            bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (ctrl)
+            {
+                _launcher?.OpenFolder(item.Id);
+            }
+            else
+            {
+                _launcher?.Launch(item.Id);
+            }
+        };
+
+        // Right-click context menu
+        var menu = new MenuFlyout();
+
+        var openItem = new MenuFlyoutItem { Text = "Open", Icon = new FontIcon { Glyph = "\uE714" } };
+        openItem.Click += (_, _) => _launcher?.Launch(item.Id);
+        menu.Items.Add(openItem);
+
+        var locItem = new MenuFlyoutItem { Text = "Open file location", Icon = new FontIcon { Glyph = "\uE8B7" } };
+        locItem.Click += (_, _) => _launcher?.OpenFolder(item.Id);
+        menu.Items.Add(locItem);
+
+        string ext = System.IO.Path.GetExtension(item.Target).ToLowerInvariant();
+        if (ext is ".exe" or ".bat" or ".cmd" or ".ps1")
+        {
+            var adminItem = new MenuFlyoutItem { Text = "Run as administrator", Icon = new FontIcon { Glyph = "\uE7EF" } };
+            adminItem.Click += (_, _) => _launcher?.Launch(item.Id, runAsAdmin: true);
+            menu.Items.Add(adminItem);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var removeItem = new MenuFlyoutItem { Text = "Remove", Icon = new FontIcon { Glyph = "\uE74D" } };
+        removeItem.Click += (_, _) => _launcher?.Remove(item.Id);
+        menu.Items.Add(removeItem);
+
+        btn.ContextFlyout = menu;
+
+        return btn;
+    }
+
+    private static FrameworkElement CreateFallbackIcon(IslandShortcut item)
+    {
+        string target = item.Target;
+        if (Uri.TryCreate(target, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
+        {
+            return new FontIcon { Glyph = "\uE774", FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 96, 205, 255)) };
+        }
+        if (System.IO.Directory.Exists(target))
+        {
+            return new FontIcon { Glyph = "\uE8B7", FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 215, 0)) };
+        }
+        return new FontIcon { Glyph = "\uE756", FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255)) };
+    }
+
+    private void LauncherAddBtn_Click(object sender, RoutedEventArgs e)
+    {
+        LauncherTargetInput.Text = string.Empty;
+        LauncherNameInput.Text = string.Empty;
+        LauncherUseAppIconCheck.IsChecked = true;
+        LauncherAddOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void LauncherAddCancel_Click(object sender, RoutedEventArgs e)
+    {
+        LauncherAddOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private async void LauncherAddConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        string target = LauncherTargetInput.Text.Trim();
+        string name = LauncherNameInput.Text.Trim();
+        bool useAppIcon = LauncherUseAppIconCheck.IsChecked == true;
+
+        if (!string.IsNullOrEmpty(target) && _launcher != null)
+        {
+            await _launcher.AddAsync(target, string.IsNullOrEmpty(name) ? null : name, useAppIcon);
+        }
+        LauncherAddOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void LauncherRow_DragOver(object sender, DragEventArgs e)
+    {
+        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+    }
+
+    private async void LauncherRow_Drop(object sender, DragEventArgs e)
+    {
+        try
+        {
+            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            {
+                var items = await e.DataView.GetStorageItemsAsync();
+                foreach (var item in items)
+                {
+                    if (_launcher != null)
+                        await _launcher.AddAsync(item.Path);
+                }
+            }
+            else if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.WebLink))
+            {
+                var uri = await e.DataView.GetWebLinkAsync();
+                if (uri != null && _launcher != null)
+                    await _launcher.AddAsync(uri.ToString());
+            }
+            else if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                var text = await e.DataView.GetTextAsync();
+                if (!string.IsNullOrWhiteSpace(text) && _launcher != null)
+                    await _launcher.AddAsync(text.Trim());
+            }
+        }
+        catch (Exception ex)
+        {
+            WindowIslandHost.Log("LauncherRow_Drop: " + ex.Message);
+        }
     }
 }

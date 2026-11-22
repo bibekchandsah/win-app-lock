@@ -262,7 +262,7 @@
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
               Width="560"
-              Height="240"
+              Height="250"
               Opacity="0"
               IsHitTestVisible="False">
 
@@ -404,15 +404,19 @@
                             HorizontalAlignment="Left"
                             Margin="0,-2,0,0" />
 
-                    <!-- Home tab — media player + volume + 8 tiles -->
+                    <!-- Home tab — media player + volume + 8 tiles + launcher shortcuts -->
                     <Grid x:Name="ContentHome" Opacity="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="220" />
                             <ColumnDefinition Width="*"   />
                         </Grid.ColumnDefinitions>
 
                         <!-- ── Left column: media player + recent + volume ── -->
-                        <Grid Grid.Column="0" Margin="0,4,8,0">
+                        <Grid Grid.Row="0" Grid.Column="0" Margin="0,2,8,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"  />
                                 <RowDefinition Height="Auto"/>
@@ -549,7 +553,7 @@
                         </Grid>
 
                         <!-- ── Right column: 2×4 tile grid ── -->
-                        <Grid Grid.Column="1" Margin="0,4,0,0">
+                        <Grid Grid.Row="0" Grid.Column="1" Margin="0,2,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="*" />
@@ -677,6 +681,119 @@
                                 </StackPanel>
                             </Button>
                         </Grid>
+
+                        <!-- ── Bottom row: Shortcuts (launcher) ── -->
+                        <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0"
+                              AllowDrop="True"
+                              DragOver="LauncherRow_DragOver"
+                              Drop="LauncherRow_Drop">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled"
+                                          VerticalScrollMode="Disabled">
+                                <StackPanel x:Name="LauncherList"
+                                            Orientation="Horizontal"
+                                            Spacing="5"
+                                            VerticalAlignment="Center">
+                                    <TextBlock x:Name="LauncherEmptyText"
+                                               Text="Drop app shortcuts, folders or files here"
+                                               FontSize="10"
+                                               Foreground="#50FFFFFF"
+                                               VerticalAlignment="Center"
+                                               Margin="4,0,4,0" />
+                                    <Button x:Name="LauncherAddBtn"
+                                            Width="30" Height="30"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderBrush="#40FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Click="LauncherAddBtn_Click"
+                                            ToolTipService.ToolTip="Add shortcut">
+                                        <FontIcon Glyph="&#xE710;" FontSize="11" Foreground="#C0FFFFFF" />
+                                    </Button>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- In-island Add Dialog Overlay -->
+                        <Border x:Name="LauncherAddOverlay"
+                                Grid.RowSpan="2" Grid.ColumnSpan="2"
+                                Background="#F0181818"
+                                CornerRadius="8"
+                                BorderBrush="#40FFFFFF"
+                                BorderThickness="1"
+                                Padding="14,10"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="A link for the launcher"
+                                           FontFamily="Segoe UI Variable Display"
+                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           Foreground="#F0FFFFFF"
+                                           Margin="0,0,0,6" />
+
+                                <TextBox x:Name="LauncherTargetInput"
+                                         Grid.Row="1"
+                                         PlaceholderText="https://… or file/folder path"
+                                         FontSize="11"
+                                         Background="#20FFFFFF"
+                                         Foreground="#F0FFFFFF"
+                                         BorderBrush="#30FFFFFF"
+                                         CornerRadius="5"
+                                         Padding="8,4"
+                                         Margin="0,0,0,4" />
+
+                                <TextBox x:Name="LauncherNameInput"
+                                         Grid.Row="2"
+                                         PlaceholderText="Name (optional)"
+                                         FontSize="11"
+                                         Background="#20FFFFFF"
+                                         Foreground="#F0FFFFFF"
+                                         BorderBrush="#30FFFFFF"
+                                         CornerRadius="5"
+                                         Padding="8,4"
+                                         Margin="0,0,0,4" />
+
+                                <CheckBox x:Name="LauncherUseAppIconCheck"
+                                          Grid.Row="3"
+                                          Content="Use the site's or app's own icon"
+                                          IsChecked="True"
+                                          FontSize="10"
+                                          Foreground="#C0FFFFFF"
+                                          Margin="0,0,0,6" />
+
+                                <StackPanel Grid.Row="4"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            Spacing="6">
+                                    <Button Content="Cancel"
+                                            FontSize="11"
+                                            Padding="10,3"
+                                            CornerRadius="5"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Click="LauncherAddCancel_Click" />
+                                    <Button x:Name="LauncherAddConfirmBtn"
+                                            Content="Add"
+                                            FontSize="11"
+                                            Padding="14,3"
+                                            CornerRadius="5"
+                                            Background="#60CDFF"
+                                            Foreground="#000000"
+                                            FontWeight="SemiBold"
+                                            Click="LauncherAddConfirm_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                     </Grid>
 
                     <!-- Clipboard tab -->
