@@ -44,6 +44,13 @@ public partial class App : Application
             return;
         }
 
+        // Window Island (Native Composition) spike: no main window, runs native composition notch
+        if (Environment.GetCommandLineArgs().Any(a => a.Equals("--window-island-spike", StringComparison.OrdinalIgnoreCase)))
+        {
+            WindowIsland.Host.WindowIslandHost.Instance.Start(ignoreEnabledSetting: true);
+            return;
+        }
+
         // Refresh a Run entry written by an older build so the next sign-in opens in the tray.
         AppLock.Services.ServiceContainer.StartupService.UpdateStartupCommandLine();
 

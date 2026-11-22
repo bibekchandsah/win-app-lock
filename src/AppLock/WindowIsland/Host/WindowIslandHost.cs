@@ -1,6 +1,5 @@
 using System;
-using System.Runtime.InteropServices;
-using System.Threading;
+using System.IO;
 using Microsoft.UI.Dispatching;
 using AppLock.Models;
 using AppLock.Services;
@@ -9,18 +8,10 @@ namespace AppLock.WindowIsland.Host;
 
 /// <summary>
 /// Windows-native Window Island host — a pure WinUI 3 / Composition notch or capsule at the
-/// top of the screen.  This is completely separate from the WebView2 "Island" feature.
-///
-/// Architecture:
-///   - Owns a borderless, topmost, non-activating Win32-backed WinUI 3 window.
-///   - Draws the shape and content with the Windows.UI.Composition API (springs, scale,
-///     offset, opacity, clip) — NEVER resizing HWND per frame, NEVER animating XAML
-///     Width/Height/Margin.
-///   - All data work is done off the UI thread and posted back via DispatcherQueue.
+/// top of the screen. This is completely separate from the WebView2 "Island" feature.
 /// </summary>
 public sealed class WindowIslandHost
 {
-    // ── Singleton ──────────────────────────────────────────────────────────────
     private static readonly Lazy<WindowIslandHost> _instance = new(() => new WindowIslandHost());
     public static WindowIslandHost Instance => _instance.Value;
 
@@ -30,9 +21,18 @@ public sealed class WindowIslandHost
 
     private WindowIslandHost() { }
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────────
+    private static void Log(string msg)
+    {
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "Logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "window-island.log"), $"[{DateTime.Now:HH:mm:ss.fff}] {msg}{Environment.NewLine}");
+        }
+        catch { }
+    }
 
-    public void Start()
+    public void Start(bool ignoreEnabledSetting = false)
     {
         lock (_lock)
         {
@@ -40,27 +40,40 @@ public sealed class WindowIslandHost
             _started = true;
         }
 
-        // Must be created on the UI thread.
         var settings = ServiceContainer.Settings.WindowIsland;
-        if (!settings.Enabled) return;
+        if (!ignoreEnabledSetting && !settings.Enabled)
+        {
+            lock (_lock) { _started = false; }
+            return;
+        }
 
-        var dq = DispatcherQueue.GetForCurrentThread()
-                 ?? Microsoft.UI.Dispatching.DispatcherQueueController.CreateOnCurrentThread()
-                                .DispatcherQueue;
+        Log("Start called (ignoreEnabled=" + ignoreEnabledSetting + ")");
 
-        dq.TryEnqueue(() =>
+        void DoStart()
         {
             try
             {
                 _window = new WindowIslandWindow();
                 _window.Show(settings);
+                Log("Window created and shown successfully");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[WindowIsland] Start failed: {ex}");
+                Log("Window creation failed: " + ex);
                 lock (_lock) { _started = false; }
             }
-        });
+        }
+
+        var dq = DispatcherQueue.GetForCurrentThread();
+        if (dq != null)
+        {
+            DoStart();
+        }
+        else
+        {
+            var controller = DispatcherQueueController.CreateOnCurrentThread();
+            controller.DispatcherQueue.TryEnqueue(DoStart);
+        }
     }
 
     public void Stop()
@@ -73,9 +86,10 @@ public sealed class WindowIslandHost
             try { _window?.Close(); }
             catch { }
             _window = null;
+            Log("Window closed and stopped");
         }
 
-        if (dq != null) dq.TryEnqueue(DoStop);
+        if (dq != null) DoStop();
         else DoStop();
     }
 

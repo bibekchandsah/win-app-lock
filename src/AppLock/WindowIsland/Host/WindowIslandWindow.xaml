@@ -3,8 +3,88 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Fully transparent root — the Composition visual tree draws everything -->
     <Grid x:Name="RootGrid" Background="Transparent">
-        <!-- Placeholder: Composition notch is attached programmatically in code-behind -->
+        <!-- Folded Content Layer -->
+        <Grid x:Name="FoldedLayer"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              Height="32"
+              IsHitTestVisible="False">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                <FontIcon Glyph="&#xE787;" FontSize="11" Foreground="#88FFFFFF" />
+                <TextBlock x:Name="FoldedClockText"
+                           Text="12:45"
+                           FontFamily="Segoe UI Variable Display"
+                           FontWeight="SemiBold"
+                           FontSize="12"
+                           Foreground="#E0FFFFFF"
+                           VerticalAlignment="Center" />
+                <TextBlock x:Name="FoldedBatteryText"
+                           Text="98%"
+                           FontFamily="Segoe UI Variable Small"
+                           FontSize="11"
+                           Foreground="#88FFFFFF"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Open Content Layer -->
+        <Grid x:Name="OpenLayer"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              Width="420"
+              Height="180"
+              Opacity="0"
+              IsHitTestVisible="False">
+            <Grid Margin="20,16,20,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Header / Title -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE7F4;" FontSize="14" Foreground="#60CDFF" />
+                    <TextBlock Text="Window Island"
+                               FontWeight="SemiBold"
+                               FontSize="14"
+                               Foreground="#F0FFFFFF" />
+                    <Border Background="#20FFFFFF" CornerRadius="4" Padding="6,2">
+                        <TextBlock Text="Native Composition"
+                                   FontSize="10"
+                                   Foreground="#90FFFFFF" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Center Content / Benchmark Readout -->
+                <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock Text="Composition Spring Spike (Milestone 1)"
+                               FontSize="12"
+                               Foreground="#C0FFFFFF" />
+                    <TextBlock x:Name="FrameStatsText"
+                               Text="Frame-time: p50 16.7ms · p95 16.8ms · max 17.2ms"
+                               FontFamily="Consolas"
+                               FontSize="11"
+                               Foreground="#4CC2FF" />
+                </StackPanel>
+
+                <!-- Footer / Status -->
+                <Grid Grid.Row="2">
+                    <TextBlock Text="Hover to expand · Move out to fold"
+                               FontSize="11"
+                               Foreground="#70FFFFFF"
+                               HorizontalAlignment="Left" />
+                    <TextBlock x:Name="BenchStatusText"
+                               Text="60 fps compositor verified"
+                               FontSize="11"
+                               Foreground="#6CCB5F"
+                               HorizontalAlignment="Right" />
+                </Grid>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>

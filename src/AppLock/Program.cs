@@ -79,7 +79,7 @@ public static class Program
         }
 
         // 3b. Island rendering spike (milestone 1): open only the island window, without the main app.
-        if (args.Length > 0 && Array.Exists(args, a => string.Equals(a, "--island-spike", StringComparison.OrdinalIgnoreCase)))
+        if (args.Length > 0 && Array.Exists(args, a => string.Equals(a, "--island-spike", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "--window-island-spike", StringComparison.OrdinalIgnoreCase)))
         {
             var spikeLog = System.IO.Path.Combine(
                 System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
