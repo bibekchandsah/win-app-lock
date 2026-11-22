@@ -123,6 +123,10 @@ public sealed partial class WindowIslandWindow : Window
     private DQTimer?                _eqTimer;
     private readonly Random         _eqRng = new();
 
+    // Milestone 6: Clipboard + Shelf
+    private WindowIslandClipboardState?       _clipboardState;
+    private AppLock.Island.Modules.IslandShelf? _shelf;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -220,6 +224,12 @@ public sealed partial class WindowIslandWindow : Window
             showIsland: () => { SetIslandVisible(true);  return Task.CompletedTask; },
             screenshotsFolder: () => Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots"));
+
+        // Milestone 6: Clipboard + Shelf
+        _clipboardState = new WindowIslandClipboardState(DispatcherQueue);
+        _clipboardState.ItemsLoaded += OnClipboardItemsLoaded;
+        _shelf = new AppLock.Island.Modules.IslandShelf();
+        _shelf.Changed += () => DispatcherQueue.TryEnqueue(RefreshShelfUI);
 
         // ── Timers ──────────────────────────────────────────────────────────────
 
@@ -332,6 +342,9 @@ public sealed partial class WindowIslandWindow : Window
         _homeState?.Dispose();
         _homeState = null;
 
+        _clipboardState = null;
+        _shelf = null;
+
         _eventQueue?.Dispose();
         _eventQueue = null;
         _lockKeySource?.Dispose();
@@ -361,6 +374,10 @@ public sealed partial class WindowIslandWindow : Window
         // Start/stop home background sampler based on tab
         if (_activeTab == 0) StartHomeState();
         else StopHomeState();
+
+        // Refresh clipboard / shelf on switch
+        if (_activeTab == 1) _clipboardState?.Refresh();
+        if (_activeTab == 2) RefreshShelfUI();
 
         // Show new content, collapse previous
         for (int i = 0; i < TabCount; i++)
@@ -1330,5 +1347,255 @@ public sealed partial class WindowIslandWindow : Window
             }
         }
         catch (Exception ex) { WindowIslandHost.Log("RunTileAsync: " + ex); }
+    }
+
+    // ── Milestone 6: Clipboard tab ─────────────────────────────────────────────
+
+    private void ClipboardSearch_TextChanged(object sender, TextChangedEventArgs e)
+        => _clipboardState?.Refresh(ClipboardSearch.Text.Trim());
+
+    private async void ClipboardClear_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await (_clipboardState?.ClearAsync() ?? Task.CompletedTask);
+            _clipboardState?.Refresh();
+        }
+        catch { }
+    }
+
+    private void OnClipboardItemsLoaded(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
+    {
+        ClipboardList.Children.Clear();
+
+        if (rows.Count == 0)
+        {
+            var empty = new TextBlock
+            {
+                Text = "No clipboard history yet.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 16, 0, 0)
+            };
+            ClipboardList.Children.Add(empty);
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            var rowGrid = BuildClipboardRow(row);
+            ClipboardList.Children.Add(rowGrid);
+        }
+    }
+
+    private Grid BuildClipboardRow(AppLock.Island.Modules.ClipboardRow row)
+    {
+        // Outer border button
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 5, 8, 5),
+        };
+        border.PointerEntered  += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(35, 255, 255, 255));
+        border.PointerExited   += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+
+        var inner = new Grid();
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Type icon
+        string glyph = row.Type switch
+        {
+            "image" => "\uEB9F",
+            "files" => "\uE7C3",
+            "text"  => "\uE8C3",
+            _       => "\uE77F"
+        };
+        var icon = new FontIcon { Glyph = glyph, FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(icon, 0);
+        inner.Children.Add(icon);
+
+        // Preview + source
+        var textStack = new StackPanel { Spacing = 1 };
+        var preview = new TextBlock
+        {
+            Text = row.Preview,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var source = new TextBlock
+        {
+            Text = string.IsNullOrEmpty(row.Source) ? row.Age : $"{row.Source} · {row.Age}",
+            FontSize = 9,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        textStack.Children.Add(preview);
+        textStack.Children.Add(source);
+        Grid.SetColumn(textStack, 1);
+        inner.Children.Add(textStack);
+
+        // Pin indicator
+        if (row.Pinned)
+        {
+            var pin = new FontIcon { Glyph = "\uE840", FontSize = 10, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            Grid.SetColumn(pin, 2);
+            inner.Children.Add(pin);
+        }
+
+        border.Child = inner;
+
+        // Click = paste; Shift+Click = copy only
+        border.PointerPressed += async (_, pe) =>
+        {
+            bool shift = pe.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
+            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift) ?? Task.CompletedTask);
+        };
+
+        return new Grid { Children = { border } };
+    }
+
+    // ── Milestone 6: Shelf tab ─────────────────────────────────────────────────
+
+    private void RefreshShelfUI()
+    {
+        if (_shelf == null) return;
+        var rows = _shelf.Rows();
+
+        // Clear all except the empty-state TextBlock (first child)
+        while (ShelfList.Children.Count > 1)
+            ShelfList.Children.RemoveAt(ShelfList.Children.Count - 1);
+
+        ShelfEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        foreach (var row in rows)
+        {
+            var item = BuildShelfRow(row);
+            ShelfList.Children.Add(item);
+        }
+    }
+
+    private Grid BuildShelfRow(AppLock.Island.Modules.ShelfRow row)
+    {
+        var container = new Grid();
+        container.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        container.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Icon
+        string iconGlyph = System.IO.Directory.Exists(row.Path) ? "\uE8B7" :
+            System.IO.Path.GetExtension(row.Path).ToLowerInvariant() switch
+            {
+                ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" => "\uEB9F",
+                ".mp4" or ".mkv" or ".mov" or ".avi"                       => "\uE8B2",
+                ".mp3" or ".wav" or ".flac" or ".aac"                      => "\uE8D6",
+                ".pdf"                                                      => "\uEA90",
+                ".exe" or ".msi"                                            => "\uE756",
+                ".zip" or ".rar" or ".7z"                                   => "\uE8B9",
+                _                                                           => "\uE7C3"
+            };
+
+        var icon = new FontIcon
+        {
+            Glyph = iconGlyph, FontSize = 14,
+            Foreground = new SolidColorBrush(row.Exists
+                ? Windows.UI.Color.FromArgb(180, 255, 255, 255)
+                : Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        Grid.SetColumn(icon, 0);
+        container.Children.Add(icon);
+
+        // Name + path
+        var nameBlock = new TextBlock
+        {
+            Text = row.Name,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(row.Exists
+                ? Windows.UI.Color.FromArgb(230, 255, 255, 255)
+                : Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(nameBlock, 1);
+        container.Children.Add(nameBlock);
+
+        // Remove button
+        var removeBtn = new Button
+        {
+            Content = new FontIcon { Glyph = "\uE711", FontSize = 10 },
+            Style = (Style)RootGrid.Resources["TabButtonStyle"],
+            Width = 24, Height = 24,
+            Padding = new Thickness(2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+        };
+        ToolTipService.SetToolTip(removeBtn, "Remove from shelf");
+        string capturedPath = row.Path;
+        removeBtn.Click += (_, _) =>
+        {
+            _shelf?.Remove(capturedPath);
+            RefreshShelfUI();
+        };
+        Grid.SetColumn(removeBtn, 2);
+        container.Children.Add(removeBtn);
+
+        // Open on click
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 5, 8, 5),
+            Child = container
+        };
+        border.PointerEntered += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255));
+        border.PointerExited  += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255));
+        if (row.Exists)
+        {
+            border.PointerPressed += (_, _) =>
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(capturedPath) { UseShellExecute = true }); }
+                catch { }
+            };
+        }
+
+        return new Grid { Children = { border } };
+    }
+
+    private void ShelfClear_Click(object sender, RoutedEventArgs e)
+    {
+        _shelf?.Clear();
+        RefreshShelfUI();
+    }
+
+    private void ShelfGrid_DragOver(object sender, DragEventArgs e)
+    {
+        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        ShelfDropHint.Visibility = Visibility.Visible;
+    }
+
+    private async void ShelfGrid_Drop(object sender, DragEventArgs e)
+    {
+        ShelfDropHint.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            {
+                var items = await e.DataView.GetStorageItemsAsync();
+                var paths = new List<string>();
+                foreach (var item in items)
+                    paths.Add(item.Path);
+
+                _shelf?.Add(paths);
+                RefreshShelfUI();
+            }
+        }
+        catch (Exception ex) { WindowIslandHost.Log("ShelfDrop: " + ex.Message); }
     }
 }

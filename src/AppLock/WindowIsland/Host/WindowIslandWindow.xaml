@@ -679,22 +679,113 @@
                         </Grid>
                     </Grid>
 
-                    <!-- Clipboard tab placeholder -->
+                    <!-- Clipboard tab -->
                     <Grid x:Name="ContentClipboard" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Clipboard"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*"    />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Search + Clear row -->
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"    />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="ClipboardSearch"
+                                     Grid.Column="0"
+                                     PlaceholderText="Search…"
+                                     FontSize="11"
+                                     Background="#20FFFFFF"
+                                     Foreground="#F0FFFFFF"
+                                     BorderBrush="#30FFFFFF"
+                                     CornerRadius="6"
+                                     Padding="8,4"
+                                     TextChanged="ClipboardSearch_TextChanged" />
+                            <Button x:Name="ClipboardClearBtn"
+                                    Grid.Column="1"
+                                    Margin="6,0,0,0"
+                                    Content="Clear"
+                                    FontSize="10"
+                                    Padding="8,4"
+                                    CornerRadius="6"
+                                    Click="ClipboardClear_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Clear clipboard history" />
+                        </Grid>
+
+                        <!-- Item list -->
+                        <ScrollViewer Grid.Row="1"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="ClipboardList" Spacing="2" />
+                        </ScrollViewer>
+
+                        <!-- Footer hint -->
+                        <TextBlock Grid.Row="2"
+                                   Text="Click to paste · Shift+click to copy only"
+                                   FontSize="9"
+                                   Foreground="#50FFFFFF"
                                    HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                                   Margin="0,4,0,0" />
                     </Grid>
 
-                    <!-- Shelf tab placeholder -->
-                    <Grid x:Name="ContentShelf" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Shelf"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                    <!-- Shelf tab -->
+                    <Grid x:Name="ContentShelf" Opacity="0" Visibility="Collapsed"
+                          AllowDrop="True"
+                          DragOver="ShelfGrid_DragOver"
+                          Drop="ShelfGrid_Drop">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"    />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Drop hint overlay (shown when dragging over) -->
+                        <Border x:Name="ShelfDropHint"
+                                Grid.RowSpan="2"
+                                Background="#15FFFFFF"
+                                BorderBrush="#60CDFF"
+                                BorderThickness="2"
+                                CornerRadius="8"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
+                            <TextBlock Text="Drop files here"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#60CDFF"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+
+                        <!-- File list or empty state -->
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="ShelfList" Spacing="4">
+                                <TextBlock x:Name="ShelfEmptyText"
+                                           Text="Drop app shortcuts, folders or files here."
+                                           FontSize="11"
+                                           Foreground="#50FFFFFF"
+                                           TextWrapping="Wrap"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,16,0,0" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Clear all button -->
+                        <Button x:Name="ShelfClearBtn"
+                                Grid.Row="1"
+                                Content="Clear all"
+                                FontSize="10"
+                                Padding="8,4"
+                                CornerRadius="6"
+                                HorizontalAlignment="Right"
+                                Margin="0,4,0,0"
+                                Click="ShelfClear_Click"
+                                Style="{StaticResource TabButtonStyle}"
+                                ToolTipService.ToolTip="Remove all shelf items" />
                     </Grid>
 
                     <!-- Text tab placeholder -->
