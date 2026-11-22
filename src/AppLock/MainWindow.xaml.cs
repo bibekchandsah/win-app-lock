@@ -1371,8 +1371,12 @@ public sealed partial class MainWindow : Window
         // Register Notification toggle hotkey (Alt+N)
         RegisterNotificationToggleHotkey();
 
-        // The island is an overlay that lives for the whole session; it never steals focus.
+        // The island (WebView2) is an overlay that lives for the whole session; it never steals focus.
         AppLock.Island.Host.IslandHost.Instance.Start();
+
+        // Window Island (native WinUI 3 + Composition) — started only when enabled.
+        if (ServiceContainer.Settings.WindowIsland.Enabled)
+            AppLock.WindowIsland.Host.WindowIslandHost.Instance.Start();
 
         // Our own input clock (Windows' idle counter is unreliable on some machines)
         InputActivityMonitor.Start();
@@ -2423,6 +2427,15 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[Island] Shutdown error: {ex.Message}");
+        }
+
+        try
+        {
+            AppLock.WindowIsland.Host.WindowIslandHost.Instance.Stop();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WindowIsland] Shutdown error: {ex.Message}");
         }
 
         // Hand the shell's toast banner windows back untouched, otherwise a toast that was mid

@@ -75,8 +75,11 @@ public class AppSettings
     // Eye Care
     public EyeCareSettings EyeCare { get; set; } = new();
     
-    // Clipboard
+    // Island (WebView2)
     public IslandSettings Island { get; set; } = new();
+
+    // Window Island (Windows Native WinUI 3 + Composition)
+    public WindowIslandSettings WindowIsland { get; set; } = new();
 
     public ClipboardSettings Clipboard { get; set; } = new();
 

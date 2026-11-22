@@ -262,7 +262,7 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- Window Island Card Template -->
+        <!-- Island (WebView2) Card Template -->
         <DataTemplate x:Key="IslandTemplate" x:DataType="local:UtilityCard">
             <StackPanel Spacing="12" Margin="0,8,0,0">
                 <Grid>
@@ -271,10 +271,10 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Window Island"
+                        <TextBlock Text="Island"
                                    FontSize="13"
                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="A dynamic bar at the top of your screen"
+                        <TextBlock Text="A notch at the top of the screen with the clock, battery and quick controls (WebView2)"
                                    FontSize="11"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap"/>
@@ -286,8 +286,38 @@
                                   OffContent=""
                                   OnContent=""/>
                 </Grid>
-                <Button Content="Open Window Island settings"
+                <Button Content="Open Island settings"
                         Click="OpenIslandSettings_Click"
+                        HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Window Island (Windows Native) Card Template -->
+        <DataTemplate x:Key="WindowIslandTemplate" x:DataType="local:UtilityCard">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Window Island"
+                                   FontSize="13"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="A dynamic bar at the top of your screen (Windows Native)"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1"
+                                  IsOn="{x:Bind WindowIslandEnabled, Mode=TwoWay}"
+                                  Toggled="WindowIslandToggle_Toggled"
+                                  MinWidth="0"
+                                  OffContent=""
+                                  OnContent=""/>
+                </Grid>
+                <Button Content="Open Window Island settings"
+                        Click="OpenWindowIslandSettings_Click"
                         HorizontalAlignment="Left"/>
             </StackPanel>
         </DataTemplate>
@@ -304,7 +334,8 @@
                                            WifiTemplate="{StaticResource WifiTemplate}"
                                            SpeedMeterTemplate="{StaticResource SpeedMeterTemplate}"
                                            PcCheckerTemplate="{StaticResource PcCheckerTemplate}"
-                                           IslandTemplate="{StaticResource IslandTemplate}"/>
+                                           IslandTemplate="{StaticResource IslandTemplate}"
+                                           WindowIslandTemplate="{StaticResource WindowIslandTemplate}"/>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24">

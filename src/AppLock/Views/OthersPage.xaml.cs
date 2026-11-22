@@ -22,6 +22,7 @@ public class CardContentTemplateSelector : DataTemplateSelector
     public DataTemplate? SpeedMeterTemplate { get; set; }
     public DataTemplate? PcCheckerTemplate { get; set; }
     public DataTemplate? IslandTemplate { get; set; }
+    public DataTemplate? WindowIslandTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
     {
@@ -39,7 +40,8 @@ public class CardContentTemplateSelector : DataTemplateSelector
                 "wifi" => WifiTemplate,
                 "speedmeter" => SpeedMeterTemplate,
                 "pcchecker" => PcCheckerTemplate,
-                "island" => IslandTemplate,
+                "island" => IslandTemplate,          // WebView2 Island
+                "windowisland" => WindowIslandTemplate, // Windows Native Island
                 _ => null
             };
         }
@@ -138,7 +140,10 @@ public sealed partial class OthersPage : Page
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged += OnSpeedMeterEnabledChanged;
         ServiceContainer.IslandEnabledChanged -= OnIslandEnabledChanged;
+        ServiceContainer.WindowIslandEnabledChanged -= OnWindowIslandEnabledChanged;
         ServiceContainer.IslandEnabledChanged += OnIslandEnabledChanged;
+        ServiceContainer.WindowIslandEnabledChanged -= OnWindowIslandEnabledChanged;
+        ServiceContainer.WindowIslandEnabledChanged += OnWindowIslandEnabledChanged;
         ServiceContainer.KeyboardEnabledChanged -= OnKeyboardEnabledChanged;
         ServiceContainer.KeyboardEnabledChanged += OnKeyboardEnabledChanged;
 
@@ -151,6 +156,7 @@ public sealed partial class OthersPage : Page
         UpdateNotificationCardState();
         UpdateSpeedMeterCardState();
         UpdateIslandCardState();
+        UpdateWindowIslandCardState();
     }
 
     private void OthersPage_Unloaded(object sender, RoutedEventArgs e)
@@ -165,9 +171,11 @@ public sealed partial class OthersPage : Page
         ServiceContainer.NotificationCustomizerEnabledChanged -= OnNotificationCustomizerEnabledChanged;
         ServiceContainer.SpeedMeterEnabledChanged -= OnSpeedMeterEnabledChanged;
         ServiceContainer.IslandEnabledChanged -= OnIslandEnabledChanged;
+        ServiceContainer.WindowIslandEnabledChanged -= OnWindowIslandEnabledChanged;
     }
 
     private void OnIslandEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateIslandCardState);
+    private void OnWindowIslandEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateWindowIslandCardState);
     private void OnSpeedMeterEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateSpeedMeterCardState);
 
     private void OnClipboardEnabledChanged(object? sender, bool enabled) => DispatcherQueue?.TryEnqueue(UpdateClipboardCardState);
@@ -378,14 +386,14 @@ public sealed partial class OthersPage : Page
             },
             new UtilityCard
             {
-                Id = "island",
+                Id = "windowisland",
                 Order = 90,
                 Icon = "\uE7F4",
                 Title = "Window Island",
-                Description = "A dynamic bar at the top of your screen",
+                Description = "A native WinUI 3 dynamic bar at the top of your screen",
                 Status = "",
                 StatusVisibility = Visibility.Collapsed,
-                IslandEnabled = ServiceContainer.Settings.Island.Enabled
+                WindowIslandEnabled = ServiceContainer.Settings.WindowIsland.Enabled
             }
         };
 
@@ -413,6 +421,10 @@ public sealed partial class OthersPage : Page
             else if (card.Id == "island")
             {
                 Frame.Navigate(typeof(IslandSettingsPage));
+            }
+            else if (card.Id == "windowisland")
+            {
+                Frame.Navigate(typeof(WindowIslandSettingsPage));
             }
             else if (card.Id == "clipboard")
             {
@@ -470,6 +482,11 @@ public sealed partial class OthersPage : Page
         Frame.Navigate(typeof(IslandSettingsPage));
     }
 
+    private void OpenWindowIslandSettings_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(WindowIslandSettingsPage));
+    }
+
     private void IslandToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggle || toggle.DataContext is not UtilityCard card) return;
@@ -479,12 +496,27 @@ public sealed partial class OthersPage : Page
         card.Status = toggle.IsOn ? "On" : "Off";
     }
 
+    private void WindowIslandToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch toggle || toggle.DataContext is not UtilityCard card) return;
+
+        ServiceContainer.SetWindowIslandEnabled(toggle.IsOn);
+        card.WindowIslandEnabled = toggle.IsOn;
+        card.Status = toggle.IsOn ? "On" : "Off";
+    }
+
     private void UpdateIslandCardState()
     {
         var card = Cards.FirstOrDefault(c => c.Id == "island");
         if (card == null) return;
-
         card.IslandEnabled = ServiceContainer.Settings.Island.Enabled;
+    }
+
+    private void UpdateWindowIslandCardState()
+    {
+        var card = Cards.FirstOrDefault(c => c.Id == "windowisland");
+        if (card == null) return;
+        card.WindowIslandEnabled = ServiceContainer.Settings.WindowIsland.Enabled;
     }
 
     /// <summary>The card switch and the settings page share one setting, so both stay in sync.</summary>
@@ -810,6 +842,20 @@ public class UtilityCard : INotifyPropertyChanged
             if (_islandEnabled != value)
             {
                 _islandEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _windowIslandEnabled;
+    public bool WindowIslandEnabled
+    {
+        get => _windowIslandEnabled;
+        set
+        {
+            if (_windowIslandEnabled != value)
+            {
+                _windowIslandEnabled = value;
                 OnPropertyChanged();
             }
         }

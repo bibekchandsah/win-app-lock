@@ -773,7 +773,7 @@ public static class ServiceContainer
         SpeedMeterEnabledChanged?.Invoke(null, enabled);
     }
 
-    // ── Window Island ─────────────────────────────────────────────────────────
+    // ── Island (WebView2) ────────────────────────────────────────────────────
 
     public static event EventHandler<bool>? IslandEnabledChanged;
 
@@ -792,6 +792,27 @@ public static class ServiceContainer
         }
 
         IslandEnabledChanged?.Invoke(null, enabled);
+    }
+
+    // ── Window Island (Windows Native WinUI 3 + Composition) ──────────────────
+
+    public static event EventHandler<bool>? WindowIslandEnabledChanged;
+
+    public static void SetWindowIslandEnabled(bool enabled)
+    {
+        Settings.WindowIsland.Enabled = enabled;
+        SettingsStore.Save(Settings);
+
+        if (enabled)
+        {
+            AppLock.WindowIsland.Host.WindowIslandHost.Instance.Start();
+        }
+        else
+        {
+            AppLock.WindowIsland.Host.WindowIslandHost.Instance.Stop();
+        }
+
+        WindowIslandEnabledChanged?.Invoke(null, enabled);
     }
 
     // ── Volume Mixer ──────────────────────────────────────────────────────────

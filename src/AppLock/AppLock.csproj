@@ -115,4 +115,16 @@
     <Message Text="Copied AppLockGuard.exe" Importance="high" Condition="'$(GuardSrc)' != ''" />
   </Target>
 
+  <Target Name="CopyIslandUiDist" AfterTargets="Build">
+    <ItemGroup>
+      <IslandDistFiles Include="$(MSBuildThisFileDirectory)..\..\Assets\island-ui\dist\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(IslandDistFiles)"
+          DestinationFiles="@(IslandDistFiles->'$(TargetDir)Assets\island-ui\dist\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(IslandDistFiles)"
+          DestinationFiles="@(IslandDistFiles->'$(OutputPath)Assets\island-ui\dist\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" Condition="'$(TargetDir)' != '$(OutputPath)'" />
+  </Target>
+
 </Project>

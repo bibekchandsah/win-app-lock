@@ -213,7 +213,7 @@ public sealed partial class IslandWindow : Window
         Title = "Island";
         Clipboard = new ClipboardCardSource(DispatcherQueue, _hwnd);
 
-        _contentDir = Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist");
+        _contentDir = ResolveContentDir();
         _benchFile = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AppLock", "island", "bench.txt");
@@ -396,6 +396,28 @@ public sealed partial class IslandWindow : Window
     }
 
     // ── WebView2 ─────────────────────────────────────────────────────────────
+
+    private static string ResolveContentDir()
+    {
+        string[] candidates =
+        {
+            Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist"),
+            Path.Combine(AppContext.BaseDirectory, "..", "Assets", "island-ui", "dist"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Assets", "island-ui", "dist"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "island-ui", "dist")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            var full = Path.GetFullPath(candidate);
+            if (File.Exists(Path.Combine(full, "index.html")))
+            {
+                return full;
+            }
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, "Assets", "island-ui", "dist");
+    }
 
     private async Task InitializeWebViewAsync()
     {
