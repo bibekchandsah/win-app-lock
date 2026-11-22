@@ -31,6 +31,7 @@ using AppLock.WindowIsland.Modules.Controls;
 using AppLock.WindowIsland.Modules.Notifications;
 using AppLock.WindowIsland.Modules.Text;
 using AppLock.WindowIsland.Modules.Weather;
+using AppLock.WindowIsland.Services;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace AppLock.WindowIsland.Host;
@@ -177,6 +178,9 @@ public sealed partial class WindowIslandWindow : Window
     private bool                              _chatInitialized;
     private DQTimer?                          _chatIdleTimer;
     private string?                           _chatLastNavigatedUrl;
+
+    // Milestone 15: Visibility rules
+    private WindowIslandVisibilityService?    _visibilityService;
 
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
@@ -384,6 +388,13 @@ public sealed partial class WindowIslandWindow : Window
         // Start Home tab background sampler immediately (tab 0 is active on first open)
         StartHomeState();
 
+        // Milestone 15: start visibility service
+        _visibilityService?.Dispose();
+        _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue);
+        _visibilityService.VisibilityChanged += OnIslandVisibilityChanged;
+        _visibilityService.EdgeDwellTriggered += OnEdgeDwellTriggered;
+        _visibilityService.Start();
+
         var args = Environment.GetCommandLineArgs();
         if (args.Any(a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase)))
         {
@@ -407,6 +418,18 @@ public sealed partial class WindowIslandWindow : Window
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
+
+        // Milestone 15: re-create visibility service with new settings
+        if (_visibilityService != null)
+        {
+            _visibilityService.VisibilityChanged  -= OnIslandVisibilityChanged;
+            _visibilityService.EdgeDwellTriggered -= OnEdgeDwellTriggered;
+            _visibilityService.Dispose();
+            _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue);
+            _visibilityService.VisibilityChanged  += OnIslandVisibilityChanged;
+            _visibilityService.EdgeDwellTriggered += OnEdgeDwellTriggered;
+            _visibilityService.Start();
+        }
     }
 
     public void ToggleVisible() => SetIslandVisible(!_isVisible);
@@ -465,6 +488,10 @@ public sealed partial class WindowIslandWindow : Window
         _chatIdleTimer?.Stop();
         _chatIdleTimer = null;
         DisposeChatWebView();
+
+        // Milestone 15: Visibility service cleanup
+        _visibilityService?.Dispose();
+        _visibilityService = null;
 
         _compositor?.Dispose();
         _compositor = null;
@@ -1174,6 +1201,9 @@ public sealed partial class WindowIslandWindow : Window
         CardTitle.Text = card.Title;
         CardDetail.Text = card.Detail;
         CardIcon.Foreground = new SolidColorBrush(HexToColor(card.AccentHex));
+
+        // Milestone 15: bring island into view for card duration
+        _visibilityService?.RequestTemporaryReveal(card.StayMs + 1000);
 
         if (card.Value >= 0)
         {
@@ -3535,5 +3565,45 @@ public sealed partial class WindowIslandWindow : Window
             await WindowIslandTextManager.TriggerDictationAsync(target);
         }
         catch { }
+    }
+
+    // ── Milestone 15: Visibility rules handlers ────────────────────────────────
+
+    private void OnIslandVisibilityChanged(bool shouldHide, string reason)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (shouldHide)
+                SlideIslandOffScreen();
+            else
+                SlideIslandOnScreen();
+        });
+    }
+
+    private void OnEdgeDwellTriggered()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _visibilityService?.ResetEdgeDwell();
+            SlideIslandOnScreen();
+        });
+    }
+
+    private void SlideIslandOffScreen()
+    {
+        if (_appWindow == null) return;
+        // Move window above top edge so it is off-screen but still live
+        var rect = new Windows.Graphics.RectInt32(
+            _windowX,
+            _windowY - _windowHeightPx - 10,
+            _windowWidthPx,
+            _windowHeightPx);
+        _appWindow.MoveAndResize(rect);
+    }
+
+    private void SlideIslandOnScreen()
+    {
+        // PositionAndSize restores the canonical on-screen position
+        PositionAndSize();
     }
 }

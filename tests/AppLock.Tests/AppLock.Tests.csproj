@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <WindowsPackageType>None</WindowsPackageType>
-    <DefineConstants>DISABLE_XAML_ICONS;APPLOCK_TESTS</DefineConstants>
+    <DefineConstants>DISABLE_XAML_ICONS;APPLOCK_TESTS;TEST</DefineConstants>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -179,6 +179,8 @@
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Chat\WindowIslandChatManager.cs" Link="WindowIsland\Modules\Chat\WindowIslandChatManager.cs" />
     <!-- Window Island Text (Milestone 14) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Text\WindowIslandTextManager.cs" Link="WindowIsland\Modules\Text\WindowIslandTextManager.cs" />
+    <!-- Window Island Visibility Rules (Milestone 15) -->
+    <Compile Include="..\..\src\AppLock\WindowIsland\Services\WindowIslandVisibilityService.cs" Link="WindowIsland\Services\WindowIslandVisibilityService.cs" />
   </ItemGroup>
 
   <ItemGroup>

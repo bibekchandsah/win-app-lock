@@ -196,6 +196,43 @@
                 <TextBlock x:Name="ChatRuntimeStatusText" FontSize="11" Opacity="0.6" />
             </StackPanel>
 
+            <!-- Visibility Rules (Milestone 15) -->
+            <TextBlock Text="Visibility Rules" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <StackPanel Spacing="10">
+                <ToggleSwitch x:Name="HideInFullScreenToggle"
+                              Header="Hide in full-screen apps (games, video, presentations)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="EdgeDwellToggle"
+                              Header="Come out over full-screen apps when cursor rests at top edge (500 ms dwell)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="AutoHideToggle"
+                              Header="Auto-hide island until needed (slides off-screen)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="AutoHideStayOnDesktopToggle"
+                              Header="Stay in sight on desktop (when Windows desktop is foreground)"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="AutoHideOnlyWhenOverlappedToggle"
+                              Header="Hide only while a window is under the island"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="UnderTopTaskbarToggle"
+                              Header="Place under the taskbar when it is docked at the top"
+                              Toggled="OnSettingChanged" />
+                <ComboBox x:Name="TargetMonitorBox" Header="Show on monitor" SelectionChanged="OnSelectionChanged" Width="260">
+                    <ComboBoxItem Content="Primary monitor" Tag="Primary" />
+                    <ComboBoxItem Content="Monitor with cursor" Tag="Cursor" />
+                </ComboBox>
+                <ComboBox x:Name="ChosenAppsModeBox" Header="Chosen apps rule" SelectionChanged="OnSelectionChanged" Width="260">
+                    <ComboBoxItem Content="Disabled" Tag="Disabled" />
+                    <ComboBoxItem Content="Hide while one is in front" Tag="Hide" />
+                    <ComboBoxItem Content="Only show while one is in front (Keep)" Tag="Keep" />
+                </ComboBox>
+                <TextBox x:Name="ChosenAppsBox"
+                         Header="Chosen process names (comma-separated, e.g. chrome, notepad)"
+                         Width="360"
+                         HorizontalAlignment="Left"
+                         TextChanged="OnChosenAppsChanged" />
+            </StackPanel>
+
             <!-- Global Hotkey -->
             <TextBlock Text="Shortcut" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
             <StackPanel Spacing="6">

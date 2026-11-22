@@ -84,6 +84,17 @@ public sealed partial class WindowIslandSettingsPage : Page
 
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
+        // Milestone 15: Visibility rules
+        HideInFullScreenToggle.IsOn             = s.HideInFullScreen;
+        EdgeDwellToggle.IsOn                    = s.EdgeDwellEnabled;
+        AutoHideToggle.IsOn                     = s.AutoHide;
+        AutoHideStayOnDesktopToggle.IsOn        = s.AutoHideStayOnDesktop;
+        AutoHideOnlyWhenOverlappedToggle.IsOn   = s.AutoHideOnlyWhenOverlapped;
+        UnderTopTaskbarToggle.IsOn              = s.UnderTopTaskbar;
+        SelectComboItem(TargetMonitorBox,  s.TargetMonitorMode);
+        SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
+        ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());
+
         _loading = false;
     }
 
@@ -108,6 +119,8 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnCheckChanged(object sender, RoutedEventArgs e) => Save();
 
     private void OnHotkeyChanged(object sender, TextChangedEventArgs e) => Save();
+
+    private void OnChosenAppsChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnSliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
@@ -154,6 +167,19 @@ public sealed partial class WindowIslandSettingsPage : Page
             s.ChatIdleMinutes = AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.ClampIdleMinutes(idleMin);
         }
         s.Hotkey        = HotkeyBox.Text.Trim();
+
+        // Milestone 15: Visibility rules
+        s.HideInFullScreen           = HideInFullScreenToggle.IsOn;
+        s.EdgeDwellEnabled           = EdgeDwellToggle.IsOn;
+        s.AutoHide                   = AutoHideToggle.IsOn;
+        s.AutoHideStayOnDesktop      = AutoHideStayOnDesktopToggle.IsOn;
+        s.AutoHideOnlyWhenOverlapped = AutoHideOnlyWhenOverlappedToggle.IsOn;
+        s.UnderTopTaskbar            = UnderTopTaskbarToggle.IsOn;
+        s.TargetMonitorMode          = TagOf(TargetMonitorBox)  ?? s.TargetMonitorMode;
+        s.ChosenAppsMode             = TagOf(ChosenAppsModeBox) ?? s.ChosenAppsMode;
+        s.ChosenApps                 = ChosenAppsBox.Text
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.SetWindowIslandEnabled(s.Enabled);

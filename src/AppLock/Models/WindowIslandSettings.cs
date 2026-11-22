@@ -96,6 +96,40 @@ public sealed class WindowIslandSettings
         new ChatSite("ChatGPT", "https://chatgpt.com", "\uE946")
     };
 
+    // ── Milestone 15: Visibility Rules Settings ──────────────────────────────
+    /// <summary>Hide the island when a full-screen app (game, video, presentation) is running.</summary>
+    public bool HideInFullScreen { get; set; } = true;
+
+    /// <summary>Come out over full-screen apps when cursor rests at top edge (500ms dwell).</summary>
+    public bool EdgeDwellEnabled { get; set; } = true;
+
+    /// <summary>Top-edge dwell duration in milliseconds (default: 500 ms).</summary>
+    public int EdgeDwellMs { get; set; } = 500;
+
+    /// <summary>Auto-hide folded island off-screen until needed or cursor hovers top edge.</summary>
+    public bool AutoHide { get; set; } = false;
+
+    /// <summary>When auto-hide is enabled, stay in sight while the Windows desktop is foreground.</summary>
+    public bool AutoHideStayOnDesktop { get; set; } = true;
+
+    /// <summary>When auto-hide is enabled, hide only while a window actually overlaps the island area.</summary>
+    public bool AutoHideOnlyWhenOverlapped { get; set; } = false;
+
+    /// <summary>Chosen apps rule: "Disabled" | "Hide" (hide while active) | "Keep" (only show while active).</summary>
+    public string ChosenAppsMode { get; set; } = "Disabled";
+
+    /// <summary>List of process names for the chosen apps rule (e.g. "chrome", "notepad").</summary>
+    public System.Collections.Generic.List<string> ChosenApps { get; set; } = new();
+
+    /// <summary>Target monitor: "Primary" | "Cursor" | "Specific".</summary>
+    public string TargetMonitorMode { get; set; } = "Primary";
+
+    /// <summary>Display device ID or name when TargetMonitorMode is "Specific".</summary>
+    public string TargetMonitorDeviceName { get; set; } = string.Empty;
+
+    /// <summary>Position island under top taskbar if taskbar is docked at top.</summary>
+    public bool UnderTopTaskbar { get; set; } = true;
+
     public WindowIslandSettings Clone()
     {
         var clone = (WindowIslandSettings)MemberwiseClone();
@@ -107,6 +141,7 @@ public sealed class WindowIslandSettings
                 clone.ChatSites.Add(new ChatSite(s.Name, s.Url, s.Icon));
             }
         }
+        clone.ChosenApps = new System.Collections.Generic.List<string>(ChosenApps ?? new());
         return clone;
     }
 }
