@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Island media test</title>
+    <style>
+      body { background: #101014; color: #fff; font-family: 'Segoe UI', sans-serif; padding: 40px; }
+      img { width: 200px; height: 200px; border-radius: 12px; }
+    </style>
+  </head>
+  <body>
+    <img src="./art.png" alt="" />
+    <h1>Island media test</h1>
+    <audio id="a" autoplay loop src="./silence.wav"></audio>
+    <script>
+      const audio = document.getElementById('a');
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Island Test Track',
+        artist: 'Buffy Test',
+        album: 'Island',
+        artwork: [{ src: './art.png', sizes: '200x200', type: 'image/png' }],
+      });
+      navigator.mediaSession.setActionHandler('play', () => audio.play());
+      navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+      navigator.mediaSession.setActionHandler('nexttrack', () => console.log('next'));
+      navigator.mediaSession.setActionHandler('previoustrack', () => console.log('previous'));
+    </script>
+  </body>
+</html>

@@ -15,11 +15,14 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics;
 using Windows.System;
 using AppLock.Island.Events;
+using AppLock.Island.Modules;
 using AppLock.Models;
 using AppLock.WindowIsland.Events;
+using AppLock.WindowIsland.Modules;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace AppLock.WindowIsland.Host;
@@ -112,6 +115,14 @@ public sealed partial class WindowIslandWindow : Window
     private ClipboardCardSource?    _clipboardSource;
     private ScreenshotCardSource?   _screenshotSource;
 
+    // Milestone 5: Home tab
+    private WindowIslandHomeState?  _homeState;
+    private IslandTileActions?      _tileActions;
+    private bool                    _isMediaPlaying;
+    private bool                    _volumeChanging;    // guard to avoid re-entrant slider updates
+    private DQTimer?                _eqTimer;
+    private readonly Random         _eqRng = new();
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -197,6 +208,19 @@ public sealed partial class WindowIslandWindow : Window
         // Keyboard navigation
         RootGrid.KeyDown += OnKeyDown;
 
+        // Set Slider min/max in code-behind (XAML RangeBase coercion avoidance)
+        VolumeSlider.Minimum = 0;
+        VolumeSlider.Maximum = 100;
+        MediaProgress.Minimum = 0;
+        MediaProgress.Maximum = 1;
+
+        // Tile actions (hide/show helpers use SetIslandVisible)
+        _tileActions = new IslandTileActions(
+            hideIsland: () => { SetIslandVisible(false); return Task.CompletedTask; },
+            showIsland: () => { SetIslandVisible(true);  return Task.CompletedTask; },
+            screenshotsFolder: () => Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots"));
+
         // ── Timers ──────────────────────────────────────────────────────────────
 
         _topmostTimer = DispatcherQueue.CreateTimer();
@@ -259,6 +283,9 @@ public sealed partial class WindowIslandWindow : Window
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         ShowWindow(_hwnd, 4 /* SW_SHOWNOACTIVATE */);
 
+        // Start Home tab background sampler immediately (tab 0 is active on first open)
+        StartHomeState();
+
         var args = Environment.GetCommandLineArgs();
         if (args.Any(a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase)))
         {
@@ -300,6 +327,10 @@ public sealed partial class WindowIslandWindow : Window
         _hoverTimer?.Stop();
         _clockTimer?.Stop();
         _batteryTimer?.Stop();
+        _eqTimer?.Stop();
+
+        _homeState?.Dispose();
+        _homeState = null;
 
         _eventQueue?.Dispose();
         _eventQueue = null;
@@ -326,6 +357,10 @@ public sealed partial class WindowIslandWindow : Window
 
         _previousTab = _activeTab;
         _activeTab   = tabIndex;
+
+        // Start/stop home background sampler based on tab
+        if (_activeTab == 0) StartHomeState();
+        else StopHomeState();
 
         // Show new content, collapse previous
         for (int i = 0; i < TabCount; i++)
@@ -1045,5 +1080,255 @@ public sealed partial class WindowIslandWindow : Window
         _windowHeightPx = rect.Height;
 
         _appWindow?.MoveAndResize(rect);
+    }
+
+    // ── Milestone 5: Home tab ──────────────────────────────────────────────────
+
+    private void StartHomeState()
+    {
+        if (_homeState != null) return;
+        if (_volumeController == null) return;
+        _homeState = new WindowIslandHomeState(DispatcherQueue, _volumeController);
+        _homeState.MediaUpdated += OnMediaUpdated;
+        _homeState.StatsUpdated += OnStatsUpdated;
+        _homeState.Start();
+        StartEqTimer();
+    }
+
+    private void StopHomeState()
+    {
+        if (_homeState == null) return;
+        _homeState.MediaUpdated -= OnMediaUpdated;
+        _homeState.StatsUpdated -= OnStatsUpdated;
+        _homeState.Dispose();
+        _homeState = null;
+        StopEqTimer();
+        // Hide folded media mini when home tab is not active
+        FoldedMediaMini.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnMediaUpdated(AppLock.Island.Modules.MediaSnapshot snap)
+    {
+        try
+        {
+            _isMediaPlaying = snap.Playing;
+
+            if (!snap.HasSession || string.IsNullOrEmpty(snap.Title))
+            {
+                MediaPlayerPanel.Visibility = Visibility.Collapsed;
+                RecentPanel.Visibility      = Visibility.Visible;
+                FoldedMediaMini.Visibility  = Visibility.Collapsed;
+                StopEqTimer();
+                return;
+            }
+
+            MediaPlayerPanel.Visibility = Visibility.Visible;
+            RecentPanel.Visibility      = Visibility.Collapsed;
+
+            MediaTitle.Text  = snap.Title;
+            MediaArtist.Text = snap.Artist;
+            MediaApp.Text    = snap.App.ToUpperInvariant();
+            MediaPlayPauseIcon.Glyph = snap.Playing ? "\uE769" : "\uE768"; // Pause : Play
+
+            // Progress bar
+            if (snap.DurationSeconds > 0)
+            {
+                double ratio = Math.Clamp(snap.PositionSeconds / snap.DurationSeconds, 0, 1);
+                MediaProgress.Value = ratio;
+                MediaProgress.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                MediaProgress.Visibility = Visibility.Collapsed;
+            }
+
+            // Album art
+            if (!string.IsNullOrEmpty(snap.ArtFile))
+            {
+                try
+                {
+                    string artPath = Path.Combine(AppLock.Island.Modules.MediaSessionSource.ArtFolder, snap.ArtFile);
+                    if (File.Exists(artPath))
+                    {
+                        var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artPath));
+                        MediaArt.Source  = bmp;
+                        FoldedArt.Source = bmp;
+                    }
+                }
+                catch { }
+            }
+            else
+            {
+                MediaArt.Source  = null;
+                FoldedArt.Source = null;
+            }
+
+            // Folded mini
+            FoldedMediaMini.Visibility = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
+            if (snap.Playing) StartEqTimer(); else StopEqTimer();
+        }
+        catch (Exception ex) { WindowIslandHost.Log("OnMediaUpdated: " + ex.Message); }
+    }
+
+    private void OnStatsUpdated(HomeSnapshot snap)
+    {
+        try
+        {
+            // CPU & RAM tile
+            TileCpuText.Text = $"CPU {snap.CpuPercent:F0}%";
+            TileRamText.Text = $"RAM {snap.RamPercent:F0}%";
+
+            // Network tile
+            TileNetDown.Text = $"↓ {FormatSpeed(snap.DownBytesPerSec)}";
+            TileNetUp.Text   = $"↑ {FormatSpeed(snap.UpBytesPerSec)}";
+
+            // Volume row (avoid re-entrant ValueChanged)
+            _volumeChanging = true;
+            VolumeSlider.Value = snap.Volume;
+            _volumeChanging = false;
+            VolumeText.Text = $"{snap.Volume}%";
+            UpdateVolumeIcon(snap.Volume);
+        }
+        catch (Exception ex) { WindowIslandHost.Log("OnStatsUpdated: " + ex.Message); }
+    }
+
+    private static string FormatSpeed(double bytesPerSec)
+    {
+        if (bytesPerSec < 1024)         return $"{bytesPerSec:F0} B/s";
+        if (bytesPerSec < 1024 * 1024)  return $"{bytesPerSec / 1024:F1} KB/s";
+        return $"{bytesPerSec / (1024 * 1024):F1} MB/s";
+    }
+
+    private void UpdateVolumeIcon(int vol)
+    {
+        VolumeIcon.Glyph = vol == 0 ? "\uE74F"
+            : vol < 33   ? "\uE992"
+            : vol < 66   ? "\uE993"
+            : "\uE995";
+    }
+
+    // ── Equalizer bars (30 Hz while playing) ──────────────────────────────────
+
+    private static readonly int[] EqMaxH = { 14, 18, 10 }; // max heights per bar
+    private static readonly int[] EqMinH = { 4,  5,  3  }; // min heights per bar
+
+    private void StartEqTimer()
+    {
+        if (_eqTimer != null) return;
+        _eqTimer = DispatcherQueue.CreateTimer();
+        _eqTimer.Interval = TimeSpan.FromMilliseconds(100); // ~10 Hz (smooth enough, low CPU)
+        _eqTimer.IsRepeating = true;
+        _eqTimer.Tick += (_, _) => TickEqualizer();
+        _eqTimer.Start();
+    }
+
+    private void StopEqTimer()
+    {
+        _eqTimer?.Stop();
+        _eqTimer = null;
+    }
+
+    private void TickEqualizer()
+    {
+        if (!_isMediaPlaying) return;
+        try
+        {
+            EqBar0.Height = _eqRng.Next(EqMinH[0], EqMaxH[0] + 1);
+            EqBar1.Height = _eqRng.Next(EqMinH[1], EqMaxH[1] + 1);
+            EqBar2.Height = _eqRng.Next(EqMinH[2], EqMaxH[2] + 1);
+        }
+        catch { }
+    }
+
+    // ── Media controls ────────────────────────────────────────────────────────
+
+    private void MediaPlayPause_Click(object sender, RoutedEventArgs e)
+        => _ = _homeState?.MediaCommandAsync("toggle");
+
+    private void MediaPrev_Click(object sender, RoutedEventArgs e)
+        => _ = _homeState?.MediaCommandAsync("previous");
+
+    private void MediaNext_Click(object sender, RoutedEventArgs e)
+        => _ = _homeState?.MediaCommandAsync("next");
+
+    // ── Volume slider ─────────────────────────────────────────────────────────
+
+    private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_volumeChanging) return;
+        int vol = (int)e.NewValue;
+        _volumeController?.Set(vol);
+        VolumeText.Text = $"{vol}%";
+        UpdateVolumeIcon(vol);
+        // Push a volume card when the user adjusts the slider
+        if (_settings.CardVolumeEnabled)
+        {
+            string icon = vol == 0 ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
+            _eventQueue?.Push(new WindowIslandCard(
+                Kind: "volume",
+                Icon: icon,
+                Title: "Volume",
+                Detail: $"{vol}%",
+                AccentHex: "#60CDFF",
+                Priority: WindowIslandCardPriority.Volume,
+                StayMs: _settings.GetCardStayMs(),
+                Value: vol));
+        }
+    }
+
+    // ── Tile button handlers ──────────────────────────────────────────────────
+
+    private void TileArea_Click(object sender, RoutedEventArgs e)
+        => _ = RunTileAsync("area");
+
+    private void TileFullScreen_Click(object sender, RoutedEventArgs e)
+        => _ = RunTileAsync("fullscreen");
+
+    private void TileScreenText_Click(object sender, RoutedEventArgs e)
+        => _ = RunTileAsync("screentext");
+
+    private void TileQR_Click(object sender, RoutedEventArgs e)
+        => _ = RunTileAsync("qr");
+
+    private void TileNetwork_Click(object sender, RoutedEventArgs e)
+    {
+        // Navigate to main app Others page (Speed Meter) — placeholder until Milestone 8
+        try { (App.MainWindowInstance as MainWindow)?.NavigateToWindowIslandSettings(); } catch { }
+    }
+
+    private void TileCpuRam_Click(object sender, RoutedEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("taskmgr.exe") { UseShellExecute = true }); } catch { }
+    }
+
+    private void TileRecord_Click(object sender, RoutedEventArgs e)
+        => _ = RunTileAsync("record");
+
+    private void TileCommand_Click(object sender, RoutedEventArgs e)
+    {
+        // Placeholder — Milestone 8 (command bar)
+        WindowIslandHost.Log("Command tile pressed — command bar coming in Milestone 8");
+    }
+
+    private async Task RunTileAsync(string id)
+    {
+        try
+        {
+            if (_tileActions == null) return;
+            var outcome = await _tileActions.RunAsync(id);
+            if (outcome != null)
+            {
+                // Show result as a card
+                _eventQueue?.Push(new WindowIslandCard(
+                    Kind: "tile",
+                    Icon: outcome.Icon,
+                    Title: outcome.Title,
+                    Detail: outcome.Detail,
+                    AccentHex: outcome.Accent,
+                    Priority: WindowIslandCardPriority.Screenshot,
+                    StayMs: 3500));
+            }
+        }
+        catch (Exception ex) { WindowIslandHost.Log("RunTileAsync: " + ex); }
     }
 }

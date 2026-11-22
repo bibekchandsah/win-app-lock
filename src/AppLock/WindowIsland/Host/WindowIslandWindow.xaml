@@ -142,6 +142,30 @@
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="8">
+
+                <!-- Folded media mini (shown when media is playing) -->
+                <StackPanel x:Name="FoldedMediaMini"
+                            Orientation="Horizontal"
+                            Spacing="5"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Border Width="22" Height="22" CornerRadius="3" Background="#28FFFFFF">
+                        <Image x:Name="FoldedArt" Stretch="UniformToFill" />
+                    </Border>
+                    <!-- Equalizer bars animated via code-behind -->
+                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <Border x:Name="EqBar0" Width="3" Height="8"
+                                Background="#60CDFF" CornerRadius="1"
+                                VerticalAlignment="Bottom" />
+                        <Border x:Name="EqBar1" Width="3" Height="12"
+                                Background="#60CDFF" CornerRadius="1"
+                                VerticalAlignment="Bottom" />
+                        <Border x:Name="EqBar2" Width="3" Height="6"
+                                Background="#60CDFF" CornerRadius="1"
+                                VerticalAlignment="Bottom" />
+                    </StackPanel>
+                </StackPanel>
+
                 <!-- Clock -->
                 <StackPanel x:Name="ClockContainer"
                             Orientation="Horizontal"
@@ -380,13 +404,279 @@
                             HorizontalAlignment="Left"
                             Margin="0,-2,0,0" />
 
-                    <!-- Home tab placeholder -->
+                    <!-- Home tab — media player + volume + 8 tiles -->
                     <Grid x:Name="ContentHome" Opacity="1">
-                        <TextBlock Text="Home"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*"   />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ── Left column: media player + recent + volume ── -->
+                        <Grid Grid.Column="0" Margin="0,4,8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"  />
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Media player panel (shown when a session exists) -->
+                            <StackPanel x:Name="MediaPlayerPanel"
+                                        Grid.Row="0"
+                                        Spacing="4"
+                                        Visibility="Collapsed">
+
+                                <!-- Art + text row -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="*"  />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0"
+                                            Width="40" Height="40"
+                                            CornerRadius="4"
+                                            Background="#28FFFFFF"
+                                            VerticalAlignment="Top">
+                                        <Image x:Name="MediaArt"
+                                               Stretch="UniformToFill" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="6,0,0,0"
+                                                Spacing="1"
+                                                VerticalAlignment="Center">
+                                        <TextBlock x:Name="MediaTitle"
+                                                   Text="—"
+                                                   FontFamily="Segoe UI Variable Display"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Foreground="#F0FFFFFF"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock x:Name="MediaArtist"
+                                                   Text=""
+                                                   FontSize="11"
+                                                   Foreground="#B0FFFFFF"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock x:Name="MediaApp"
+                                                   Text=""
+                                                   FontSize="10"
+                                                   Foreground="#70FFFFFF"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Progress bar (Slider styled thin) -->
+                                <Slider x:Name="MediaProgress"
+                                        Minimum="0" Maximum="1"
+                                        Value="0"
+                                        HorizontalAlignment="Stretch"
+                                        Height="14" />
+
+                                <!-- Playback controls -->
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Center"
+                                            Spacing="4">
+                                    <Button x:Name="MediaPrev"
+                                            Click="MediaPrev_Click"
+                                            Width="32" Height="32"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            ToolTipService.ToolTip="Previous">
+                                        <FontIcon Glyph="&#xE7C2;" FontSize="13" />
+                                    </Button>
+                                    <Button x:Name="MediaPlayPause"
+                                            Click="MediaPlayPause_Click"
+                                            Width="36" Height="36"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            ToolTipService.ToolTip="Play / Pause">
+                                        <FontIcon x:Name="MediaPlayPauseIcon" Glyph="&#xE768;" FontSize="15" />
+                                    </Button>
+                                    <Button x:Name="MediaNext"
+                                            Click="MediaNext_Click"
+                                            Width="32" Height="32"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            ToolTipService.ToolTip="Next">
+                                        <FontIcon Glyph="&#xE7C1;" FontSize="13" />
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Recent clipboard (shown when no media) -->
+                            <StackPanel x:Name="RecentPanel"
+                                        Grid.Row="0"
+                                        Spacing="4"
+                                        Visibility="Visible">
+                                <TextBlock Text="RECENTLY COPIED"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           Foreground="#60FFFFFF"
+                                           CharacterSpacing="80" />
+                                <TextBlock x:Name="Recent0"
+                                           Text="—"
+                                           FontSize="11"
+                                           Foreground="#C0FFFFFF"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="Recent1"
+                                           Text="—"
+                                           FontSize="11"
+                                           Foreground="#80FFFFFF"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <!-- Volume row (always visible at bottom of left col) -->
+                            <Grid Grid.Row="1" Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*"    />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon x:Name="VolumeIcon"
+                                          Grid.Column="0"
+                                          Glyph="&#xE993;"
+                                          FontSize="12"
+                                          Foreground="#90FFFFFF"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,6,0" />
+                                <Slider x:Name="VolumeSlider"
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        ValueChanged="VolumeSlider_ValueChanged" />
+                                <TextBlock x:Name="VolumeText"
+                                           Grid.Column="2"
+                                           Text="—"
+                                           FontSize="11"
+                                           Foreground="#90FFFFFF"
+                                           VerticalAlignment="Center"
+                                           Margin="6,0,0,0"
+                                           MinWidth="30" />
+                            </Grid>
+                        </Grid>
+
+                        <!-- ── Right column: 2×4 tile grid ── -->
+                        <Grid Grid.Column="1" Margin="0,4,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Row 0 -->
+                            <Button x:Name="TileArea"
+                                    Grid.Row="0" Grid.Column="0"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileArea_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Area capture (Win+Shift+S)">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE7C8;" FontSize="12" />
+                                    <TextBlock Text="Area" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TileFullScreen"
+                                    Grid.Row="0" Grid.Column="1"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileFullScreen_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Full screen capture">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE8B9;" FontSize="12" />
+                                    <TextBlock Text="Full" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 1 -->
+                            <Button x:Name="TileScreenText"
+                                    Grid.Row="1" Grid.Column="0"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileScreenText_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Screen text (Win+Shift+T / PowerToys)">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE8D2;" FontSize="12" />
+                                    <TextBlock Text="Text" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TileQR"
+                                    Grid.Row="1" Grid.Column="1"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileQR_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Scan QR code from screen">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE774;" FontSize="12" />
+                                    <TextBlock Text="QR" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 2 -->
+                            <Button x:Name="TileNetwork"
+                                    Grid.Row="2" Grid.Column="0"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileNetwork_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Network speed">
+                                <StackPanel Spacing="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <FontIcon Glyph="&#xE8BE;" FontSize="10" />
+                                        <TextBlock Text="Net" FontSize="9" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="TileNetDown"
+                                               Text="↓ —"
+                                               FontSize="9"
+                                               Foreground="#90FFFFFF" />
+                                    <TextBlock x:Name="TileNetUp"
+                                               Text="↑ —"
+                                               FontSize="9"
+                                               Foreground="#90FFFFFF" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TileCpuRam"
+                                    Grid.Row="2" Grid.Column="1"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileCpuRam_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="CPU &amp; RAM (opens Task Manager)">
+                                <StackPanel Spacing="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <FontIcon Glyph="&#xE7F4;" FontSize="10" />
+                                        <TextBlock Text="Sys" FontSize="9" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="TileCpuText"
+                                               Text="CPU —"
+                                               FontSize="9"
+                                               Foreground="#90FFFFFF" />
+                                    <TextBlock x:Name="TileRamText"
+                                               Text="RAM —"
+                                               FontSize="9"
+                                               Foreground="#90FFFFFF" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 3 -->
+                            <Button x:Name="TileRecord"
+                                    Grid.Row="3" Grid.Column="0"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileRecord_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Record screen (Win+Shift+R)">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE7A0;" FontSize="12" />
+                                    <TextBlock Text="Record" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TileCommand"
+                                    Grid.Row="3" Grid.Column="1"
+                                    Margin="2" HorizontalAlignment="Stretch"
+                                    Click="TileCommand_Click"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    ToolTipService.ToolTip="Command bar">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <FontIcon Glyph="&#xE773;" FontSize="12" />
+                                    <TextBlock Text="Cmd" FontSize="10" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                     </Grid>
 
                     <!-- Clipboard tab placeholder -->
