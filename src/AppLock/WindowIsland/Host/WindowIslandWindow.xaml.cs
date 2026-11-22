@@ -24,6 +24,7 @@ using AppLock.Models;
 using AppLock.Services;
 using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules;
+using AppLock.WindowIsland.Modules.Controls;
 using AppLock.WindowIsland.Modules.Weather;
 using DQTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
@@ -154,6 +155,13 @@ public sealed partial class WindowIslandWindow : Window
     // Milestone 10: Weather
     private bool                              _showingWeeklyWeather;
 
+    // Milestone 11: Controls
+    private DQTimer?                          _restartConfirmTimer;
+    private DQTimer?                          _shutdownConfirmTimer;
+    private bool                              _restartConfirming;
+    private bool                              _shutdownConfirming;
+    private bool                              _controlsBrightnessChanging;
+
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
     private DQTimer? _clockTimer;
@@ -244,6 +252,8 @@ public sealed partial class WindowIslandWindow : Window
         VolumeSlider.Maximum = 100;
         MediaProgress.Minimum = 0;
         MediaProgress.Maximum = 1;
+        ControlsBrightnessSlider.Minimum = 0;
+        ControlsBrightnessSlider.Maximum = 100;
 
         // Tile actions (hide/show helpers use SetIslandVisible)
         _tileActions = new IslandTileActions(
@@ -282,6 +292,9 @@ public sealed partial class WindowIslandWindow : Window
         WindowIslandWeatherService.Instance.WeatherUpdated += OnWeatherUpdated;
         WindowIslandWeatherService.Instance.RainWarningTriggered += OnRainWarningTriggered;
         UpdateFoldedWeatherMini();
+
+        // Milestone 11: Controls
+        WindowIslandControlsService.Instance.ControlsStateChanged += (_, _) => DispatcherQueue.TryEnqueue(RefreshControlsUI);
 
         // ── Timers ──────────────────────────────────────────────────────────────
 
@@ -453,6 +466,10 @@ public sealed partial class WindowIslandWindow : Window
         if (_activeTab == 6)
         {
             RefreshWeatherUI();
+        }
+        if (_activeTab == 7)
+        {
+            RefreshControlsUI();
         }
 
         // Show new content, collapse previous
@@ -2733,5 +2750,169 @@ public sealed partial class WindowIslandWindow : Window
         WeatherBtnWeek.Foreground = new SolidColorBrush(Colors.White);
         WeatherBtnHours.Background = new SolidColorBrush(Colors.Transparent);
         WeatherBtnHours.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
+    }
+
+    // ── Milestone 11: Controls Tab ─────────────────────────────────────────────
+
+    private async void RefreshControlsUI()
+    {
+        try
+        {
+            // 1. Wi-Fi
+            var (hasWifi, wifiOn, wifiSsid) = await WindowIslandControlsService.Instance.GetWiFiStateAsync();
+            ControlsWifiBtn.IsEnabled = hasWifi;
+            ControlsWifiStatus.Text = hasWifi ? (wifiOn ? wifiSsid : "Off") : "No adapter";
+            ControlsWifiIcon.Foreground = new SolidColorBrush(wifiOn ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+
+            // 2. Bluetooth
+            var (hasBt, btOn) = await WindowIslandControlsService.Instance.GetBluetoothStateAsync();
+            ControlsBtBtn.IsEnabled = hasBt;
+            ControlsBtStatus.Text = hasBt ? (btOn ? "On" : "Off") : "No adapter";
+            ControlsBtIcon.Foreground = new SolidColorBrush(btOn ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+
+            // 3. Dark Theme
+            bool isDark = WindowIslandControlsService.IsSystemDarkTheme();
+            ControlsThemeStatus.Text = isDark ? "Dark" : "Light";
+            ControlsThemeIcon.Foreground = new SolidColorBrush(isDark ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
+
+            // 4. Battery
+            var (hasBattery, batPct, isCharging, batText) = WindowIslandControlsService.GetBatteryInfo();
+            ControlsBatteryStatus.Text = hasBattery ? $"{batPct}% · {batText}" : "On mains power";
+            ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : "\uE83F";
+
+            // 5. VPN
+            var (vpnConnected, vpnName) = WindowIslandControlsService.GetVpnStatus();
+            ControlsVpnStatus.Text = vpnConnected ? vpnName : "Off";
+            ControlsVpnIcon.Foreground = new SolidColorBrush(vpnConnected ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+
+            // 6. Brightness
+            if (ServiceContainer.BrightnessService.IsAvailable)
+            {
+                int curBri = await ServiceContainer.BrightnessService.GetBrightnessAsync();
+                _controlsBrightnessChanging = true;
+                ControlsBrightnessSlider.Value = curBri;
+                ControlsBrightnessText.Text = $"{curBri}%";
+                _controlsBrightnessChanging = false;
+            }
+        }
+        catch { }
+    }
+
+    private async void ControlsWifiBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await WindowIslandControlsService.Instance.ToggleWiFiAsync();
+        RefreshControlsUI();
+    }
+
+    private async void ControlsBtBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await WindowIslandControlsService.Instance.ToggleBluetoothAsync();
+        RefreshControlsUI();
+    }
+
+    private void ControlsThemeBtn_Click(object sender, RoutedEventArgs e)
+    {
+        WindowIslandControlsService.ToggleSystemDarkTheme();
+        RefreshControlsUI();
+    }
+
+    private void ControlsBatteryBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:powersleep",
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private async void ControlsVpnBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await WindowIslandControlsService.ToggleVpnAsync();
+        RefreshControlsUI();
+    }
+
+    private async void ControlsBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_controlsBrightnessChanging) return;
+        int val = (int)e.NewValue;
+        ControlsBrightnessText.Text = $"{val}%";
+        if (ServiceContainer.BrightnessService.IsAvailable)
+        {
+            await ServiceContainer.BrightnessService.SetBrightnessAsync(val);
+        }
+    }
+
+    private void ControlsLockBtn_Click(object sender, RoutedEventArgs e)
+    {
+        WindowIslandControlsService.LockComputer();
+    }
+
+    private void ControlsSleepBtn_Click(object sender, RoutedEventArgs e)
+    {
+        WindowIslandControlsService.SleepComputer();
+    }
+
+    private void ControlsRestartBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_restartConfirming)
+        {
+            _restartConfirmTimer?.Stop();
+            _restartConfirming = false;
+            ControlsRestartText.Text = "Restarting...";
+            ControlsRestartBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            WindowIslandControlsService.RestartComputer();
+        }
+        else
+        {
+            _restartConfirming = true;
+            ControlsRestartText.Text = "Tap again (3s)";
+            ControlsRestartBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x40, 0x60, 0xCD, 0xFF));
+
+            _restartConfirmTimer?.Stop();
+            _restartConfirmTimer = DispatcherQueue.CreateTimer();
+            _restartConfirmTimer.Interval = TimeSpan.FromSeconds(3);
+            _restartConfirmTimer.Tick += (_, _) =>
+            {
+                _restartConfirmTimer.Stop();
+                _restartConfirming = false;
+                ControlsRestartText.Text = "Restart";
+                ControlsRestartBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            };
+            _restartConfirmTimer.Start();
+        }
+    }
+
+    private void ControlsShutdownBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_shutdownConfirming)
+        {
+            _shutdownConfirmTimer?.Stop();
+            _shutdownConfirming = false;
+            ControlsShutdownText.Text = "Shutting down...";
+            ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            WindowIslandControlsService.ShutdownComputer();
+        }
+        else
+        {
+            _shutdownConfirming = true;
+            ControlsShutdownText.Text = "Tap again (3s)";
+            ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x40, 0xFF, 0x6B, 0x6B));
+
+            _shutdownConfirmTimer?.Stop();
+            _shutdownConfirmTimer = DispatcherQueue.CreateTimer();
+            _shutdownConfirmTimer.Interval = TimeSpan.FromSeconds(3);
+            _shutdownConfirmTimer.Tick += (_, _) =>
+            {
+                _shutdownConfirmTimer.Stop();
+                _shutdownConfirming = false;
+                ControlsShutdownText.Text = "Shut down";
+                ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            };
+            _shutdownConfirmTimer.Start();
+        }
     }
 }

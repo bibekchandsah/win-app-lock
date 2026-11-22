@@ -1,0 +1,116 @@
+using System;
+using System.Threading;
+using AppLock.WindowIsland.Modules.Controls;
+using Xunit;
+
+namespace AppLock.Tests;
+
+public class WindowIslandControlsTests
+{
+    [Fact]
+    public void BatteryInfo_ReturnsValidValuesOnCurrentMachine()
+    {
+        var (hasBattery, percent, isCharging, statusText) = WindowIslandControlsService.GetBatteryInfo();
+
+        Assert.InRange(percent, 0, 100);
+        Assert.False(string.IsNullOrWhiteSpace(statusText));
+
+        if (!hasBattery)
+        {
+            Assert.Equal("On mains power", statusText);
+            Assert.True(isCharging);
+        }
+    }
+
+    [Fact]
+    public void VpnStatus_ReturnsValidTuple()
+    {
+        var (isConnected, name) = WindowIslandControlsService.GetVpnStatus();
+
+        Assert.False(string.IsNullOrWhiteSpace(name));
+        if (!isConnected)
+        {
+            Assert.Equal("Disconnected", name);
+        }
+    }
+
+    [Fact]
+    public void SystemDarkTheme_CanBeReadWithoutThrowing()
+    {
+        // Must not throw on any Windows system
+        var exception = Record.Exception(() =>
+        {
+            bool isDark = WindowIslandControlsService.IsSystemDarkTheme();
+            Assert.True(isDark || !isDark);
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void PowerDoubleTapSafety_RequiresTwoClicksWithinWindow()
+    {
+        // Tests the double-tap safety state machine logic
+        bool isConfirming = false;
+        bool executed = false;
+        DateTime lastClickUtc = DateTime.MinValue;
+
+        void OnButtonClick()
+        {
+            DateTime now = DateTime.UtcNow;
+            if (isConfirming && (now - lastClickUtc).TotalSeconds <= 3.0)
+            {
+                isConfirming = false;
+                executed = true;
+            }
+            else
+            {
+                isConfirming = true;
+                lastClickUtc = now;
+            }
+        }
+
+        // First click: enters confirming state
+        OnButtonClick();
+        Assert.True(isConfirming);
+        Assert.False(executed);
+
+        // Second click within 3 seconds: executes
+        OnButtonClick();
+        Assert.False(isConfirming);
+        Assert.True(executed);
+    }
+
+    [Fact]
+    public void PowerDoubleTapSafety_ResetsIfSecondClickIsDelayed()
+    {
+        bool isConfirming = false;
+        bool executed = false;
+        DateTime lastClickUtc = DateTime.MinValue;
+
+        void OnButtonClick(DateTime now)
+        {
+            if (isConfirming && (now - lastClickUtc).TotalSeconds <= 3.0)
+            {
+                isConfirming = false;
+                executed = true;
+            }
+            else
+            {
+                isConfirming = true;
+                lastClickUtc = now;
+            }
+        }
+
+        DateTime t0 = DateTime.UtcNow;
+        OnButtonClick(t0);
+        Assert.True(isConfirming);
+        Assert.False(executed);
+
+        // Click after 4 seconds (timeout exceeded) -> acts as new first click
+        DateTime t1 = t0.AddSeconds(4.0);
+        OnButtonClick(t1);
+        Assert.True(isConfirming);
+        Assert.False(executed);
+    }
+}

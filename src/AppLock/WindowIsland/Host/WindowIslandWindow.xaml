@@ -1543,13 +1543,220 @@
                         </Border>
                     </Grid>
 
-                    <!-- Controls tab placeholder -->
+                    <!-- ═══════════════════════════════════════════════════════════
+                         CONTROLS TAB (Milestone 11)
+                    ════════════════════════════════════════════════════════════ -->
                     <Grid x:Name="ContentControls" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Controls"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Row 0: 5 Control Tiles (Wi-Fi, Bluetooth, Dark Theme, Battery, VPN) -->
+                        <Grid Grid.Row="0" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Wi-Fi Tile -->
+                            <Button Grid.Column="0"
+                                    x:Name="ControlsWifiBtn"
+                                    Click="ControlsWifiBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="#15FFFFFF"
+                                    BorderBrush="#20FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    ToolTipService.ToolTip="Toggle Wi-Fi">
+                                <StackPanel Spacing="2">
+                                    <FontIcon x:Name="ControlsWifiIcon" Glyph="&#xE701;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Wi-Fi" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    <TextBlock x:Name="ControlsWifiStatus" Text="Connected" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Bluetooth Tile -->
+                            <Button Grid.Column="1"
+                                    x:Name="ControlsBtBtn"
+                                    Click="ControlsBtBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="#15FFFFFF"
+                                    BorderBrush="#20FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    ToolTipService.ToolTip="Toggle Bluetooth">
+                                <StackPanel Spacing="2">
+                                    <FontIcon x:Name="ControlsBtIcon" Glyph="&#xE702;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Bluetooth" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    <TextBlock x:Name="ControlsBtStatus" Text="On" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Dark Theme Tile -->
+                            <Button Grid.Column="2"
+                                    x:Name="ControlsThemeBtn"
+                                    Click="ControlsThemeBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="#15FFFFFF"
+                                    BorderBrush="#20FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    ToolTipService.ToolTip="Toggle Windows dark theme">
+                                <StackPanel Spacing="2">
+                                    <FontIcon x:Name="ControlsThemeIcon" Glyph="&#xE790;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Dark Theme" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    <TextBlock x:Name="ControlsThemeStatus" Text="Dark" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Battery Tile -->
+                            <Button Grid.Column="3"
+                                    x:Name="ControlsBatteryBtn"
+                                    Click="ControlsBatteryBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="#15FFFFFF"
+                                    BorderBrush="#20FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    ToolTipService.ToolTip="Battery &amp; power settings">
+                                <StackPanel Spacing="2">
+                                    <FontIcon x:Name="ControlsBatteryIcon" Glyph="&#xE83F;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Battery" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    <TextBlock x:Name="ControlsBatteryStatus" Text="100%" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- VPN Tile -->
+                            <Button Grid.Column="4"
+                                    x:Name="ControlsVpnBtn"
+                                    Click="ControlsVpnBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Background="#15FFFFFF"
+                                    BorderBrush="#20FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6"
+                                    ToolTipService.ToolTip="VPN connection">
+                                <StackPanel Spacing="2">
+                                    <FontIcon x:Name="ControlsVpnIcon" Glyph="&#xE705;" FontSize="14" Foreground="#80FFFFFF" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="VPN" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    <TextBlock x:Name="ControlsVpnStatus" Text="Off" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Row 1: Brightness Slider Row (compact sleek row) -->
+                        <Border Grid.Row="1"
+                                Margin="0,8,0,0"
+                                Background="#12FFFFFF"
+                                BorderBrush="#18FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="10,4">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE706;" FontSize="13" Foreground="#FFD700" VerticalAlignment="Center"/>
+                                <Slider Grid.Column="1"
+                                        x:Name="ControlsBrightnessSlider"
+                                        ValueChanged="ControlsBrightnessSlider_ValueChanged"
+                                        VerticalAlignment="Center"
+                                        Margin="0,-6,0,-6"/>
+                                <TextBlock Grid.Column="2"
+                                           x:Name="ControlsBrightnessText"
+                                           Text="100%"
+                                           FontSize="10"
+                                           Foreground="#A0FFFFFF"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 2: 4 System Power Buttons (Lock, Sleep, Restart [confirming], Shut Down [confirming]) -->
+                        <Grid Grid.Row="2" Margin="0,8,0,0" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Lock -->
+                            <Button Grid.Column="0"
+                                    x:Name="ControlsLockBtn"
+                                    Click="ControlsLockBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Background="#18FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="6"
+                                    Padding="4,6">
+                                <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="#C0FFFFFF"/>
+                                    <TextBlock Text="Lock" FontSize="11" Foreground="#F0FFFFFF"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Sleep -->
+                            <Button Grid.Column="1"
+                                    x:Name="ControlsSleepBtn"
+                                    Click="ControlsSleepBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Background="#18FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="6"
+                                    Padding="4,6">
+                                <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE708;" FontSize="12" Foreground="#C0FFFFFF"/>
+                                    <TextBlock Text="Sleep" FontSize="11" Foreground="#F0FFFFFF"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Restart (Double-tap safety) -->
+                            <Button Grid.Column="2"
+                                    x:Name="ControlsRestartBtn"
+                                    Click="ControlsRestartBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Background="#18FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="6"
+                                    Padding="4,6">
+                                <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                    <FontIcon x:Name="ControlsRestartIcon" Glyph="&#xE777;" FontSize="12" Foreground="#C0FFFFFF"/>
+                                    <TextBlock x:Name="ControlsRestartText" Text="Restart" FontSize="11" Foreground="#F0FFFFFF"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Shut Down (Double-tap safety) -->
+                            <Button Grid.Column="3"
+                                    x:Name="ControlsShutdownBtn"
+                                    Click="ControlsShutdownBtn_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Background="#18FFFFFF"
+                                    BorderThickness="0"
+                                    CornerRadius="6"
+                                    Padding="4,6">
+                                <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                    <FontIcon x:Name="ControlsShutdownIcon" Glyph="&#xE7E8;" FontSize="12" Foreground="#FF6B6B"/>
+                                    <TextBlock x:Name="ControlsShutdownText" Text="Shut down" FontSize="11" Foreground="#F0FFFFFF"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                     </Grid>
                 </Grid>
 
