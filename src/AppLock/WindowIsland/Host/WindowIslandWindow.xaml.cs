@@ -16,6 +16,8 @@ using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Text;
+using Microsoft.Web.WebView2.Core;
 using Windows.Graphics;
 using Windows.System;
 using AppLock.Island.Events;
@@ -24,6 +26,7 @@ using AppLock.Models;
 using AppLock.Services;
 using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules;
+using AppLock.WindowIsland.Modules.Chat;
 using AppLock.WindowIsland.Modules.Controls;
 using AppLock.WindowIsland.Modules.Notifications;
 using AppLock.WindowIsland.Modules.Weather;
@@ -166,6 +169,13 @@ public sealed partial class WindowIslandWindow : Window
     // Milestone 12: Notifications, VPN, battery alert cards, mic/cam dots
     private bool _micDotActive;
     private bool _camDotActive;
+
+    // Milestone 13: Chat (WebView2)
+    private WebView2?                         _chatWebView;
+    private bool                              _chatInitializing;
+    private bool                              _chatInitialized;
+    private DQTimer?                          _chatIdleTimer;
+    private string?                           _chatLastNavigatedUrl;
 
     private DQTimer? _topmostTimer;
     private DQTimer? _hoverTimer;
@@ -450,6 +460,11 @@ public sealed partial class WindowIslandWindow : Window
         WindowIslandNotificationService.Instance.BatteryChargingCard -= OnBatteryChargingCard;
         WindowIslandNotificationService.Instance.MicCamStateChanged  -= OnMicCamStateChanged;
 
+        // Milestone 13: Chat cleanup
+        _chatIdleTimer?.Stop();
+        _chatIdleTimer = null;
+        DisposeChatWebView();
+
         _compositor?.Dispose();
         _compositor = null;
         base.Close();
@@ -476,6 +491,16 @@ public sealed partial class WindowIslandWindow : Window
         // Refresh clipboard / shelf / notes on switch
         if (_activeTab == 1) _clipboardState?.Refresh();
         if (_activeTab == 2) RefreshShelfUI();
+        if (_activeTab == 4)
+        {
+            ResetChatIdleTimer();
+            RefreshChatUI();
+        }
+        else if (_previousTab == 4)
+        {
+            SuspendChatWebView();
+            StartChatIdleTimer();
+        }
         if (_activeTab == 5)
         {
             RefreshNotesUI();
@@ -855,12 +880,26 @@ public sealed partial class WindowIslandWindow : Window
         {
             _measuringFrames = false;
             DispatcherQueue.TryEnqueue(UpdateStatsDisplay);
+            if (_activeTab == 4)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    ResetChatIdleTimer();
+                    ResumeChatWebView();
+                });
+            }
         });
     }
 
     public void Collapse()
     {
         if (_compositor == null || !_compositor.IsOpen) return;
+
+        if (_activeTab == 4)
+        {
+            SuspendChatWebView();
+            StartChatIdleTimer();
+        }
 
         _measuringFrames = true;
         OpenLayer.IsHitTestVisible = false;
@@ -877,6 +916,11 @@ public sealed partial class WindowIslandWindow : Window
                 UpdateStatsDisplay();
                 // Shrink window back to folded size
                 PositionAndSize();
+                if (_previousForegroundWindow != nint.Zero)
+                {
+                    SetForegroundWindow(_previousForegroundWindow);
+                    _previousForegroundWindow = nint.Zero;
+                }
             });
         });
         UpdateHitRegion(open: false, isCard: false);
@@ -3024,5 +3068,292 @@ public sealed partial class WindowIslandWindow : Window
             };
             _shutdownConfirmTimer.Start();
         }
+    }
+
+    // ── Milestone 13: Chat tab (WebView2) ──────────────────────────────────────
+
+    private void RefreshChatUI()
+    {
+        RenderChatSubTabs();
+        _ = EnsureChatWebViewAsync();
+    }
+
+    private void RenderChatSubTabs()
+    {
+        ChatSubTabsPanel.Children.Clear();
+        var sites = _settings.ChatSites ?? WindowIslandSettings.DefaultChatSites();
+        int active = Math.Clamp(_settings.ActiveChatIndex, 0, Math.Max(0, sites.Count - 1));
+
+        for (int i = 0; i < sites.Count; i++)
+        {
+            int index = i;
+            var site = sites[i];
+            bool isActive = i == active;
+
+            var btn = new Button
+            {
+                Style = (Style)RootGrid.Resources["TabButtonStyle"],
+                Height = 28,
+                Padding = new Thickness(8, 3, 8, 3),
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush(isActive
+                    ? ColorHelper.FromArgb(0x40, 0x60, 0xCD, 0xFF)
+                    : ColorHelper.FromArgb(0x15, 0xFF, 0xFF, 0xFF)),
+                BorderBrush = new SolidColorBrush(isActive
+                    ? ColorHelper.FromArgb(0x80, 0x60, 0xCD, 0xFF)
+                    : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1)
+            };
+
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+            if (!string.IsNullOrEmpty(site.Icon))
+            {
+                sp.Children.Add(new FontIcon
+                {
+                    Glyph = site.Icon,
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(isActive
+                        ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF)
+                        : ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF))
+                });
+            }
+            sp.Children.Add(new TextBlock
+            {
+                Text = site.Name,
+                FontSize = 11,
+                FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
+                Foreground = new SolidColorBrush(isActive
+                    ? ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)
+                    : ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            btn.Content = sp;
+            btn.Click += (_, _) => SelectChatSite(index);
+
+            // Context menu to delete custom sites (keep at least 1 site)
+            if (sites.Count > 1 && i >= 3)
+            {
+                var flyout = new MenuFlyout();
+                var delItem = new MenuFlyoutItem { Text = $"Remove {site.Name}", Icon = new FontIcon { Glyph = "\uE74D" } };
+                delItem.Click += (_, _) =>
+                {
+                    WindowIslandChatManager.RemoveChatSite(_settings, index);
+                    ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                    RenderChatSubTabs();
+                    _ = EnsureChatWebViewAsync();
+                };
+                flyout.Items.Add(delItem);
+                btn.ContextFlyout = flyout;
+            }
+
+            ChatSubTabsPanel.Children.Add(btn);
+        }
+    }
+
+    private void SelectChatSite(int index)
+    {
+        _settings.ActiveChatIndex = index;
+        RenderChatSubTabs();
+        _ = EnsureChatWebViewAsync();
+    }
+
+    private async Task EnsureChatWebViewAsync()
+    {
+        if (_chatInitializing) return;
+
+        var activeSite = WindowIslandChatManager.GetActiveSite(_settings);
+        if (_chatWebView != null && _chatInitialized)
+        {
+            if (_chatLastNavigatedUrl != activeSite.Url)
+            {
+                _chatLastNavigatedUrl = activeSite.Url;
+                try
+                {
+                    ChatSkeletonPanel.Visibility = Visibility.Visible;
+                    _chatWebView.Source = new Uri(activeSite.Url);
+                }
+                catch { }
+            }
+            return;
+        }
+
+        _chatInitializing = true;
+        ChatSkeletonPanel.Visibility = Visibility.Visible;
+        ChatFallbackPanel.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            string version = string.Empty;
+            try { version = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                ChatSkeletonPanel.Visibility = Visibility.Collapsed;
+                ChatFallbackPanel.Visibility = Visibility.Visible;
+                _chatInitializing = false;
+                return;
+            }
+
+            if (_chatWebView == null)
+            {
+                _chatWebView = new WebView2
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch
+                };
+                _chatWebView.DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, 26, 26, 26);
+                _chatWebView.NavigationCompleted += (_, _) =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        ChatSkeletonPanel.Visibility = Visibility.Collapsed;
+                    });
+                };
+
+                ChatWebViewHost.Children.Clear();
+                ChatWebViewHost.Children.Add(_chatWebView);
+            }
+
+            string userDataFolder = WindowIslandChatManager.GetUserDataFolder();
+            var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, null);
+            await _chatWebView.EnsureCoreWebView2Async(env);
+
+            _chatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            _chatWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+
+            _chatInitialized = true;
+            _chatLastNavigatedUrl = activeSite.Url;
+            _chatWebView.Source = new Uri(activeSite.Url);
+        }
+        catch (Exception ex)
+        {
+            WindowIslandHost.Log("EnsureChatWebViewAsync error: " + ex);
+            ChatSkeletonPanel.Visibility = Visibility.Collapsed;
+            ChatFallbackPanel.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _chatInitializing = false;
+        }
+    }
+
+    private async void SuspendChatWebView()
+    {
+        try
+        {
+            if (_chatWebView?.CoreWebView2 != null)
+            {
+                await _chatWebView.CoreWebView2.TrySuspendAsync();
+            }
+        }
+        catch { }
+    }
+
+    private void ResumeChatWebView()
+    {
+        try
+        {
+            if (_chatWebView?.CoreWebView2 != null)
+            {
+                _chatWebView.CoreWebView2.Resume();
+            }
+            else if (_activeTab == 4)
+            {
+                _ = EnsureChatWebViewAsync();
+            }
+        }
+        catch { }
+    }
+
+    private void DisposeChatWebView()
+    {
+        try
+        {
+            if (_chatWebView != null)
+            {
+                ChatWebViewHost.Children.Clear();
+                _chatWebView.Close();
+                _chatWebView = null;
+                _chatInitialized = false;
+                _chatLastNavigatedUrl = null;
+            }
+        }
+        catch { }
+    }
+
+    private void StartChatIdleTimer()
+    {
+        if (_chatIdleTimer == null)
+        {
+            _chatIdleTimer = DispatcherQueue.CreateTimer();
+            _chatIdleTimer.IsRepeating = false;
+            _chatIdleTimer.Tick += (_, _) =>
+            {
+                if (!_compositor?.IsOpen == true || _activeTab != 4)
+                {
+                    DisposeChatWebView();
+                }
+            };
+        }
+        int minutes = WindowIslandChatManager.ClampIdleMinutes(_settings.ChatIdleMinutes);
+        _chatIdleTimer.Interval = TimeSpan.FromMinutes(minutes);
+        _chatIdleTimer.Stop();
+        _chatIdleTimer.Start();
+    }
+
+    private void ResetChatIdleTimer()
+    {
+        _chatIdleTimer?.Stop();
+    }
+
+    private void ChatAddBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ChatNewNameBox.Text = string.Empty;
+        ChatNewUrlBox.Text = string.Empty;
+        ChatAddErrorText.Visibility = Visibility.Collapsed;
+        ChatAddOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void ChatCancelAdd_Click(object sender, RoutedEventArgs e)
+    {
+        ChatAddOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void ChatConfirmAdd_Click(object sender, RoutedEventArgs e)
+    {
+        string name = ChatNewNameBox.Text.Trim();
+        string url = ChatNewUrlBox.Text.Trim();
+        if (WindowIslandChatManager.AddChatSite(_settings, name, url))
+        {
+            _settings.ActiveChatIndex = _settings.ChatSites.Count - 1;
+            ChatAddOverlay.Visibility = Visibility.Collapsed;
+            ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+            RenderChatSubTabs();
+            _ = EnsureChatWebViewAsync();
+        }
+        else
+        {
+            ChatAddErrorText.Text = "Invalid site name/URL, or max 6 sites reached.";
+            ChatAddErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ChatPopoutBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var active = WindowIslandChatManager.GetActiveSite(_settings);
+        if (Uri.TryCreate(active.Url, UriKind.Absolute, out var uri))
+        {
+            _ = Windows.System.Launcher.LaunchUriAsync(uri);
+        }
+    }
+
+    private void ChatRefreshBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try { _chatWebView?.Reload(); } catch { }
+    }
+
+    private void ChatDownloadWebView2_Click(object sender, RoutedEventArgs e)
+    {
+        _ = Windows.System.Launcher.LaunchUriAsync(new Uri("https://go.microsoft.com/fwlink/p/?LinkId=2124703"));
     }
 }

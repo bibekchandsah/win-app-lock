@@ -1038,13 +1038,161 @@
                                    VerticalAlignment="Center" />
                     </Grid>
 
-                    <!-- Chat tab placeholder -->
+                    <!-- Chat tab (Milestone 13: WebView2 AI Assistants) -->
                     <Grid x:Name="ContentChat" Opacity="0" Visibility="Collapsed">
-                        <TextBlock Text="Chat (AI)"
-                                   FontSize="12"
-                                   Foreground="#A0FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header strip: Sub-tabs and tool buttons -->
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Assistant Sub-Tabs list (ChatGPT, Claude, Copilot, etc.) -->
+                            <ScrollViewer Grid.Column="0"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          HorizontalScrollMode="Enabled"
+                                          VerticalScrollMode="Disabled">
+                                <StackPanel x:Name="ChatSubTabsPanel"
+                                            Orientation="Horizontal"
+                                            Spacing="4" />
+                            </ScrollViewer>
+
+                            <!-- Tools: Add custom assistant, Popout to browser, Refresh -->
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="4"
+                                        Margin="8,0,0,0">
+                                <Button x:Name="ChatAddBtn"
+                                        Click="ChatAddBtn_Click"
+                                        ToolTipService.ToolTip="Add custom AI assistant"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="14">
+                                    <FontIcon Glyph="&#xE710;" FontSize="12" Foreground="#C0FFFFFF" />
+                                </Button>
+                                <Button x:Name="ChatRefreshBtn"
+                                        Click="ChatRefreshBtn_Click"
+                                        ToolTipService.ToolTip="Reload active chat"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="14">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="12" Foreground="#C0FFFFFF" />
+                                </Button>
+                                <Button x:Name="ChatPopoutBtn"
+                                        Click="ChatPopoutBtn_Click"
+                                        ToolTipService.ToolTip="Open in default browser"
+                                        Width="28" Height="28"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="14">
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="12" Foreground="#C0FFFFFF" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Row 1: Content host (Skeleton / Fallback / WebView2) -->
+                        <Border Grid.Row="1"
+                                Background="#1A1A1A"
+                                BorderBrush="#25FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <!-- WebView2 Host -->
+                                <Grid x:Name="ChatWebViewHost" />
+
+                                <!-- Loading / Skeleton overlay -->
+                                <StackPanel x:Name="ChatSkeletonPanel"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="10"
+                                            Visibility="Collapsed">
+                                    <ProgressBar IsIndeterminate="True" Width="140" />
+                                    <TextBlock x:Name="ChatSkeletonText"
+                                               Text="Loading AI Assistant..."
+                                               FontSize="12"
+                                               Foreground="#A0FFFFFF"
+                                               HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <!-- Fallback overlay (when WebView2 runtime is missing) -->
+                                <StackPanel x:Name="ChatFallbackPanel"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="12"
+                                            MaxWidth="320"
+                                            Visibility="Collapsed">
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="28" Foreground="#FFCC00" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Microsoft Edge WebView2 Runtime is required to render AI chats inside Window Island."
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="#D0FFFFFF" />
+                                    <Button x:Name="ChatDownloadWebView2Btn"
+                                            Click="ChatDownloadWebView2_Click"
+                                            Content="Download Runtime"
+                                            HorizontalAlignment="Center"
+                                            FontSize="12"
+                                            Padding="12,6" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- In-island Add Custom Site Overlay -->
+                        <Border x:Name="ChatAddOverlay"
+                                Grid.RowSpan="2"
+                                Background="#E6181920"
+                                BorderBrush="#35FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16"
+                                Visibility="Collapsed">
+                            <StackPanel VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Width="300"
+                                        Spacing="10">
+                                <TextBlock Text="Add Custom AI Site"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#FFFFFFFF" />
+                                <TextBox x:Name="ChatNewNameBox"
+                                         Header="Site Name"
+                                         PlaceholderText="e.g. DeepSeek, Perplexity"
+                                         FontSize="12" />
+                                <TextBox x:Name="ChatNewUrlBox"
+                                         Header="HTTPS URL"
+                                         PlaceholderText="https://..."
+                                         FontSize="12" />
+                                <TextBlock x:Name="ChatAddErrorText"
+                                           Foreground="#FFFF6B6B"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed" />
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            Spacing="8"
+                                            Margin="0,6,0,0">
+                                    <Button Content="Cancel"
+                                            Click="ChatCancelAdd_Click"
+                                            FontSize="12"
+                                            Padding="12,4" />
+                                    <Button Content="Add"
+                                            Click="ChatConfirmAdd_Click"
+                                            FontSize="12"
+                                            Padding="16,4" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
                     <!-- Note & Timer tab -->

@@ -71,6 +71,17 @@ public sealed partial class WindowIslandSettingsPage : Page
         WeatherTempOnIslandToggle.IsOn = s.WeatherTempOnIsland;
         WeatherRainWarningToggle.IsOn  = s.WeatherRainWarning;
 
+        SelectComboItem(ChatIdleBox, s.ChatIdleMinutes.ToString());
+        try
+        {
+            string rtVer = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString();
+            ChatRuntimeStatusText.Text = $"WebView2 runtime installed (v{rtVer})";
+        }
+        catch
+        {
+            ChatRuntimeStatusText.Text = "WebView2 runtime not detected on this system.";
+        }
+
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
         _loading = false;
@@ -138,6 +149,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;
         s.WeatherRainWarning    = WeatherRainWarningToggle.IsOn;
+        if (int.TryParse(TagOf(ChatIdleBox), out int idleMin))
+        {
+            s.ChatIdleMinutes = AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.ClampIdleMinutes(idleMin);
+        }
         s.Hotkey        = HotkeyBox.Text.Trim();
 
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);

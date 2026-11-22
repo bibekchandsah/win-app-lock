@@ -79,5 +79,53 @@ public sealed class WindowIslandSettings
     /// <summary>Show orange/green mic/camera indicator dots on the folded island.</summary>
     public bool MicCamDotsEnabled     { get; set; } = true;
 
-    public WindowIslandSettings Clone() => (WindowIslandSettings)MemberwiseClone();
+    // ── Milestone 13: Chat Tab (WebView2) ────────────────────────────────────
+    /// <summary>List of AI chat sites available as sub-tabs (defaults: Gemini, DeepSeek, ChatGPT; max 6).</summary>
+    public System.Collections.Generic.List<ChatSite> ChatSites { get; set; } = DefaultChatSites();
+
+    /// <summary>Minutes of inactivity after which the WebView2 instance is released (default: 5 min).</summary>
+    public int ChatIdleMinutes { get; set; } = 5;
+
+    /// <summary>Index of currently active chat sub-tab.</summary>
+    public int ActiveChatIndex { get; set; } = 0;
+
+    public static System.Collections.Generic.List<ChatSite> DefaultChatSites() => new()
+    {
+        new ChatSite("Gemini", "https://gemini.google.com", "\uE8BD"),
+        new ChatSite("DeepSeek", "https://chat.deepseek.com", "\uE9CE"),
+        new ChatSite("ChatGPT", "https://chatgpt.com", "\uE946")
+    };
+
+    public WindowIslandSettings Clone()
+    {
+        var clone = (WindowIslandSettings)MemberwiseClone();
+        clone.ChatSites = new System.Collections.Generic.List<ChatSite>();
+        if (ChatSites != null)
+        {
+            foreach (var s in ChatSites)
+            {
+                clone.ChatSites.Add(new ChatSite(s.Name, s.Url, s.Icon));
+            }
+        }
+        return clone;
+    }
+}
+
+/// <summary>
+/// Model for an AI chat site sub-tab in Window Island Chat tab.
+/// </summary>
+public sealed class ChatSite
+{
+    public string Name { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string Icon { get; set; } = "\uE8BD";
+
+    public ChatSite() { }
+
+    public ChatSite(string name, string url, string icon = "\uE8BD")
+    {
+        Name = name;
+        Url = url;
+        Icon = icon;
+    }
 }

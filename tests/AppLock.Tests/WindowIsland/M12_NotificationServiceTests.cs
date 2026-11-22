@@ -241,7 +241,7 @@ public sealed class M12_NotificationServiceTests
         bool isCharging   = true;
         bool isPluggedIn  = true;
 
-        bool startedCharging = isCharging && !wasCharging && !wasPluggedIn;
+        bool startedCharging = isCharging && !wasCharging && !wasPluggedIn && isPluggedIn;
         Assert.True(startedCharging);
     }
 
