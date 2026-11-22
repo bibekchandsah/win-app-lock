@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using AppLock.Island.Bridge;
 using AppLock.Island.Events;
+using AppLock.Island.Modules;
 using AppLock.Models;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -100,6 +101,11 @@ public sealed partial class IslandWindow : Window
         "input.focusReleased",
         "volume.set",
         "volume.step",
+        "volume.device",
+        "home.visible",
+        "tile.run",
+        "media.command",
+        "card.action",
     };
 
     private readonly IntPtr _hwnd;
@@ -130,6 +136,29 @@ public sealed partial class IslandWindow : Window
 
     /// <summary>The page asked for an absolute volume in percent.</summary>
     public event Action<int>? VolumeRequested;
+
+    /// <summary>The Home tab is (or is no longer) on screen, so the host can start/stop sampling.</summary>
+    public event Action<bool>? HomeVisibilityChanged;
+
+    /// <summary>The island was shown or hidden, including the host hiding it for a capture.</summary>
+    public event Action<bool>? VisibleChanged;
+
+    /// <summary>A Home tile was clicked; only the ids in <see cref="TileIds"/> get through.</summary>
+    public event Action<string>? TileRequested;
+
+    /// <summary>Play / pause / next / previous for the current media session.</summary>
+    public event Action<string>? MediaCommandRequested;
+
+    /// <summary>The user picked another output device in the Home volume row.</summary>
+    public event Action<string>? VolumeDeviceRequested;
+
+    /// <summary>An action button on a live card (QR result: Open / Copy).</summary>
+    public event Action<string>? CardActionRequested;
+
+    private static readonly HashSet<string> TileIds = new(StringComparer.Ordinal)
+    {
+        "area", "fullscreen", "screentext", "qr", "network", "cpuram", "record", "command",
+    };
 
     public ClipboardCardSource Clipboard { get; }
 
@@ -177,6 +206,9 @@ public sealed partial class IslandWindow : Window
     public bool IsVisible => _isVisible;
 
     public bool IsHovered => _hoverInside;
+
+    /// <summary>True while the open shell (not the folded pill) is what the page is showing.</summary>
+    public bool IsOpen { get; private set; }
 
     // ── Window ───────────────────────────────────────────────────────────────
 
@@ -315,6 +347,7 @@ public sealed partial class IslandWindow : Window
         }
 
         PostRaw(BridgeMessages.Envelope(visible ? BridgeMessages.AnimResume : BridgeMessages.AnimPause, null));
+        VisibleChanged?.Invoke(visible);
     }
 
     // ── WebView2 ─────────────────────────────────────────────────────────────
@@ -374,6 +407,20 @@ public sealed partial class IslandWindow : Window
         core.SetVirtualHostNameToFolderMapping(
             "island.appassets", _contentDir, CoreWebView2HostResourceAccessKind.DenyCors);
 
+        // Album art is written here by the media source and loaded by the page as an image, so it
+        // never has to travel over the message bridge (island-webview2.md 5).
+        try
+        {
+            string artFolder = MediaSessionSource.ArtFolder;
+            Directory.CreateDirectory(artFolder);
+            core.SetVirtualHostNameToFolderMapping(
+                "island.cache", artFolder, CoreWebView2HostResourceAccessKind.DenyCors);
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"webview: art folder unavailable: {ex.Message}");
+        }
+
         // Local content only: nothing may navigate away, open windows or ask for permissions.
         core.NavigationStarting += (_, e) =>
         {
@@ -417,6 +464,16 @@ public sealed partial class IslandWindow : Window
         "home", "clipboard", "shelf", "text", "chat", "note", "weather", "controls",
     };
 
+    private static readonly HashSet<string> MediaCommands = new(StringComparer.Ordinal)
+    {
+        "toggle", "next", "previous",
+    };
+
+    private static readonly HashSet<string> CardActions = new(StringComparer.Ordinal)
+    {
+        "qr.open", "qr.copy",
+    };
+
     public void PostRaw(string json)
     {
         try
@@ -446,6 +503,16 @@ public sealed partial class IslandWindow : Window
 
     public void SendBattery(int percent, bool charging, bool present) =>
         _batcher?.Post("battery", BridgeMessages.BatteryMessage(percent, charging, present));
+
+    public void SendStats(HomeStats stats) => _batcher?.Post("stats", BridgeMessages.StatsMessage(stats));
+
+    public void SendMedia(MediaSnapshot media) => _batcher?.Post("media", BridgeMessages.MediaMessage(media));
+
+    public void SendRecent(IReadOnlyList<RecentClip> items) =>
+        _batcher?.Post("recent", BridgeMessages.RecentMessage(items));
+
+    public void SendVolume(int percent, IReadOnlyList<VolumeDeviceInfo> devices) =>
+        _batcher?.Post("volume", BridgeMessages.VolumeMessage(percent, devices));
 
     private static bool SystemUsesLightTheme()
     {
@@ -521,6 +588,10 @@ public sealed partial class IslandWindow : Window
                 case "ui.ready":
                     IslandSpikeLog.Write("bridge: ui ready");
                     SendSnapshot();
+
+                    // The pointer can already be on the notch when the page loads (or the page can
+                    // reload): replay the current hover state, or the island would never open.
+                    PostRaw(BridgeMessages.HoverMessage(_hoverInside));
                     Ready?.Invoke();
                     break;
 
@@ -537,6 +608,48 @@ public sealed partial class IslandWindow : Window
                         && TryReadInt(stepPayload, "delta", out int delta) && delta != 0)
                     {
                         WheelTurned?.Invoke(Math.Clamp(delta, -3, 3));
+                    }
+                    break;
+
+                case "volume.device":
+                    if (root.TryGetProperty("payload", out var devicePayload) && devicePayload.ValueKind == JsonValueKind.Object
+                        && TryReadText(devicePayload, "id", out string deviceId) && deviceId.Length > 0)
+                    {
+                        VolumeDeviceRequested?.Invoke(deviceId);
+                    }
+                    break;
+
+                case "home.visible":
+                    if (root.TryGetProperty("payload", out var homePayload) && homePayload.ValueKind == JsonValueKind.Object
+                        && homePayload.TryGetProperty("visible", out var visibleElement)
+                        && (visibleElement.ValueKind == JsonValueKind.True || visibleElement.ValueKind == JsonValueKind.False))
+                    {
+                        HomeVisibilityChanged?.Invoke(visibleElement.ValueKind == JsonValueKind.True);
+                    }
+                    break;
+
+                case "tile.run":
+                    if (root.TryGetProperty("payload", out var tilePayload) && tilePayload.ValueKind == JsonValueKind.Object
+                        && TryReadString(tilePayload, "id", out string tileId) && TileIds.Contains(tileId))
+                    {
+                        TileRequested?.Invoke(tileId);
+                    }
+                    break;
+
+                case "media.command":
+                    if (root.TryGetProperty("payload", out var mediaPayload) && mediaPayload.ValueKind == JsonValueKind.Object
+                        && TryReadString(mediaPayload, "command", out string command)
+                        && MediaCommands.Contains(command))
+                    {
+                        MediaCommandRequested?.Invoke(command);
+                    }
+                    break;
+
+                case "card.action":
+                    if (root.TryGetProperty("payload", out var actionPayload) && actionPayload.ValueKind == JsonValueKind.Object
+                        && TryReadString(actionPayload, "id", out string cardAction) && CardActions.Contains(cardAction))
+                    {
+                        CardActionRequested?.Invoke(cardAction);
                     }
                     break;
 
@@ -572,6 +685,7 @@ public sealed partial class IslandWindow : Window
         if (inside == _hoverInside) return;
 
         _hoverInside = inside;
+        IslandSpikeLog.Write($"hover: {inside} at {cursor.X},{cursor.Y} rect {_islandRect.X},{_islandRect.Y} {_islandRect.W}x{_islandRect.H}");
         PostRaw(BridgeMessages.HoverMessage(inside));
     }
 
@@ -591,6 +705,8 @@ public sealed partial class IslandWindow : Window
 
         _islandRect = (x, 0, w, h);
         _hoverTargetOpen = phase == "open";
+        IsOpen = _hoverTargetOpen;
+        IslandSpikeLog.Write($"layout: {phase} {x},{0} {w}x{h} r{radius}");
         UpdateHitRegion(x, w, h, radius);
 
         // The page is about to animate: hold non-visual updates until it settles (island.md 5).

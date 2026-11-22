@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -68,7 +70,20 @@ public sealed class LockKeyCardSource : IDisposable
 }
 
 /// <summary>The text or image description of a fresh clipboard item, for the "Copied" card.</summary>
-public readonly record struct ClipboardCardInfo(string Kind, string Title, string Detail);
+public readonly record struct ClipboardCardInfo(
+    string Kind,
+    string Title,
+    string Detail,
+    string App,
+    string Text,
+    int Width,
+    int Height);
+
+/// <summary>One entry of the Home tab's "Recently copied" list (last three items, never persisted).</summary>
+public readonly record struct RecentClip(string Kind, string Preview, string App, DateTime CapturedAt);
+
+/// <summary>One playback device for the Home tab's output dropdown.</summary>
+public readonly record struct VolumeDeviceInfo(string Id, string Name, bool IsDefault);
 
 /// <summary>
 /// Minimal clipboard listener for the island card: it does not store anything (the clipboard
@@ -111,11 +126,34 @@ public sealed class ClipboardCardSource : IDisposable
     [DllImport("kernel32.dll")]
     private static extern bool GlobalUnlock(IntPtr handle);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetClipboardOwner();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BITMAPINFOHEADER
+    {
+        public int biSize;
+        public int biWidth;
+        public int biHeight;
+        public short biPlanes;
+        public short biBitCount;
+        public int biCompression;
+        public int biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public int biClrUsed;
+        public int biClrImportant;
+    }
+
     private readonly IntPtr _hwnd;
     private readonly DispatcherQueueTimer _debounce;
     private readonly uint _cfExclude;
     private readonly uint _cfCanInclude;
     private readonly uint _cfPng;
+    private readonly List<RecentClip> _recent = new();
 
     private bool _attached;
     private long _lastReadMs;
@@ -153,12 +191,25 @@ public sealed class ClipboardCardSource : IDisposable
         return true;
     }
 
+    /// <summary>The last three copies, newest first, for the Home tab (memory only, nothing stored).</summary>
+    public IReadOnlyList<RecentClip> Recent
+    {
+        get
+        {
+            lock (_recent) return _recent.ToArray();
+        }
+    }
+
     private void Read()
     {
         // Two updates within a few milliseconds describe the same copy.
         long now = Environment.TickCount64;
         if (now - _lastReadMs < 200) return;
         _lastReadMs = now;
+
+        // The owner is read before AppLock takes the clipboard: OpenClipboard makes this window
+        // the owner, and the source app would be lost.
+        string app = SourceAppName();
 
         if (!OpenClipboard(_hwnd)) return;
         try
@@ -168,7 +219,9 @@ public sealed class ClipboardCardSource : IDisposable
 
             if (IsClipboardFormatAvailable(CF_UNICODETEXT) && TryReadText(out string text))
             {
-                Captured?.Invoke(new ClipboardCardInfo("clipboard.text", "Copied", text));
+                AddRecent(new RecentClip("clipboard.text", text, app, DateTime.Now));
+                string detail = app.Length > 0 ? $"{text} \u00B7 {app}" : text;
+                Captured?.Invoke(new ClipboardCardInfo("clipboard.text", "Copied", detail, app, text, 0, 0));
                 return;
             }
 
@@ -176,7 +229,11 @@ public sealed class ClipboardCardSource : IDisposable
                 || IsClipboardFormatAvailable(CF_BITMAP)
                 || (_cfPng != 0 && IsClipboardFormatAvailable(_cfPng)))
             {
-                Captured?.Invoke(new ClipboardCardInfo("clipboard.image", "Image copied", string.Empty));
+                TryGetImageSize(out int width, out int height);
+                string size = width > 0 ? $"{width}\u00D7{height}" : "Image";
+                string detail = app.Length > 0 ? $"{size} \u00B7 {app}" : size;
+                AddRecent(new RecentClip("clipboard.image", size, app, DateTime.Now));
+                Captured?.Invoke(new ClipboardCardInfo("clipboard.image", "Image copied", detail, app, string.Empty, width, height));
             }
         }
         catch (Exception ex)
@@ -200,6 +257,64 @@ public sealed class ClipboardCardSource : IDisposable
         try
         {
             return unchecked((uint)Marshal.ReadInt32(data));
+        }
+        finally
+        {
+            GlobalUnlock(handle);
+        }
+    }
+
+    private void AddRecent(RecentClip clip)
+    {
+        lock (_recent)
+        {
+            _recent.Insert(0, clip);
+            while (_recent.Count > 3) _recent.RemoveAt(_recent.Count - 1);
+        }
+    }
+
+    /// <summary>The app that copied the item, e.g. "msedge.exe". Empty when Windows does not say.</summary>
+    private static string SourceAppName()
+    {
+        try
+        {
+            IntPtr owner = GetClipboardOwner();
+            if (owner == IntPtr.Zero) return string.Empty;
+
+            GetWindowThreadProcessId(owner, out uint processId);
+            if (processId == 0) return string.Empty;
+
+            using var process = Process.GetProcessById((int)processId);
+            return process.ProcessName + ".exe";
+        }
+        catch (Exception)
+        {
+            // Elevated or already-exited process: the card just shows no source.
+            return string.Empty;
+        }
+    }
+
+    /// <summary>Width and height from the DIB header (the clipboard image card shows "268×125").</summary>
+    private static bool TryGetImageSize(out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+
+        uint format = IsClipboardFormatAvailable(CF_DIBV5) ? CF_DIBV5 : CF_DIB;
+        IntPtr handle = GetClipboardData(format);
+        if (handle == IntPtr.Zero) return false;
+
+        IntPtr data = GlobalLock(handle);
+        if (data == IntPtr.Zero) return false;
+
+        try
+        {
+            var header = Marshal.PtrToStructure<BITMAPINFOHEADER>(data);
+            if (header.biSize < 40 || header.biWidth <= 0 || header.biHeight == 0) return false;
+
+            width = header.biWidth;
+            height = Math.Abs(header.biHeight);
+            return true;
         }
         finally
         {
@@ -481,6 +596,48 @@ public sealed class IslandVolumeController : IDisposable
         catch
         {
             return -1;
+        }
+    }
+
+    /// <summary>Playback devices for the Home tab's output dropdown (volume-mixer.md service).</summary>
+    public IReadOnlyList<VolumeDeviceInfo> Devices()
+    {
+        if (DefaultSpeaker() == null || _service == null) return Array.Empty<VolumeDeviceInfo>();
+
+        try
+        {
+            _service.RefreshDefaultFlags();
+            return _service.GetSpeakers()
+                .Select(s => new VolumeDeviceInfo(s.DeviceId, s.FriendlyName, s.IsDefault))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] speaker enumeration failed: {ex.Message}");
+            return Array.Empty<VolumeDeviceInfo>();
+        }
+    }
+
+    /// <summary>Makes an already-enumerated device the Windows default; the id must match one.</summary>
+    public bool SetDefaultDevice(string deviceId)
+    {
+        if (string.IsNullOrEmpty(deviceId) || _service == null) return false;
+
+        try
+        {
+            if (!_service.GetSpeakers().Any(s => string.Equals(s.DeviceId, deviceId, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
+            bool changed = _service.SetDefaultSpeaker(deviceId);
+            _service.RefreshDefaultFlags();
+            return changed;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] default speaker change failed: {ex.Message}");
+            return false;
         }
     }
 

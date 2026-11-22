@@ -97,6 +97,30 @@ export const DEFAULT_SETTINGS: IslandSnapshot = {
   version: '1.0.0',
 };
 
+/** Home tab state, fed by `state.media`, `state.stats`, `state.recent` and `state.volume`. */
+export type MediaState = {
+  hasSession: boolean;
+  playing: boolean;
+  title: string;
+  artist: string;
+  app: string;
+  position: number;
+  duration: number;
+  art: string;
+};
+
+export type HomeStatsState = {
+  cpu: number;
+  ram: number;
+  down: number;
+  up: number;
+  volume: number;
+};
+
+export type RecentItem = { kind: string; preview: string; app: string; age: string };
+
+export type DeviceItem = { id: string; name: string; isDefault: boolean };
+
 export type Geometry = {
   pageW: number;
   pageH: number;

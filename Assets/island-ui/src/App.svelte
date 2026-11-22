@@ -3,6 +3,7 @@
   import { Spring } from './spring';
   import { FrameMonitor, formatStats } from './perf';
   import { post, onMessage } from './bridge';
+  import HomeTab from './components/HomeTab.svelte';
   import {
     CARD,
     DEFAULT_SETTINGS,
@@ -14,8 +15,12 @@
     clamp01,
     geometryOf,
     lerpRect,
+    type DeviceItem,
     type Geometry,
+    type HomeStatsState,
     type IslandSnapshot,
+    type MediaState,
+    type RecentItem,
     type Rect,
     type TabId,
   } from './motion';
@@ -25,6 +30,8 @@
   const sizeSpring = new Spring(RESIZE_SPRING.stiffness, RESIZE_SPRING.damping, RESIZE_SPRING.mass, 1);
   const cardSpring = new Spring(SPRING.stiffness, SPRING.damping, SPRING.mass, 0);
 
+  type CardAction = { id: string; label: string; primary?: boolean };
+
   type Card = {
     kind: string;
     icon: string;
@@ -32,6 +39,7 @@
     detail: string;
     accent: string;
     value: number;
+    actions: CardAction[];
   };
 
   let canvasEl: HTMLCanvasElement;
@@ -73,6 +81,22 @@
 
   let pinned = false;
   let quiet = false;
+
+  // Home tab state (island.md 7), fed only by the bridge.
+  let media: MediaState = {
+    hasSession: false,
+    playing: false,
+    title: '',
+    artist: '',
+    app: '',
+    position: 0,
+    duration: 0,
+    art: '',
+  };
+  let stats: HomeStatsState = { cpu: 0, ram: 0, down: 0, up: 0, volume: 0 };
+  let recent: RecentItem[] = [];
+  let devices: DeviceItem[] = [];
+  let homeVisibleSent = false;
 
   let card: Card | null = null;
   let cardTarget = 0;
@@ -195,7 +219,10 @@
       card = null;
     }
 
+    // Re-assert the resting rect: the host's hit region must always match what is on screen,
+    // even if a card collapse or a resize reported a different rectangle in between.
     if (target === 0) sendLayout('folded', currentFoldedRect());
+    else sendLayout('open', drawnOpen);
   }
 
   // ── Live cards ────────────────────────────────────────────────────────────
@@ -225,6 +252,33 @@
   }
 
   // ── Host notifications ────────────────────────────────────────────────────
+
+  /**
+   * The host samples only while the Home tab is on screen, so it is told exactly when that is true:
+   * open, on Home, not paused (island.md 4.1: no work while hidden).
+   */
+  function syncHome(): void {
+    const visible = target === 1 && activeTab === 'home' && !paused;
+    if (visible === homeVisibleSent) return;
+    homeVisibleSent = visible;
+    post('home.visible', { visible });
+  }
+
+  function runTile(id: string): void {
+    post('tile.run', { id });
+  }
+
+  function mediaCommand(command: string): void {
+    post('media.command', { command });
+  }
+
+  function setVolumeRequest(percent: number): void {
+    post('volume.set', { percent: Math.max(0, Math.min(100, Math.round(percent))) });
+  }
+
+  function setOutputDevice(id: string): void {
+    post('volume.device', { id });
+  }
 
   function sendLayout(phase: 'open' | 'folded', rect: Rect = geometry.open): void {
     post('layout.target', {
@@ -288,6 +342,7 @@
     sizeSpring.snapTo(0);
     sendUnionLayout(from, geometry.open);
     schedule();
+    syncHome();
   }
 
   function cycleTab(delta: number): void {
@@ -319,6 +374,7 @@
     sendLayout('open');
     target = 1;
     schedule();
+    syncHome();
   }
 
   function startClose(): void {
@@ -326,6 +382,7 @@
     sizing = null;
     target = 0;
     schedule();
+    syncHome();
   }
 
   /** The wheel over the folded pill changes the system volume (island.md 5.1). */
@@ -457,9 +514,41 @@
           else hoverOut();
           break;
         }
+        case 'state.media': {
+          const payload = message.payload as Partial<MediaState> | undefined;
+          if (payload) media = { ...media, ...payload };
+          break;
+        }
+        case 'state.stats': {
+          const payload = message.payload as Partial<HomeStatsState> | undefined;
+          if (payload) stats = { ...stats, ...payload };
+          break;
+        }
+        case 'state.volume': {
+          const payload = message.payload as { percent?: number; devices?: DeviceItem[] } | undefined;
+          if (payload) {
+            if (typeof payload.percent === 'number') stats = { ...stats, volume: payload.percent };
+            if (Array.isArray(payload.devices)) devices = payload.devices;
+          }
+          break;
+        }
+        case 'state.recent': {
+          const payload = message.payload as { items?: RecentItem[] } | undefined;
+          if (payload && Array.isArray(payload.items)) recent = payload.items;
+          break;
+        }
         case 'event.card': {
           const payload = message.payload as
-            | { kind?: string; icon?: string; title?: string; detail?: string; accent?: string; value?: number; animate?: boolean }
+            | {
+                kind?: string;
+                icon?: string;
+                title?: string;
+                detail?: string;
+                accent?: string;
+                value?: number;
+                animate?: boolean;
+                actions?: CardAction[];
+              }
             | undefined;
           if (!payload || !payload.kind || !payload.title) break;
           showCard(
@@ -470,6 +559,12 @@
               detail: payload.detail ?? '',
               accent: payload.accent ?? '#FFFFFF',
               value: typeof payload.value === 'number' ? payload.value : -1,
+              actions: Array.isArray(payload.actions)
+                ? payload.actions.filter(
+                    (action): action is CardAction =>
+                      typeof action?.id === 'string' && typeof action?.label === 'string',
+                  )
+                : [],
             },
             payload.animate !== false,
           );
@@ -482,9 +577,11 @@
           paused = true;
           clearTimeout(openTimer);
           clearTimeout(closeTimer);
+          syncHome();
           break;
         case 'anim.resume':
           paused = false;
+          syncHome();
           break;
       }
     });
@@ -530,6 +627,20 @@
         {#if card && card.kind === 'volume'}
           <div class="card-bar" aria-hidden="true">
             <div class="card-bar-fill" style={`width:${Math.max(0, Math.min(100, card.value))}%`}></div>
+          </div>
+        {/if}
+        {#if card && card.actions.length > 0}
+          <div class="card-actions">
+            {#each card.actions as action (action.id)}
+              <button
+                type="button"
+                class="card-action"
+                class:primary={action.primary}
+                onclick={() => post('card.action', { id: action.id })}
+              >
+                {action.label}
+              </button>
+            {/each}
           </div>
         {/if}
       </div>
@@ -578,9 +689,23 @@
         </div>
       </div>
 
-      <div class="shell-body">
-        <span class="placeholder-glyph" aria-hidden="true">{TAB_SIZES[activeTab].icon}</span>
-        <span class="placeholder-label">{TAB_SIZES[activeTab].label}</span>
+      <div class="shell-body" class:home={activeTab === 'home'}>
+        {#if activeTab === 'home'}
+          <HomeTab
+            {media}
+            {stats}
+            {recent}
+            {devices}
+            onTile={runTile}
+            onMedia={mediaCommand}
+            onVolume={setVolumeRequest}
+            onDevice={setOutputDevice}
+            onOpenClipboard={() => selectTab('clipboard')}
+          />
+        {:else}
+          <span class="placeholder-glyph" aria-hidden="true">{TAB_SIZES[activeTab].icon}</span>
+          <span class="placeholder-label">{TAB_SIZES[activeTab].label}</span>
+        {/if}
       </div>
       </div>
     </div>

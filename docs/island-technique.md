@@ -182,6 +182,58 @@ properly needs **Candidate 2** from island-webview2.md 4.2 (Win32 `WS_EX_NOREDIR
 window + `CoreWebView2CompositionController` + DirectComposition, forwarding input), which renders
 the page with real per-pixel alpha and needs no region at all.
 
+## Milestone 5: the Home tab
+
+The Home tab (island.md 7) is the first screen with real content, and it is built so that none of
+that content costs a frame during the open/close motion:
+
+- **Sampled off the UI thread, only while visible.** `IslandHomeState` runs a 1 Hz
+  `PeriodicTimer` on the thread pool with `GetSystemTimes`/`GlobalMemoryStatusEx` (CPU and RAM),
+  `NetworkStatsProvider` (speed) and the volume level. The page tells the host when the Home tab is
+  really on screen (`home.visible`, sent on open/close/tab switch/pause), and the loop is stopped
+  otherwise — a folded or hidden island does nothing (island.md 4.1). Samples are dropped while a
+  motion is running, so a 1 s tick can never land inside an animation.
+- **Media** (`MediaSessionSource`) polls the current SMTC session once a second: title, artist,
+  source app, playback state and a position extrapolated from `LastUpdatedTime`, so the progress
+  bar keeps moving between 1 Hz updates (the bar animates `transform: scaleX`, not width). Album
+  art is written once per track to `%LOCALAPPDATA%\AppLock\island\art` and loaded by the page from
+  a second virtual host (`https://island.cache/…`); it never travels over the message bridge. The
+  CSP gained `img-src … https://island.cache`. Verified with a real playing track: cover, title,
+  artist, pause/play/next/previous.
+- **Recently copied** keeps the last three clipboard items in memory (text preview or image size,
+  source `.exe`, age). The source app is read **before** `OpenClipboard`, because opening the
+  clipboard makes AppLock its owner and the real source would be lost.
+- **Volume row** uses the existing speaker service: slider (`volume.set`, no card — the slider is
+  its own feedback), device dropdown (`volume.device`, validated against the enumerated ids before
+  `SetDefaultSpeaker`).
+- **Tiles.** Area / Record screen / Screen text hide the island first (~180 ms) and then send
+  `Win + Shift + S/T/R` with `SendInput`, so the island is never in the capture UI. Screen text
+  checks for PowerToys first and shows a one-time hint card instead of sending a dead chord. Full
+  screen captures the monitor under the cursor with a GDI `BitBlt` into a `Bitmap`, saves
+  `Pictures\Screenshots\Island\Island_yyyy-MM-dd_HH-mm-ss.png`, copies it with the WinRT clipboard
+  (`DataPackage.SetBitmap` + `Flush`) and raises the Screenshot card. QR code scans the same
+  capture with ZXing.Net (`RGBLuminanceSource` over the BGRA copy, `QR_CODE` only) and shows the
+  text with **Open** (http/https only, checked in C#) and **Copy** buttons — the card actions are
+  ids from a whitelist, never a path or URL from the page.
+- **Benchmark** with the Home tab rendered: 100 cycles, 2748 samples, p50 16.7 · p95 16.9 ·
+p99 17.0 · max 17.8 ms → PASS (budget p95 ≤ 20.9, max ≤ 33.4).
+
+### Defects found while verifying milestone 5
+
+1. **Hover was lost when the pointer already rested on the notch at page load** (or after a page
+   reload): the host sends `state.hover` only on a change, and that change happened before the page
+   existed, so the island never opened. `ui.ready` now replays the current hover state.
+2. **The hit region could disagree with what was on screen.** After a card collapsed (or a resize),
+   the host could keep the card/pill rectangle while the page showed the open shell: the window
+   region then clipped the shell, so clicks below the tab strip fell through, and moving the
+   pointer over the (invisible) lower part of the shell counted as a hover-out and closed it. The
+   page now re-asserts its resting rectangle on every settle, so the region always ends up correct.
+3. **The Home volume slider collapsed the island.** `volume.set` raised a volume card, and a card
+   animates the *folded* pill and tells the host a folded rectangle, which made the pointer look
+   like it had left. `volume.set` no longer raises a card, and `LiveEventQueue` now takes a
+   `canShow` predicate: while the open shell is on screen a card waits in the queue (the 10 Hz tick
+   keeps running and drains it as soon as the shell folds).
+
 ## Known gaps (later milestones)
 
 - Typing while the island has focus (`input.focusRequested` → clear `MA_NOACTIVATE`, activate,
@@ -195,6 +247,9 @@ the page with real per-pixel alpha and needs no region at all.
   rules later.
 - A volume change also makes Windows show its own volume flyout next to the Island's card; Windows
   has no supported way to suppress it (follow-up: decide whether to hide the card or keep both).
+- The Command tile posts `command.open`; the host only logs it until the command bar lands in
+  milestone 8. The Network tile's "open Speed Meter settings" needs the main window, which the
+  island-only run does not create. "Make QR from clipboard text" is not built yet.
 - The region/opaque-surface limitation above (grey band during motion) until Candidate 2 lands.
 
 ## Reproduce

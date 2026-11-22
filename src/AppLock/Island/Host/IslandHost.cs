@@ -1,6 +1,9 @@
 using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Island.Events;
+using AppLock.Island.Modules;
 using AppLock.Models;
 using AppLock.Services;
 using Microsoft.UI.Dispatching;
@@ -21,11 +24,19 @@ public sealed class IslandHost
     private LockKeyCardSource? _lockKeys;
     private ScreenshotCardSource? _screenshots;
     private IslandVolumeController? _volume;
+    private IslandHomeState? _home;
+    private IslandTileActions? _tiles;
     private DispatcherQueueTimer? _clockTimer;
     private DispatcherQueueTimer? _batteryTimer;
     private int _hotkeyId = -1;
     private int _lastBatteryMinute = -1;
     private bool _started;
+
+    /// <summary>The Home tab told the host it is on screen; sampling runs only while it is.</summary>
+    private bool _homeTabVisible;
+    private long _motionUntilTicks;
+    private string _lastVolumeFingerprint = string.Empty;
+    private string _qrText = string.Empty;
 
     public bool IsRunning => _window != null;
 
@@ -57,11 +68,30 @@ public sealed class IslandHost
             _cards = new LiveEventQueue(
                 queue,
                 json => _window?.PostRaw(json),
-                () => _window == null || _window.IsHovered || !_window.IsVisible);
+                () => _window == null || _window.IsHovered || !_window.IsVisible,
+                () => _window?.IsOpen != true);
 
-            _window.MotionStarted += duration => _cards?.HoldForMotion(duration);
+            _window.MotionStarted += OnMotionStarted;
             _window.WheelTurned += OnWheelTurned;
             _window.VolumeRequested += OnVolumeRequested;
+            _window.HomeVisibilityChanged += OnHomeVisibilityChanged;
+            _window.VisibleChanged += OnVisibleChanged;
+            _window.TileRequested += OnTileRequested;
+            _window.MediaCommandRequested += OnMediaCommand;
+            _window.VolumeDeviceRequested += OnVolumeDevice;
+            _window.CardActionRequested += OnCardAction;
+
+            // The Home tab samples on a background thread; only while it is actually visible.
+            _volume ??= new IslandVolumeController();
+            _home = new IslandHomeState(_volume, () => _window?.Clipboard.Recent ?? new List<RecentClip>());
+            _home.StatsSampled += OnHomeStats;
+            _home.MediaSampled += OnHomeMedia;
+            _home.RecentSampled += OnHomeRecent;
+
+            _tiles = new IslandTileActions(
+                HideForCaptureAsync,
+                ShowAfterCaptureAsync,
+                () => ServiceContainer.Settings.Island.ScreenshotsFolder);
 
             _lockKeys = new LockKeyCardSource(queue);
             _lockKeys.CapsLockChanged += OnCapsLockChanged;
@@ -106,6 +136,10 @@ public sealed class IslandHost
         _clockTimer = null;
         _batteryTimer = null;
 
+        _home?.Dispose();
+        _home = null;
+        _tiles = null;
+
         _lockKeys?.Dispose();
         _lockKeys = null;
         _screenshots?.Dispose();
@@ -119,8 +153,15 @@ public sealed class IslandHost
         {
             _window.Ready -= OnWindowReady;
             _window.Closed -= OnWindowClosed;
+            _window.MotionStarted -= OnMotionStarted;
             _window.WheelTurned -= OnWheelTurned;
             _window.VolumeRequested -= OnVolumeRequested;
+            _window.HomeVisibilityChanged -= OnHomeVisibilityChanged;
+            _window.VisibleChanged -= OnVisibleChanged;
+            _window.TileRequested -= OnTileRequested;
+            _window.MediaCommandRequested -= OnMediaCommand;
+            _window.VolumeDeviceRequested -= OnVolumeDevice;
+            _window.CardActionRequested -= OnCardAction;
             _window.Clipboard.Captured -= OnClipboardCaptured;
             _window.Clipboard.Dispose();
             _window.Close();
@@ -175,6 +216,200 @@ public sealed class IslandHost
         _window = null;
         _clockTimer?.Stop();
         _batteryTimer?.Stop();
+    }
+
+    // ── Home tab (island.md 7) ───────────────────────────────────────────────
+
+    private bool SamplingActive => _homeTabVisible && _window?.IsVisible == true;
+
+    private bool MotionHeld => Environment.TickCount64 < _motionUntilTicks;
+
+    private void OnMotionStarted(int durationMs)
+    {
+        _motionUntilTicks = Environment.TickCount64 + Math.Max(0, durationMs) + 60;
+        _cards?.HoldForMotion(durationMs);
+    }
+
+    private void OnHomeVisibilityChanged(bool visible)
+    {
+        _homeTabVisible = visible;
+        IslandSpikeLog.Write($"home: visible {visible}");
+        UpdateSampling();
+    }
+
+    private void OnVisibleChanged(bool visible) => UpdateSampling();
+
+    private void UpdateSampling()
+    {
+        if (SamplingActive) _home?.Start();
+        else _home?.Stop();
+    }
+
+    private void OnHomeStats(HomeStats stats)
+    {
+        var window = _window;
+        if (window == null) return;
+
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (MotionHeld || _window == null) return;
+            _window.SendStats(stats);
+            PushVolumeDevices(stats.Volume);
+        });
+    }
+
+    private void OnHomeMedia(MediaSnapshot media)
+    {
+        var window = _window;
+        if (window == null) return;
+
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (MotionHeld) return;
+            _window?.SendMedia(media);
+        });
+    }
+
+    private void OnHomeRecent(IReadOnlyList<RecentClip> items)
+    {
+        var window = _window;
+        if (window == null) return;
+
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (MotionHeld) return;
+            _window?.SendRecent(items);
+        });
+    }
+
+    /// <summary>The output-device list only goes out when it changed; the level rides along.</summary>
+    private void PushVolumeDevices(int percent)
+    {
+        if (_volume == null || _window == null) return;
+
+        var devices = _volume.Devices();
+        string fingerprint = string.Join("|", devices.Select(d => $"{d.Id}:{d.Name}:{d.IsDefault}"));
+        if (string.Equals(fingerprint, _lastVolumeFingerprint, StringComparison.Ordinal)) return;
+
+        _lastVolumeFingerprint = fingerprint;
+        _window.SendVolume(percent, devices);
+    }
+
+    private void OnMediaCommand(string command)
+    {
+        IslandSpikeLog.Write($"media: {command}");
+        if (_home != null) _ = _home.MediaCommandAsync(command);
+    }
+
+    private void OnVolumeDevice(string id)
+    {
+        if (_volume == null) return;
+
+        bool changed = _volume.SetDefaultDevice(id);
+        IslandSpikeLog.Write($"volume: default device {(changed ? "changed" : "not changed")}");
+
+        _lastVolumeFingerprint = string.Empty;
+        int percent = _volume.Get();
+        if (percent >= 0) PushVolumeDevices(percent);
+    }
+
+    private async void OnTileRequested(string id)
+    {
+        try
+        {
+            switch (id)
+            {
+                case "command":
+                    IslandSpikeLog.Write("tile: command bar requested (the bar arrives with milestone 8)");
+                    return;
+
+                case "network":
+                    IslandSpikeLog.Write("tile: network → Speed Meter settings (island-only run has no main window)");
+                    return;
+
+                case "cpuram":
+                    Process.Start(new ProcessStartInfo("taskmgr.exe") { UseShellExecute = true });
+                    return;
+            }
+
+            if (_tiles == null) return;
+
+            IslandSpikeLog.Write($"tile: {id}");
+            TileOutcome? outcome = await _tiles.RunAsync(id);
+            if (outcome == null) return;
+
+            var settings = ServiceContainer.Settings.Island;
+            _qrText = outcome.QrText ?? string.Empty;
+            _cards?.Push(new IslandCard(
+                Kind: outcome.Kind,
+                Icon: outcome.Icon,
+                Title: outcome.Title,
+                Detail: outcome.Detail,
+                Accent: outcome.Accent,
+                Priority: outcome.Kind == "screenshot" ? IslandCardPriority.Screenshot : IslandCardPriority.Clipboard,
+                StayMs: outcome.Actions != null ? Math.Max(settings.CardStayMs, 8000) : settings.CardStayMs,
+                Actions: outcome.Actions));
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"tile: {id} failed ({ex.GetType().Name}: {ex.Message})");
+        }
+    }
+
+    private void OnCardAction(string action)
+    {
+        switch (action)
+        {
+            case "qr.open":
+                if (Uri.TryCreate(_qrText, UriKind.Absolute, out Uri? uri)
+                    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                {
+                    IslandSpikeLog.Write($"card: qr open {uri.Host}");
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        IslandSpikeLog.Write($"card: qr open failed ({ex.GetType().Name})");
+                    }
+                }
+                break;
+
+            case "qr.copy":
+                CopyText(_qrText);
+                break;
+        }
+    }
+
+    private static void CopyText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+            IslandSpikeLog.Write("card: qr copied");
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"card: copy failed ({ex.GetType().Name})");
+        }
+    }
+
+    private Task HideForCaptureAsync()
+    {
+        _window?.SetIslandVisible(false);
+        return Task.CompletedTask;
+    }
+
+    private Task ShowAfterCaptureAsync()
+    {
+        _window?.SetIslandVisible(true);
+        return Task.CompletedTask;
     }
 
     // ── Live cards (island.md 5.2) ────────────────────────────────────────────
@@ -242,12 +477,12 @@ public sealed class IslandHost
 
     private void OnVolumeRequested(int percent)
     {
-        var settings = ServiceContainer.Settings.Island;
         _volume ??= new IslandVolumeController();
         int value = _volume.Set(percent);
-        if (value < 0 || !settings.ShowVolumeCard) return;
+        if (value < 0) return;
 
-        PushVolumeCard(value, settings);
+        // The Home tab slider shows its own level; a card here would collapse the open shell.
+        IslandSpikeLog.Write($"volume: set {value}%");
     }
 
     private void PushVolumeCard(int value, IslandSettings settings)

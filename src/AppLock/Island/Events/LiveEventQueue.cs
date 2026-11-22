@@ -14,6 +14,9 @@ public enum IslandCardPriority
     Screenshot = 30,
 }
 
+/// <summary>A button on a live card (island.md 7: the QR result offers Open / Copy).</summary>
+public sealed record IslandCardAction(string Id, string Label, bool Primary = false);
+
 /// <summary>One card the folded pill can show. Rendered from the bridge payload, never reflowed.</summary>
 public sealed record IslandCard(
     string Kind,
@@ -23,7 +26,8 @@ public sealed record IslandCard(
     string Accent,
     IslandCardPriority Priority,
     int StayMs,
-    int Value = -1);
+    int Value = -1,
+    System.Collections.Generic.IReadOnlyList<IslandCardAction>? Actions = null);
 
 /// <summary>
 /// The single queue every live card goes through (island.md 5.2): at most one card is visible,
@@ -39,6 +43,7 @@ public sealed class LiveEventQueue : IDisposable
 
     private readonly Action<string> _send;
     private readonly Func<bool> _paused;
+    private readonly Func<bool> _canShow;
     private readonly DispatcherQueueTimer _tick;
     private readonly List<IslandCard> _pending = new();
 
@@ -47,10 +52,13 @@ public sealed class LiveEventQueue : IDisposable
     private long _holdUntilTicks;
     private bool _disposed;
 
-    public LiveEventQueue(DispatcherQueue queue, Action<string> send, Func<bool> paused)
+    /// <param name="paused">Countdown pause (pointer on the island, island hidden).</param>
+    /// <param name="canShow">False while the open shell is showing: cards belong to the folded pill.</param>
+    public LiveEventQueue(DispatcherQueue queue, Action<string> send, Func<bool> paused, Func<bool> canShow)
     {
         _send = send;
         _paused = paused;
+        _canShow = canShow;
 
         _tick = queue.CreateTimer();
         _tick.Interval = TimeSpan.FromMilliseconds(TickMs);
@@ -72,12 +80,6 @@ public sealed class LiveEventQueue : IDisposable
     {
         if (_disposed) return;
 
-        if (IsHeld)
-        {
-            Enqueue(card);
-            return;
-        }
-
         if (_visible != null)
         {
             if (_visible.Kind == card.Kind)
@@ -93,6 +95,13 @@ public sealed class LiveEventQueue : IDisposable
                 return;
             }
 
+            Enqueue(card);
+            return;
+        }
+
+        // Nothing on screen: wait while the pill is mid-animation or the shell is open.
+        if (IsHeld || !_canShow())
+        {
             Enqueue(card);
             return;
         }
@@ -114,6 +123,9 @@ public sealed class LiveEventQueue : IDisposable
 
     private void Enqueue(IslandCard card)
     {
+        // Keep ticking so the queue can drain as soon as the shell folds again.
+        if (!_tick.IsRunning) _tick.Start();
+
         if (_pending.Count >= MaxPending)
         {
             int lowest = 0;
@@ -140,13 +152,15 @@ public sealed class LiveEventQueue : IDisposable
     {
         if (_disposed) return;
 
+        if (IsHeld || !_canShow()) return;
+
         if (_visible == null)
         {
             Pump();
             return;
         }
 
-        if (_paused() || IsHeld) return;
+        if (_paused()) return;
 
         _remainingMs -= TickMs;
         if (_remainingMs > 0) return;
@@ -158,7 +172,7 @@ public sealed class LiveEventQueue : IDisposable
 
     private void Pump()
     {
-        if (_visible != null || IsHeld) return;
+        if (_visible != null || IsHeld || !_canShow()) return;
 
         IslandCard? next = null;
         int best = int.MinValue;

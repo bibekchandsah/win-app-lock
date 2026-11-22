@@ -293,3 +293,387 @@ body {
   background: rgba(255, 255, 255, 0.86);
   border-radius: 2px;
 }
+
+/* ── Home tab (island.md 7) ─────────────────────────────────────────────── */
+
+.shell-body.home {
+  display: block;
+  color: var(--island-text);
+}
+
+.home {
+  display: flex;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.home-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 282px;
+  flex: none;
+  min-height: 0;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 76px;
+  flex: none;
+}
+
+.art {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: none;
+}
+
+.art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.art-glyph {
+  font-size: 18px;
+  color: var(--island-text-dim);
+}
+
+.player-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.player-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-artist {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--island-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 2px;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 1s linear;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--island-text);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.icon-btn .glyph {
+  font-size: 12px;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 16px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--island-text-faint);
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--island-text-dim);
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets';
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--island-text);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  font-size: 10.5px;
+  color: var(--island-text-dim);
+}
+
+.recent-icon {
+  font-size: 10px;
+  color: var(--island-text-faint);
+  flex: none;
+}
+
+.recent-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-age {
+  flex: none;
+  font-size: 9px;
+  color: var(--island-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--island-text-faint);
+}
+
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  flex: none;
+}
+
+.volume-icon {
+  font-size: 12px;
+  color: var(--island-text-dim);
+  flex: none;
+}
+
+.volume-value {
+  flex: none;
+  min-width: 30px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--island-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.device {
+  flex: none;
+  width: 92px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--island-text-dim);
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.device:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--island-text);
+}
+
+.device option {
+  background: #16161a;
+  color: #ffffff;
+}
+
+.tiles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--island-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tile:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tile:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tile-glyph {
+  font-size: 13px;
+  color: var(--island-text-dim);
+  flex: none;
+}
+
+.tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tile-label {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-value {
+  font-size: 9.5px;
+  color: var(--island-text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile:focus-visible,
+.icon-btn:focus-visible,
+.link:focus-visible,
+.device:focus-visible,
+.slider:focus-visible,
+.card-action:focus-visible {
+  outline: 2px solid rgba(150, 190, 255, 0.9);
+  outline-offset: 1px;
+}
+
+/* Cards with buttons (the QR result offers Open / Copy). */
+.card-text {
+  flex: 1;
+}
+
+.card-actions {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.card-action {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--island-text);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-action:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.card-action.primary {
+  background: rgba(120, 170, 255, 0.34);
+}
