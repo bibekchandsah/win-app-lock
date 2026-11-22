@@ -30,6 +30,8 @@ public static class BridgeMessages
     public const string StateStats = "state.stats";
     public const string StateVolume = "state.volume";
     public const string StateRecent = "state.recent";
+    public const string ListClipboard = "list.clipboard";
+    public const string ListShelf = "list.shelf";
 
     public static string Envelope(string type, object? payload)
     {
@@ -181,6 +183,44 @@ public static class BridgeMessages
                     preview = item.Preview,
                     app = item.App,
                     age = AgeText(item.CapturedAt),
+                })
+                .ToArray(),
+        });
+    }
+
+    /// <summary>The Clipboard tab: one row per history item (island.md 9.1).</summary>
+    public static string ClipboardListMessage(IReadOnlyList<ClipboardRow> rows)
+    {
+        return Envelope(ListClipboard, new
+        {
+            items = rows
+                .Select(row => new
+                {
+                    id = row.Id,
+                    type = row.Type,
+                    preview = row.Preview,
+                    source = row.Source,
+                    age = row.Age,
+                    chars = row.Chars,
+                    pinned = row.Pinned,
+                    thumb = row.Thumb,
+                })
+                .ToArray(),
+        });
+    }
+
+    /// <summary>The Shelf tab: the files the user parked there (island.md 9.2).</summary>
+    public static string ShelfListMessage(IReadOnlyList<ShelfRow> rows)
+    {
+        return Envelope(ListShelf, new
+        {
+            items = rows
+                .Select(row => new
+                {
+                    path = row.Path,
+                    name = row.Name,
+                    icon = row.Icon,
+                    exists = row.Exists,
                 })
                 .ToArray(),
         });

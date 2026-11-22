@@ -59,6 +59,9 @@ public sealed class IslandSettings
     /// <summary>Screenshots folder to watch; empty means Pictures\Screenshots.</summary>
     public string ScreenshotsFolder { get; set; } = string.Empty;
 
+    /// <summary>Shelf entries point at the original files; this copies the files into the shelf instead.</summary>
+    public bool ShelfCopyFiles { get; set; }
+
     public IslandSettings Clone() => (IslandSettings)MemberwiseClone();
 
     /// <summary>Stay time of a card in milliseconds.</summary>

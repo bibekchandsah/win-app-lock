@@ -121,6 +121,21 @@ export type RecentItem = { kind: string; preview: string; app: string; age: stri
 
 export type DeviceItem = { id: string; name: string; isDefault: boolean };
 
+/** One row of the Clipboard tab (island.md 9.1). */
+export type ClipboardRow = {
+  id: string;
+  type: string;
+  preview: string;
+  source: string;
+  age: string;
+  chars: number;
+  pinned: boolean;
+  thumb: string;
+};
+
+/** One item on the Shelf (island.md 9.2). */
+export type ShelfRow = { path: string; name: string; icon: string; exists: boolean };
+
 export type Geometry = {
   pageW: number;
   pageH: number;

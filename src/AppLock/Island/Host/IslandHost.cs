@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -26,6 +27,8 @@ public sealed class IslandHost
     private IslandVolumeController? _volume;
     private IslandHomeState? _home;
     private IslandTileActions? _tiles;
+    private IslandClipboardTab? _clipboardTab;
+    private IslandShelf? _shelf;
     private DispatcherQueueTimer? _clockTimer;
     private DispatcherQueueTimer? _batteryTimer;
     private int _hotkeyId = -1;
@@ -34,6 +37,10 @@ public sealed class IslandHost
 
     /// <summary>The Home tab told the host it is on screen; sampling runs only while it is.</summary>
     private bool _homeTabVisible;
+    private bool _clipboardVisible;
+    private bool _shelfVisible;
+    private string _clipboardQuery = string.Empty;
+    private int _clipboardVersion;
     private long _motionUntilTicks;
     private string _lastVolumeFingerprint = string.Empty;
     private string _qrText = string.Empty;
@@ -74,8 +81,16 @@ public sealed class IslandHost
             _window.MotionStarted += OnMotionStarted;
             _window.WheelTurned += OnWheelTurned;
             _window.VolumeRequested += OnVolumeRequested;
-            _window.HomeVisibilityChanged += OnHomeVisibilityChanged;
+            _window.TabVisibilityChanged += OnTabVisibility;
             _window.VisibleChanged += OnVisibleChanged;
+            _window.ClipboardListRequested += OnClipboardList;
+            _window.ClipboardPasteRequested += OnClipboardPaste;
+            _window.ClipboardPinRequested += OnClipboardPin;
+            _window.ClipboardClearRequested += OnClipboardClear;
+            _window.ShelfListRequested += SendShelf;
+            _window.ShelfAddRequested += OnShelfAdd;
+            _window.ShelfRemoveRequested += OnShelfRemove;
+            _window.ShelfClearRequested += OnShelfClear;
             _window.TileRequested += OnTileRequested;
             _window.MediaCommandRequested += OnMediaCommand;
             _window.VolumeDeviceRequested += OnVolumeDevice;
@@ -92,6 +107,10 @@ public sealed class IslandHost
                 HideForCaptureAsync,
                 ShowAfterCaptureAsync,
                 () => ServiceContainer.Settings.Island.ScreenshotsFolder);
+
+            _clipboardTab = new IslandClipboardTab();
+            _shelf = new IslandShelf();
+            ServiceContainer.ClipboardStore.DataChanged += OnClipboardDataChanged;
 
             _lockKeys = new LockKeyCardSource(queue);
             _lockKeys.CapsLockChanged += OnCapsLockChanged;
@@ -139,6 +158,9 @@ public sealed class IslandHost
         _home?.Dispose();
         _home = null;
         _tiles = null;
+        _clipboardTab = null;
+        _shelf = null;
+        ServiceContainer.ClipboardStore.DataChanged -= OnClipboardDataChanged;
 
         _lockKeys?.Dispose();
         _lockKeys = null;
@@ -156,8 +178,16 @@ public sealed class IslandHost
             _window.MotionStarted -= OnMotionStarted;
             _window.WheelTurned -= OnWheelTurned;
             _window.VolumeRequested -= OnVolumeRequested;
-            _window.HomeVisibilityChanged -= OnHomeVisibilityChanged;
+            _window.TabVisibilityChanged -= OnTabVisibility;
             _window.VisibleChanged -= OnVisibleChanged;
+            _window.ClipboardListRequested -= OnClipboardList;
+            _window.ClipboardPasteRequested -= OnClipboardPaste;
+            _window.ClipboardPinRequested -= OnClipboardPin;
+            _window.ClipboardClearRequested -= OnClipboardClear;
+            _window.ShelfListRequested -= SendShelf;
+            _window.ShelfAddRequested -= OnShelfAdd;
+            _window.ShelfRemoveRequested -= OnShelfRemove;
+            _window.ShelfClearRequested -= OnShelfClear;
             _window.TileRequested -= OnTileRequested;
             _window.MediaCommandRequested -= OnMediaCommand;
             _window.VolumeDeviceRequested -= OnVolumeDevice;
@@ -230,11 +260,132 @@ public sealed class IslandHost
         _cards?.HoldForMotion(durationMs);
     }
 
-    private void OnHomeVisibilityChanged(bool visible)
+    /// <summary>
+    /// The page reports which tab is on screen. Only that tab does any work: Home samples, Clipboard
+    /// and Shelf load their lists on arrival.
+    /// </summary>
+    private void OnTabVisibility(string id, bool visible)
     {
-        _homeTabVisible = visible;
-        IslandSpikeLog.Write($"home: visible {visible}");
+        _homeTabVisible = visible && id == "home";
+        _clipboardVisible = visible && id == "clipboard";
+        _shelfVisible = visible && id == "shelf";
+
+        if (visible) IslandSpikeLog.Write($"tab: {id} visible");
+
         UpdateSampling();
+
+        if (_clipboardVisible) RefreshClipboard();
+        if (_shelfVisible) SendShelf();
+    }
+
+    // ── Clipboard tab (island.md 9.1) ───────────────────────────────────────
+
+    private void OnClipboardList(string query)
+    {
+        _clipboardQuery = query;
+        RefreshClipboard();
+    }
+
+    private void OnClipboardDataChanged(object? sender, EventArgs e)
+    {
+        var window = _window;
+        if (window == null || !_clipboardVisible) return;
+
+        // The store raises this from its own thread.
+        window.DispatcherQueue.TryEnqueue(RefreshClipboard);
+    }
+
+    private async void RefreshClipboard()
+    {
+        if (_clipboardTab == null) return;
+
+        int version = ++_clipboardVersion;
+        IReadOnlyList<ClipboardRow> rows = await _clipboardTab.ListAsync(_clipboardQuery);
+
+        // A newer search (or a closed tab) wins over this result.
+        if (version != _clipboardVersion || !_clipboardVisible) return;
+
+        IslandSpikeLog.Write($"clipboard: {rows.Count} row(s) for '{_clipboardQuery}'");
+        _window?.SendClipboard(rows);
+    }
+
+    private async void OnClipboardPaste(string id, bool copyOnly)
+    {
+        if (_clipboardTab == null) return;
+
+        await _clipboardTab.PasteAsync(id, copyOnly);
+        if (_clipboardVisible) RefreshClipboard();
+    }
+
+    private async void OnClipboardPin(string id)
+    {
+        if (_clipboardTab == null) return;
+
+        await _clipboardTab.PinAsync(id);
+        if (_clipboardVisible) RefreshClipboard();
+    }
+
+    private async void OnClipboardClear()
+    {
+        if (_clipboardTab == null) return;
+
+        await _clipboardTab.ClearAsync();
+        if (_clipboardVisible) RefreshClipboard();
+    }
+
+    // ── Shelf tab (island.md 9.2) ───────────────────────────────────────────
+
+    private void SendShelf() => _window?.SendShelf(_shelf?.Rows() ?? Array.Empty<ShelfRow>());
+
+    private void OnShelfAdd()
+    {
+        if (_shelf == null) return;
+
+        try
+        {
+            using var dialog = new System.Windows.Forms.OpenFileDialog
+            {
+                Title = "Add files to the Island shelf",
+                Multiselect = true,
+                CheckFileExists = true,
+                Filter = "All files|*.*",
+            };
+
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+            int added = _shelf.Add(dialog.FileNames, ServiceContainer.Settings.Island.ShelfCopyFiles);
+            IslandSpikeLog.Write($"shelf: added {added} item(s), {_shelf.Count} on the shelf");
+            SendShelf();
+        }
+        catch (Exception ex)
+        {
+            IslandSpikeLog.Write($"shelf: add failed ({ex.GetType().Name}: {ex.Message})");
+        }
+    }
+
+    private void OnShelfRemove(string path)
+    {
+        if (_shelf == null) return;
+
+        // The page is untrusted: only paths that are actually on the shelf may be removed.
+        if (!_shelf.Contains(path))
+        {
+            IslandSpikeLog.Write("shelf: rejected remove for an unknown path");
+            return;
+        }
+
+        _shelf.Remove(path);
+        IslandSpikeLog.Write($"shelf: removed, {_shelf.Count} left");
+        SendShelf();
+    }
+
+    private void OnShelfClear()
+    {
+        if (_shelf == null) return;
+
+        _shelf.Clear();
+        IslandSpikeLog.Write("shelf: cleared");
+        SendShelf();
     }
 
     private void OnVisibleChanged(bool visible) => UpdateSampling();

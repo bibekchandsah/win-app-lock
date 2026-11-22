@@ -4,6 +4,8 @@
   import { FrameMonitor, formatStats } from './perf';
   import { post, onMessage } from './bridge';
   import HomeTab from './components/HomeTab.svelte';
+  import ClipboardTab from './components/ClipboardTab.svelte';
+  import ShelfTab from './components/ShelfTab.svelte';
   import {
     CARD,
     DEFAULT_SETTINGS,
@@ -15,6 +17,7 @@
     clamp01,
     geometryOf,
     lerpRect,
+    type ClipboardRow,
     type DeviceItem,
     type Geometry,
     type HomeStatsState,
@@ -22,6 +25,7 @@
     type MediaState,
     type RecentItem,
     type Rect,
+    type ShelfRow,
     type TabId,
   } from './motion';
 
@@ -96,7 +100,15 @@
   let stats: HomeStatsState = { cpu: 0, ram: 0, down: 0, up: 0, volume: 0 };
   let recent: RecentItem[] = [];
   let devices: DeviceItem[] = [];
-  let homeVisibleSent = false;
+
+  // Clipboard and Shelf tabs (island.md 9.1 / 9.2), both fed by the host from the app's stores.
+  let clipboardRows: ClipboardRow[] = [];
+  let clipboardQuery = '';
+  let shelfRows: ShelfRow[] = [];
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** The tab the host currently believes is on screen ('' = none). */
+  let tabVisibleSent = '';
 
   let card: Card | null = null;
   let cardTarget = 0;
@@ -254,14 +266,16 @@
   // ── Host notifications ────────────────────────────────────────────────────
 
   /**
-   * The host samples only while the Home tab is on screen, so it is told exactly when that is true:
-   * open, on Home, not paused (island.md 4.1: no work while hidden).
+   * The host does work only for the tab on screen (sampling, list queries), so it is told exactly
+   * which tab that is: open, not paused, nothing while hidden (island.md 4.1).
    */
-  function syncHome(): void {
-    const visible = target === 1 && activeTab === 'home' && !paused;
-    if (visible === homeVisibleSent) return;
-    homeVisibleSent = visible;
-    post('home.visible', { visible });
+  function syncTab(): void {
+    const visible = target === 1 && !paused;
+    const id = visible ? activeTab : '';
+    if (id === tabVisibleSent) return;
+
+    tabVisibleSent = id;
+    post('tab.visible', { id, visible });
   }
 
   function runTile(id: string): void {
@@ -278,6 +292,46 @@
 
   function setOutputDevice(id: string): void {
     post('volume.device', { id });
+  }
+
+  // ── Clipboard and Shelf ───────────────────────────────────────────────────
+
+  function clipboardSearch(query: string): void {
+    clipboardQuery = query;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => post('clipboard.list', { query: clipboardQuery }), 150);
+  }
+
+  /**
+   * A paste must go to the app the user came from: drop the keyboard first, so the host hands focus
+   * back before it reads the target window, then close the island the way the spec describes.
+   */
+  function pasteClipboardItem(id: string, copyOnly: boolean): void {
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) active.blur();
+
+    post('clipboard.paste', { id, copyOnly });
+    if (!copyOnly) startClose();
+  }
+
+  function pinClipboardItem(id: string): void {
+    post('clipboard.pin', { id });
+  }
+
+  function clearClipboard(): void {
+    post('clipboard.clear');
+  }
+
+  function addShelfFiles(): void {
+    post('shelf.add');
+  }
+
+  function removeShelfItem(path: string): void {
+    post('shelf.remove', { path });
+  }
+
+  function clearShelf(): void {
+    post('shelf.clear');
   }
 
   function sendLayout(phase: 'open' | 'folded', rect: Rect = geometry.open): void {
@@ -342,7 +396,7 @@
     sizeSpring.snapTo(0);
     sendUnionLayout(from, geometry.open);
     schedule();
-    syncHome();
+    syncTab();
   }
 
   function cycleTab(delta: number): void {
@@ -374,15 +428,20 @@
     sendLayout('open');
     target = 1;
     schedule();
-    syncHome();
+    syncTab();
   }
 
   function startClose(): void {
     openTimer && clearTimeout(openTimer);
     sizing = null;
     target = 0;
+
+    // Let the keyboard go back to the app the user came from.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) active.blur();
+
     schedule();
-    syncHome();
+    syncTab();
   }
 
   /** The wheel over the folded pill changes the system volume (island.md 5.1). */
@@ -485,9 +544,19 @@
       sizeCanvas();
       apply(spring.value);
     };
+
+    // The island is non-activating; a text field has to ask the host for the keyboard explicitly.
+    const onFocusIn = (event: FocusEvent): void => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') post('input.focusRequested', {});
+    };
+    const onFocusOut = (): void => post('input.focusReleased', {});
+
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
 
     onMessage((message) => {
       switch (message.type) {
@@ -537,6 +606,16 @@
           if (payload && Array.isArray(payload.items)) recent = payload.items;
           break;
         }
+        case 'list.clipboard': {
+          const payload = message.payload as { items?: ClipboardRow[] } | undefined;
+          if (payload && Array.isArray(payload.items)) clipboardRows = payload.items;
+          break;
+        }
+        case 'list.shelf': {
+          const payload = message.payload as { items?: ShelfRow[] } | undefined;
+          if (payload && Array.isArray(payload.items)) shelfRows = payload.items;
+          break;
+        }
         case 'event.card': {
           const payload = message.payload as
             | {
@@ -577,11 +656,11 @@
           paused = true;
           clearTimeout(openTimer);
           clearTimeout(closeTimer);
-          syncHome();
+          syncTab();
           break;
         case 'anim.resume':
           paused = false;
-          syncHome();
+          syncTab();
           break;
       }
     });
@@ -596,6 +675,8 @@
       window.removeEventListener('resize', onResize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('wheel', onWheel);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
       if (clockTimer) clearInterval(clockTimer);
       clearTimeout(openTimer);
       clearTimeout(closeTimer);
@@ -689,7 +770,10 @@
         </div>
       </div>
 
-      <div class="shell-body" class:home={activeTab === 'home'}>
+      <div
+        class="shell-body"
+        class:panel={activeTab === 'home' || activeTab === 'clipboard' || activeTab === 'shelf'}
+      >
         {#if activeTab === 'home'}
           <HomeTab
             {media}
@@ -701,6 +785,22 @@
             onVolume={setVolumeRequest}
             onDevice={setOutputDevice}
             onOpenClipboard={() => selectTab('clipboard')}
+          />
+        {:else if activeTab === 'clipboard'}
+          <ClipboardTab
+            items={clipboardRows}
+            query={clipboardQuery}
+            onSearch={clipboardSearch}
+            onPaste={pasteClipboardItem}
+            onPin={pinClipboardItem}
+            onClear={clearClipboard}
+          />
+        {:else if activeTab === 'shelf'}
+          <ShelfTab
+            items={shelfRows}
+            onAdd={addShelfFiles}
+            onRemove={removeShelfItem}
+            onClear={clearShelf}
           />
         {:else}
           <span class="placeholder-glyph" aria-hidden="true">{TAB_SIZES[activeTab].icon}</span>

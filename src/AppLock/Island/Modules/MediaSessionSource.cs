@@ -46,7 +46,7 @@ public sealed class MediaSessionSource : IDisposable
 
     public static string ArtFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AppLock", "island", "art");
+        "AppLock", "island", "cache", "art");
 
     public async Task<MediaSnapshot?> PollAsync()
     {

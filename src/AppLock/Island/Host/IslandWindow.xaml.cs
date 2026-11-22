@@ -79,6 +79,15 @@ public sealed partial class IslandWindow : Window
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
     {
@@ -102,10 +111,18 @@ public sealed partial class IslandWindow : Window
         "volume.set",
         "volume.step",
         "volume.device",
-        "home.visible",
+        "tab.visible",
         "tile.run",
         "media.command",
         "card.action",
+        "clipboard.list",
+        "clipboard.paste",
+        "clipboard.pin",
+        "clipboard.clear",
+        "shelf.list",
+        "shelf.add",
+        "shelf.remove",
+        "shelf.clear",
     };
 
     private readonly IntPtr _hwnd;
@@ -118,6 +135,11 @@ public sealed partial class IslandWindow : Window
 
     private IslandSettings _settings;
     private double _scale = 1;
+
+    /// <summary>Focus handoff (island-webview2.md 4.4): set while a text field owns the keyboard.</summary>
+    private bool _hasFocus;
+    private bool _allowActivate;
+    private IntPtr _previousForeground = IntPtr.Zero;
 
     /// <summary>Island rectangle in page CSS pixels, as last reported by the UI.</summary>
     private (int X, int Y, int W, int H) _islandRect;
@@ -137,8 +159,27 @@ public sealed partial class IslandWindow : Window
     /// <summary>The page asked for an absolute volume in percent.</summary>
     public event Action<int>? VolumeRequested;
 
-    /// <summary>The Home tab is (or is no longer) on screen, so the host can start/stop sampling.</summary>
-    public event Action<bool>? HomeVisibilityChanged;
+    /// <summary>Which tab is on screen (id, visible); the host starts/stops work from this.</summary>
+    public event Action<string, bool>? TabVisibilityChanged;
+
+    /// <summary>The Clipboard tab asked for its list, optionally filtered.</summary>
+    public event Action<string>? ClipboardListRequested;
+
+    /// <summary>Paste (or copy only) the clipboard item with this id.</summary>
+    public event Action<string, bool>? ClipboardPasteRequested;
+
+    public event Action<string>? ClipboardPinRequested;
+
+    public event Action? ClipboardClearRequested;
+
+    public event Action? ShelfListRequested;
+
+    /// <summary>Add files to the shelf (the host shows the file picker).</summary>
+    public event Action? ShelfAddRequested;
+
+    public event Action<string>? ShelfRemoveRequested;
+
+    public event Action? ShelfClearRequested;
 
     /// <summary>The island was shown or hidden, including the host hiding it for a capture.</summary>
     public event Action<bool>? VisibleChanged;
@@ -249,7 +290,8 @@ public sealed partial class IslandWindow : Window
 
     private IntPtr IslandSubclassProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr id, IntPtr data)
     {
-        if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
+        // Clicks never activate the island; only a text field asking for the keyboard does.
+        if (msg == WM_MOUSEACTIVATE && !_allowActivate) return MA_NOACTIVATE;
 
         if (Clipboard.HandleMessage(msg)) return IntPtr.Zero;
 
@@ -347,6 +389,9 @@ public sealed partial class IslandWindow : Window
         }
 
         PostRaw(BridgeMessages.Envelope(visible ? BridgeMessages.AnimResume : BridgeMessages.AnimPause, null));
+
+        // Hiding the island must hand the keyboard back to whatever had it.
+        if (!visible) ReleaseFocus();
         VisibleChanged?.Invoke(visible);
     }
 
@@ -407,18 +452,29 @@ public sealed partial class IslandWindow : Window
         core.SetVirtualHostNameToFolderMapping(
             "island.appassets", _contentDir, CoreWebView2HostResourceAccessKind.DenyCors);
 
-        // Album art is written here by the media source and loaded by the page as an image, so it
-        // never has to travel over the message bridge (island-webview2.md 5).
+        // Images are loaded by the page from its own hosts, never sent over the bridge
+        // (island-webview2.md 5): album art and shelf icons from the island cache, clipboard
+        // thumbnails straight out of the clipboard store's folder.
         try
         {
-            string artFolder = MediaSessionSource.ArtFolder;
-            Directory.CreateDirectory(artFolder);
+            string cacheRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AppLock", "island", "cache");
+            Directory.CreateDirectory(MediaSessionSource.ArtFolder);
+            Directory.CreateDirectory(IslandShelf.IconFolder);
             core.SetVirtualHostNameToFolderMapping(
-                "island.cache", artFolder, CoreWebView2HostResourceAccessKind.DenyCors);
+                "island.cache", cacheRoot, CoreWebView2HostResourceAccessKind.DenyCors);
+
+            string clipboardRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AppLock", "Clipboard");
+            Directory.CreateDirectory(clipboardRoot);
+            core.SetVirtualHostNameToFolderMapping(
+                "island.clips", clipboardRoot, CoreWebView2HostResourceAccessKind.DenyCors);
         }
         catch (Exception ex)
         {
-            IslandSpikeLog.Write($"webview: art folder unavailable: {ex.Message}");
+            IslandSpikeLog.Write($"webview: image folders unavailable: {ex.Message}");
         }
 
         // Local content only: nothing may navigate away, open windows or ask for permissions.
@@ -513,6 +569,12 @@ public sealed partial class IslandWindow : Window
 
     public void SendVolume(int percent, IReadOnlyList<VolumeDeviceInfo> devices) =>
         _batcher?.Post("volume", BridgeMessages.VolumeMessage(percent, devices));
+
+    public void SendClipboard(IReadOnlyList<ClipboardRow> rows) =>
+        _batcher?.Post("clipboard", BridgeMessages.ClipboardListMessage(rows));
+
+    public void SendShelf(IReadOnlyList<ShelfRow> rows) =>
+        _batcher?.Post("shelf", BridgeMessages.ShelfListMessage(rows));
 
     private static bool SystemUsesLightTheme()
     {
@@ -619,13 +681,64 @@ public sealed partial class IslandWindow : Window
                     }
                     break;
 
-                case "home.visible":
-                    if (root.TryGetProperty("payload", out var homePayload) && homePayload.ValueKind == JsonValueKind.Object
-                        && homePayload.TryGetProperty("visible", out var visibleElement)
+                case "tab.visible":
+                    if (root.TryGetProperty("payload", out var tabPayload) && tabPayload.ValueKind == JsonValueKind.Object
+                        && tabPayload.TryGetProperty("visible", out var visibleElement)
                         && (visibleElement.ValueKind == JsonValueKind.True || visibleElement.ValueKind == JsonValueKind.False))
                     {
-                        HomeVisibilityChanged?.Invoke(visibleElement.ValueKind == JsonValueKind.True);
+                        bool visible = visibleElement.ValueKind == JsonValueKind.True;
+                        TabVisibilityChanged?.Invoke(
+                            TryReadText(tabPayload, "id", out string tabId) ? tabId : string.Empty, visible);
                     }
+                    break;
+
+                case "clipboard.list":
+                    ClipboardListRequested?.Invoke(
+                        root.TryGetProperty("payload", out var queryPayload)
+                        && queryPayload.ValueKind == JsonValueKind.Object
+                        && TryReadText(queryPayload, "query", out string query)
+                            ? query.Trim()
+                            : string.Empty);
+                    break;
+
+                case "clipboard.paste":
+                    if (root.TryGetProperty("payload", out var pastePayload) && pastePayload.ValueKind == JsonValueKind.Object
+                        && TryReadString(pastePayload, "id", out string pasteId))
+                    {
+                        ClipboardPasteRequested?.Invoke(pasteId, TryReadBool(pastePayload, "copyOnly", out bool copyOnly) && copyOnly);
+                    }
+                    break;
+
+                case "clipboard.pin":
+                    if (root.TryGetProperty("payload", out var pinPayload) && pinPayload.ValueKind == JsonValueKind.Object
+                        && TryReadString(pinPayload, "id", out string pinId))
+                    {
+                        ClipboardPinRequested?.Invoke(pinId);
+                    }
+                    break;
+
+                case "clipboard.clear":
+                    ClipboardClearRequested?.Invoke();
+                    break;
+
+                case "shelf.list":
+                    ShelfListRequested?.Invoke();
+                    break;
+
+                case "shelf.add":
+                    ShelfAddRequested?.Invoke();
+                    break;
+
+                case "shelf.remove":
+                    if (root.TryGetProperty("payload", out var removePayload) && removePayload.ValueKind == JsonValueKind.Object
+                        && TryReadText(removePayload, "path", out string removePath) && removePath.Length > 0)
+                    {
+                        ShelfRemoveRequested?.Invoke(removePath);
+                    }
+                    break;
+
+                case "shelf.clear":
+                    ShelfClearRequested?.Invoke();
                     break;
 
                 case "tile.run":
@@ -653,11 +766,17 @@ public sealed partial class IslandWindow : Window
                     }
                     break;
 
+                case "input.focusRequested":
+                    AcquireFocus();
+                    break;
+
+                case "input.focusReleased":
+                    ReleaseFocus();
+                    break;
+
                 case "perf.done":
                 case "hover.state":
                 case "state.hover":
-                case "input.focusRequested":
-                case "input.focusReleased":
                     break;
             }
         }
@@ -665,6 +784,43 @@ public sealed partial class IslandWindow : Window
         {
             IslandSpikeLog.Write($"bridge: rejected message ({ex.GetType().Name})");
         }
+    }
+
+    // ── Focus handoff (island-webview2.md 4.4) ───────────────────────────────
+
+    /// <summary>
+    /// A text field needs the keyboard: remember who had focus, allow activation, and give the
+    /// WebView2 control the keyboard. Everything else stays non-activating.
+    /// </summary>
+    private void AcquireFocus()
+    {
+        if (_hasFocus) return;
+
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground != IntPtr.Zero && foreground != _hwnd) _previousForeground = foreground;
+
+        _hasFocus = true;
+        _allowActivate = true;
+        Activate();
+        SetForegroundWindow(_hwnd);
+        WebView.Focus(FocusState.Programmatic);
+        IslandSpikeLog.Write("focus: acquired");
+    }
+
+    private void ReleaseFocus()
+    {
+        if (!_hasFocus) return;
+
+        _hasFocus = false;
+        _allowActivate = false;
+
+        if (_previousForeground != IntPtr.Zero && IsWindow(_previousForeground))
+        {
+            SetForegroundWindow(_previousForeground);
+        }
+
+        _previousForeground = IntPtr.Zero;
+        IslandSpikeLog.Write("focus: released");
     }
 
     private void PollHover()
@@ -754,6 +910,15 @@ public sealed partial class IslandWindow : Window
         if (!payload.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.String) return false;
         value = element.GetString() ?? string.Empty;
         return value.Length <= 256;
+    }
+
+    private static bool TryReadBool(JsonElement payload, string name, out bool value)
+    {
+        value = false;
+        if (!payload.TryGetProperty(name, out var element)) return false;
+        if (element.ValueKind == JsonValueKind.True) { value = true; return true; }
+        if (element.ValueKind == JsonValueKind.False) { value = false; return true; }
+        return false;
     }
 
     private static bool TryReadInt(JsonElement payload, string name, out int value)

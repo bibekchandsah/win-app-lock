@@ -234,13 +234,57 @@ p99 17.0 · max 17.8 ms → PASS (budget p95 ≤ 20.9, max ≤ 33.4).
    `canShow` predicate: while the open shell is on screen a card waits in the queue (the 10 Hz tick
    keeps running and drains it as soon as the shell folds).
 
+## Milestone 6: the Clipboard and Shelf tabs
+
+Two tabs that read the app's own stores instead of keeping a second copy of anything.
+
+- **Clipboard** reuses `ClipboardStore` and `ClipboardPasteService`, so the island shows exactly the
+  history the app's clipboard feature records: text, images and file lists, newest first. An image
+  thumbnail is loaded straight from the clipboard store's folder through a second virtual host,
+  `https://island.clips/…`. Search is a match in the store (debounced 150 ms in the page), a pin
+  toggles the store's own flag, and the rows come back in the store's order.
+- **Shelf** is a link list in `%LOCALAPPDATA%\AppLock\island\shelf.json`. Row icons are rendered
+  once per path into `…\island\cache\shelf` and loaded from `https://island.cache/shelf/…`:
+  pictures get a 48 px thumbnail, everything else the shell's own icon, and a path that no longer
+  exists is greyed out instead of dropped. Files are picked with the host's file dialog (native
+  drag-and-drop belongs to milestone 7); `ShelfCopyFiles` copies the file in instead of linking it.
+- All images now live under one `island.cache` host (`art/`, `shelf/`), so album art moved from
+  `…\island\art` to `…\island\cache\art`.
+
+**One message for tab work.** `home.visible` became `tab.visible { id, visible }`: the page reports
+which tab is on screen (or `''` when nothing is), and the host keys every sampler and list query off
+it, so only the visible tab does any work.
+
+**Focus handoff.** The island still never activates on a click (`WM_MOUSEACTIVATE` →
+`MA_NOACTIVATE`), so a text field has to ask for the keyboard explicitly: `input.focusRequested`
+remembers the current foreground window, clears the non-activation guard, activates, and focuses
+the WebView2 control; `input.focusReleased` — a blur, a paste, closing the island — restores that
+window. Without this the search box could not be typed into at all.
+
+**Paste goes to the app you came from.** Clicking a row blurs the search box first (which hands
+focus back), then posts `clipboard.paste`; the host pastes into whatever window is foreground at
+that moment while the page folds the island. Shift+click only puts the item back on the clipboard.
+The page may also only remove shelf paths the host itself just sent, so a stale render cannot
+disagree with the file on disk.
+
+### Verified
+
+- Clipboard tab opened with 60 rows from the real store (shell 504×270); typing into the search box
+  logged `focus: acquired` and then `clipboard: 0 row(s) for 'zzzzzz'` after the debounce; pinning a
+  row rewrote the list with the golden pin shown, and a second click cleared it again.
+- Shelf: three parked files (a picture, a text file, a path that no longer exists) rendered with a
+  thumbnail, a shell icon and a greyed missing row; removing one dropped the count and rewrote
+  `shelf.json`; adding a file through the picker persisted it too.
+- This change was not benchmarked: the user's own AppLock instance was running and could not be
+  stopped for a clean 100-cycle run.
+
 ## Known gaps (later milestones)
 
-- Typing while the island has focus (`input.focusRequested` → clear `MA_NOACTIVATE`, activate,
-  restore afterwards) is not implemented yet. Because the island never activates, the page gets no
-  keyboard events: the keyboard hooks (`Ctrl+Tab`, arrows, `Esc`) are wired but cannot fire until
-  focus handling exists. Mouse clicks on tabs and chips do work (the window receives them without
-  activating).
+- Paste targets whatever window is foreground when the row is clicked; an elevated app cannot be a
+  target from a non-elevated island (UIPI), and the island cannot tell whether the paste landed.
+- The keyboard hooks (`Ctrl+Tab`, arrows, `Esc`) still cannot fire: the page only gets the keyboard
+  after a field asks for it, and no field outside the Clipboard search has. Mouse clicks on tabs
+  and chips work because the window receives them without activating.
 - `WDA_EXCLUDEFROMCAPTURE`, per-monitor DPI changes, multi-monitor choice, pin/quiet, settings,
   and the Chat WebView2 profile belong to milestones 2–15.
 - Hover polling costs one `GetCursorPos` per 33 ms; it is paused with the island's visibility
