@@ -368,6 +368,29 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </Grid>
 
+                        <!-- Font size (independent of the widget scale) -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Font size"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <Slider x:Name="FontSizeSlider"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="FontSizeSlider_ValueChanged"/>
+
+                            <TextBlock x:Name="FontSizeValueText"
+                                       Grid.Column="2" Width="48" FontSize="12" TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+
                         <!-- Font -->
                         <Grid ColumnSpacing="12" RowSpacing="8">
                             <Grid.ColumnDefinitions>
@@ -763,6 +786,48 @@
                                 <TextBlock Text="Total data used today" FontSize="13" VerticalAlignment="Center"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                 <ToggleSwitch x:Name="ShowTodayTotalToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Date and time" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Shown below the speeds; follows the horizontal or vertical layout"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowClockToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Show the date" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <ToggleSwitch x:Name="ShowClockDateToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                            </Grid>
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Seconds" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Ticks every second instead of every minute"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowClockSecondsToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
                         </StackPanel>

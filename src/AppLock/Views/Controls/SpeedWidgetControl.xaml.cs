@@ -8,6 +8,7 @@ using AppLock.Services;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
@@ -37,14 +38,22 @@ public sealed partial class SpeedWidgetControl : UserControl
     private bool _metered;
     private bool _vpn;
 
+    /// <summary>True when the host window actually paints a Mica/acrylic backdrop behind us.</summary>
+    private bool _backdropAvailable = true;
+
     private readonly Queue<double> _downHistory = new();
     private readonly Queue<double> _upHistory = new();
     private readonly Dictionary<string, TextBlock> _rowValues = new();
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _clockTimer;
 
     private SystemStats? _lastStats;
     private TopAppsStats? _topApps;
     private double _downBytesPerSec;
     private double _upBytesPerSec;
+
+    private string _downFormatted = "0 B/s";
+    private string _upFormatted = "0 B/s";
 
     private Brush _downBrush = new SolidColorBrush(DefaultDown);
     private Brush _upBrush = new SolidColorBrush(DefaultUp);
@@ -52,6 +61,7 @@ public sealed partial class SpeedWidgetControl : UserControl
     private FontFamily _fontFamily = new("Segoe UI Variable");
     private Windows.UI.Text.FontWeight _fontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
     private double _scale = 1.0;
+    private double _textScale = 1.0;
 
     public SpeedWidgetControl()
     {
@@ -59,6 +69,26 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         SparkCanvas.SizeChanged += (_, _) => DrawSpark();
 
+        // The clock has its own one-second timer; it only runs while the control is in the tree.
+        Loaded += (_, _) =>
+        {
+            UpdateClock();
+            if (ServiceContainer.Settings.SpeedMeter.ShowClock) StartClock();
+        };
+        Unloaded += (_, _) => _clockTimer?.Stop();
+
+        ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
+    }
+
+    /// <summary>
+    /// Told by the host window whether a system backdrop is really present, so "Follow Windows" can
+    /// stay translucent over Mica and fall back to a solid card when it cannot.
+    /// </summary>
+    public void SetBackdropAvailable(bool available)
+    {
+        if (_backdropAvailable == available) return;
+
+        _backdropAvailable = available;
         ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
     }
 
@@ -69,6 +99,9 @@ public sealed partial class SpeedWidgetControl : UserControl
         var isDark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
 
         var scale = Math.Clamp(settings.ScalePercent, 50, 250) / 100.0;
+
+        // Text size is its own setting, so a user can enlarge the numbers without enlarging the card.
+        var textScale = scale * Math.Clamp(settings.FontSizePercent, 50, 250) / 100.0;
         var opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100.0;
         var radius = Math.Clamp(settings.CornerRadiusPx, 0, 40);
 
@@ -82,7 +115,18 @@ public sealed partial class SpeedWidgetControl : UserControl
                 transparent = true;
                 break;
             case "FollowWindows":
-                background = isDark ? Color.FromArgb(255, 0x20, 0x20, 0x20) : Color.FromArgb(255, 0xF3, 0xF3, 0xF3);
+                // Follow Windows is a Mica surface: the window paints the backdrop and the card only
+                // adds a faint theme tint. Filling it with #202020 is what made Mica look black.
+                if (_backdropAvailable)
+                {
+                    background = isDark ? Colors.White : Colors.Black;
+                    opacity = opacity * 0.2;
+                }
+                else
+                {
+                    // No backdrop on this system: keep the readable theme card instead of nothing.
+                    background = isDark ? Color.FromArgb(255, 0x20, 0x20, 0x20) : Color.FromArgb(255, 0xF3, 0xF3, 0xF3);
+                }
                 break;
             case "Solid":
                 opacity = 1.0;
@@ -119,8 +163,8 @@ public sealed partial class SpeedWidgetControl : UserControl
             ? Orientation.Vertical
             : Orientation.Horizontal;
         Row.Spacing = 16 * scale;
-        DownBlock.Spacing = 6 * scale;
-        UpBlock.Spacing = 6 * scale;
+        DownBlock.Spacing = 6 * textScale;
+        UpBlock.Spacing = 6 * textScale;
 
         var font = new FontFamily(string.IsNullOrWhiteSpace(settings.FontFamily) ? "Segoe UI Variable" : settings.FontFamily);
         var weight = settings.FontWeight switch
@@ -130,9 +174,9 @@ public sealed partial class SpeedWidgetControl : UserControl
             _ => Microsoft.UI.Text.FontWeights.SemiBold
         };
 
-        var fontSize = 14 * scale;
-        var iconSize = 12 * scale;
-        var numberWidth = 84 * scale;
+        var fontSize = 14 * textScale;
+        var iconSize = 12 * textScale;
+        var numberWidth = 84 * textScale;
 
         foreach (var block in new[] { DownText, UpText })
         {
@@ -142,11 +186,15 @@ public sealed partial class SpeedWidgetControl : UserControl
             block.Width = numberWidth;
         }
 
+        // The unit is part of the reading, so it is re-split whenever the size changes.
+        SetRateText(DownText, _downFormatted);
+        SetRateText(UpText, _upFormatted);
+
         foreach (var label in new[] { DownLabel, UpLabel })
         {
             label.FontFamily = font;
             label.FontWeight = weight;
-            label.FontSize = 11 * scale;
+            label.FontSize = 11 * textScale;
             label.Visibility = settings.UseIcons ? Visibility.Collapsed : Visibility.Visible;
             label.Foreground = textBrush;
         }
@@ -171,7 +219,7 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         MeteredBadge.FontFamily = font;
         MeteredBadge.FontWeight = weight;
-        MeteredBadge.FontSize = 9 * scale;
+        MeteredBadge.FontSize = 9 * textScale;
         MeteredBadge.Foreground = textBrush;
 
         VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
@@ -193,10 +241,140 @@ public sealed partial class SpeedWidgetControl : UserControl
         _fontFamily = font;
         _fontWeight = weight;
         _scale = scale;
+        _textScale = textScale;
+
+        // Date and time under the speeds. Horizontal layout keeps one line; vertical stacks the
+        // date over the time, so a tall narrow widget does not get wider every second.
+        var vertical = string.Equals(settings.Layout, "Vertical", StringComparison.OrdinalIgnoreCase);
+
+        ClockPanel.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+        ClockPanel.Spacing = vertical ? 0 : 8 * textScale;
+        ClockPanel.HorizontalAlignment = HorizontalAlignment.Center;
+
+        ClockDateText.FontFamily = font;
+        ClockDateText.FontWeight = weight;
+        ClockDateText.FontSize = 10.5 * textScale;
+        ClockDateText.Foreground = textBrush;
+
+        ClockTimeText.FontFamily = font;
+        ClockTimeText.FontWeight = weight;
+        ClockTimeText.FontSize = (settings.Compact ? 11 : 12) * textScale;
+        ClockTimeText.Foreground = textBrush;
+
+        HeaderDivider.Background = new SolidColorBrush(Muted(textColor, 0x24));
+        UpdateHeaderDivider();
+
+        UpdateClock();
+
+        if (settings.ShowClock)
+        {
+            StartClock();
+        }
+        else
+        {
+            _clockTimer?.Stop();
+        }
+
         UpdateTicker();
 
-        BuildRows(settings, textBrush, 11 * scale, font, textBrush);
+        BuildRows(settings, textBrush, 11 * textScale, font, textBrush);
         ApplyStatsValues();
+    }
+
+    // ── Readable numbers ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Splits "129.7 KB/s" into a number and a smaller unit, so the reading reads as a value
+    /// rather than one long coloured string. The unit follows the number's colour (and its warning
+    /// colour), because it only changes size.
+    /// </summary>
+    private static void SetRateText(TextBlock block, string text)
+    {
+        block.Inlines.Clear();
+
+        var split = text.LastIndexOf(' ');
+        if (split <= 0)
+        {
+            block.Inlines.Add(new Run { Text = text });
+            return;
+        }
+
+        block.Inlines.Add(new Run { Text = text[..split] });
+        block.Inlines.Add(new Run
+        {
+            Text = " " + text[(split + 1)..],
+            FontSize = Math.Max(8, block.FontSize * 0.7)
+        });
+    }
+
+    /// <summary>Today's totals keep the header's colour language: download and upload tinted.</summary>
+    private void SetTodayRow()
+    {
+        if (!_rowValues.TryGetValue("today", out var block)) return;
+
+        block.Inlines.Clear();
+        block.Inlines.Add(new Run { Text = "↓" + FormatBytes(_todayDown), Foreground = _downBrush });
+        block.Inlines.Add(new Run { Text = "   " });
+        block.Inlines.Add(new Run { Text = "↑" + FormatBytes(_todayUp), Foreground = _upBrush });
+    }
+
+    /// <summary>The hairline only separates the header when there is something under it.</summary>
+    private void UpdateHeaderDivider()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        var hasRows = settings.ShowCpu || settings.ShowRam || settings.ShowDisk
+                      || settings.ShowGpu || settings.ShowBattery || settings.ShowTodayTotal;
+
+        var needed = settings.ShowSparkline || settings.ShowTopApps || hasRows || _metered || _vpn;
+        HeaderDivider.Visibility = needed ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>The same text colour at a lower alpha, for labels and hairlines.</summary>
+    private static Color Muted(Color color, byte alpha)
+        => Color.FromArgb(alpha, color.R, color.G, color.B);
+
+    // ── Date and time ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Shows the local date and time (with seconds) under the speeds. The date and the time are
+    /// separate blocks so each layout can place them without a second line breaking the measure.
+    /// </summary>
+    private void UpdateClock()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+
+        ClockPanel.Visibility = settings.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        if (!settings.ShowClock) return;
+
+        var now = DateTime.Now;
+        var culture = CultureInfo.CurrentCulture;
+        var format = culture.DateTimeFormat;
+
+        // Follow the system clock: 'H' in the short time pattern means a 24-hour clock.
+        var hour24 = format.ShortTimePattern.Contains('H');
+        var timePattern = settings.ShowClockSeconds
+            ? (hour24 ? "HH:mm:ss" : "h:mm:ss tt")
+            : (hour24 ? "HH:mm" : "h:mm tt");
+
+        var date = settings.ShowClockDate ? now.ToString("d", culture) : string.Empty;
+
+        ClockDateText.Text = date;
+        ClockDateText.Visibility = string.IsNullOrEmpty(date) ? Visibility.Collapsed : Visibility.Visible;
+        ClockTimeText.Text = now.ToString(timePattern, culture);
+    }
+
+    private void StartClock()
+    {
+        if (_clockTimer is null)
+        {
+            _clockTimer = DispatcherQueue.CreateTimer();
+            _clockTimer.Interval = TimeSpan.FromSeconds(1);
+            _clockTimer.IsRepeating = true;
+            _clockTimer.Tick += (_, _) => UpdateClock();
+        }
+
+        if (!_clockTimer.IsRunning) _clockTimer.Start();
     }
 
     /// <summary>Creates (or recreates) one row per enabled stat, in the configured order.</summary>
@@ -279,6 +457,7 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         MeteredBadge.Visibility = metered ? Visibility.Visible : Visibility.Collapsed;
         VpnBadge.Visibility = vpn ? Visibility.Visible : Visibility.Collapsed;
+        UpdateHeaderDivider();
         ApplyStatsValues();
     }
 
@@ -315,7 +494,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         SetRow("gpu", stats?.GpuPercent, 101, $"{stats?.GpuPercent ?? 0:F0}%");
         SetRow("battery", stats?.BatteryPercent, 101, $"{stats?.BatteryPercent ?? 0}%");
 
-        SetRow("today", null, 101, $"↓{FormatBytes(_todayDown)} ↑{FormatBytes(_todayUp)}");
+        SetTodayRow();
     }
 
     private static string FormatBytes(long bytes)
@@ -353,8 +532,10 @@ public sealed partial class SpeedWidgetControl : UserControl
     /// <summary>Sets the labels plus the raw rates, so the warning thresholds can tint them.</summary>
     public void SetRates(string down, string up, double downBytesPerSec, double upBytesPerSec)
     {
-        DownText.Text = down;
-        UpText.Text = up;
+        _downFormatted = down;
+        _upFormatted = up;
+        SetRateText(DownText, down);
+        SetRateText(UpText, up);
 
         _downBytesPerSec = downBytesPerSec;
         _upBytesPerSec = upBytesPerSec;
@@ -401,26 +582,31 @@ public sealed partial class SpeedWidgetControl : UserControl
         }
 
         // Every enabled metric gets its own line, so all four top apps are readable at once.
-        var lines = new List<string>();
-        if (settings.TopAppsCpu && _topApps.Cpu is { } cpu) lines.Add($"CPU · {cpu.Text}");
-        if (settings.TopAppsRam && _topApps.Ram is { } ram) lines.Add($"RAM · {ram.Text}");
-        if (settings.TopAppsDisk && _topApps.Disk is { } disk) lines.Add($"Disk · {disk.Text}");
-        if (settings.TopAppsGpu && _topApps.Gpu is { } gpu) lines.Add($"GPU · {gpu.Text}");
+        var lines = new List<(string Label, string Value)>();
+        if (settings.TopAppsCpu && _topApps.Cpu is { } cpu) lines.Add(("CPU", cpu.Text));
+        if (settings.TopAppsRam && _topApps.Ram is { } ram) lines.Add(("RAM", ram.Text));
+        if (settings.TopAppsDisk && _topApps.Disk is { } disk) lines.Add(("Disk", disk.Text));
+        if (settings.TopAppsGpu && _topApps.Gpu is { } gpu) lines.Add(("GPU", gpu.Text));
 
         foreach (var line in lines)
         {
-            TopAppsPanel.Children.Add(new TextBlock
+            var block = new TextBlock
             {
-                Text = line,
-                FontSize = 10 * _scale,
+                FontSize = 10 * _textScale,
                 FontFamily = _fontFamily,
                 FontWeight = _fontWeight,
                 Foreground = _textBrush,
                 TextTrimming = TextTrimming.CharacterEllipsis
-            });
+            };
+
+            block.Inlines.Add(new Run { Text = line.Label + " · " });
+            block.Inlines.Add(new Run { Text = line.Value });
+
+            TopAppsPanel.Children.Add(block);
         }
 
         TopAppsPanel.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateHeaderDivider();
     }
 
     /// <summary>Adds one sample to the mini graph and redraws it.</summary>

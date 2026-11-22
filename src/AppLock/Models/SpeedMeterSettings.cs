@@ -19,6 +19,9 @@ public class SpeedMeterSettings
     public string DownloadColor { get; set; } = "#4ADE80";
     public string UploadColor { get; set; } = "#60A5FA";
     public int ScalePercent { get; set; } = 100;
+
+    /// <summary>Text size in percent, independent of the widget's overall scale.</summary>
+    public int FontSizePercent { get; set; } = 100;
     public string FontFamily { get; set; } = "Segoe UI Variable";
     public string FontWeight { get; set; } = "SemiBold";    // Normal|SemiBold|Bold
     public int CornerRadiusPx { get; set; } = 14;
@@ -31,6 +34,11 @@ public class SpeedMeterSettings
     public double IntervalSeconds { get; set; } = 1.0;
     public bool ShowSparkline { get; set; }
     public bool UseIcons { get; set; } = true;
+
+    // Date and time line under the speeds: date and clock, ticking every second.
+    public bool ShowClock { get; set; } = true;
+    public bool ShowClockDate { get; set; } = true;
+    public bool ShowClockSeconds { get; set; } = true;
 
     // Extra stats
     public bool ShowCpu { get; set; }

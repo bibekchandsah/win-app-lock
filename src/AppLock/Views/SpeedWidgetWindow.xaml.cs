@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Services;
 using AppLock.Services.SpeedMeter;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
@@ -189,12 +190,25 @@ public sealed partial class SpeedWidgetWindow : Window
         {
             var preset = ServiceContainer.Settings.SpeedMeter.ThemePreset ?? "Glass";
 
+            // Follow Windows means Mica; the widget's card only tints it, so the wallpaper shows
+            // through instead of a flat dark fill. Unsupported systems get no backdrop, and the
+            // control falls back to its solid theme card.
+            var mica = MicaController.IsSupported();
+            var acrylic = DesktopAcrylicController.IsSupported();
+
             SystemBackdrop = preset switch
             {
-                "Glass" => new DesktopAcrylicBackdrop(),
-                "FollowWindows" => new MicaBackdrop(),
+                "Glass" => acrylic ? new DesktopAcrylicBackdrop() : null,
+                "FollowWindows" => mica ? new MicaBackdrop() : null,
                 _ => null
             };
+
+            Widget.SetBackdropAvailable(preset switch
+            {
+                "Glass" => acrylic,
+                "FollowWindows" => mica,
+                _ => false
+            });
         }
         catch (Exception ex)
         {

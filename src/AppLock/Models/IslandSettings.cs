@@ -1,5 +1,3 @@
-using AppLock.Island.Events;
-
 namespace AppLock.Models;
 
 /// <summary>How long a live card stays on screen (island.md 5.2).</summary>

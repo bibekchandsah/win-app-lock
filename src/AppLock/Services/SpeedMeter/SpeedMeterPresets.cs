@@ -128,6 +128,7 @@ public static class SpeedMeterPresets
         to.DownloadColor = from.DownloadColor;
         to.UploadColor = from.UploadColor;
         to.ScalePercent = from.ScalePercent;
+        to.FontSizePercent = from.FontSizePercent;
         to.FontFamily = from.FontFamily;
         to.FontWeight = from.FontWeight;
         to.CornerRadiusPx = from.CornerRadiusPx;
@@ -140,6 +141,9 @@ public static class SpeedMeterPresets
         to.IntervalSeconds = from.IntervalSeconds;
         to.ShowSparkline = from.ShowSparkline;
         to.UseIcons = from.UseIcons;
+        to.ShowClock = from.ShowClock;
+        to.ShowClockDate = from.ShowClockDate;
+        to.ShowClockSeconds = from.ShowClockSeconds;
 
         to.ShowCpu = from.ShowCpu;
         to.ShowRam = from.ShowRam;

@@ -50,6 +50,10 @@ public sealed partial class SpeedMeterPage : Page
         ScaleSlider.Maximum = 250;
         ScaleSlider.StepFrequency = 5;
 
+        FontSizeSlider.Minimum = 60;
+        FontSizeSlider.Maximum = 200;
+        FontSizeSlider.StepFrequency = 5;
+
         RadiusSlider.Minimum = 0;
         RadiusSlider.Maximum = 40;
         RadiusSlider.StepFrequency = 1;
@@ -173,6 +177,7 @@ public sealed partial class SpeedMeterPage : Page
 
         OpacitySlider.Value = Math.Clamp(Settings.BackgroundOpacityPercent, 0, 100);
         ScaleSlider.Value = Math.Clamp(Settings.ScalePercent, 50, 250);
+        FontSizeSlider.Value = Math.Clamp(Settings.FontSizePercent, 60, 200);
         RadiusSlider.Value = Math.Clamp(Settings.CornerRadiusPx, 0, 40);
 
         BackgroundColorPicker.Color = ParseColor(Settings.BackgroundColor, Color.FromArgb(255, 0x20, 0x20, 0x20));
@@ -197,6 +202,9 @@ public sealed partial class SpeedMeterPage : Page
         ShowBatteryToggle.IsOn = Settings.ShowBattery;
         ShowSparklineToggle.IsOn = Settings.ShowSparkline;
         ShowTodayTotalToggle.IsOn = Settings.ShowTodayTotal;
+        ShowClockToggle.IsOn = Settings.ShowClock;
+        ShowClockDateToggle.IsOn = Settings.ShowClockDate;
+        ShowClockSecondsToggle.IsOn = Settings.ShowClockSeconds;
         SelectComboByTag(RamFormatCombo, Settings.RamFormat);
         WarnCpuBox.Value = Math.Clamp(Settings.WarnCpuPercent, 0, 100);
         WarnRamBox.Value = Math.Clamp(Settings.WarnRamPercent, 0, 100);
@@ -364,6 +372,7 @@ public sealed partial class SpeedMeterPage : Page
     {
         OpacityValueText.Text = $"{(int)Math.Round(OpacitySlider.Value)}%";
         ScaleValueText.Text = $"{(int)Math.Round(ScaleSlider.Value)}%";
+        FontSizeValueText.Text = $"{(int)Math.Round(FontSizeSlider.Value)}%";
         RadiusValueText.Text = $"{(int)Math.Round(RadiusSlider.Value)} px";
 
         foreach (var button in PresetPanel.Children.OfType<ToggleButton>())
@@ -529,6 +538,14 @@ public sealed partial class SpeedMeterPage : Page
         ApplyAppearance();
     }
 
+    private void FontSizeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.FontSizePercent = (int)Math.Round(e.NewValue);
+        UpdateValueLabels();
+        ApplyAppearance();
+    }
+
     private void RadiusSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_loading) return;
@@ -617,6 +634,7 @@ public sealed partial class SpeedMeterPage : Page
         Settings.DownloadColor = defaults.DownloadColor;
         Settings.UploadColor = defaults.UploadColor;
         Settings.ScalePercent = defaults.ScalePercent;
+        Settings.FontSizePercent = defaults.FontSizePercent;
         Settings.FontFamily = defaults.FontFamily;
         Settings.FontWeight = defaults.FontWeight;
         Settings.CornerRadiusPx = defaults.CornerRadiusPx;
@@ -724,6 +742,9 @@ public sealed partial class SpeedMeterPage : Page
         Settings.ShowBattery = ShowBatteryToggle.IsOn;
         Settings.ShowSparkline = ShowSparklineToggle.IsOn;
         Settings.ShowTodayTotal = ShowTodayTotalToggle.IsOn;
+        Settings.ShowClock = ShowClockToggle.IsOn;
+        Settings.ShowClockDate = ShowClockDateToggle.IsOn;
+        Settings.ShowClockSeconds = ShowClockSecondsToggle.IsOn;
 
         if (Settings.RowOrder.Count == 0) Settings.RowOrder = EffectiveRowOrder();
 
