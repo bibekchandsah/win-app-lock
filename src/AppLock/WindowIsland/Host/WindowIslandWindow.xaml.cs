@@ -2156,105 +2156,208 @@ public sealed partial class WindowIslandWindow : Window
         if (_shelf == null) return;
         var rows = _shelf.Rows();
 
-        // Clear all except the empty-state TextBlock (first child)
-        while (ShelfList.Children.Count > 1)
-            ShelfList.Children.RemoveAt(ShelfList.Children.Count - 1);
-
         ShelfEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShelfItemsGrid.Children.Clear();
+        ShelfItemsGrid.RowDefinitions.Clear();
+        ShelfItemsGrid.ColumnDefinitions.Clear();
 
-        foreach (var row in rows)
+        if (rows.Count == 0) return;
+
+        const int columns = 4;
+        for (int c = 0; c < columns; c++)
         {
-            var item = BuildShelfRow(row);
-            ShelfList.Children.Add(item);
+            ShelfItemsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        int totalRows = (rows.Count + columns - 1) / columns;
+        for (int r = 0; r < totalRows; r++)
+        {
+            ShelfItemsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var card = BuildShelfCard(rows[i]);
+            int r = i / columns;
+            int c = i % columns;
+            Grid.SetRow(card, r);
+            Grid.SetColumn(card, c);
+            ShelfItemsGrid.Children.Add(card);
         }
     }
 
-    private Grid BuildShelfRow(AppLock.Island.Modules.ShelfRow row)
+    private Grid BuildShelfCard(AppLock.Island.Modules.ShelfRow row)
     {
-        var container = new Grid();
-        container.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        container.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        // Icon
-        string iconGlyph = System.IO.Directory.Exists(row.Path) ? "\uE8B7" :
-            System.IO.Path.GetExtension(row.Path).ToLowerInvariant() switch
-            {
-                ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" => "\uEB9F",
-                ".mp4" or ".mkv" or ".mov" or ".avi"                       => "\uE8B2",
-                ".mp3" or ".wav" or ".flac" or ".aac"                      => "\uE8D6",
-                ".pdf"                                                      => "\uEA90",
-                ".exe" or ".msi"                                            => "\uE756",
-                ".zip" or ".rar" or ".7z"                                   => "\uE8B9",
-                _                                                           => "\uE7C3"
-            };
-
-        var icon = new FontIcon
+        string ext = System.IO.Path.GetExtension(row.Path).ToLowerInvariant();
+        bool isDir = System.IO.Directory.Exists(row.Path);
+        string iconGlyph = isDir ? "\uE8B7" : ext switch
         {
-            Glyph = iconGlyph, FontSize = 14,
-            Foreground = new SolidColorBrush(row.Exists
-                ? Windows.UI.Color.FromArgb(180, 255, 255, 255)
-                : Windows.UI.Color.FromArgb(80, 255, 255, 255)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
+            ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" => "\uEB9F",
+            ".mp4" or ".mkv" or ".mov" or ".avi"                       => "\uE8B2",
+            ".mp3" or ".wav" or ".flac" or ".aac"                      => "\uE8D6",
+            ".pdf"                                                      => "\uEA90",
+            ".exe" or ".msi"                                            => "\uE756",
+            ".zip" or ".rar" or ".7z"                                   => "\uE8B9",
+            _                                                           => "\uE7C3"
         };
-        Grid.SetColumn(icon, 0);
-        container.Children.Add(icon);
 
-        // Name + path
+        // Icon badge or preview image
+        var iconBadge = new Border
+        {
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        bool loadedImage = false;
+        if (row.Exists && ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp")
+        {
+            try
+            {
+                var bmp = new BitmapImage(new Uri(row.Path)) { DecodePixelHeight = 68 };
+                iconBadge.Child = new Image
+                {
+                    Source = bmp,
+                    Stretch = Stretch.UniformToFill
+                };
+                loadedImage = true;
+            }
+            catch { }
+        }
+
+        if (!loadedImage)
+        {
+            iconBadge.Child = new FontIcon
+            {
+                Glyph = iconGlyph,
+                FontSize = 15,
+                Foreground = new SolidColorBrush(row.Exists
+                    ? Windows.UI.Color.FromArgb(220, 255, 255, 255)
+                    : Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+        }
+
+        // Text stack (Name + type/sub)
+        var textStack = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 1
+        };
+
         var nameBlock = new TextBlock
         {
             Text = row.Name,
             FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(row.Exists
-                ? Windows.UI.Color.FromArgb(230, 255, 255, 255)
+                ? Windows.UI.Color.FromArgb(235, 255, 255, 255)
                 : Windows.UI.Color.FromArgb(100, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center
+            MaxLines = 1
         };
-        Grid.SetColumn(nameBlock, 1);
-        container.Children.Add(nameBlock);
 
-        // Remove button
+        string subText = isDir ? "Folder" : (ext.Length > 1 ? ext[1..].ToUpperInvariant() : "File");
+        var subBlock = new TextBlock
+        {
+            Text = subText,
+            FontSize = 9,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(110, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+
+        textStack.Children.Add(nameBlock);
+        textStack.Children.Add(subBlock);
+
+        // Clear/Remove button (appears on hover)
         var removeBtn = new Button
         {
-            Content = new FontIcon { Glyph = "\uE711", FontSize = 10 },
+            Content = new FontIcon
+            {
+                Glyph = "\uE711",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255))
+            },
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
-            Width = 24, Height = 24,
-            Padding = new Thickness(2),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 0, 0),
+            Width = 20,
+            Height = 20,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(10),
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, -2, -2, 0),
+            Opacity = 0.0 // Hidden by default, shown on hover
         };
         ToolTipService.SetToolTip(removeBtn, "Remove from shelf");
         string capturedPath = row.Path;
-        removeBtn.Click += (_, _) =>
+        removeBtn.Click += (s, e) =>
         {
             _shelf?.Remove(capturedPath);
             RefreshShelfUI();
         };
+
+        var inner = new Grid();
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(iconBadge, 0);
+        Grid.SetColumn(textStack, 1);
         Grid.SetColumn(removeBtn, 2);
-        container.Children.Add(removeBtn);
 
-        // Open on click
-        var border = new Border
+        inner.Children.Add(iconBadge);
+        inner.Children.Add(textStack);
+        inner.Children.Add(removeBtn);
+
+        var card = new Border
         {
+            Height = 54,
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 5, 8, 5),
-            Child = container
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 6, 6, 6),
+            Child = inner
         };
-        border.PointerEntered += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255));
-        border.PointerExited  += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255));
-        if (row.Exists)
-        {
-            border.PointerPressed += (_, _) =>
-            {
-                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(capturedPath) { UseShellExecute = true }); }
-                catch { }
-            };
-        }
+        ToolTipService.SetToolTip(card, row.Path);
 
-        return new Grid { Children = { border } };
+        // Hover effect: highlight border and reveal clear button
+        card.PointerEntered += (s, _) =>
+        {
+            ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(35, 255, 255, 255));
+            ((Border)s).BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 255, 255, 255));
+            removeBtn.Opacity = 1.0;
+        };
+        card.PointerExited += (s, _) =>
+        {
+            ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255));
+            ((Border)s).BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255));
+            removeBtn.Opacity = 0.0;
+        };
+
+        // Click opens file/folder (unless clear button was clicked)
+        card.PointerPressed += (s, pe) =>
+        {
+            var originalSource = pe.OriginalSource as DependencyObject;
+            if (originalSource != null && IsDescendantOf(originalSource, removeBtn))
+            {
+                return;
+            }
+            if (row.Exists)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(capturedPath) { UseShellExecute = true });
+                }
+                catch { }
+            }
+        };
+
+        return new Grid { Children = { card } };
     }
 
     private void ShelfClear_Click(object sender, RoutedEventArgs e)

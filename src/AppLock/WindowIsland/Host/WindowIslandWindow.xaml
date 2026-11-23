@@ -1218,21 +1218,21 @@
                                      Grid.Column="0"
                                      PlaceholderText="Search…"
                                      FontSize="11"
-                                     Height="28"
-                                     MinHeight="28"
+                                     Height="30"
+                                     MinHeight="30"
                                      VerticalAlignment="Center"
                                      VerticalContentAlignment="Center"
                                      Background="#20FFFFFF"
                                      Foreground="#F0FFFFFF"
                                      BorderBrush="#30FFFFFF"
                                      CornerRadius="6"
-                                     Padding="8,0,8,0"
+                                     Padding="10,5,10,5"
                                      TextChanged="ClipboardSearch_TextChanged"
                                      KeyDown="ClipboardSearch_KeyDown" />
                             <Button x:Name="ClipboardClearBtn"
                                     Grid.Column="1"
                                     Margin="6,0,0,0"
-                                    Height="28"
+                                    Height="30"
                                     Padding="8,4"
                                     CornerRadius="6"
                                     VerticalAlignment="Center"
@@ -1293,11 +1293,11 @@
                                        VerticalAlignment="Center" />
                         </Border>
 
-                        <!-- File list or empty state -->
+                        <!-- File grid or empty state -->
                         <ScrollViewer Grid.Row="0"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel x:Name="ShelfList" Spacing="4">
+                            <Grid Margin="0,4,0,4">
                                 <TextBlock x:Name="ShelfEmptyText"
                                            Text="Drop app shortcuts, folders or files here."
                                            FontSize="11"
@@ -1305,8 +1305,11 @@
                                            TextWrapping="Wrap"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Margin="0,16,0,0" />
-                            </StackPanel>
+                                           Margin="0,32,0,0" />
+                                <Grid x:Name="ShelfItemsGrid"
+                                      ColumnSpacing="8"
+                                      RowSpacing="8" />
+                            </Grid>
                         </ScrollViewer>
 
                         <!-- Clear all button -->
