@@ -169,6 +169,7 @@ public sealed partial class WindowIslandWindow : Window
     private string?                           _loadedNoteId;
     private DQTimer?                          _noteSaveTimer;
     private bool                              _noteUpdating;
+    private string?                           _editorBaselineRtf;
     private DateTime?                         _reminderParsedDue;
 
     // Milestone 10: Weather
@@ -2993,7 +2994,12 @@ public sealed partial class WindowIslandWindow : Window
             if (NoteContentBox != null && !string.IsNullOrEmpty(_activeNoteId))
             {
                 NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-                _notesStore?.UpdateNote(_activeNoteId, (rtf ?? string.Empty).TrimEnd('\0'));
+                rtf = (rtf ?? string.Empty).TrimEnd('\0');
+                if (!string.Equals(rtf, _editorBaselineRtf, StringComparison.Ordinal))
+                {
+                    _notesStore?.UpdateNote(_activeNoteId, rtf);
+                    _editorBaselineRtf = rtf;
+                }
             }
         }
     }
@@ -3053,8 +3059,11 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
-        NoteContentBox.Document.GetText(TextGetOptions.None, out string curTxt);
-        if (_loadedNoteId != _activeNoteId || (string.IsNullOrWhiteSpace(curTxt) && !string.IsNullOrEmpty(activeNote.Content)))
+        // Only push note text into the editor when the active note actually changed. Reloading
+        // whenever the editor reads back empty (it does while the island is folded) made
+        // SetText raise TextChanged -> auto-save -> Changed -> RefreshNotesUI -> SetText, an
+        // endless loop that pegged the UI thread and grew the note by one paragraph per pass.
+        if (_loadedNoteId != _activeNoteId)
         {
             _loadedNoteId = _activeNoteId;
             _noteUpdating = true;
@@ -3068,6 +3077,7 @@ public sealed partial class WindowIslandWindow : Window
         if (string.IsNullOrEmpty(content))
         {
             NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+            CaptureEditorBaseline();
             UpdateFormattingToolbarUI();
             return;
         }
@@ -3100,7 +3110,26 @@ public sealed partial class WindowIslandWindow : Window
         {
             NoteContentBox.Document.SetText(TextSetOptions.None, clean);
         }
+        CaptureEditorBaseline();
         UpdateFormattingToolbarUI();
+    }
+
+    /// <summary>
+    /// Records the RTF the editor reports right after a programmatic load. RichEditBox rewrites
+    /// RTF while loading it, so saving that echo added a paragraph to the note on every reload
+    /// (the island reloads the note each time it opens).
+    /// </summary>
+    private void CaptureEditorBaseline()
+    {
+        try
+        {
+            NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string baseline);
+            _editorBaselineRtf = (baseline ?? string.Empty).TrimEnd('\0');
+        }
+        catch
+        {
+            _editorBaselineRtf = null;
+        }
     }
 
     private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
@@ -3245,7 +3274,10 @@ public sealed partial class WindowIslandWindow : Window
             _noteSaveTimer?.Stop();
             if (string.IsNullOrEmpty(_activeNoteId)) return;
             NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-            _notesStore?.UpdateNote(_activeNoteId, (rtf ?? string.Empty).TrimEnd('\0'));
+            rtf = (rtf ?? string.Empty).TrimEnd('\0');
+            if (string.Equals(rtf, _editorBaselineRtf, StringComparison.Ordinal)) return;
+            _notesStore?.UpdateNote(_activeNoteId, rtf);
+            _editorBaselineRtf = rtf;
         };
         _noteSaveTimer.Start();
     }

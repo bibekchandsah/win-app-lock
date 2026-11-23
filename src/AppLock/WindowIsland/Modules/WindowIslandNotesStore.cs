@@ -76,16 +76,29 @@ public sealed class WindowIslandNotesStore
 
     public void UpdateNote(string id, string content, string? title = null)
     {
+        bool changed = false;
         lock (_lock)
         {
             var note = _notes.FirstOrDefault(n => n.Id == id);
             if (note != null)
             {
-                note.Content = content;
-                if (!string.IsNullOrWhiteSpace(title)) note.Title = title.Trim();
-                note.UpdatedAtUtc = DateTime.UtcNow;
+                if (note.Content != content)
+                {
+                    note.Content = content;
+                    changed = true;
+                }
+                if (!string.IsNullOrWhiteSpace(title) && note.Title != title.Trim())
+                {
+                    note.Title = title.Trim();
+                    changed = true;
+                }
+                if (changed) note.UpdatedAtUtc = DateTime.UtcNow;
             }
         }
+
+        // An unchanged save must not re-encrypt the file or raise Changed; doing so fed the
+        // editor's reload/save feedback loop.
+        if (!changed) return;
 
         Save();
         Changed?.Invoke();
