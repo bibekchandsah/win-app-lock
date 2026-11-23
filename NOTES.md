@@ -1347,5 +1347,12 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - Area, Record screen and Screen text launch the Snipping Tool directly through `ms-screenclip:` protocol URIs (area, recording, text extractor sources) and fall back to the Win+Shift+S/R/T hotkeys when the protocol cannot start.
 - Tiles use `TileButtonStyle`: the tab style fills its cell and can hold a label plus a live reading, which the fixed 32 px tab height would have clipped. The tile style also owns the content alignment that used to be hard-coded in the template. The icon font is no longer set on the shared button style, which had turned every label inside a button into tofu boxes.
 
-### Sizing
-- The open panel is 272 px tall (was 250) so the player's controls row and the two-line tiles fit without clipping.
+### Layout (cards on one surface grid)
+- Top row: the player card, with the lyrics card beside it while the track has lyrics (the player spans
+  both columns again when it has none); the 2x4 tile grid fills the right column top to bottom.
+- Under the player: the volume bar. Across the full width under everything: the launcher.
+- Cards and tiles share one radius (14), one fill (#10FFFFFF) and one border (#1AFFFFFF); an 8 px gutter
+  separates every pair, including the two tile columns.
+- `PositionAndSize` sizes the open layer to the island window, so the panel content fills the shell
+  instead of leaving an empty strip beneath the cards.
+- The home panel is 660x320 dip (window 700 wide) and the tile rows are star-sized so they follow the height.

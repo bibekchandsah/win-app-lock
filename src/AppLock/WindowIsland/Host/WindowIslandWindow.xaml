@@ -897,7 +897,8 @@
                                 <!-- Tile grid: fills the right column top to bottom -->
                                 <Grid x:Name="TileGrid"
                                       Grid.Column="2"
-                                      RowSpacing="8">
+                                      RowSpacing="8"
+                                      ColumnSpacing="8">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="*" />
