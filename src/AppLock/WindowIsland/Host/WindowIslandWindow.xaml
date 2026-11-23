@@ -561,6 +561,7 @@
                         <Grid x:Name="ContentHome" Opacity="1">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"  />
+                                <RowDefinition Height="8"  />
                                 <RowDefinition Height="46" />
                             </Grid.RowDefinitions>
 
@@ -1007,7 +1008,7 @@
                             </Grid>
 
                             <!-- Launcher: full width at the bottom -->
-                            <Border Grid.Row="1"
+                            <Border Grid.Row="2"
                                     CornerRadius="14"
                                     Background="#10FFFFFF"
                                     BorderBrush="#1AFFFFFF"
@@ -1047,7 +1048,7 @@
 
                         <!-- In-island Add Dialog Overlay -->
                         <Border x:Name="LauncherAddOverlay"
-                                Grid.RowSpan="2" Grid.ColumnSpan="2"
+                                Grid.RowSpan="3" Grid.ColumnSpan="2"
                                 Background="#F0181818"
                                 CornerRadius="8"
                                 BorderBrush="#40FFFFFF"
