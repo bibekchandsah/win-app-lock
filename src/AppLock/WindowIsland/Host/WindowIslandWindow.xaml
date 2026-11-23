@@ -249,7 +249,7 @@
                             Spacing="3"
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
-                    <FontIcon x:Name="FoldedWeatherIcon" Glyph="&#xE706;" FontSize="10" Foreground="#FFD700" />
+                    <FontIcon x:Name="FoldedWeatherIcon" FontFamily="Segoe UI Symbol, Segoe Fluent Icons" Glyph="&#x2600;" FontSize="10" Foreground="#FFD700" />
                     <TextBlock x:Name="FoldedWeatherTemp"
                                Text="21°"
                                FontFamily="Segoe UI Variable Small"
@@ -547,7 +547,7 @@
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Weather">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <FontIcon x:Name="TabWeatherIcon" Glyph="&#xE9CA;" FontSize="13" />
+                                <FontIcon x:Name="TabWeatherIcon" FontFamily="Segoe UI Symbol, Segoe Fluent Icons" Glyph="&#x26C5;" FontSize="13" />
                                 <TextBlock x:Name="TabWeatherText" Text="Weather" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
                             </StackPanel>
                         </Button>
@@ -2035,14 +2035,15 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left Card: Current Conditions & Outlook with Vivid Blue Gradient -->
+                            <!-- Left Card: Current Conditions & Outlook (Day/Night Dynamic Gradient) -->
                             <Border x:Name="WeatherHeroCard"
                                     Grid.Column="0"
                                     BorderBrush="#35FFFFFF"
                                     BorderThickness="1"
                                     CornerRadius="12"
                                     Padding="14,12,14,10"
-                                    ToolTipService.ToolTip="Current weather conditions and daily summary">
+                                    PointerWheelChanged="WeatherHeroCard_PointerWheelChanged"
+                                    ToolTipService.ToolTip="Current weather conditions and daily summary. Scroll to cycle through saved cities.">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                         <GradientStop Color="#FF2B7CE9" Offset="0.0"/>

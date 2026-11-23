@@ -430,9 +430,9 @@ fixed - optimize the spacing for adding custom AI assistant and for custom AI as
 fixed - in weather tab add support of mutliple cities 
 fixed - add visuals too in the cards 
 fixed - also show the current time and date of selected cities 
-in night duration also it shows blue card instead of dark night card in left side 
-change the weather tab icon to cloud and sun combined icon
-scrolling or trackpad guesture of scrolling in left card should change the saved multiple address in loop
+fixed - in night duration also it shows blue card instead of dark night card in left side 
+fixed - change the weather tab icon to cloud and sun combined icon
+fixed - scrolling or trackpad guesture of scrolling in left card should change the saved multiple address in loop
 
 
 in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"

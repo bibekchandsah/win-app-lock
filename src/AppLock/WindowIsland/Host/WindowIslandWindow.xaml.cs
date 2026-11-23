@@ -3430,6 +3430,33 @@ public sealed partial class WindowIslandWindow : Window
         Canvas.SetTop(WeatherSunDot, Math.Clamp(sunY - 4.0, 0, 20));
         WeatherSunDot.Opacity = isDaytime ? 1.0 : 0.45;
 
+        if (weather.SymbolCode.Contains("night"))
+        {
+            isDaytime = false;
+        }
+
+        // Dynamic Day/Night Theme for Hero Card
+        var heroBg = new LinearGradientBrush
+        {
+            StartPoint = new Windows.Foundation.Point(0, 0),
+            EndPoint = new Windows.Foundation.Point(0, 1)
+        };
+        if (isDaytime)
+        {
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x2B, 0x7C, 0xE9), Offset = 0.0 });
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x17, 0x43, 0x81), Offset = 1.0 });
+            WeatherHeroCard.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x35, 0xFF, 0xFF, 0xFF));
+            WeatherConditionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xEB, 0x3B));
+        }
+        else
+        {
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x14, 0x1E, 0x30), Offset = 0.0 });
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x0A, 0x0F, 0x1A), Offset = 1.0 });
+            WeatherHeroCard.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+            WeatherConditionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xE2, 0xEA, 0xF8));
+        }
+        WeatherHeroCard.Background = heroBg;
+
         // 5. Precipitation: Value, mini-bar fill, subtext
         WeatherPrecipValText.Text = $"{weather.PrecipitationTodayMm:0.0} mm today";
         WeatherPrecipSubText.Text = weather.PrecipitationTodayMm > 0 ? "Rain recorded today" : "No rain expected today";
@@ -3640,12 +3667,45 @@ public sealed partial class WindowIslandWindow : Window
         {
             FoldedWeatherMini.Visibility = Visibility.Visible;
             FoldedWeatherTemp.Text = WindowIslandWeatherService.FormatTemp(weather.CurrentTempC, settings.WeatherUnits);
+            FoldedWeatherIcon.FontFamily = new FontFamily("Segoe UI Symbol, Segoe Fluent Icons");
             FoldedWeatherIcon.Glyph = weather.IconGlyph;
         }
         else
         {
             FoldedWeatherMini.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private DateTime _lastWeatherScrollTime = DateTime.MinValue;
+
+    private async void WeatherHeroCard_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
+        var cities = settings.GetWeatherCities();
+        if (cities == null || cities.Count <= 1) return;
+
+        // Debounce trackpad inertia events (280ms threshold)
+        if (DateTime.UtcNow - _lastWeatherScrollTime < TimeSpan.FromMilliseconds(280))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var prop = e.GetCurrentPoint(WeatherHeroCard).Properties;
+        int delta = prop.MouseWheelDelta;
+        if (delta == 0) return;
+
+        _lastWeatherScrollTime = DateTime.UtcNow;
+        e.Handled = true;
+
+        // delta > 0 (scroll up) -> previous city; delta < 0 (scroll down) -> next city
+        int currentIndex = settings.ActiveWeatherCityIndex;
+        int nextIndex = delta > 0
+            ? (currentIndex - 1 + cities.Count) % cities.Count
+            : (currentIndex + 1) % cities.Count;
+
+        await WindowIslandWeatherService.Instance.SelectCityAsync(nextIndex);
+        RefreshWeatherUI();
     }
 
     private void WeatherChangeCityBtn_Click(object sender, RoutedEventArgs e)
