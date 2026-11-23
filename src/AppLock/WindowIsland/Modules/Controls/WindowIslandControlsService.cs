@@ -50,6 +50,7 @@ public sealed class WindowIslandControlsService
             PowerManager.RemainingChargePercentChanged += (_, _) => ControlsStateChanged?.Invoke(this, EventArgs.Empty);
             PowerManager.PowerSupplyStatusChanged += (_, _) => ControlsStateChanged?.Invoke(this, EventArgs.Empty);
             NetworkChange.NetworkAddressChanged += (_, _) => ControlsStateChanged?.Invoke(this, EventArgs.Empty);
+            _ = InitializeRadiosAsync();
         }
         catch { }
     }
@@ -401,6 +402,48 @@ public sealed class WindowIslandControlsService
             var list = new System.Collections.Generic.List<IslandBtDevice>();
             var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            var (hasBt, btOn) = await Instance.GetBluetoothStateAsync();
+            if (!hasBt || !btOn)
+            {
+                // When Bluetooth is disabled or unavailable, read paired devices but mark all as disconnected
+                try
+                {
+                    using var devKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices");
+                    if (devKey != null)
+                    {
+                        var rawEntries = new System.Collections.Generic.List<(string Name, string Mac)>();
+                        foreach (string mac in devKey.GetSubKeyNames())
+                        {
+                            using var subKey = devKey.OpenSubKey(mac);
+                            if (subKey == null) continue;
+                            string name = string.Empty;
+                            object? nameVal = subKey.GetValue("Name") ?? subKey.GetValue("FriendlyName");
+                            if (nameVal is byte[] bytes) name = System.Text.Encoding.UTF8.GetString(bytes).TrimEnd('\0').Trim();
+                            else if (nameVal is string strName) name = strName.TrimEnd('\0').Trim();
+                            if (!string.IsNullOrWhiteSpace(name)) rawEntries.Add((name, mac));
+                        }
+                        var groupedByName = rawEntries.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase);
+                        foreach (var group in groupedByName)
+                        {
+                            string name = group.Key;
+                            string lower = name.ToLowerInvariant();
+                            string type = "Bluetooth";
+                            if (lower.Contains("buds") || lower.Contains("airdopes") || lower.Contains("airpods") ||
+                                lower.Contains("headset") || lower.Contains("headphone") || lower.Contains("earphone")) type = "Headphones";
+                            else if (lower.Contains("speaker") || lower.Contains("breeze") || lower.Contains("boom") || lower.Contains("audio")) type = "Speaker";
+                            else if (lower.Contains("keyboard") || lower.Contains(" k1") || lower.Contains("keychron") || lower.Contains("kbd")) type = "Keyboard";
+                            else if (lower.Contains("mouse") || lower.Contains("polygear") || lower.Contains("trackball")) type = "Mouse";
+                            else if (lower.Contains("phone") || lower.Contains("oppo") || lower.Contains("iphone") ||
+                                     lower.Contains("galaxy") || lower.Contains("redmi") || lower.Contains("pixel")) type = "Phone";
+
+                            list.Add(new IslandBtDevice(name, group.First().Mac, type, IsConnected: false, BatteryPercent: null));
+                        }
+                    }
+                }
+                catch { }
+                return list.OrderBy(d => d.Name).ToList();
+            }
+
             // 1. Query battery properties across devices
             var batteryMap = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             try
@@ -483,11 +526,14 @@ public sealed class WindowIslandControlsService
             {
                 var hidDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
                     "System.Devices.DeviceInstanceId:~~\"HID\" AND (System.Devices.DeviceInstanceId:~~\"1812\" OR System.Devices.DeviceInstanceId:~~\"1124\")",
-                    new[] { "System.ItemNameDisplay" },
+                    new[] { "System.ItemNameDisplay", "System.Devices.Present" },
                     Windows.Devices.Enumeration.DeviceInformationKind.Device);
 
                 foreach (var hd in hidDevs)
                 {
+                    if (hd.Properties.TryGetValue("System.Devices.Present", out var presVal) && presVal is bool isPresent && !isPresent)
+                        continue;
+
                     string idPart = hd.Id;
                     int closeBrace = idPart.IndexOf('}');
                     if (closeBrace >= 0)
@@ -715,6 +761,25 @@ public sealed class WindowIslandControlsService
 
     public async Task<(bool Available, bool IsOn)> GetBluetoothStateAsync()
     {
+        try
+        {
+            var adapter = await Windows.Devices.Bluetooth.BluetoothAdapter.GetDefaultAsync();
+            if (adapter != null)
+            {
+                var radio = await adapter.GetRadioAsync();
+                if (radio != null)
+                {
+                    if (_btRadio == null)
+                    {
+                        _btRadio = radio;
+                        _btRadio.StateChanged += (_, _) => ControlsStateChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                    return (true, radio.State == RadioState.On);
+                }
+            }
+        }
+        catch { }
+
         await InitializeRadiosAsync().ConfigureAwait(false);
         if (_btRadio == null) return (false, false);
 
