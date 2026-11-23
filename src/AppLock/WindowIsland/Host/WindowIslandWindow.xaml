@@ -1201,7 +1201,7 @@
                         </Grid>
 
                     <!-- Clipboard tab -->
-                    <Grid x:Name="ContentClipboard" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentClipboard" Opacity="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*"    />
@@ -1218,17 +1218,24 @@
                                      Grid.Column="0"
                                      PlaceholderText="Search…"
                                      FontSize="11"
+                                     Height="28"
+                                     MinHeight="28"
+                                     VerticalAlignment="Center"
+                                     VerticalContentAlignment="Center"
                                      Background="#20FFFFFF"
                                      Foreground="#F0FFFFFF"
                                      BorderBrush="#30FFFFFF"
                                      CornerRadius="6"
-                                     Padding="8,4"
-                                     TextChanged="ClipboardSearch_TextChanged" />
+                                     Padding="8,0,8,0"
+                                     TextChanged="ClipboardSearch_TextChanged"
+                                     KeyDown="ClipboardSearch_KeyDown" />
                             <Button x:Name="ClipboardClearBtn"
                                     Grid.Column="1"
                                     Margin="6,0,0,0"
+                                    Height="28"
                                     Padding="8,4"
                                     CornerRadius="6"
+                                    VerticalAlignment="Center"
                                     Click="ClipboardClear_Click"
                                     Style="{StaticResource TabButtonStyle}"
                                     ToolTipService.ToolTip="Clear clipboard history">
@@ -1244,16 +1251,23 @@
                         </ScrollViewer>
 
                         <!-- Footer hint -->
-                        <TextBlock Grid.Row="2"
-                                   Text="Click to paste · Shift+click to copy only"
-                                   FontSize="9"
-                                   Foreground="#50FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0" />
+                        <Grid Grid.Row="2" Margin="0,4,0,0">
+                            <TextBlock Text="Click to paste · Shift+click to copy only"
+                                       FontSize="9"
+                                       Foreground="#50FFFFFF"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="↑↓ Enter"
+                                       FontSize="9"
+                                       Foreground="#60FFFFFF"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,4,0" />
+                        </Grid>
                     </Grid>
 
                     <!-- Shelf tab -->
-                    <Grid x:Name="ContentShelf" Opacity="0" Visibility="Collapsed"
+                    <Grid x:Name="ContentShelf" Opacity="1" Visibility="Collapsed"
                           AllowDrop="True"
                           DragOver="ShelfGrid_DragOver"
                           Drop="ShelfGrid_Drop">
@@ -1310,7 +1324,7 @@
                     </Grid>
 
                     <!-- Text tab (Milestone 14: Text Tools & Transforms) -->
-                    <Grid x:Name="ContentText" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentText" Opacity="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -1503,7 +1517,7 @@
                     </Grid>
 
                     <!-- Chat tab (Milestone 13: WebView2 AI Assistants) -->
-                    <Grid x:Name="ContentChat" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentChat" Opacity="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -1660,7 +1674,7 @@
                     </Grid>
 
                     <!-- Note & Timer tab -->
-                    <Grid x:Name="ContentNote" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentNote" Opacity="1" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"   /> <!-- Left: Notes editor -->
                             <ColumnDefinition Width="200" /> <!-- Right: Timer & Reminders -->
@@ -1844,7 +1858,7 @@
                     <!-- ═══════════════════════════════════════════════════════════
                          WEATHER TAB (Milestone 10)
                     ════════════════════════════════════════════════════════════ -->
-                    <Grid x:Name="ContentWeather" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentWeather" Opacity="1" Visibility="Collapsed">
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="215"/>
@@ -2177,7 +2191,7 @@
                     <!-- ═══════════════════════════════════════════════════════════
                          CONTROLS TAB (Milestone 11)
                     ════════════════════════════════════════════════════════════ -->
-                    <Grid x:Name="ContentControls" Opacity="0" Visibility="Collapsed">
+                    <Grid x:Name="ContentControls" Opacity="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>

@@ -586,7 +586,11 @@ public sealed partial class WindowIslandWindow : Window
             _tabContents[i].Visibility = (i == _activeTab || i == _previousTab)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+            _tabContents[i].Opacity = 1.0;
         }
+
+        // Force layout pass on incoming tab so its composition visual and geometry exist
+        _tabContents[_activeTab].UpdateLayout();
 
         UpdateTabVisuals();
         UpdateTabHighlight(animate);
@@ -649,10 +653,12 @@ public sealed partial class WindowIslandWindow : Window
         var batch = comp.CreateScopedBatch(CompositionBatchTypes.Animation);
         batch.Completed += (_, _) =>
         {
-            // After animation: collapse the previous tab
+            // After animation: collapse the previous tab and ensure active visual is steady
             DispatcherQueue.TryEnqueue(() =>
             {
                 _tabContents[fromTab].Visibility = Visibility.Collapsed;
+                toVisual.Opacity = 1f;
+                toVisual.Offset  = Vector3.Zero;
             });
         };
         toVisual.StartAnimation("Opacity", fadeIn);
@@ -662,12 +668,12 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateTabVisuals()
     {
-        // Snap all non-active tabs to hidden
+        // Snap non-participating tabs to hidden, preserve transitioning tabs
         for (int i = 0; i < TabCount; i++)
         {
-            var v = ElementCompositionPreview.GetElementVisual(_tabContents[i]);
-            if (i != _activeTab)
+            if (i != _activeTab && i != _previousTab)
             {
+                var v = ElementCompositionPreview.GetElementVisual(_tabContents[i]);
                 v.Opacity = 0f;
                 v.Offset  = Vector3.Zero;
             }
@@ -819,6 +825,21 @@ public sealed partial class WindowIslandWindow : Window
 
             case VirtualKey.Right when IsCtrlDown():
                 SwitchTab((_activeTab + 1) % TabCount);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Down when _activeTab == 1 && !IsCtrlDown():
+                NavigateClipboardSelection(1);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Up when _activeTab == 1 && !IsCtrlDown():
+                NavigateClipboardSelection(-1);
+                e.Handled = true;
+                break;
+
+            case VirtualKey.Enter when _activeTab == 1 && !IsCtrlDown():
+                PasteSelectedClipboardItem();
                 e.Handled = true;
                 break;
 
@@ -1743,6 +1764,50 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private IReadOnlyList<AppLock.Island.Modules.ClipboardRow> _currentClipboardRows = Array.Empty<AppLock.Island.Modules.ClipboardRow>();
+    private int _selectedClipboardIndex = 0;
+
+    private void NavigateClipboardSelection(int delta)
+    {
+        if (_currentClipboardRows.Count == 0) return;
+        _selectedClipboardIndex = Math.Clamp(_selectedClipboardIndex + delta, 0, _currentClipboardRows.Count - 1);
+        UpdateClipboardSelection();
+    }
+
+    private async void PasteSelectedClipboardItem()
+    {
+        if (_selectedClipboardIndex >= 0 && _selectedClipboardIndex < _currentClipboardRows.Count)
+        {
+            bool shift = IsShiftDown();
+            var row = _currentClipboardRows[_selectedClipboardIndex];
+            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift) ?? Task.CompletedTask);
+        }
+    }
+
+    private void ClipboardSearch_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Down)
+        {
+            NavigateClipboardSelection(1);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == VirtualKey.Up)
+        {
+            NavigateClipboardSelection(-1);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == VirtualKey.Enter)
+        {
+            PasteSelectedClipboardItem();
+            e.Handled = true;
+            return;
+        }
+    }
+
     private void ClipboardSearch_TextChanged(object sender, TextChangedEventArgs e)
         => _clipboardState?.Refresh(ClipboardSearch.Text.Trim());
 
@@ -1782,6 +1847,12 @@ public sealed partial class WindowIslandWindow : Window
 
     private void OnClipboardItemsLoaded(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
     {
+        _currentClipboardRows = rows;
+        if (_selectedClipboardIndex >= rows.Count)
+        {
+            _selectedClipboardIndex = Math.Max(0, rows.Count - 1);
+        }
+
         ClipboardList.Children.Clear();
         UpdateHomeRecents(rows);
 
@@ -1799,24 +1870,67 @@ public sealed partial class WindowIslandWindow : Window
             return;
         }
 
-        foreach (var row in rows)
+        for (int i = 0; i < rows.Count; i++)
         {
-            var rowGrid = BuildClipboardRow(row);
+            var rowGrid = BuildClipboardRow(rows[i], i);
             ClipboardList.Children.Add(rowGrid);
         }
     }
 
-    private Grid BuildClipboardRow(AppLock.Island.Modules.ClipboardRow row)
+    private void UpdateClipboardSelection()
     {
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+        var selectedBg = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
+        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255));
+
+        for (int i = 0; i < ClipboardList.Children.Count; i++)
+        {
+            if (ClipboardList.Children[i] is Grid grid && grid.Children.Count > 0 && grid.Children[0] is Border b)
+            {
+                bool sel = (i == _selectedClipboardIndex);
+                b.Background = sel ? selectedBg : normalBg;
+                b.BorderBrush = sel ? accentBrush : normalBorder;
+                b.BorderThickness = new Thickness(sel ? 1.5 : 1);
+
+                if (sel)
+                {
+                    b.StartBringIntoView();
+                }
+            }
+        }
+    }
+
+    private Grid BuildClipboardRow(AppLock.Island.Modules.ClipboardRow row, int index)
+    {
+        bool isSelected = (index == _selectedClipboardIndex);
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+        var selectedBg = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
+        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255));
+
         // Outer border button
         var border = new Border
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+            Background = isSelected ? selectedBg : normalBg,
+            BorderBrush = isSelected ? accentBrush : normalBorder,
+            BorderThickness = new Thickness(isSelected ? 1.5 : 1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 5, 8, 5),
+            Tag = index
         };
-        border.PointerEntered  += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(35, 255, 255, 255));
-        border.PointerExited   += (s, _) => ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+        border.PointerEntered  += (s, _) =>
+        {
+            _selectedClipboardIndex = index;
+            UpdateClipboardSelection();
+        };
+        border.PointerExited   += (s, _) =>
+        {
+            if (_selectedClipboardIndex != index)
+            {
+                ((Border)s).Background = normalBg;
+            }
+        };
 
         var inner = new Grid();
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
