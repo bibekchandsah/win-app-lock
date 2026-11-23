@@ -2990,8 +2990,29 @@ public sealed partial class WindowIslandWindow : Window
 
         var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
         _noteUpdating = true;
-        NoteContentBox.Text = activeNote.Content;
+        LoadNoteIntoEditor(activeNote.Content);
         _noteUpdating = false;
+    }
+
+    private void LoadNoteIntoEditor(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+        }
+        else if (content.TrimStart().StartsWith("{\\rtf"))
+        {
+            NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, content);
+        }
+        else if (content.Contains("<mark") || content.Contains("**") || content.Contains("*") || content.Contains("<u>") || content.Contains("~~"))
+        {
+            string rtf = MarkdownToRtf(content);
+            NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, rtf);
+        }
+        else
+        {
+            NoteContentBox.Document.SetText(TextSetOptions.None, content);
+        }
     }
 
     private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
@@ -3064,8 +3085,11 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
+            NoteContentBox.Document.GetText(TextGetOptions.None, out string plainText);
+            NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
             var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dp.SetText(NoteContentBox.Text);
+            dp.SetText(plainText.TrimEnd('\r', '\n'));
+            dp.SetRtf(rtf);
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
         }
         catch { }
@@ -3099,7 +3123,14 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         _noteDeleteConfirming = true;
-        NoteDeleteBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 11, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71)) };
+        NoteDeleteBtn.Content = new TextBlock
+        {
+            Text = "Delete?",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
         ToolTipService.SetToolTip(NoteDeleteBtn, "Click again to confirm deletion");
 
         _noteDeleteTimer?.Stop();
@@ -3109,211 +3140,187 @@ public sealed partial class WindowIslandWindow : Window
         _noteDeleteTimer.Start();
     }
 
-    private void NoteContentBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void NoteContentBox_TextChanged(object sender, RoutedEventArgs e)
     {
         if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId)) return;
-        _notesStore?.UpdateNote(_activeNoteId, NoteContentBox.Text);
+        NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
+        _notesStore?.UpdateNote(_activeNoteId, rtf);
     }
 
     // ── Formatting toolbar handlers ──────────────────────────────────────────
 
-    private void NoteFmtBold_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("**", "**");
-    private void NoteFmtItalic_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("*", "*");
-    private void NoteFmtUnderline_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("<u>", "</u>");
-    private void NoteFmtStrike_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("~~", "~~");
+    private void NoteFmtBold_Click(object sender, RoutedEventArgs e)
+    {
+        var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+        fmt.Bold = (fmt.Bold == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
+
+    private void NoteFmtItalic_Click(object sender, RoutedEventArgs e)
+    {
+        var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+        fmt.Italic = (fmt.Italic == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
+
+    private void NoteFmtUnderline_Click(object sender, RoutedEventArgs e)
+    {
+        var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+        fmt.Underline = (fmt.Underline == UnderlineType.Single) ? UnderlineType.None : UnderlineType.Single;
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
+
+    private void NoteFmtStrike_Click(object sender, RoutedEventArgs e)
+    {
+        var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+        fmt.Strikethrough = (fmt.Strikethrough == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
 
     private void NoteFmtBullet_Click(object sender, RoutedEventArgs e)
     {
-        ApplyLinePrefix((line, _) =>
-        {
-            string trimmed = line.TrimStart();
-            if (trimmed.StartsWith("- "))
-            {
-                int idx = line.IndexOf("- ");
-                return line.Remove(idx, 2);
-            }
-            return "- " + line;
-        });
+        var pfmt = NoteContentBox.Document.Selection.ParagraphFormat;
+        pfmt.ListType = (pfmt.ListType == MarkerType.Bullet) ? MarkerType.None : MarkerType.Bullet;
+        NoteContentBox.Focus(FocusState.Programmatic);
     }
 
     private void NoteFmtNumbered_Click(object sender, RoutedEventArgs e)
     {
-        ApplyLinePrefix((line, index) =>
-        {
-            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\s*\d+\.\s*");
-            if (match.Success)
-            {
-                return line.Substring(match.Length);
-            }
-            return $"{index + 1}. " + line;
-        });
+        var pfmt = NoteContentBox.Document.Selection.ParagraphFormat;
+        pfmt.ListType = (pfmt.ListType == MarkerType.Arabic) ? MarkerType.None : MarkerType.Arabic;
+        NoteContentBox.Focus(FocusState.Programmatic);
     }
 
     private void NoteFmtChecklist_Click(object sender, RoutedEventArgs e)
     {
-        ApplyLinePrefix((line, _) =>
+        var sel = NoteContentBox.Document.Selection;
+        sel.GetText(TextGetOptions.None, out string selText);
+        if (selText.Contains("☐"))
         {
-            if (line.Contains("- [ ] "))
-            {
-                return line.Replace("- [ ] ", "- [x] ");
-            }
-            if (line.Contains("- [x] "))
-            {
-                return line.Replace("- [x] ", "");
-            }
-            return "- [ ] " + line;
-        });
-    }
-
-    private void NoteFmtColor_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button b && b.Tag is string colorHex)
-        {
-            WrapSelectedNoteText($"<mark bg=\"{colorHex}\">", "</mark>");
+            sel.Text = selText.Replace("☐", "☑");
         }
-    }
-
-    private void WrapSelectedNoteText(string prefix, string suffix)
-    {
-        int selStart = NoteContentBox.SelectionStart;
-        int selLen = NoteContentBox.SelectionLength;
-        string text = NoteContentBox.Text ?? string.Empty;
-
-        if (selLen > 0)
+        else if (selText.Contains("☑"))
         {
-            string selText = text.Substring(selStart, selLen);
-            if (selText.StartsWith(prefix) && selText.EndsWith(suffix) && selText.Length >= prefix.Length + suffix.Length)
-            {
-                string unwrapped = selText.Substring(prefix.Length, selText.Length - prefix.Length - suffix.Length);
-                NoteContentBox.Text = text.Remove(selStart, selLen).Insert(selStart, unwrapped);
-                NoteContentBox.Select(selStart, unwrapped.Length);
-            }
-            else
-            {
-                string wrapped = prefix + selText + suffix;
-                NoteContentBox.Text = text.Remove(selStart, selLen).Insert(selStart, wrapped);
-                NoteContentBox.Select(selStart, wrapped.Length);
-            }
+            sel.Text = selText.Replace("☑", "");
         }
         else
         {
-            NoteContentBox.Text = text.Insert(selStart, prefix + suffix);
-            NoteContentBox.Select(selStart + prefix.Length, 0);
+            sel.Text = "☐ " + selText;
         }
         NoteContentBox.Focus(FocusState.Programmatic);
     }
 
-    private void ApplyLinePrefix(Func<string, int, string> transformLine)
+    private void NoteFmtColor_Click(object sender, RoutedEventArgs e)
     {
-        string text = NoteContentBox.Text ?? string.Empty;
-        int selStart = NoteContentBox.SelectionStart;
-        int selLen = NoteContentBox.SelectionLength;
-
-        int lineStart = text.LastIndexOf('\n', Math.Max(0, selStart - 1));
-        lineStart = (lineStart == -1) ? 0 : lineStart + 1;
-
-        int lineEnd = (selStart + selLen < text.Length) ? text.IndexOf('\n', selStart + selLen) : text.Length;
-        if (lineEnd == -1) lineEnd = text.Length;
-
-        string block = text.Substring(lineStart, lineEnd - lineStart);
-        var lines = block.Split('\n');
-        for (int i = 0; i < lines.Length; i++)
+        if (sender is Button b && b.Tag is string hex)
         {
-            lines[i] = transformLine(lines[i], i);
+            var color = hex switch
+            {
+                "#FFE600" => Windows.UI.Color.FromArgb(255, 255, 230, 0),
+                "#4CAF50" => Windows.UI.Color.FromArgb(255, 76, 175, 80),
+                "#FF4081" => Windows.UI.Color.FromArgb(255, 255, 64, 129),
+                "#00E5FF" => Windows.UI.Color.FromArgb(255, 0, 229, 255),
+                _ => Windows.UI.Color.FromArgb(255, 255, 230, 0)
+            };
+            var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+            if (fmt.BackgroundColor == color)
+            {
+                fmt.BackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            }
+            else
+            {
+                fmt.BackgroundColor = color;
+            }
         }
-        string newBlock = string.Join("\n", lines);
-        NoteContentBox.Text = text.Remove(lineStart, lineEnd - lineStart).Insert(lineStart, newBlock);
-        NoteContentBox.Select(lineStart, newBlock.Length);
         NoteContentBox.Focus(FocusState.Programmatic);
     }
 
     private void NoteContentBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
-        bool isCtrl = ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-        if (isCtrl && e.Key == Windows.System.VirtualKey.B)
+        if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            WrapSelectedNoteText("**", "**");
-            e.Handled = true;
-        }
-        else if (isCtrl && e.Key == Windows.System.VirtualKey.I)
-        {
-            WrapSelectedNoteText("*", "*");
-            e.Handled = true;
-        }
-        else if (isCtrl && e.Key == Windows.System.VirtualKey.U)
-        {
-            WrapSelectedNoteText("<u>", "</u>");
-            e.Handled = true;
-        }
-        else if (isCtrl && (e.Key == Windows.System.VirtualKey.X || e.Key == Windows.System.VirtualKey.S))
-        {
-            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
-            if (shift.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+            var sel = NoteContentBox.Document.Selection;
+            sel.Expand(TextRangeUnit.Paragraph);
+            sel.GetText(TextGetOptions.None, out string lineText);
+            if (lineText.TrimStart().StartsWith("☐ "))
             {
-                WrapSelectedNoteText("~~", "~~");
-                e.Handled = true;
-            }
-        }
-        else if (e.Key == Windows.System.VirtualKey.Enter)
-        {
-            string text = NoteContentBox.Text ?? string.Empty;
-            int selStart = NoteContentBox.SelectionStart;
-            int lineStart = text.LastIndexOf('\n', Math.Max(0, selStart - 1));
-            lineStart = (lineStart == -1) ? 0 : lineStart + 1;
-            string currentLine = text.Substring(lineStart, selStart - lineStart);
-
-            if (currentLine.Trim() == "- [ ]" || currentLine.Trim() == "- [x]" || currentLine.Trim() == "-")
-            {
-                NoteContentBox.Text = text.Remove(lineStart, selStart - lineStart);
-                NoteContentBox.Select(lineStart, 0);
-                e.Handled = true;
-            }
-            else if (currentLine.StartsWith("- [ ] ") || currentLine.StartsWith("- [x] "))
-            {
-                NoteContentBox.Text = text.Insert(selStart, "\n- [ ] ");
-                NoteContentBox.Select(selStart + 7, 0);
-                e.Handled = true;
-            }
-            else if (currentLine.StartsWith("- "))
-            {
-                NoteContentBox.Text = text.Insert(selStart, "\n- ");
-                NoteContentBox.Select(selStart + 3, 0);
-                e.Handled = true;
-            }
-            else
-            {
-                var match = System.Text.RegularExpressions.Regex.Match(currentLine, @"^(\d+)\.\s");
-                if (match.Success)
+                if (lineText.Trim() == "☐")
                 {
-                    if (currentLine.Trim() == match.Value.Trim())
-                    {
-                        NoteContentBox.Text = text.Remove(lineStart, selStart - lineStart);
-                        NoteContentBox.Select(lineStart, 0);
-                    }
-                    else if (int.TryParse(match.Groups[1].Value, out int num))
-                    {
-                        string nextNumStr = $"\n{num + 1}. ";
-                        NoteContentBox.Text = text.Insert(selStart, nextNumStr);
-                        NoteContentBox.Select(selStart + nextNumStr.Length, 0);
-                    }
+                    sel.Text = string.Empty;
+                    e.Handled = true;
+                }
+                else
+                {
+                    NoteContentBox.Document.Selection.Collapse(false);
+                    NoteContentBox.Document.Selection.Text = "\r\n☐ ";
                     e.Handled = true;
                 }
             }
         }
     }
 
+    public static string MarkdownToRtf(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        if (input.TrimStart().StartsWith("{\\rtf")) return input;
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append(@"{\rtf1\ansi\ansicpg1252\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Segoe UI;}}{\colortbl ;\red255\green230\blue0;\red76\green175\blue80;\red255\green64\blue129;\red0\green229\blue255;\red255\green255\blue255;}\viewkind4\uc1\pard\cf5\f0\fs22 ");
+
+        string s = input.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}");
+
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<mark\s+bg=""#FFE600"">(.*?)</mark>", @"\highlight1 $1\highlight0 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<mark\s+bg=""#4CAF50"">(.*?)</mark>", @"\highlight2 $1\highlight0 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<mark\s+bg=""#FF4081"">(.*?)</mark>", @"\highlight3 $1\highlight0 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<mark\s+bg=""#00E5FF"">(.*?)</mark>", @"\highlight4 $1\highlight0 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<mark.*?>(.*?)</mark>", @"\highlight1 $1\highlight0 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\*\*(.*?)\*\*", @"\b $1\b0 ");
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\*(.*?)\*", @"\i $1\i0 ");
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"<u>(.*?)</u>", @"\ul $1\ulnone ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"~~(.*?)~~", @"\strike $1\strike0 ");
+
+        s = s.Replace("\r\n", @"\par ").Replace("\n", @"\par ");
+
+        sb.Append(s);
+        sb.Append(@"\par}");
+        return sb.ToString();
+    }
+
     // ── Timer UI ──────────────────────────────────────────────────────────────
+
+    private void UpdateTimerButtonsState(IslandTimerState state)
+    {
+        if (TimerStartText == null || TimerStartIcon == null) return;
+        switch (state)
+        {
+            case IslandTimerState.Running:
+                TimerStartText.Text = "Pause";
+                TimerStartIcon.Glyph = "\uE769";
+                break;
+            case IslandTimerState.Paused:
+                TimerStartText.Text = "Resume";
+                TimerStartIcon.Glyph = "\uE768";
+                break;
+            default:
+                TimerStartText.Text = "Start";
+                TimerStartIcon.Glyph = "\uE768";
+                break;
+        }
+    }
 
     private void OnTimerTick(TimeSpan remaining, double progress)
     {
-        TimerDisplay.Text = _timer?.FormatRemaining() ?? "00:00";
+        string remStr = _timer?.FormatRemaining() ?? "5:00";
+        if (remStr.StartsWith("0") && remStr.Length == 5)
+            remStr = remStr.Substring(1);
+        TimerDisplay.Text = remStr;
 
         if (_timer?.State == IslandTimerState.Running)
         {
             FoldedTimerMini.Visibility = Visibility.Visible;
             FoldedTimerText.Text = _timer.FormatRemaining();
+            UpdateTimerButtonsState(IslandTimerState.Running);
         }
         else
         {
@@ -3326,7 +3333,8 @@ public sealed partial class WindowIslandWindow : Window
     {
         FoldedTimerMini.Visibility = Visibility.Collapsed;
         UpdateFoldedWeatherMini();
-        TimerStartBtn.Content = "Start";
+        UpdateTimerButtonsState(IslandTimerState.Idle);
+        TimerDisplay.Text = "5:00";
 
         var accent = GetSystemAccentColor();
         string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
@@ -3347,11 +3355,38 @@ public sealed partial class WindowIslandWindow : Window
         if (sender is Button b && b.Tag is string minsStr && int.TryParse(minsStr, out int mins))
         {
             _timer?.Start(TimeSpan.FromMinutes(mins));
-            TimerStartBtn.Content = "Pause";
+            UpdateTimerButtonsState(IslandTimerState.Running);
         }
     }
 
-    private void TimerCustomSetBtn_Click(object sender, RoutedEventArgs e)
+    private void TimerCustomToggleBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (TimerCustomPanel == null || TimerPresetsPanel == null) return;
+        bool isCustomVisible = TimerCustomPanel.Visibility == Visibility.Visible;
+        if (isCustomVisible)
+        {
+            TimerCustomPanel.Visibility = Visibility.Collapsed;
+            TimerPresetsPanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            TimerCustomPanel.Visibility = Visibility.Visible;
+            TimerPresetsPanel.Visibility = Visibility.Collapsed;
+            TimerCustomInput.Focus(FocusState.Programmatic);
+            TimerCustomInput.SelectAll();
+        }
+    }
+
+    private void TimerCustomCloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (TimerCustomPanel != null && TimerPresetsPanel != null)
+        {
+            TimerCustomPanel.Visibility = Visibility.Collapsed;
+            TimerPresetsPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void TimerCustomPlayBtn_Click(object sender, RoutedEventArgs e)
     {
         SubmitCustomTimer();
     }
@@ -3363,6 +3398,15 @@ public sealed partial class WindowIslandWindow : Window
             SubmitCustomTimer();
             e.Handled = true;
         }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (TimerCustomPanel != null && TimerPresetsPanel != null)
+            {
+                TimerCustomPanel.Visibility = Visibility.Collapsed;
+                TimerPresetsPanel.Visibility = Visibility.Visible;
+            }
+            e.Handled = true;
+        }
     }
 
     private void SubmitCustomTimer()
@@ -3371,8 +3415,13 @@ public sealed partial class WindowIslandWindow : Window
         if (TryParseDuration(input, out TimeSpan duration) && duration > TimeSpan.Zero)
         {
             _timer?.Start(duration);
-            TimerStartBtn.Content = "Pause";
+            UpdateTimerButtonsState(IslandTimerState.Running);
             TimerCustomInput.Text = string.Empty;
+            if (TimerCustomPanel != null && TimerPresetsPanel != null)
+            {
+                TimerCustomPanel.Visibility = Visibility.Collapsed;
+                TimerPresetsPanel.Visibility = Visibility.Visible;
+            }
         }
     }
 
@@ -3386,24 +3435,25 @@ public sealed partial class WindowIslandWindow : Window
         if (_timer.State == IslandTimerState.Running)
         {
             _timer.Pause();
-            TimerStartBtn.Content = "Resume";
+            UpdateTimerButtonsState(IslandTimerState.Paused);
         }
         else if (_timer.State == IslandTimerState.Paused)
         {
             _timer.Resume();
-            TimerStartBtn.Content = "Pause";
+            UpdateTimerButtonsState(IslandTimerState.Running);
         }
         else
         {
             _timer.Start(_timer.Remaining > TimeSpan.Zero ? _timer.Remaining : TimeSpan.FromMinutes(5));
-            TimerStartBtn.Content = "Pause";
+            UpdateTimerButtonsState(IslandTimerState.Running);
         }
     }
 
     private void TimerResetBtn_Click(object sender, RoutedEventArgs e)
     {
         _timer?.Reset();
-        TimerStartBtn.Content = "Start";
+        UpdateTimerButtonsState(IslandTimerState.Idle);
+        TimerDisplay.Text = "5:00";
         FoldedTimerMini.Visibility = Visibility.Collapsed;
         UpdateFoldedWeatherMini();
     }
@@ -3513,18 +3563,53 @@ public sealed partial class WindowIslandWindow : Window
         return grid;
     }
 
-    private void ReminderQuickInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    private void ReminderPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is string minsStr)
+        {
+            ReminderTimeInput.Text = $"{minsStr}m";
+            ReminderTitleInput.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void ReminderInput_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            string text = ReminderQuickInput.Text.Trim();
-            if (!string.IsNullOrEmpty(text))
-            {
-                _reminderStore?.AddFromPhrase(text);
-                ReminderQuickInput.Text = string.Empty;
-            }
+            SubmitReminder();
             e.Handled = true;
         }
+    }
+
+    private void ReminderAddBtn_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitReminder();
+    }
+
+    private void SubmitReminder()
+    {
+        string title = ReminderTitleInput.Text.Trim();
+        string timeStr = ReminderTimeInput.Text.Trim();
+
+        if (string.IsNullOrEmpty(title))
+        {
+            ReminderTitleInput.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(timeStr) && WindowIslandDurationParser.TryParse(timeStr, out TimeSpan duration) && duration > TimeSpan.Zero)
+        {
+            _reminderStore?.Add(title, duration);
+        }
+        else
+        {
+            string combined = string.IsNullOrEmpty(timeStr) ? title : $"{title} in {timeStr}";
+            _reminderStore?.AddFromPhrase(combined);
+        }
+
+        ReminderTitleInput.Text = string.Empty;
+        ReminderTimeInput.Text = "10m";
+        RefreshRemindersUI();
     }
 
     private void OnReminderTriggered(IslandReminder reminder)

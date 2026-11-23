@@ -91,6 +91,36 @@ public class WindowIslandNotesAndTimerTests : IDisposable
     }
 
     [Fact]
+    public void ReminderStore_Add_WithIndividualDuration()
+    {
+        using var store = new WindowIslandReminderStore();
+        var rem = store.Add("Team Standup", TimeSpan.FromMinutes(7));
+
+        Assert.NotNull(rem);
+        Assert.Equal("Team Standup", rem.Title);
+        Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
+
+        string relTime = WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc);
+        Assert.Equal("in 7m", relTime);
+
+        store.Delete(rem.Id);
+    }
+
+    [Theory]
+    [InlineData(7.0, "in 7m")]
+    [InlineData(6.95, "in 7m")]
+    [InlineData(10.0, "in 10m")]
+    [InlineData(9.95, "in 10m")]
+    [InlineData(5.0, "in 5m")]
+    [InlineData(0.5, "in 30s")]
+    public void ReminderStore_FormatRelativeTime_RoundsProperly(double minutesFromNow, string expected)
+    {
+        DateTime due = DateTime.UtcNow.AddMinutes(minutesFromNow);
+        string formatted = WindowIslandReminderStore.FormatRelativeTime(due);
+        Assert.Equal(expected, formatted);
+    }
+
+    [Fact]
     public void ReminderStore_Delete_RemovesReminder()
     {
         using var store = new WindowIslandReminderStore();

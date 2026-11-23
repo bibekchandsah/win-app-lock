@@ -1897,8 +1897,8 @@
                                     </Button>
                                     <Button x:Name="NoteDeleteBtn"
                                             Style="{StaticResource TabButtonStyle}"
-                                            Width="24" Height="24"
-                                            Padding="0"
+                                            MinWidth="24" Height="24"
+                                            Padding="4,0"
                                             Click="NoteDeleteBtn_Click"
                                             ToolTipService.ToolTip="Delete current note">
                                         <FontIcon Glyph="&#xE74D;" FontSize="11" />
@@ -1961,20 +1961,20 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Multi-line text box -->
-                            <TextBox x:Name="NoteContentBox"
-                                     Grid.Row="2"
-                                     PlaceholderText="Write anything here: an order number, a to-do list, formatted notes. It saves itself."
-                                     AcceptsReturn="True"
-                                     TextWrapping="Wrap"
-                                     FontSize="11"
-                                     Background="#15FFFFFF"
-                                     Foreground="#F0FFFFFF"
-                                     BorderBrush="#25FFFFFF"
-                                     CornerRadius="6"
-                                     Padding="8,6"
-                                     KeyDown="NoteContentBox_KeyDown"
-                                     TextChanged="NoteContentBox_TextChanged" />
+                            <!-- Multi-line rich text editor with live formatting preview -->
+                            <RichEditBox x:Name="NoteContentBox"
+                                         Grid.Row="2"
+                                         PlaceholderText="Write anything here: an order number, a to-do list, formatted notes. It saves itself."
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         FontSize="11"
+                                         Background="#15FFFFFF"
+                                         Foreground="#F0FFFFFF"
+                                         BorderBrush="#25FFFFFF"
+                                         CornerRadius="6"
+                                         Padding="8,6"
+                                         KeyDown="NoteContentBox_KeyDown"
+                                         TextChanged="NoteContentBox_TextChanged" />
                         </Grid>
 
                         <!-- ── Right: Timer & Reminders ── -->
@@ -1985,86 +1985,147 @@
                                 <RowDefinition Height="*"    /> <!-- Reminders panel -->
                             </Grid.RowDefinitions>
 
-                            <!-- Timer Section -->
-                            <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,6">
-                                <Grid>
+                            <!-- Timer Section: Circular Display + Start/Custom Pills + Presets / Custom Input -->
+                            <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,6">
+                                <!-- Top row: Circular Ring on left, Start + Custom pills on right -->
+                                <Grid Margin="0,2,0,2">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"    />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <FontIcon Glyph="&#xE916;" FontSize="11" Foreground="{ThemeResource SystemAccentColor}" />
-                                        <TextBlock Text="TIMER"
-                                                   FontSize="9"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#60FFFFFF"
-                                                   CharacterSpacing="80" />
+
+                                    <!-- Circular Timer Ring with Display in center -->
+                                    <Grid Width="64" Height="64" Margin="2,0,10,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Background track circle -->
+                                        <Ellipse Width="62" Height="62"
+                                                 Stroke="{ThemeResource SystemAccentColor}"
+                                                 StrokeThickness="4"
+                                                 Opacity="0.25" />
+                                        <!-- Active Accent Ring -->
+                                        <Ellipse x:Name="TimerCircleRing"
+                                                 Width="62" Height="62"
+                                                 Stroke="{ThemeResource SystemAccentColor}"
+                                                 StrokeThickness="4"
+                                                 Opacity="0.9" />
+                                        <!-- Time text -->
+                                        <TextBlock x:Name="TimerDisplay"
+                                                   Text="5:00"
+                                                   FontFamily="Segoe UI"
+                                                   FontWeight="Bold"
+                                                   FontSize="15"
+                                                   Foreground="#FFFFFFFF"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <!-- Right Side: Start pill + Custom pill -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="5">
+                                        <!-- Start / Pause button -->
+                                        <Button x:Name="TimerStartBtn"
+                                                Height="28"
+                                                CornerRadius="14"
+                                                Padding="14,0"
+                                                HorizontalAlignment="Stretch"
+                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                Foreground="White"
+                                                Click="TimerStartBtn_Click">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                                                <FontIcon x:Name="TimerStartIcon" Glyph="&#xE768;" FontSize="11" />
+                                                <TextBlock x:Name="TimerStartText" Text="Start" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Custom / Reset buttons row -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Button x:Name="TimerCustomToggleBtn"
+                                                    Height="26"
+                                                    CornerRadius="13"
+                                                    Padding="10,0"
+                                                    HorizontalAlignment="Stretch"
+                                                    Background="#25FFFFFF"
+                                                    Foreground="#E0FFFFFF"
+                                                    Click="TimerCustomToggleBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="5">
+                                                    <FontIcon Glyph="&#xE70F;" FontSize="10" Foreground="#B0FFFFFF" />
+                                                    <TextBlock Text="Custom" FontSize="10.5" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Reset icon button beside Custom -->
+                                            <Button Grid.Column="1"
+                                                    x:Name="TimerResetBtn"
+                                                    Width="26" Height="26"
+                                                    Padding="0"
+                                                    Margin="4,0,0,0"
+                                                    CornerRadius="13"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    ToolTipService.ToolTip="Reset timer"
+                                                    Click="TimerResetBtn_Click">
+                                                <FontIcon Glyph="&#xE777;" FontSize="11" Foreground="#90FFFFFF" />
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
-                                    <TextBlock x:Name="TimerDisplay"
-                                               Grid.Column="1"
-                                               Text="05:00"
-                                               FontFamily="Consolas"
-                                               FontWeight="SemiBold"
-                                               FontSize="15"
-                                               Foreground="{ThemeResource SystemAccentColor}"
-                                               VerticalAlignment="Center" />
                                 </Grid>
 
-                                <!-- Preset buttons row -->
-                                <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Center">
-                                    <Button Content="5m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="5" />
-                                    <Button Content="10m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="10" />
-                                    <Button Content="15m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="15" />
-                                    <Button Content="25m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="25" />
+                                <!-- Bottom: Presets Row (default) -->
+                                <StackPanel x:Name="TimerPresetsPanel"
+                                            Orientation="Horizontal"
+                                            Spacing="4"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Button Content="5"  FontSize="10" FontWeight="SemiBold" Width="26" Height="22" Padding="0" CornerRadius="11" Background="#20FFFFFF" Foreground="#E0FFFFFF" Click="TimerPreset_Click" Tag="5" />
+                                    <Button Content="10" FontSize="10" FontWeight="SemiBold" Width="26" Height="22" Padding="0" CornerRadius="11" Background="#20FFFFFF" Foreground="#E0FFFFFF" Click="TimerPreset_Click" Tag="10" />
+                                    <Button Content="15" FontSize="10" FontWeight="SemiBold" Width="26" Height="22" Padding="0" CornerRadius="11" Background="#20FFFFFF" Foreground="#E0FFFFFF" Click="TimerPreset_Click" Tag="15" />
+                                    <Button Content="25" FontSize="10" FontWeight="SemiBold" Width="26" Height="22" Padding="0" CornerRadius="11" Background="#20FFFFFF" Foreground="#E0FFFFFF" Click="TimerPreset_Click" Tag="25" />
+                                    <Button Content="45" FontSize="10" FontWeight="SemiBold" Width="26" Height="22" Padding="0" CornerRadius="11" Background="#20FFFFFF" Foreground="#E0FFFFFF" Click="TimerPreset_Click" Tag="45" />
+                                    <TextBlock Text="min" FontSize="10" Foreground="#70FFFFFF" VerticalAlignment="Center" Margin="2,0,0,0" />
                                 </StackPanel>
 
-                                <!-- Custom timer input row -->
-                                <Grid Margin="0,2,0,0">
+                                <!-- Custom Input Row (shown when user clicks Custom) -->
+                                <Grid x:Name="TimerCustomPanel" Visibility="Collapsed" Margin="0,1,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox x:Name="TimerCustomInput"
-                                             PlaceholderText="Custom (e.g. 45m, 1h, 90s)..."
-                                             FontSize="9.5"
-                                             Height="24"
-                                             Padding="6,2"
-                                             Background="#15FFFFFF"
-                                             Foreground="#F0FFFFFF"
-                                             BorderBrush="#25FFFFFF"
-                                             CornerRadius="4"
+                                             PlaceholderText="25, 1:30, 90 s, 2 h"
+                                             FontSize="10"
+                                             Height="26"
+                                             Padding="8,2"
+                                             Background="#25FFFFFF"
+                                             Foreground="#FFFFFFFF"
+                                             BorderBrush="#35FFFFFF"
+                                             CornerRadius="13"
                                              KeyDown="TimerCustomInput_KeyDown" />
                                     <Button Grid.Column="1"
-                                            x:Name="TimerCustomSetBtn"
-                                            Content="Set"
-                                            FontSize="9"
-                                            Height="24"
-                                            Padding="8,2"
-                                            Margin="3,0,0,0"
-                                            CornerRadius="4"
-                                            Style="{StaticResource TabButtonStyle}"
-                                            Click="TimerCustomSetBtn_Click" />
-                                </Grid>
-
-                                <!-- Timer control buttons -->
-                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,2,0,0">
-                                    <Button x:Name="TimerStartBtn"
-                                            Content="Start"
-                                            FontSize="10"
-                                            FontWeight="SemiBold"
-                                            Padding="10,2"
-                                            CornerRadius="4"
+                                            x:Name="TimerCustomPlayBtn"
+                                            Width="26" Height="26"
+                                            Padding="0"
+                                            Margin="4,0,0,0"
+                                            CornerRadius="13"
                                             Background="{ThemeResource AccentFillColorDefaultBrush}"
                                             Foreground="White"
-                                            Click="TimerStartBtn_Click" />
-                                    <Button x:Name="TimerResetBtn"
-                                            Content="Reset"
-                                            FontSize="10"
-                                            Padding="8,2"
-                                            CornerRadius="4"
+                                            ToolTipService.ToolTip="Start custom timer"
+                                            Click="TimerCustomPlayBtn_Click">
+                                        <FontIcon Glyph="&#xE768;" FontSize="11" Foreground="White" />
+                                    </Button>
+                                    <Button Grid.Column="2"
+                                            x:Name="TimerCustomCloseBtn"
+                                            Width="20" Height="26"
+                                            Padding="0"
+                                            Margin="2,0,0,0"
                                             Style="{StaticResource TabButtonStyle}"
-                                            Click="TimerResetBtn_Click" />
-                                </StackPanel>
+                                            ToolTipService.ToolTip="Close"
+                                            Click="TimerCustomCloseBtn_Click">
+                                        <FontIcon Glyph="&#xE711;" FontSize="9" Foreground="#90FFFFFF" />
+                                    </Button>
+                                </Grid>
                             </StackPanel>
 
                             <!-- Divider -->
@@ -2073,6 +2134,7 @@
                             <!-- Reminders Section -->
                             <Grid Grid.Row="2">
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*"    />
@@ -2087,21 +2149,59 @@
                                                CharacterSpacing="80" />
                                 </StackPanel>
 
-                                <!-- Quick add input box -->
-                                <TextBox x:Name="ReminderQuickInput"
-                                         Grid.Row="1"
-                                         PlaceholderText="Call mum in 10m…"
-                                         FontSize="10"
-                                         Background="#15FFFFFF"
-                                         Foreground="#F0FFFFFF"
-                                         BorderBrush="#25FFFFFF"
-                                         CornerRadius="5"
-                                         Padding="6,3"
-                                         Margin="0,0,0,4"
-                                         KeyDown="ReminderQuickInput_KeyDown" />
+                                <!-- Individual reminder input row: Title + Individual Time + Add -->
+                                <Grid Grid.Row="1" Margin="0,0,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="48" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="ReminderTitleInput"
+                                             PlaceholderText="What to remind..."
+                                             FontSize="9.5"
+                                             Height="24"
+                                             Padding="6,2"
+                                             Background="#15FFFFFF"
+                                             Foreground="#F0FFFFFF"
+                                             BorderBrush="#25FFFFFF"
+                                             CornerRadius="4"
+                                             KeyDown="ReminderInput_KeyDown" />
+                                    <TextBox Grid.Column="1"
+                                             x:Name="ReminderTimeInput"
+                                             Text="10m"
+                                             PlaceholderText="10m"
+                                             FontSize="9.5"
+                                             Height="24"
+                                             Padding="4,2"
+                                             Margin="3,0,0,0"
+                                             Background="#15FFFFFF"
+                                             Foreground="#F0FFFFFF"
+                                             BorderBrush="#25FFFFFF"
+                                             CornerRadius="4"
+                                             KeyDown="ReminderInput_KeyDown" />
+                                    <Button Grid.Column="2"
+                                            x:Name="ReminderAddBtn"
+                                            Content="Add"
+                                            FontSize="9"
+                                            Height="24"
+                                            Padding="8,2"
+                                            Margin="3,0,0,0"
+                                            CornerRadius="4"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Click="ReminderAddBtn_Click" />
+                                </Grid>
+
+                                <!-- Quick reminder time preset chips -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="3" Margin="0,0,0,4" HorizontalAlignment="Center">
+                                    <Button Content="5m" FontSize="8.5" Padding="5,1" CornerRadius="3" Style="{StaticResource TabButtonStyle}" Click="ReminderPreset_Click" Tag="5" />
+                                    <Button Content="10m" FontSize="8.5" Padding="5,1" CornerRadius="3" Style="{StaticResource TabButtonStyle}" Click="ReminderPreset_Click" Tag="10" />
+                                    <Button Content="15m" FontSize="8.5" Padding="5,1" CornerRadius="3" Style="{StaticResource TabButtonStyle}" Click="ReminderPreset_Click" Tag="15" />
+                                    <Button Content="30m" FontSize="8.5" Padding="5,1" CornerRadius="3" Style="{StaticResource TabButtonStyle}" Click="ReminderPreset_Click" Tag="30" />
+                                    <Button Content="1h" FontSize="8.5" Padding="5,1" CornerRadius="3" Style="{StaticResource TabButtonStyle}" Click="ReminderPreset_Click" Tag="60" />
+                                </StackPanel>
 
                                 <!-- Reminders List -->
-                                <ScrollViewer Grid.Row="2"
+                                <ScrollViewer Grid.Row="3"
                                               VerticalScrollBarVisibility="Auto"
                                               HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel x:Name="ReminderList" Spacing="2" />

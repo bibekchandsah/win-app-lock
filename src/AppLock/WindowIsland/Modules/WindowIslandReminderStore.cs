@@ -59,6 +59,22 @@ public sealed class WindowIslandReminderStore : IDisposable
         }
     }
 
+    public IslandReminder Add(string title, TimeSpan duration)
+    {
+        var reminder = new IslandReminder
+        {
+            Title = string.IsNullOrWhiteSpace(title) ? "Reminder" : title.Trim(),
+            DueTimeUtc = DateTime.UtcNow.Add(duration > TimeSpan.Zero ? duration : TimeSpan.FromMinutes(10))
+        };
+        lock (_lock)
+        {
+            _reminders.Add(reminder);
+        }
+        Save();
+        Changed?.Invoke();
+        return reminder;
+    }
+
     public IslandReminder? AddFromPhrase(string phrase)
     {
         var result = WindowIslandReminderParser.Parse(phrase);
@@ -122,11 +138,11 @@ public sealed class WindowIslandReminderStore : IDisposable
     public static string FormatRelativeTime(DateTime dueTimeUtc)
     {
         var diff = dueTimeUtc - DateTime.UtcNow;
-        if (diff.TotalSeconds < 0) return "due now";
-        if (diff.TotalSeconds < 60) return $"in {(int)diff.TotalSeconds}s";
-        if (diff.TotalMinutes < 60) return $"in {(int)diff.TotalMinutes}m";
-        if (diff.TotalHours < 24) return $"in {(int)diff.TotalHours}h";
-        return $"in {(int)diff.TotalDays}d";
+        if (diff.TotalSeconds <= 0) return "due now";
+        if (diff.TotalSeconds < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalSeconds))}s";
+        if (diff.TotalMinutes < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
+        if (diff.TotalHours < 24) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalHours))}h";
+        return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalDays))}d";
     }
 
     private void CheckDueReminders(object? state)
