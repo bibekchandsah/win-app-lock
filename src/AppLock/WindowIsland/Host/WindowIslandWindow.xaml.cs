@@ -3717,6 +3717,11 @@ public sealed partial class WindowIslandWindow : Window
         if (_reminderStore == null) return;
         var list = _reminderStore.ActiveReminders;
 
+        if (ReminderCountBadge != null)
+            ReminderCountBadge.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (ReminderCountText != null)
+            ReminderCountText.Text = list.Count.ToString();
+
         ReminderList.Children.Clear();
 
         if (list.Count == 0)
@@ -3724,7 +3729,7 @@ public sealed partial class WindowIslandWindow : Window
             var empty = new TextBlock
             {
                 Text = "No active reminders",
-                FontSize = 10,
+                FontSize = 9.5,
                 Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 10, 0, 0)
@@ -3742,11 +3747,13 @@ public sealed partial class WindowIslandWindow : Window
 
     private Grid BuildReminderRow(IslandReminder rem)
     {
+        bool isNow = rem.DueTimeUtc <= DateTime.UtcNow.AddMinutes(1);
+
         var grid = new Grid
         {
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
-            CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(6, 3, 4, 3)
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 6, 4)
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -3755,10 +3762,12 @@ public sealed partial class WindowIslandWindow : Window
         var icon = new FontIcon
         {
             Glyph = "\uEA8F",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 140, 0)),
+            FontSize = 13,
+            Foreground = isNow
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 167, 38))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(112, 255, 255, 255)),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0)
+            Margin = new Thickness(0, 0, 8, 0)
         };
         Grid.SetColumn(icon, 0);
         grid.Children.Add(icon);
@@ -3767,27 +3776,31 @@ public sealed partial class WindowIslandWindow : Window
         var title = new TextBlock
         {
             Text = rem.Title,
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var relTime = new TextBlock
         {
-            Text = WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc),
-            FontSize = 8,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+            Text = isNow ? "now" : WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc),
+            FontSize = 9,
+            FontWeight = isNow ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+            Foreground = isNow
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 167, 38))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(115, 255, 255, 255))
         };
         stack.Children.Add(title);
         stack.Children.Add(relTime);
         Grid.SetColumn(stack, 1);
         grid.Children.Add(stack);
 
-        // Actions: Complete ✓ and Delete ✕
+        // Actions: Complete ✓ and Confirmable Delete ✕
         var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
 
         var doneBtn = new Button
         {
-            Content = new FontIcon { Glyph = "\uE73E", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 108, 203, 95)) },
+            Content = new FontIcon { Glyph = "\uE73E", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 108, 203, 95)) },
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
             Width = 20, Height = 20,
             Padding = new Thickness(0),
@@ -3797,16 +3810,29 @@ public sealed partial class WindowIslandWindow : Window
         doneBtn.Click += (_, _) => _reminderStore?.Complete(rem.Id);
         btnPanel.Children.Add(doneBtn);
 
+        bool confirmingDelete = false;
         var delBtn = new Button
         {
-            Content = new FontIcon { Glyph = "\uE74D", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 100, 100)) },
+            Content = new FontIcon { Glyph = "\uE74D", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)) },
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
-            Width = 20, Height = 20,
-            Padding = new Thickness(0),
+            Height = 20,
+            Padding = new Thickness(4, 0, 4, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         ToolTipService.SetToolTip(delBtn, "Delete reminder");
-        delBtn.Click += (_, _) => _reminderStore?.Delete(rem.Id);
+        delBtn.Click += (_, _) =>
+        {
+            if (!confirmingDelete)
+            {
+                confirmingDelete = true;
+                delBtn.Content = new TextBlock { Text = "Delete?", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 100, 100)) };
+                delBtn.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 0, 0));
+            }
+            else
+            {
+                _reminderStore?.Delete(rem.Id);
+            }
+        };
         btnPanel.Children.Add(delBtn);
 
         Grid.SetColumn(btnPanel, 2);
@@ -3821,9 +3847,8 @@ public sealed partial class WindowIslandWindow : Window
         if (string.IsNullOrEmpty(text))
         {
             _reminderParsedDue = null;
-            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+            if (ReminderDetectedContainer != null) ReminderDetectedContainer.Visibility = Visibility.Collapsed;
             if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
-            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -3832,16 +3857,14 @@ public sealed partial class WindowIslandWindow : Window
         {
             _reminderParsedDue = result.DueTimeUtc;
             if (ReminderDetectedText != null) ReminderDetectedText.Text = WindowIslandReminderParser.FormatPill(result.DueTimeUtc);
-            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Visible;
+            if (ReminderDetectedContainer != null) ReminderDetectedContainer.Visibility = Visibility.Visible;
             if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Collapsed;
-            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Visible;
         }
         else
         {
             _reminderParsedDue = null;
-            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+            if (ReminderDetectedContainer != null) ReminderDetectedContainer.Visibility = Visibility.Collapsed;
             if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
-            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -3924,9 +3947,8 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (ReminderNaturalInput != null) ReminderNaturalInput.Text = string.Empty;
         _reminderParsedDue = null;
-        if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+        if (ReminderDetectedContainer != null) ReminderDetectedContainer.Visibility = Visibility.Collapsed;
         if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
-        if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnReminderTriggered(IslandReminder reminder)
