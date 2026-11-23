@@ -1311,6 +1311,11 @@ public sealed partial class WindowIslandWindow : Window
         float winW = WindowWidthDip;
         float winH = IslandMotion.TabSize(_activeTab).H + 60f;
 
+        // The open layer is the panel's content: it fills the window so the shell never shows
+        // an empty strip under the cards.
+        OpenLayer.Width  = winW;
+        OpenLayer.Height = winH;
+
         var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
         _windowX        = rect.X;
         _windowY        = rect.Y;
@@ -1472,7 +1477,10 @@ public sealed partial class WindowIslandWindow : Window
 
             bool show = lines.Count > 0;
             LyricsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            TileGrid.Visibility    = show ? Visibility.Collapsed : Visibility.Visible;
+
+            // With lyrics the player card shares the row with the lyrics card; without them it
+            // spans the whole width again.
+            Grid.SetColumnSpan(MediaCard, show ? 1 : 2);
         }
         catch (Exception ex) { WindowIslandHost.Log("ShowLyrics: " + ex.Message); }
     }
