@@ -97,6 +97,9 @@ public sealed class WindowIslandSettings
     /// <summary>Push a card when VPN connects or disconnects.</summary>
     public bool CardVpnEnabled        { get; set; } = true;
 
+    // ── Controls Tab Add-on Settings ─────────────────────────────────────────
+    public ControlsSettings Controls  { get; set; } = new();
+
     /// <summary>Push cards at 20 %, 10 %, 5 % battery while discharging.</summary>
     public bool CardBatteryLowEnabled { get; set; } = true;
 

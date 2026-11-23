@@ -74,6 +74,7 @@
     <Compile Include="..\..\src\AppLock\Models\KeyboardSettings.cs" Link="Models\KeyboardSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\IslandSettings.cs" Link="Models\IslandSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\WindowIslandSettings.cs" Link="Models\WindowIslandSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\ControlsSettings.cs" Link="Models\ControlsSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockKeyIndicatorSettings.cs" Link="Models\LockKeyIndicatorSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
@@ -173,6 +174,7 @@
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\WindowIslandWeatherService.cs" Link="WindowIsland\Modules\Weather\WindowIslandWeatherService.cs" />
     <!-- Window Island Controls (Milestone 11) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Controls\WindowIslandControlsService.cs" Link="WindowIsland\Modules\Controls\WindowIslandControlsService.cs" />
+    <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Controls\QuickCardRunner.cs" Link="WindowIsland\Modules\Controls\QuickCardRunner.cs" />
     <!-- Window Island Notifications (Milestone 12) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" Link="WindowIsland\Modules\Notifications\WindowIslandNotificationService.cs" />
     <!-- Window Island Chat (Milestone 13) -->

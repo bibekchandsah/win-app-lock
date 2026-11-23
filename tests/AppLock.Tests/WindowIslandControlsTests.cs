@@ -139,4 +139,50 @@ public class WindowIslandControlsTests
             Assert.False(string.IsNullOrWhiteSpace(item.DeviceType));
         }
     }
+
+    [Fact]
+    public void QuickCards_Defaults_ContainSixCards()
+    {
+        var defaults = AppLock.Models.QuickCard.Defaults();
+        Assert.NotNull(defaults);
+        Assert.Equal(6, defaults.Count);
+        Assert.Contains(defaults, c => c.Id == "lock");
+        Assert.Contains(defaults, c => c.Id == "desktop");
+        Assert.Contains(defaults, c => c.Id == "taskview");
+        Assert.Contains(defaults, c => c.Id == "calculator");
+        Assert.Contains(defaults, c => c.Id == "defaultapps");
+        Assert.Contains(defaults, c => c.Id == "startupapps");
+    }
+
+    [Fact]
+    public void ControlsSettings_Migration_InitializesDefaultsWhenEmpty()
+    {
+        var settings = new AppLock.Models.ControlsSettings();
+        Assert.NotNull(settings.Cards);
+        Assert.Equal(6, settings.Cards.Count);
+
+        // When set to empty/null, it automatically falls back to defaults
+        settings.Cards = new System.Collections.Generic.List<AppLock.Models.QuickCard>();
+        Assert.Equal(6, settings.Cards.Count);
+    }
+
+    [Fact]
+    public void ControlsSettings_JsonSerialization_RoundtripsProperly()
+    {
+        var original = new AppLock.Models.ControlsSettings
+        {
+            CloseIslandAfterCard = false,
+            ShowBrightness = false,
+            ShowPowerRow = false
+        };
+
+        string json = System.Text.Json.JsonSerializer.Serialize(original);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<AppLock.Models.ControlsSettings>(json);
+
+        Assert.NotNull(restored);
+        Assert.False(restored.CloseIslandAfterCard);
+        Assert.False(restored.ShowBrightness);
+        Assert.False(restored.ShowPowerRow);
+        Assert.Equal(6, restored.Cards.Count);
+    }
 }

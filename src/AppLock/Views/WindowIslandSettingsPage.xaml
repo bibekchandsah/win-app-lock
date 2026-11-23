@@ -208,6 +208,26 @@
                 <TextBlock x:Name="ChatRuntimeStatusText" FontSize="11" Opacity="0.6" />
             </StackPanel>
 
+            <!-- Controls Tab Add-on (Milestone 1) -->
+            <TextBlock Text="Controls Tab" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <StackPanel Spacing="10">
+                <ToggleSwitch x:Name="ControlsCloseAfterCardToggle"
+                              Header="Close Island after running a quick-action card"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ControlsShowBtBatteryCardToggle"
+                              Header="Show Bluetooth battery card"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ControlsShowBrightnessToggle"
+                              Header="Show Brightness slider"
+                              Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ControlsShowPowerRowToggle"
+                              Header="Show Power buttons row (Lock, Sleep, Restart, Shut down)"
+                              Toggled="OnSettingChanged" />
+                <Button x:Name="ControlsResetCardsBtn"
+                        Content="Reset Quick Cards to Defaults"
+                        Click="ControlsResetCardsBtn_Click" />
+            </StackPanel>
+
             <!-- Visibility Rules (Milestone 15) -->
             <TextBlock Text="Visibility Rules" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
             <StackPanel Spacing="10">

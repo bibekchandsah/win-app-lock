@@ -27,46 +27,48 @@ public class WindowIslandWeatherTests
     [Fact]
     public void MetNorwayParser_ParsesValidJsonCorrectly()
     {
-        string sampleJson = @"{
-            ""properties"": {
+        string t1 = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        string t2 = DateTime.UtcNow.AddHours(1).ToString("yyyy-MM-ddTHH:mm:ssZ");
+        string sampleJson = $@"{{
+            ""properties"": {{
                 ""timeseries"": [
-                    {
-                        ""time"": ""2026-11-23T12:00:00Z"",
-                        ""data"": {
-                            ""instant"": {
-                                ""details"": {
+                    {{
+                        ""time"": ""{t1}"",
+                        ""data"": {{
+                            ""instant"": {{
+                                ""details"": {{
                                     ""air_temperature"": 18.5,
                                     ""wind_speed"": 4.2,
                                     ""wind_from_direction"": 180.0,
                                     ""relative_humidity"": 65.0,
                                     ""air_pressure_at_sea_level"": 1015.0,
                                     ""dew_point_temperature"": 11.8
-                                }
-                            },
-                            ""next_1_hours"": {
-                                ""summary"": { ""symbol_code"": ""partlycloudy_day"" },
-                                ""details"": { ""precipitation_amount"": 0.2 }
-                            }
-                        }
-                    },
-                    {
-                        ""time"": ""2026-11-23T13:00:00Z"",
-                        ""data"": {
-                            ""instant"": {
-                                ""details"": {
+                                }}
+                            }},
+                            ""next_1_hours"": {{
+                                ""summary"": {{ ""symbol_code"": ""partlycloudy_day"" }},
+                                ""details"": {{ ""precipitation_amount"": 0.2 }}
+                            }}
+                        }}
+                    }},
+                    {{
+                        ""time"": ""{t2}"",
+                        ""data"": {{
+                            ""instant"": {{
+                                ""details"": {{
                                     ""air_temperature"": 19.0,
                                     ""wind_speed"": 4.5
-                                }
-                            },
-                            ""next_1_hours"": {
-                                ""summary"": { ""symbol_code"": ""rain"" },
-                                ""details"": { ""precipitation_amount"": 1.5 }
-                            }
-                        }
-                    }
+                                }}
+                            }},
+                            ""next_1_hours"": {{
+                                ""summary"": {{ ""symbol_code"": ""rain"" }},
+                                ""details"": {{ ""precipitation_amount"": 1.5 }}
+                            }}
+                        }}
+                    }}
                 ]
-            }
-        }";
+            }}
+        }}";
 
         var data = MetNorwayWeatherProvider.ParseMetNorwayJson(sampleJson, 51.5074, -0.1278);
         Assert.NotNull(data);

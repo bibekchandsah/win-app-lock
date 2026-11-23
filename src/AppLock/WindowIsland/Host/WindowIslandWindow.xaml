@@ -2854,9 +2854,9 @@
                     <Grid x:Name="ContentControls" Opacity="1" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: 5 Control Tiles (Wi-Fi, Bluetooth, Dark Theme, Battery, VPN) -->
@@ -2991,9 +2991,63 @@
                             </Button>
                         </Grid>
 
-                        <!-- Row 1: Brightness Slider Row (compact sleek row) -->
-                        <Border Grid.Row="1"
-                                Margin="0,8,0,0"
+                        <!-- Row 1: Scrollable area (Bluetooth battery card + Quick cards grid) -->
+                        <ScrollViewer Grid.Row="1"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Margin="0,0,0,6">
+                            <StackPanel Spacing="8">
+                                <!-- Bluetooth Battery Card (wide) -->
+                                <Border x:Name="ControlsBtBatteryCard"
+                                        Background="#16FFFFFF"
+                                        BorderBrush="#20FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE702;" FontSize="13" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="1" x:Name="ControlsBtBatteryCardTitle" Text="Bluetooth devices" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" x:Name="ControlsBtBatteryCardStatus" Text="No devices connected" FontSize="10" Foreground="#80FFFFFF" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Quick cards section header -->
+                                <Grid Margin="2,2,2,0">
+                                    <TextBlock Text="Quick cards" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF" VerticalAlignment="Center"/>
+                                    <Button x:Name="ControlsQuickCardsEditBtn"
+                                            Click="ControlsQuickCardsEditBtn_Click"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Padding="8,2"
+                                            CornerRadius="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon x:Name="ControlsQuickCardsEditIcon" Glyph="&#xE70F;" FontSize="10" Foreground="#A0FFFFFF"/>
+                                            <TextBlock x:Name="ControlsQuickCardsEditText" Text="Edit" FontSize="10" Foreground="#D0FFFFFF"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Quick cards grid (4 columns) -->
+                                <Grid x:Name="ControlsQuickCardsGrid" ColumnSpacing="6" RowSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Row 2: Brightness Slider Row (pinned) -->
+                        <Border x:Name="ControlsBrightnessRow"
+                                Grid.Row="2"
+                                Margin="0,4,0,6"
                                 Background="#12FFFFFF"
                                 BorderBrush="#18FFFFFF"
                                 BorderThickness="1"
@@ -3020,8 +3074,8 @@
                             </Grid>
                         </Border>
 
-                        <!-- Row 2: 4 System Power Buttons (Lock, Sleep, Restart [confirming], Shut Down [confirming]) -->
-                        <Grid Grid.Row="2" Margin="0,8,0,0" ColumnSpacing="6">
+                        <!-- Row 3: 4 System Power Buttons (Lock, Sleep, Restart [confirming], Shut Down [confirming]) (pinned) -->
+                        <Grid x:Name="ControlsPowerRow" Grid.Row="3" Margin="0,0,0,0" ColumnSpacing="6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -3092,7 +3146,7 @@
 
                         <!-- Device List Overlay (for Wi-Fi networks & Bluetooth devices) -->
                         <Border x:Name="ControlsDeviceOverlay"
-                                Grid.Row="0" Grid.RowSpan="4"
+                                Grid.Row="0" Grid.RowSpan="2"
                                 Visibility="Collapsed"
                                 Background="#1C1C1F"
                                 BorderBrush="#35FFFFFF"

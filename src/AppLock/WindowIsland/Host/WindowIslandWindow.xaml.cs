@@ -4816,6 +4816,16 @@ public sealed partial class WindowIslandWindow : Window
                 ControlsBrightnessText.Text = $"{curBri}%";
                 _controlsBrightnessChanging = false;
             }
+
+            // 7. Dynamic row visibility and Quick Cards Grid
+            if (ControlsBrightnessRow != null)
+                ControlsBrightnessRow.Visibility = _settings.Controls.ShowBrightness ? Visibility.Visible : Visibility.Collapsed;
+            if (ControlsPowerRow != null)
+                ControlsPowerRow.Visibility = _settings.Controls.ShowPowerRow ? Visibility.Visible : Visibility.Collapsed;
+            if (ControlsBtBatteryCard != null)
+                ControlsBtBatteryCard.Visibility = _settings.Controls.ShowBluetoothBatteryCard ? Visibility.Visible : Visibility.Collapsed;
+
+            RenderQuickCardsGrid();
         }
         catch { }
     }
@@ -5259,6 +5269,207 @@ public sealed partial class WindowIslandWindow : Window
                 ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
             };
             _shutdownConfirmTimer.Start();
+        }
+    }
+
+    // ── Quick-Action Cards (Controls Add-on Milestone 1) ──────────────────────
+
+    private bool _controlsQuickCardsEditMode = false;
+
+    private void ControlsQuickCardsEditBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _controlsQuickCardsEditMode = !_controlsQuickCardsEditMode;
+        ControlsQuickCardsEditText.Text = _controlsQuickCardsEditMode ? "Done" : "Edit";
+        ControlsQuickCardsEditIcon.Glyph = _controlsQuickCardsEditMode ? "\uE8FB" : "\uE70F";
+        RenderQuickCardsGrid();
+    }
+
+    private void RenderQuickCardsGrid()
+    {
+        if (ControlsQuickCardsGrid == null) return;
+        ControlsQuickCardsGrid.Children.Clear();
+        ControlsQuickCardsGrid.RowDefinitions.Clear();
+
+        var cards = _settings.Controls.Cards ?? QuickCard.Defaults();
+
+        int totalSlots = cards.Count + (_controlsQuickCardsEditMode ? 1 : 0);
+        int rowsNeeded = (int)Math.Ceiling(totalSlots / 4.0);
+        if (rowsNeeded < 1) rowsNeeded = 1;
+
+        for (int r = 0; r < rowsNeeded; r++)
+        {
+            ControlsQuickCardsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        var accentColor = GetSystemAccentColor();
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            var card = cards[i];
+            int row = i / 4;
+            int col = i % 4;
+
+            var cardContainer = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Height = 54
+            };
+
+            var btn = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 5, 8, 5)
+            };
+            ToolTipService.SetToolTip(btn, string.IsNullOrWhiteSpace(card.Command) ? card.Name : $"{card.Name}\n{card.Command}");
+
+            var contentStack = new StackPanel
+            {
+                Spacing = 2,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var icon = new FontIcon
+            {
+                Glyph = string.IsNullOrEmpty(card.IconGlyph) ? "\uE71D" : card.IconGlyph,
+                FontSize = 15,
+                Foreground = new SolidColorBrush(accentColor),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            contentStack.Children.Add(icon);
+
+            var titleBlock = new TextBlock
+            {
+                Text = card.Name,
+                FontSize = 10.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 115
+            };
+            contentStack.Children.Add(titleBlock);
+
+            btn.Content = contentStack;
+
+            btn.Click += (_, _) =>
+            {
+                if (_controlsQuickCardsEditMode) return;
+                _ = QuickCardRunner.ExecuteCardAsync(card, () =>
+                {
+                    if (_settings.Controls.CloseIslandAfterCard)
+                    {
+                        DispatcherQueue.TryEnqueue(Collapse);
+                    }
+                });
+            };
+
+            var flyout = new MenuFlyout();
+            var moveToStartMenu = new MenuFlyoutItem { Text = "Move to start", Icon = new FontIcon { Glyph = "\uE898" } };
+            moveToStartMenu.Click += (_, _) =>
+            {
+                cards.Remove(card);
+                cards.Insert(0, card);
+                ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                RenderQuickCardsGrid();
+            };
+            var removeMenu = new MenuFlyoutItem { Text = "Remove", Icon = new FontIcon { Glyph = "\uE74D" } };
+            removeMenu.Click += (_, _) =>
+            {
+                cards.Remove(card);
+                ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                RenderQuickCardsGrid();
+            };
+            flyout.Items.Add(moveToStartMenu);
+            flyout.Items.Add(removeMenu);
+            btn.ContextFlyout = flyout;
+
+            cardContainer.Children.Add(btn);
+
+            if (_controlsQuickCardsEditMode)
+            {
+                var delBtn = new Button
+                {
+                    Width = 20,
+                    Height = 20,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(0, 2, 2, 0),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 40, 40, 45)),
+                    BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 100, 100)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    Content = new FontIcon { Glyph = "\uE711", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 120, 120)) }
+                };
+                delBtn.Click += (_, _) =>
+                {
+                    cards.Remove(card);
+                    ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                    RenderQuickCardsGrid();
+                };
+                cardContainer.Children.Add(delBtn);
+            }
+
+            Grid.SetRow(cardContainer, row);
+            Grid.SetColumn(cardContainer, col);
+            ControlsQuickCardsGrid.Children.Add(cardContainer);
+        }
+
+        if (_controlsQuickCardsEditMode)
+        {
+            int nextIdx = cards.Count;
+            int addRow = nextIdx / 4;
+            int addCol = nextIdx % 4;
+
+            var addBtn = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 54,
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(10, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(accentColor),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 5, 8, 5)
+            };
+
+            var addStack = new StackPanel
+            {
+                Spacing = 2,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            addStack.Children.Add(new FontIcon
+            {
+                Glyph = "\uE710",
+                FontSize = 15,
+                Foreground = new SolidColorBrush(accentColor),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            addStack.Children.Add(new TextBlock
+            {
+                Text = "Add card",
+                FontSize = 10.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(accentColor),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            addBtn.Content = addStack;
+
+            Grid.SetRow(addBtn, addRow);
+            Grid.SetColumn(addBtn, addCol);
+            ControlsQuickCardsGrid.Children.Add(addBtn);
         }
     }
 

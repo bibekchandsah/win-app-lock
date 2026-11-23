@@ -85,6 +85,12 @@ public sealed partial class WindowIslandSettingsPage : Page
 
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
+        // Controls Tab Add-on
+        ControlsCloseAfterCardToggle.IsOn    = s.Controls.CloseIslandAfterCard;
+        ControlsShowBtBatteryCardToggle.IsOn = s.Controls.ShowBluetoothBatteryCard;
+        ControlsShowBrightnessToggle.IsOn    = s.Controls.ShowBrightness;
+        ControlsShowPowerRowToggle.IsOn      = s.Controls.ShowPowerRow;
+
         // Milestone 15: Visibility rules
         HideInFullScreenToggle.IsOn             = s.HideInFullScreen;
         EdgeDwellToggle.IsOn                    = s.EdgeDwellEnabled;
@@ -179,6 +185,12 @@ public sealed partial class WindowIslandSettingsPage : Page
         }
         s.Hotkey        = HotkeyBox.Text.Trim();
 
+        // Controls Tab Add-on
+        s.Controls.CloseIslandAfterCard     = ControlsCloseAfterCardToggle.IsOn;
+        s.Controls.ShowBluetoothBatteryCard = ControlsShowBtBatteryCardToggle.IsOn;
+        s.Controls.ShowBrightness           = ControlsShowBrightnessToggle.IsOn;
+        s.Controls.ShowPowerRow             = ControlsShowPowerRowToggle.IsOn;
+
         // Milestone 15: Visibility rules
         s.HideInFullScreen           = HideInFullScreenToggle.IsOn;
         s.EdgeDwellEnabled           = EdgeDwellToggle.IsOn;
@@ -268,6 +280,13 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void UpdateYOffsetLabel()
         => YOffsetLabelText.Text = $"{(int)YOffsetSlider.Value} DIPs";
+
+    private void ControlsResetCardsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        s.Controls.Cards = QuickCard.Defaults();
+        Save();
+    }
 
     private void OnDelaySliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
