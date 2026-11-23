@@ -162,6 +162,45 @@ public sealed class WindowIslandLauncher
         return true;
     }
 
+    /// <summary>
+    /// Applies an edit to an existing shortcut. The icon is re-resolved only when the target or the
+    /// "use the app's icon" choice changed, so renaming an entry stays instant.
+    /// </summary>
+    public async Task<bool> UpdateAsync(string id, string rawTarget, string? rawName = null, bool useAppIcon = true)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(rawTarget)) return false;
+        string target = rawTarget.Trim();
+
+        IslandShortcut? item;
+        lock (_items)
+        {
+            if (_items.Any(i => i.Id != id && string.Equals(i.Target, target, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            item = _items.FirstOrDefault(i => i.Id == id);
+        }
+        if (item == null) return false;
+
+        bool refreshIcon = item.UseAppIcon != useAppIcon
+                        || !string.Equals(item.Target, target, StringComparison.OrdinalIgnoreCase)
+                        || string.IsNullOrEmpty(item.IconFile);
+
+        string? iconPath = refreshIcon
+            ? await Task.Run(() => ExtractOrFetchIcon(target, useAppIcon))
+            : item.IconFile;
+
+        lock (_items)
+        {
+            item.Target = target;
+            item.Name = string.IsNullOrWhiteSpace(rawName) ? InferName(target) : rawName.Trim();
+            item.UseAppIcon = useAppIcon;
+            item.IconFile = iconPath;
+        }
+
+        Save();
+        Changed?.Invoke();
+        return true;
+    }
+
     public bool Remove(string id)
     {
         bool removed;

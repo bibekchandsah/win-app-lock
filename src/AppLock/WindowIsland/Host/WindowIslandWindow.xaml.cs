@@ -152,6 +152,7 @@ public sealed partial class WindowIslandWindow : Window
 
     // Milestone 7: Launcher
     private WindowIslandLauncher?             _launcher;
+    private string?                          _editingShortcutId;
 
     // Milestone 8: Command bar & File index
     private WindowIslandFileIndex?            _fileIndex;
@@ -1638,8 +1639,8 @@ public sealed partial class WindowIslandWindow : Window
 
     private void TileNetwork_Click(object sender, RoutedEventArgs e)
     {
-        // Navigate to main app Others page (Speed Meter) — placeholder until Milestone 8
-        try { (App.MainWindowInstance as MainWindow)?.NavigateToWindowIslandSettings(); } catch { }
+        // The live reading is the Speed Meter's, so open that page rather than the island settings
+        try { (App.MainWindowInstance as MainWindow)?.NavigateToSpeedMeterSettings(); } catch { }
     }
 
     private void TileCpuRam_Click(object sender, RoutedEventArgs e)
@@ -2026,6 +2027,10 @@ public sealed partial class WindowIslandWindow : Window
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
+        var editItem = new MenuFlyoutItem { Text = "Edit", Icon = new FontIcon { Glyph = "\uE70F" } };
+        editItem.Click += (_, _) => BeginEditShortcut(item);
+        menu.Items.Add(editItem);
+
         var removeItem = new MenuFlyoutItem { Text = "Remove", Icon = new FontIcon { Glyph = "\uE74D" } };
         removeItem.Click += (_, _) => _launcher?.Remove(item.Id);
         menu.Items.Add(removeItem);
@@ -2051,14 +2056,32 @@ public sealed partial class WindowIslandWindow : Window
 
     private void LauncherAddBtn_Click(object sender, RoutedEventArgs e)
     {
+        _editingShortcutId = null;
+        LauncherAddTitle.Text = "A link for the launcher";
+        LauncherAddConfirmBtn.Content = "Add";
         LauncherTargetInput.Text = string.Empty;
         LauncherNameInput.Text = string.Empty;
         LauncherUseAppIconCheck.IsChecked = true;
         LauncherAddOverlay.Visibility = Visibility.Visible;
+        LauncherTargetInput.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>Opens the same dialog pre-filled, so a shortcut can be corrected instead of redone.</summary>
+    private void BeginEditShortcut(IslandShortcut item)
+    {
+        _editingShortcutId = item.Id;
+        LauncherAddTitle.Text = "Edit shortcut";
+        LauncherAddConfirmBtn.Content = "Save";
+        LauncherTargetInput.Text = item.Target;
+        LauncherNameInput.Text = item.Name;
+        LauncherUseAppIconCheck.IsChecked = item.UseAppIcon;
+        LauncherAddOverlay.Visibility = Visibility.Visible;
+        LauncherTargetInput.Focus(FocusState.Programmatic);
     }
 
     private void LauncherAddCancel_Click(object sender, RoutedEventArgs e)
     {
+        _editingShortcutId = null;
         LauncherAddOverlay.Visibility = Visibility.Collapsed;
     }
 
@@ -2070,8 +2093,12 @@ public sealed partial class WindowIslandWindow : Window
 
         if (!string.IsNullOrEmpty(target) && _launcher != null)
         {
-            await _launcher.AddAsync(target, string.IsNullOrEmpty(name) ? null : name, useAppIcon);
+            if (_editingShortcutId is { } editingId)
+                await _launcher.UpdateAsync(editingId, target, string.IsNullOrEmpty(name) ? null : name, useAppIcon);
+            else
+                await _launcher.AddAsync(target, string.IsNullOrEmpty(name) ? null : name, useAppIcon);
         }
+        _editingShortcutId = null;
         LauncherAddOverlay.Visibility = Visibility.Collapsed;
     }
 

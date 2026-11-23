@@ -1108,7 +1108,8 @@
                                     </Grid.RowDefinitions>
 
                                     <StackPanel Grid.Row="0" Spacing="3">
-                                        <TextBlock Text="A link for the launcher"
+                                        <TextBlock x:Name="LauncherAddTitle"
+                                                   Text="A link for the launcher"
                                                    FontFamily="Segoe UI Variable Display"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
@@ -1124,8 +1125,8 @@
                                              Grid.Row="1"
                                              PlaceholderText="https://… or file/folder path"
                                              FontSize="12"
-                                             Height="34"
-                                             Padding="10,0"
+                                             MinHeight="0"
+                                             Padding="11,6,11,6"
                                              VerticalContentAlignment="Center"
                                              Background="#14FFFFFF"
                                              Foreground="#F0FFFFFF"
@@ -1136,8 +1137,8 @@
                                              Grid.Row="2"
                                              PlaceholderText="Name (optional)"
                                              FontSize="12"
-                                             Height="34"
-                                             Padding="10,0"
+                                             MinHeight="0"
+                                             Padding="11,6,11,6"
                                              VerticalContentAlignment="Center"
                                              Background="#14FFFFFF"
                                              Foreground="#F0FFFFFF"

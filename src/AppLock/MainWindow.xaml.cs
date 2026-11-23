@@ -2550,6 +2550,24 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public void NavigateToSpeedMeterSettings()
+    {
+        try
+        {
+            _appWindow?.Show();
+            Activate();
+
+            if (ContentFrame.CurrentSourcePageType != typeof(Views.SpeedMeterPage))
+            {
+                ContentFrame.Navigate(typeof(Views.SpeedMeterPage));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WindowIsland] NavigateToSpeedMeterSettings error: {ex.Message}");
+        }
+    }
+
     internal void HideImmediately()
     {
         if (_appWindow != null)
