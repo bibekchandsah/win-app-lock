@@ -1958,6 +1958,9 @@
                                     <Button x:Name="NoteFmtColorCyan" Click="NoteFmtColor_Click" Tag="#00E5FF" ToolTipService.ToolTip="Highlight Cyan" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
                                         <Border Width="11" Height="11" CornerRadius="5.5" Background="#00E5FF"/>
                                     </Button>
+                                    <Button x:Name="NoteFmtColorNone" Click="NoteFmtColor_Click" Tag="none" ToolTipService.ToolTip="Remove highlight" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
+                                        <FontIcon Glyph="&#xE75C;" FontSize="10" Foreground="#B0FFFFFF"/>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 
@@ -1974,7 +1977,9 @@
                                          CornerRadius="6"
                                          Padding="8,6"
                                          KeyDown="NoteContentBox_KeyDown"
-                                         TextChanged="NoteContentBox_TextChanged" />
+                                         TextChanged="NoteContentBox_TextChanged"
+                                         SelectionChanged="NoteContentBox_SelectionChanged"
+                                         Tapped="NoteContentBox_Tapped" />
                         </Grid>
 
                         <!-- ── Right: Timer & Reminders ── -->
@@ -2097,7 +2102,11 @@
                                              PlaceholderText="25, 1:30, 90 s, 2 h"
                                              FontSize="10"
                                              Height="26"
-                                             Padding="8,2"
+                                             MinHeight="0"
+                                             Padding="8,0"
+                                             VerticalContentAlignment="Center"
+                                             HorizontalContentAlignment="Center"
+                                             TextAlignment="Center"
                                              Background="#25FFFFFF"
                                              Foreground="#FFFFFFFF"
                                              BorderBrush="#35FFFFFF"

@@ -3046,6 +3046,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             NoteContentBox.Document.SetText(TextSetOptions.None, content);
         }
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
@@ -3195,13 +3196,83 @@ public sealed partial class WindowIslandWindow : Window
         _noteSaveTimer.Start();
     }
 
-    // ── Formatting toolbar handlers ──────────────────────────────────────────
+    // ── Formatting toolbar handlers & Active State ──────────────────────────
+
+    private void NoteContentBox_SelectionChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateFormattingToolbarUI();
+    }
+
+    private void NoteContentBox_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        ToggleChecklistAtCaret();
+    }
+
+    private void UpdateFormattingToolbarUI()
+    {
+        if (NoteContentBox == null || NoteFmtBold == null) return;
+
+        var sel = NoteContentBox.Document.Selection;
+        var fmt = sel.CharacterFormat;
+        var pfmt = sel.ParagraphFormat;
+
+        bool isBold = (fmt.Bold == FormatEffect.On);
+        bool isItalic = (fmt.Italic == FormatEffect.On);
+        bool isUnderline = (fmt.Underline != UnderlineType.None);
+        bool isStrike = (fmt.Strikethrough == FormatEffect.On);
+        bool isBullet = (pfmt.ListType == MarkerType.Bullet);
+        bool isNumbered = (pfmt.ListType == MarkerType.Arabic);
+
+        var range = sel.GetClone();
+        range.Expand(TextRangeUnit.Paragraph);
+        range.GetText(TextGetOptions.None, out string lineText);
+        string trimmed = lineText.TrimStart();
+        bool isChecklist = trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ ");
+
+        SetFormatButtonVisual(NoteFmtBold, isBold);
+        SetFormatButtonVisual(NoteFmtItalic, isItalic);
+        SetFormatButtonVisual(NoteFmtUnderline, isUnderline);
+        SetFormatButtonVisual(NoteFmtStrike, isStrike);
+        SetFormatButtonVisual(NoteFmtBullet, isBullet);
+        SetFormatButtonVisual(NoteFmtNumbered, isNumbered);
+        SetFormatButtonVisual(NoteFmtChecklist, isChecklist);
+
+        var bg = fmt.BackgroundColor;
+        SetColorSwatchVisual(NoteFmtColorYellow, bg.A > 0 && bg.R == 255 && bg.G == 230 && bg.B == 0);
+        SetColorSwatchVisual(NoteFmtColorGreen,  bg.A > 0 && bg.R == 76  && bg.G == 175 && bg.B == 80);
+        SetColorSwatchVisual(NoteFmtColorPink,   bg.A > 0 && bg.R == 255 && bg.G == 64  && bg.B == 129);
+        SetColorSwatchVisual(NoteFmtColorCyan,   bg.A > 0 && bg.R == 0   && bg.G == 229 && bg.B == 255);
+        SetColorSwatchVisual(NoteFmtColorNone,   bg.A == 0);
+    }
+
+    private void SetFormatButtonVisual(Button? btn, bool isActive)
+    {
+        if (btn == null) return;
+        var accent = GetSystemAccentColor();
+        btn.Background = isActive
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(90, accent.R, accent.G, accent.B))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        btn.BorderBrush = isActive
+            ? new SolidColorBrush(accent)
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        btn.BorderThickness = isActive ? new Thickness(1) : new Thickness(0);
+    }
+
+    private void SetColorSwatchVisual(Button? btn, bool isActive)
+    {
+        if (btn == null) return;
+        btn.BorderBrush = isActive
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        btn.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(0);
+    }
 
     private void NoteFmtBold_Click(object sender, RoutedEventArgs e)
     {
         var fmt = NoteContentBox.Document.Selection.CharacterFormat;
         fmt.Bold = (fmt.Bold == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtItalic_Click(object sender, RoutedEventArgs e)
@@ -3209,6 +3280,7 @@ public sealed partial class WindowIslandWindow : Window
         var fmt = NoteContentBox.Document.Selection.CharacterFormat;
         fmt.Italic = (fmt.Italic == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtUnderline_Click(object sender, RoutedEventArgs e)
@@ -3216,6 +3288,7 @@ public sealed partial class WindowIslandWindow : Window
         var fmt = NoteContentBox.Document.Selection.CharacterFormat;
         fmt.Underline = (fmt.Underline == UnderlineType.Single) ? UnderlineType.None : UnderlineType.Single;
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtStrike_Click(object sender, RoutedEventArgs e)
@@ -3223,6 +3296,7 @@ public sealed partial class WindowIslandWindow : Window
         var fmt = NoteContentBox.Document.Selection.CharacterFormat;
         fmt.Strikethrough = (fmt.Strikethrough == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtBullet_Click(object sender, RoutedEventArgs e)
@@ -3230,57 +3304,169 @@ public sealed partial class WindowIslandWindow : Window
         var pfmt = NoteContentBox.Document.Selection.ParagraphFormat;
         pfmt.ListType = (pfmt.ListType == MarkerType.Bullet) ? MarkerType.None : MarkerType.Bullet;
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtNumbered_Click(object sender, RoutedEventArgs e)
     {
         var pfmt = NoteContentBox.Document.Selection.ParagraphFormat;
-        pfmt.ListType = (pfmt.ListType == MarkerType.Arabic) ? MarkerType.None : MarkerType.Arabic;
+        if (pfmt.ListType == MarkerType.Arabic)
+        {
+            pfmt.ListType = MarkerType.None;
+        }
+        else
+        {
+            pfmt.ListType = MarkerType.Arabic;
+            pfmt.ListStart = 1;
+        }
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
+    }
+
+    private void ToggleChecklistAtCaret()
+    {
+        if (NoteContentBox == null || string.IsNullOrEmpty(_activeNoteId)) return;
+        var sel = NoteContentBox.Document.Selection;
+        var range = sel.GetClone();
+        range.Expand(TextRangeUnit.Paragraph);
+        range.GetText(TextGetOptions.None, out string lineText);
+
+        int caretPos = sel.StartPosition;
+        int paraStart = range.StartPosition;
+
+        // Tapped near the start of the line (on or near the circle)
+        if (caretPos <= paraStart + 3)
+        {
+            string trimmed = lineText.TrimStart();
+            if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
+            {
+                ToggleChecklistLine(range, lineText);
+            }
+        }
+    }
+
+    private void ToggleChecklistLine(ITextRange range, string lineText)
+    {
+        string trimmed = lineText.TrimStart();
+        int indentLen = lineText.Length - trimmed.Length;
+        string indent = lineText.Substring(0, indentLen);
+
+        var accent = GetSystemAccentColor();
+
+        if (trimmed.StartsWith("○ ") || trimmed.StartsWith("☐ "))
+        {
+            // Transition: Unchecked -> Checked
+            string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
+            range.SetText(TextSetOptions.None, indent + "✔ " + content);
+
+            // Format checkmark with window accent color
+            var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
+            markerRange.CharacterFormat.ForegroundColor = accent;
+            markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+
+            // Format line text with strikethrough & dimmed color
+            if (content.Length > 0)
+            {
+                var textRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen + 2, range.EndPosition);
+                textRange.CharacterFormat.Strikethrough = FormatEffect.On;
+                textRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(160, 200, 200, 200);
+            }
+        }
+        else if (trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☑ "))
+        {
+            // Transition: Checked -> Unchecked
+            string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
+            range.SetText(TextSetOptions.None, indent + "○ " + content);
+
+            // Format circle with soft white
+            var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
+            markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+            markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+
+            // Remove strikethrough & restore white color
+            if (content.Length > 0)
+            {
+                var textRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen + 2, range.EndPosition);
+                textRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+                textRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+            }
+        }
+        else
+        {
+            // Convert normal line to checklist item
+            range.SetText(TextSetOptions.None, indent + "○ " + trimmed);
+            var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
+            markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+            markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+        }
+
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtChecklist_Click(object sender, RoutedEventArgs e)
     {
         var sel = NoteContentBox.Document.Selection;
-        sel.GetText(TextGetOptions.None, out string selText);
-        if (selText.Contains("☐"))
+        var range = sel.GetClone();
+        range.Expand(TextRangeUnit.Paragraph);
+        range.GetText(TextGetOptions.None, out string lineText);
+
+        string trimmed = lineText.TrimStart();
+        if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
         {
-            sel.Text = selText.Replace("☐", "☑");
-        }
-        else if (selText.Contains("☑"))
-        {
-            sel.Text = selText.Replace("☑", "");
+            if (trimmed.StartsWith("○ ") || trimmed.StartsWith("☐ "))
+            {
+                ToggleChecklistLine(range, lineText);
+            }
+            else
+            {
+                // Remove checklist marker
+                string indent = lineText.Substring(0, lineText.Length - trimmed.Length);
+                string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
+                range.SetText(TextSetOptions.None, indent + content);
+                range.CharacterFormat.Strikethrough = FormatEffect.Off;
+                range.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+            }
         }
         else
         {
-            sel.Text = "☐ " + selText;
+            ToggleChecklistLine(range, lineText);
         }
+
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteFmtColor_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button b && b.Tag is string hex)
         {
-            var color = hex switch
-            {
-                "#FFE600" => Windows.UI.Color.FromArgb(255, 255, 230, 0),
-                "#4CAF50" => Windows.UI.Color.FromArgb(255, 76, 175, 80),
-                "#FF4081" => Windows.UI.Color.FromArgb(255, 255, 64, 129),
-                "#00E5FF" => Windows.UI.Color.FromArgb(255, 0, 229, 255),
-                _ => Windows.UI.Color.FromArgb(255, 255, 230, 0)
-            };
             var fmt = NoteContentBox.Document.Selection.CharacterFormat;
-            if (fmt.BackgroundColor == color)
+            if (hex == "none")
             {
                 fmt.BackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
             }
             else
             {
-                fmt.BackgroundColor = color;
+                var color = hex switch
+                {
+                    "#FFE600" => Windows.UI.Color.FromArgb(255, 255, 230, 0),
+                    "#4CAF50" => Windows.UI.Color.FromArgb(255, 76, 175, 80),
+                    "#FF4081" => Windows.UI.Color.FromArgb(255, 255, 64, 129),
+                    "#00E5FF" => Windows.UI.Color.FromArgb(255, 0, 229, 255),
+                    _ => Windows.UI.Color.FromArgb(255, 255, 230, 0)
+                };
+                if (fmt.BackgroundColor == color)
+                {
+                    fmt.BackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+                }
+                else
+                {
+                    fmt.BackgroundColor = color;
+                }
             }
         }
         NoteContentBox.Focus(FocusState.Programmatic);
+        UpdateFormattingToolbarUI();
     }
 
     private void NoteContentBox_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -3291,20 +3477,21 @@ public sealed partial class WindowIslandWindow : Window
             var range = sel.GetClone();
             range.Expand(TextRangeUnit.Paragraph);
             range.GetText(TextGetOptions.None, out string lineText);
-            if (lineText.TrimStart().StartsWith("☐ "))
+            string trimmed = lineText.Trim();
+            if (trimmed == "○" || trimmed == "✔" || trimmed == "●" || trimmed == "☐" || trimmed == "☑")
             {
-                if (lineText.Trim() == "☐")
-                {
-                    range.SetText(TextSetOptions.None, string.Empty);
-                    e.Handled = true;
-                }
-                else
-                {
-                    sel.Collapse(false);
-                    sel.SetText(TextSetOptions.None, "\r\n☐ ");
-                    sel.Collapse(false);
-                    e.Handled = true;
-                }
+                range.SetText(TextSetOptions.None, string.Empty);
+                range.CharacterFormat.Strikethrough = FormatEffect.Off;
+                e.Handled = true;
+            }
+            else if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
+            {
+                sel.Collapse(false);
+                sel.SetText(TextSetOptions.None, "\r\n○ ");
+                sel.Collapse(false);
+                sel.CharacterFormat.Strikethrough = FormatEffect.Off;
+                sel.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                e.Handled = true;
             }
         }
     }
