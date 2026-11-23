@@ -1226,7 +1226,7 @@
                                      Foreground="#F0FFFFFF"
                                      BorderBrush="#30FFFFFF"
                                      CornerRadius="6"
-                                     Padding="10,7,10,3"
+                                     Padding="10,6,10,6"
                                      TextChanged="ClipboardSearch_TextChanged"
                                      KeyDown="ClipboardSearch_KeyDown" />
                             <Button x:Name="ClipboardClearBtn"
@@ -1450,6 +1450,16 @@
                                         Height="24" Padding="6,2" CornerRadius="12"
                                         Background="#12FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1"
                                         FontSize="10" Foreground="#A0FFFFFF" />
+                                <Button x:Name="TextQrBtn"
+                                        Click="TextQrBtn_Click"
+                                        Height="24" Padding="6,2" CornerRadius="12"
+                                        Background="#12FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1"
+                                        ToolTipService.ToolTip="Generate QR Code from text">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xED14;" FontSize="11" Foreground="#60CDFF" />
+                                        <TextBlock Text="QR Code" FontSize="10" Foreground="#D0FFFFFF" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </ScrollViewer>
 
@@ -1516,6 +1526,90 @@
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
+                        </Grid>
+
+                        <!-- QR Code Generation Overlay -->
+                        <Grid x:Name="TextQrOverlay"
+                              Grid.RowSpan="4"
+                              Background="#E6101216"
+                              CornerRadius="8"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch">
+                            <Border Background="#1C1F26"
+                                    BorderBrush="#35FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="14,10"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    MaxWidth="380">
+                                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <!-- Header with Title and Close Button -->
+                                    <Grid Width="220">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xED14;" FontSize="13" Foreground="#60CDFF" />
+                                            <TextBlock Text="QR Code" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFFFF" />
+                                        </StackPanel>
+                                        <Button x:Name="TextQrCloseBtn"
+                                                HorizontalAlignment="Right"
+                                                Width="24" Height="24" Padding="0"
+                                                CornerRadius="12"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                Click="TextQrClose_Click"
+                                                ToolTipService.ToolTip="Close (Esc)">
+                                            <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="#A0FFFFFF" />
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- QR Code Visual Container -->
+                                    <Border x:Name="TextQrContainer"
+                                            Background="White"
+                                            CornerRadius="8"
+                                            Padding="10"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <!-- QR Code Visual inserted dynamically -->
+                                    </Border>
+
+                                    <!-- Text snippet / hint -->
+                                    <TextBlock x:Name="TextQrPreviewText"
+                                               Text=""
+                                               FontSize="10"
+                                               Foreground="#90FFFFFF"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="220"
+                                               TextAlignment="Center"
+                                               HorizontalAlignment="Center" />
+
+                                    <!-- Action buttons: Copy Image, Save Image -->
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="TextQrCopyBtn"
+                                                Click="TextQrCopy_Click"
+                                                Height="26" Padding="10,2" CornerRadius="13"
+                                                Background="#18FFFFFF" BorderBrush="#25FFFFFF" BorderThickness="1"
+                                                Foreground="#E0FFFFFF"
+                                                ToolTipService.ToolTip="Copy QR image to clipboard">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE8C8;" FontSize="10" />
+                                                <TextBlock x:Name="TextQrCopyText" Text="Copy Image" FontSize="10" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="TextQrSaveBtn"
+                                                Click="TextQrSave_Click"
+                                                Height="26" Padding="10,2" CornerRadius="13"
+                                                Background="#18FFFFFF" BorderBrush="#25FFFFFF" BorderThickness="1"
+                                                Foreground="#E0FFFFFF"
+                                                ToolTipService.ToolTip="Save QR code PNG to Pictures/Screenshots">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE74E;" FontSize="10" />
+                                                <TextBlock x:Name="TextQrSaveText" Text="Save PNG" FontSize="10" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </Grid>
 

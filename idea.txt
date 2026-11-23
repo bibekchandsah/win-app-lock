@@ -418,6 +418,32 @@ date and time in net speed with second support
 add search box to search in google, edge 
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
 
+clicking in any tab except home don''t show it's content on first time and have to go to other tab and come back again to see it's content. apply the same height and width for clipboard, shelf, text tools, control page as it's in home page so that navigation will looks smooth and for "AI chat and weather" it's height will be larger than other as it has larger content.
+when in the clipboard tab then auto focus the search input box and meke the clipboard list little bit bigger, currently it looks so small and difficult to read and see images preview 
+
+
+make the shelf tab height and length same as home tab and clicking in shelf tab don't show it's content in first click and have to navigate to other tab and come back again to shelf tab to see it's content. 
+in self tab instead of showing in row show it in grid which will look more professional and hovering on item will show clear icon so that user can remove it.
+add confirmation while clearing all shelf 
+
+in the text tab add the option for genertion QR too of entered text 
+
+fixed - increase the height of AI chat tab so that longer messages can be scrolled 
+optimize the spacing for adding custom AI assistant and for custom AI assistant on right click menu also addd edit option 
+
+in weather tab add support of mutliple cities 
+
+in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
+confirm before deleting note 
+allow user to add custom timer in remainder
+use window accent color instead of hardcoded blue color 
+user is unable to delete remainder
+add support of bold, italic, underline, strike, 
+
+
+
+
+
 
 
 

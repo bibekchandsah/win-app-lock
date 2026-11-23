@@ -559,7 +559,9 @@ public sealed partial class WindowIslandWindow : Window
         }
         else ResetClipboardClearButton();
         if (_activeTab == 2) RefreshShelfUI();
+        else ResetShelfClearButton();
         if (_activeTab == 3) RefreshTextUI();
+        else if (TextQrOverlay != null) TextQrOverlay.Visibility = Visibility.Collapsed;
         if (_activeTab == 4)
         {
             ResetChatIdleTimer();
@@ -802,6 +804,12 @@ public sealed partial class WindowIslandWindow : Window
         switch (e.Key)
         {
             case VirtualKey.Escape:
+                if (TextQrOverlay != null && TextQrOverlay.Visibility == Visibility.Visible)
+                {
+                    TextQrOverlay.Visibility = Visibility.Collapsed;
+                    e.Handled = true;
+                    break;
+                }
                 // Esc closes the island (unless pinned)
                 if (!_isPinned)
                 {
@@ -2174,6 +2182,20 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 6: Shelf tab ─────────────────────────────────────────────────
 
+    private bool _shelfClearConfirming;
+    private DQTimer? _shelfClearConfirmTimer;
+
+    private void ResetShelfClearButton()
+    {
+        _shelfClearConfirming = false;
+        _shelfClearConfirmTimer?.Stop();
+        if (ShelfClearBtn != null)
+        {
+            ShelfClearBtn.Content = "Clear all";
+            ShelfClearBtn.Foreground = null;
+        }
+    }
+
     private void RefreshShelfUI()
     {
         if (_shelf == null) return;
@@ -2184,7 +2206,13 @@ public sealed partial class WindowIslandWindow : Window
         ShelfItemsGrid.RowDefinitions.Clear();
         ShelfItemsGrid.ColumnDefinitions.Clear();
 
-        if (rows.Count == 0) return;
+        if (rows.Count == 0)
+        {
+            ResetShelfClearButton();
+            if (ShelfClearBtn != null) ShelfClearBtn.IsEnabled = false;
+            return;
+        }
+        if (ShelfClearBtn != null) ShelfClearBtn.IsEnabled = true;
 
         const int columns = 4;
         for (int c = 0; c < columns; c++)
@@ -2385,8 +2413,31 @@ public sealed partial class WindowIslandWindow : Window
 
     private void ShelfClear_Click(object sender, RoutedEventArgs e)
     {
-        _shelf?.Clear();
-        RefreshShelfUI();
+        if (_shelfClearConfirming)
+        {
+            ResetShelfClearButton();
+            _shelf?.Clear();
+            RefreshShelfUI();
+            return;
+        }
+
+        if (_shelf == null || _shelf.Rows().Count == 0) return;
+
+        _shelfClearConfirming = true;
+        ShelfClearBtn.Content = new TextBlock
+        {
+            Text = "Clear all?",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        _shelfClearConfirmTimer?.Stop();
+        _shelfClearConfirmTimer = DispatcherQueue.CreateTimer();
+        _shelfClearConfirmTimer.Interval = TimeSpan.FromSeconds(3);
+        _shelfClearConfirmTimer.Tick += (_, _) => ResetShelfClearButton();
+        _shelfClearConfirmTimer.Start();
     }
 
     private void ShelfGrid_DragOver(object sender, DragEventArgs e)
@@ -4131,6 +4182,139 @@ public sealed partial class WindowIslandWindow : Window
     private void TextClearBtn_Click(object sender, RoutedEventArgs e)
     {
         TextInputBox.Text = string.Empty;
+    }
+
+    private string _currentQrText = string.Empty;
+
+    private static byte[] GenerateQrPngBytes(string text, int pixelSize = 256)
+    {
+        var qr = Net.Codecrete.QrCodeGenerator.QrCode.EncodeText(text, Net.Codecrete.QrCodeGenerator.QrCode.Ecc.Medium);
+        const int quietZone = 4;
+        int totalModules = qr.Size + quietZone * 2;
+        int scale = Math.Max(1, pixelSize / totalModules);
+        int actualSize = totalModules * scale;
+
+        using var bitmap = new System.Drawing.Bitmap(actualSize, actualSize);
+        using (var g = System.Drawing.Graphics.FromImage(bitmap))
+        {
+            g.Clear(System.Drawing.Color.White);
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.Black);
+            for (int y = 0; y < qr.Size; y++)
+            {
+                for (int x = 0; x < qr.Size; x++)
+                {
+                    if (qr.GetModule(x, y))
+                    {
+                        g.FillRectangle(brush, (x + quietZone) * scale, (y + quietZone) * scale, scale, scale);
+                    }
+                }
+            }
+        }
+
+        using var ms = new MemoryStream();
+        bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        return ms.ToArray();
+    }
+
+    private void TextQrBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string text = TextInputBox?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
+        {
+            if (TextStatsDetailedText != null)
+            {
+                TextStatsDetailedText.Text = "Type or paste text first to generate a QR code.";
+            }
+            return;
+        }
+
+        _currentQrText = text;
+        try
+        {
+            var visual = WifiQrCode.CreateVisual(text, 140);
+            TextQrContainer.Child = visual;
+            TextQrPreviewText.Text = text.Length <= 40 ? text : text[..40] + "…";
+            TextQrCopyText.Text = "Copy Image";
+            TextQrSaveText.Text = "Save PNG";
+            TextQrOverlay.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            if (TextStatsDetailedText != null)
+            {
+                TextStatsDetailedText.Text = $"Failed to generate QR: {ex.Message}";
+            }
+        }
+    }
+
+    private void TextQrClose_Click(object sender, RoutedEventArgs e)
+    {
+        TextQrOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private async void TextQrCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentQrText)) return;
+        try
+        {
+            byte[] pngBytes = GenerateQrPngBytes(_currentQrText, 300);
+            var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using (var writer = new Windows.Storage.Streams.DataWriter(stream))
+            {
+                writer.WriteBytes(pngBytes);
+                await writer.StoreAsync();
+                await writer.FlushAsync();
+            }
+            stream.Seek(0);
+
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetBitmap(Windows.Storage.Streams.RandomAccessStreamReference.CreateFromStream(stream));
+            dp.SetText(_currentQrText);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+
+            TextQrCopyText.Text = "Copied!";
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromSeconds(2);
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                TextQrCopyText.Text = "Copy Image";
+            };
+            timer.Start();
+        }
+        catch
+        {
+            TextQrCopyText.Text = "Failed";
+        }
+    }
+
+    private async void TextQrSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentQrText)) return;
+        try
+        {
+            byte[] pngBytes = GenerateQrPngBytes(_currentQrText, 400);
+            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+            if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+            string fileName = $"QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+            string filePath = Path.Combine(folder, fileName);
+            await File.WriteAllBytesAsync(filePath, pngBytes);
+
+            TextQrSaveText.Text = "Saved!";
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromSeconds(2);
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                TextQrSaveText.Text = "Save PNG";
+            };
+            timer.Start();
+        }
+        catch
+        {
+            TextQrSaveText.Text = "Failed";
+        }
     }
 
     private void TextFetchClipboardBtn_Click(object sender, RoutedEventArgs e)
