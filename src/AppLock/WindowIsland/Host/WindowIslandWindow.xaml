@@ -2997,15 +2997,23 @@
                                       HorizontalScrollBarVisibility="Disabled"
                                       Margin="0,0,0,6">
                             <StackPanel Spacing="8">
-                                <!-- Bluetooth Battery Card(s) (wide) -->
-                                <StackPanel x:Name="ControlsBtBatteryContainer" Spacing="4">
+                                <!-- Bluetooth Battery Cards Grid -->
+                                <Grid x:Name="ControlsBtBatteryContainer"
+                                      ColumnSpacing="8"
+                                      RowSpacing="8"
+                                      Margin="0,10,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
                                     <Border x:Name="ControlsBtBatteryCard"
                                             Tapped="ControlsBtBatteryCard_Tapped"
                                             Background="#16FFFFFF"
                                             BorderBrush="#20FFFFFF"
                                             BorderThickness="1"
                                             CornerRadius="8"
-                                            Padding="10,8">
+                                            Padding="10,8"
+                                            Grid.ColumnSpan="2">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
@@ -3017,7 +3025,7 @@
                                             <TextBlock Grid.Column="2" x:Name="ControlsBtBatteryCardStatus" Text="No devices connected" FontSize="10" Foreground="#80FFFFFF" VerticalAlignment="Center"/>
                                         </Grid>
                                     </Border>
-                                </StackPanel>
+                                </Grid>
 
                                 <!-- Quick cards section header -->
                                 <Grid Margin="2,2,2,0">
