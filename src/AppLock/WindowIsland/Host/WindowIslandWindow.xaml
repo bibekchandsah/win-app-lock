@@ -13,7 +13,8 @@
                 <Setter Property="MinWidth" Value="32" />
                 <Setter Property="Height" Value="32" />
                 <Setter Property="CornerRadius" Value="6" />
-                <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+                <!-- No FontFamily here: it leaked into every TextBlock inside these buttons and
+                     turned the tile and tab labels into boxes. FontIcon brings its own glyph font. -->
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -22,8 +23,8 @@
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     CornerRadius="{TemplateBinding CornerRadius}"
                                     Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   Content="{TemplateBinding Content}" />
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
@@ -44,6 +45,21 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
+            <!-- Home tiles: same look as a tab button, but they fill their cell and hold two lines
+                 of text (label plus a live reading), so the fixed 32 px height of a tab would clip. -->
+            <Style x:Key="TileButtonStyle" TargetType="Button" BasedOn="{StaticResource TabButtonStyle}">
+                <Setter Property="Height" Value="Auto" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Padding" Value="9,4" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
 
             <Style x:Key="QuietButtonStyle" TargetType="ToggleButton">
@@ -386,7 +402,7 @@
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
               Width="560"
-              Height="250"
+              Height="272"
               Opacity="0"
               IsHitTestVisible="False">
 
@@ -547,105 +563,247 @@
                             </Grid.RowDefinitions>
 
                             <!-- Media player panel (shown when a session exists) -->
-                            <StackPanel x:Name="MediaPlayerPanel"
-                                        Grid.Row="0"
-                                        Spacing="4"
-                                        Visibility="Collapsed">
+                            <Grid x:Name="MediaPlayerPanel"
+                                  Grid.Row="0"
+                                  RowSpacing="5"
+                                  VerticalAlignment="Top"
+                                  Visibility="Collapsed">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
-                                <!-- Art + text row -->
-                                <Grid>
+                                <!-- Album art + app / title / artist -->
+                                <Grid Grid.Row="0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="44" />
-                                        <ColumnDefinition Width="*"  />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*"    />
                                     </Grid.ColumnDefinitions>
                                     <Border Grid.Column="0"
-                                            Width="40" Height="40"
-                                            CornerRadius="4"
-                                            Background="#28FFFFFF"
-                                            VerticalAlignment="Top">
+                                            Width="58" Height="58"
+                                            CornerRadius="8"
+                                            Background="#1AFFFFFF">
                                         <Image x:Name="MediaArt"
                                                Stretch="UniformToFill" />
                                     </Border>
                                     <StackPanel Grid.Column="1"
-                                                Margin="6,0,0,0"
+                                                Margin="10,0,0,0"
                                                 Spacing="1"
                                                 VerticalAlignment="Center">
+                                        <TextBlock x:Name="MediaApp"
+                                                   Text=""
+                                                   FontSize="9"
+                                                   CharacterSpacing="70"
+                                                   Foreground="#7DFFFFFF"
+                                                   TextTrimming="CharacterEllipsis" />
                                         <TextBlock x:Name="MediaTitle"
                                                    Text="—"
                                                    FontFamily="Segoe UI Variable Display"
                                                    FontWeight="SemiBold"
-                                                   FontSize="12"
-                                                   Foreground="#F0FFFFFF"
+                                                   FontSize="13"
+                                                   Foreground="#F5FFFFFF"
+                                                   TextWrapping="Wrap"
+                                                   MaxLines="2"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock x:Name="MediaArtist"
                                                    Text=""
                                                    FontSize="11"
-                                                   Foreground="#B0FFFFFF"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock x:Name="MediaApp"
-                                                   Text=""
-                                                   FontSize="10"
-                                                   Foreground="#70FFFFFF"
+                                                   Foreground="#A0FFFFFF"
                                                    TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Progress bar (Slider styled thin) -->
-                                <Slider x:Name="MediaProgress"
-                                        Minimum="0" Maximum="1"
-                                        Value="0"
-                                        HorizontalAlignment="Stretch"
-                                        Height="14" />
+                                <!-- Thin progress line with elapsed / remaining -->
+                                <StackPanel Grid.Row="1" Spacing="2">
+                                    <ProgressBar x:Name="MediaProgress"
+                                                 Minimum="0" Maximum="1" Value="0"
+                                                 Height="3"
+                                                 CornerRadius="1.5"
+                                                 Foreground="#D9A0E8"
+                                                 Background="#26FFFFFF"
+                                                 HorizontalAlignment="Stretch" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"    />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="MediaElapsed"
+                                                   Grid.Column="0"
+                                                   Text="0:00"
+                                                   FontSize="9"
+                                                   Foreground="#7DFFFFFF" />
+                                        <TextBlock x:Name="MediaRemaining"
+                                                   Grid.Column="1"
+                                                   Text="-0:00"
+                                                   FontSize="9"
+                                                   Foreground="#7DFFFFFF" />
+                                    </Grid>
+                                </StackPanel>
 
-                                <!-- Playback controls -->
-                                <StackPanel Orientation="Horizontal"
+                                <!-- Playback controls: previous / circular play / next -->
+                                <StackPanel Grid.Row="2"
+                                            Orientation="Horizontal"
                                             HorizontalAlignment="Center"
-                                            Spacing="4">
+                                            VerticalAlignment="Center"
+                                            Spacing="10">
                                     <Button x:Name="MediaPrev"
                                             Click="MediaPrev_Click"
-                                            Width="32" Height="32"
+                                            Width="28" Height="28"
                                             Style="{StaticResource TabButtonStyle}"
                                             ToolTipService.ToolTip="Previous">
-                                        <FontIcon Glyph="&#xE7C2;" FontSize="13" />
+                                        <FontIcon Glyph="&#xE892;" FontSize="12" />
                                     </Button>
                                     <Button x:Name="MediaPlayPause"
                                             Click="MediaPlayPause_Click"
-                                            Width="36" Height="36"
-                                            Style="{StaticResource TabButtonStyle}"
+                                            Width="30" Height="30"
+                                            Padding="0"
+                                            CornerRadius="16"
+                                            Background="#F0FFFFFF"
+                                            BorderThickness="0"
                                             ToolTipService.ToolTip="Play / Pause">
-                                        <FontIcon x:Name="MediaPlayPauseIcon" Glyph="&#xE768;" FontSize="15" />
+                                        <FontIcon x:Name="MediaPlayPauseIcon"
+                                                  Glyph="&#xE768;"
+                                                  FontSize="14"
+                                                  Foreground="#101010" />
                                     </Button>
                                     <Button x:Name="MediaNext"
                                             Click="MediaNext_Click"
-                                            Width="32" Height="32"
+                                            Width="28" Height="28"
                                             Style="{StaticResource TabButtonStyle}"
                                             ToolTipService.ToolTip="Next">
-                                        <FontIcon Glyph="&#xE7C1;" FontSize="13" />
+                                        <FontIcon Glyph="&#xE893;" FontSize="12" />
                                     </Button>
                                 </StackPanel>
-                            </StackPanel>
+                            </Grid>
 
                             <!-- Recent clipboard (shown when no media) -->
-                            <StackPanel x:Name="RecentPanel"
-                                        Grid.Row="0"
-                                        Spacing="4"
-                                        Visibility="Visible">
-                                <TextBlock Text="RECENTLY COPIED"
-                                           FontSize="9"
-                                           FontWeight="SemiBold"
+                            <Grid x:Name="RecentPanel"
+                                  Grid.Row="0"
+                                  RowSpacing="7"
+                                  Visibility="Visible">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Header: caption + open-history chevron -->
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"    />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="RECENTLY COPIED"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               CharacterSpacing="80"
+                                               Foreground="#70FFFFFF"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Click="RecentChevron_Click"
+                                            Width="20" Height="20"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="4"
+                                            ToolTipService.ToolTip="Open clipboard history">
+                                        <FontIcon Glyph="&#xE76C;" FontSize="10" Foreground="#70FFFFFF" />
+                                    </Button>
+                                </Grid>
+
+                                <!-- Item row 0 -->
+                                <Grid x:Name="RecentItem0" Grid.Row="1" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*"    />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="6" Background="#14FFFFFF">
+                                        <FontIcon x:Name="RecentIcon0"
+                                                  Glyph="&#xE8C3;"
+                                                  FontSize="11"
+                                                  Foreground="#B3FFFFFF" />
+                                    </Border>
+                                    <TextBlock x:Name="RecentText0"
+                                               Grid.Column="1"
+                                               FontSize="11"
+                                               Foreground="#E6FFFFFF"
+                                               MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="RecentAge0"
+                                               Grid.Column="2"
+                                               FontSize="10"
+                                               Foreground="#70FFFFFF"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Item row 1 -->
+                                <Grid x:Name="RecentItem1" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*"    />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="6" Background="#14FFFFFF">
+                                        <FontIcon x:Name="RecentIcon1"
+                                                  Glyph="&#xE8C3;"
+                                                  FontSize="11"
+                                                  Foreground="#B3FFFFFF" />
+                                    </Border>
+                                    <TextBlock x:Name="RecentText1"
+                                               Grid.Column="1"
+                                               FontSize="11"
+                                               Foreground="#E6FFFFFF"
+                                               MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="RecentAge1"
+                                               Grid.Column="2"
+                                               FontSize="10"
+                                               Foreground="#70FFFFFF"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Item row 2 -->
+                                <Grid x:Name="RecentItem2" Grid.Row="3" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*"    />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="24" Height="24" CornerRadius="6" Background="#14FFFFFF">
+                                        <FontIcon x:Name="RecentIcon2"
+                                                  Glyph="&#xE8C3;"
+                                                  FontSize="11"
+                                                  Foreground="#B3FFFFFF" />
+                                    </Border>
+                                    <TextBlock x:Name="RecentText2"
+                                               Grid.Column="1"
+                                               FontSize="11"
+                                               Foreground="#E6FFFFFF"
+                                               MaxLines="1"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="RecentAge2"
+                                               Grid.Column="2"
+                                               FontSize="10"
+                                               Foreground="#70FFFFFF"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Empty hint -->
+                                <TextBlock x:Name="RecentEmptyText"
+                                           Grid.Row="4"
+                                           Text="Copy something and your latest items show up here; the player appears above once music is playing"
+                                           FontSize="10"
                                            Foreground="#60FFFFFF"
-                                           CharacterSpacing="80" />
-                                <TextBlock x:Name="Recent0"
-                                           Text="—"
-                                           FontSize="11"
-                                           Foreground="#C0FFFFFF"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock x:Name="Recent1"
-                                           Text="—"
-                                           FontSize="11"
-                                           Foreground="#80FFFFFF"
-                                           TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
+                                           TextWrapping="Wrap" />
+                            </Grid>
 
                             <!-- Volume row (always visible at bottom of left col) -->
                             <Grid Grid.Row="1" Margin="0,6,0,0">
@@ -677,7 +835,38 @@
                         </Grid>
 
                         <!-- ── Right column: 2×4 tile grid ── -->
-                        <Grid Grid.Row="0" Grid.Column="1" Margin="0,2,0,0">
+                        <!-- ── Lyrics panel — shown while the current track has lyrics; it takes the
+                             tiles' place so the text has room, exactly like the reference layout. ── -->
+                        <Border x:Name="LyricsPanel"
+                                Grid.Row="0" Grid.Column="1"
+                                Margin="0,2,0,0"
+                                Background="#10FFFFFF"
+                                BorderBrush="#1AFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="10,8,10,6"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"    />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ScrollViewer Grid.Row="0"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel x:Name="LyricsStack" Spacing="3" />
+                                </ScrollViewer>
+                                <TextBlock Grid.Row="1"
+                                           Text="LRCLIB"
+                                           FontSize="8"
+                                           CharacterSpacing="60"
+                                           Foreground="#4DFFFFFF"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,4,0,0" />
+                            </Grid>
+                        </Border>
+
+                        <Grid x:Name="TileGrid" Grid.Row="0" Grid.Column="1" Margin="0,2,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="*" />
@@ -689,119 +878,103 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Row 0 -->
+                            <!-- Row 0: capture -->
                             <Button x:Name="TileArea"
                                     Grid.Row="0" Grid.Column="0"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileArea_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Area capture (Win+Shift+S)">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileArea_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Select an area to capture (Snipping Tool)">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE7C8;" FontSize="12" />
-                                    <TextBlock Text="Area" FontSize="10" />
+                                    <TextBlock Text="Area" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="TileFullScreen"
                                     Grid.Row="0" Grid.Column="1"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileFullScreen_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Full screen capture">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileFullScreen_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Capture this monitor and copy it">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8B9;" FontSize="12" />
-                                    <TextBlock Text="Full" FontSize="10" />
+                                    <TextBlock Text="Full screen" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 1 -->
+                            <!-- Row 1: text from screen / QR -->
                             <Button x:Name="TileScreenText"
                                     Grid.Row="1" Grid.Column="0"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileScreenText_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Screen text (Win+Shift+T / PowerToys)">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileScreenText_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Copy text from the screen (Snipping Tool)">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE8D2;" FontSize="12" />
-                                    <TextBlock Text="Text" FontSize="10" />
+                                    <TextBlock Text="Screen text" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="TileQR"
                                     Grid.Row="1" Grid.Column="1"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileQR_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Scan QR code from screen">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileQR_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Scan a QR code on this monitor">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE774;" FontSize="12" />
-                                    <TextBlock Text="QR" FontSize="10" />
+                                    <TextBlock Text="QR code" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 2 -->
+                            <!-- Row 2: live readings — network speed and CPU / RAM -->
                             <Button x:Name="TileNetwork"
                                     Grid.Row="2" Grid.Column="0"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileNetwork_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Network speed">
+                                    Margin="2" Click="TileNetwork_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Download and upload speed">
                                 <StackPanel Spacing="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <FontIcon Glyph="&#xE8BE;" FontSize="10" />
-                                        <TextBlock Text="Net" FontSize="9" />
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE8BE;" FontSize="12" />
+                                        <TextBlock Text="Network" FontSize="10" />
                                     </StackPanel>
-                                    <TextBlock x:Name="TileNetDown"
-                                               Text="↓ —"
-                                               FontSize="9"
-                                               Foreground="#90FFFFFF" />
-                                    <TextBlock x:Name="TileNetUp"
-                                               Text="↑ —"
-                                               FontSize="9"
-                                               Foreground="#90FFFFFF" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock x:Name="TileNetDown" Text="&#x2193; &#8212;" FontSize="9" Foreground="#90FFFFFF" />
+                                        <TextBlock x:Name="TileNetUp" Text="&#x2191; &#8212;" FontSize="9" Foreground="#90FFFFFF" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Button>
                             <Button x:Name="TileCpuRam"
                                     Grid.Row="2" Grid.Column="1"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileCpuRam_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="CPU &amp; RAM (opens Task Manager)">
+                                    Margin="2" Click="TileCpuRam_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="CPU and memory load (opens Task Manager)">
                                 <StackPanel Spacing="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="3">
-                                        <FontIcon Glyph="&#xE7F4;" FontSize="10" />
-                                        <TextBlock Text="Sys" FontSize="9" />
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE7F4;" FontSize="12" />
+                                        <TextBlock Text="CPU &amp; RAM" FontSize="10" />
                                     </StackPanel>
-                                    <TextBlock x:Name="TileCpuText"
-                                               Text="CPU —"
-                                               FontSize="9"
-                                               Foreground="#90FFFFFF" />
-                                    <TextBlock x:Name="TileRamText"
-                                               Text="RAM —"
-                                               FontSize="9"
-                                               Foreground="#90FFFFFF" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock x:Name="TileCpuText" Text="CPU &#8212;" FontSize="9" Foreground="#90FFFFFF" />
+                                        <TextBlock x:Name="TileRamText" Text="RAM &#8212;" FontSize="9" Foreground="#90FFFFFF" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 3 -->
+                            <!-- Row 3: recording / command bar -->
                             <Button x:Name="TileRecord"
                                     Grid.Row="3" Grid.Column="0"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileRecord_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Record screen (Win+Shift+R)">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileRecord_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Record the screen (Snipping Tool)">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE7A0;" FontSize="12" />
-                                    <TextBlock Text="Record" FontSize="10" />
+                                    <TextBlock Text="Record screen" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
                             <Button x:Name="TileCommand"
                                     Grid.Row="3" Grid.Column="1"
-                                    Margin="2" HorizontalAlignment="Stretch"
-                                    Click="TileCommand_Click"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Command bar">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    Margin="2" Click="TileCommand_Click"
+                                    Style="{StaticResource TileButtonStyle}"
+                                    ToolTipService.ToolTip="Open the command bar">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon Glyph="&#xE773;" FontSize="12" />
-                                    <TextBlock Text="Cmd" FontSize="10" />
+                                    <TextBlock Text="Command" FontSize="10" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Button>
                         </Grid>

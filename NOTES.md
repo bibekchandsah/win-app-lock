@@ -1328,3 +1328,24 @@ Milestone 1 of `pc-checker.md`: framework and shell.
 - ChunkedCryptoStream.Read() clamps output to remainingPlain to prevent padding leakage to consumers
 - Enabled by default (VaultSettings.EnableSizePadding = true); toggled in Global Settings
 - TempOpenService write-back always uses Bucket64KiB
+
+
+## Window Island - Home Tab (Media, Lyrics, Live Tiles)
+
+### Home states
+- No media session: the recently-copied panel fills the left column; the tile grid stays on the right.
+- Media session: `MediaPlayerPanel` replaces the recents — album art, source app eyebrow, two-line title, artist, progress bar with elapsed/remaining time, and previous / play-pause / next.
+- Media with lyrics: `LyricsPanel` takes the tile grid's place and lists the lyrics with an LRCLIB credit; the tiles return as soon as the track has none or playback stops.
+
+### Lyrics (LRCLIB)
+- `Modules/Lyrics/LrclibLyricsService.cs` resolves a track through LRCLIB: exact match with duration, exact match without duration, then a fuzzy `/search` scored on artist and title. Results are cached per session.
+- Video titles such as "Christina Perri - A Thousand Years (Lyrics)" carry the artist in the title while the media session reports the channel ("Good Vibes"), so a pair split out of the title is tried as well; that is what makes YouTube playback resolve.
+- Lookups run off the UI thread and are keyed on artist + title, so pausing or seeking never refetches.
+
+### Tiles
+- Network tile shows live download/upload speed; the CPU & RAM tile shows both loads and opens Task Manager.
+- Area, Record screen and Screen text launch the Snipping Tool directly through `ms-screenclip:` protocol URIs (area, recording, text extractor sources) and fall back to the Win+Shift+S/R/T hotkeys when the protocol cannot start.
+- Tiles use `TileButtonStyle`: the tab style fills its cell and can hold a label plus a live reading, which the fixed 32 px tab height would have clipped. The tile style also owns the content alignment that used to be hard-coded in the template. The icon font is no longer set on the shared button style, which had turned every label inside a button into tofu boxes.
+
+### Sizing
+- The open panel is 272 px tall (was 250) so the player's controls row and the two-line tiles fit without clipping.

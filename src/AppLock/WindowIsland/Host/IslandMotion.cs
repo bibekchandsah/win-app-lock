@@ -41,7 +41,7 @@ public static class IslandMotion
 
     // ── Open shell dimensions per tab ─────────────────────────────────────────
     // (width, height) in DIPs
-    public static readonly (float W, float H) TabSizeHome      = (520f, 250f);
+    public static readonly (float W, float H) TabSizeHome      = (520f, 272f);
     public static readonly (float W, float H) TabSizeClipboard = (480f, 300f);
     public static readonly (float W, float H) TabSizeShelf     = (480f, 220f);
     public static readonly (float W, float H) TabSizeText      = (500f, 260f);

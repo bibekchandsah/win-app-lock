@@ -28,6 +28,7 @@ using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules;
 using AppLock.WindowIsland.Modules.Chat;
 using AppLock.WindowIsland.Modules.Controls;
+using AppLock.WindowIsland.Modules.Lyrics;
 using AppLock.WindowIsland.Modules.Notifications;
 using AppLock.WindowIsland.Modules.Text;
 using AppLock.WindowIsland.Modules.Weather;
@@ -144,6 +145,10 @@ public sealed partial class WindowIslandWindow : Window
     // Milestone 6: Clipboard + Shelf
     private WindowIslandClipboardState?       _clipboardState;
     private AppLock.Island.Modules.IslandShelf? _shelf;
+
+    // Home tab lyrics: one lookup per track, shown beside the player when a lyric sheet exists.
+    private readonly LrclibLyricsService _lyricsService = new();
+    private string _lyricsKey = string.Empty;
 
     // Milestone 7: Launcher
     private WindowIslandLauncher?             _launcher;
@@ -391,6 +396,7 @@ public sealed partial class WindowIslandWindow : Window
 
         // Start Home tab background sampler immediately (tab 0 is active on first open)
         StartHomeState();
+        _clipboardState?.Refresh();
 
         // Milestone 15: start visibility service
         _visibilityService?.Dispose();
@@ -534,6 +540,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             StartHomeState();
             RefreshLauncherUI();
+            _clipboardState?.Refresh();
         }
         else StopHomeState();
 
@@ -1350,6 +1357,7 @@ public sealed partial class WindowIslandWindow : Window
                 RecentPanel.Visibility      = Visibility.Visible;
                 FoldedMediaMini.Visibility  = Visibility.Collapsed;
                 StopEqTimer();
+                ClearLyrics();
                 return;
             }
 
@@ -1361,7 +1369,12 @@ public sealed partial class WindowIslandWindow : Window
             MediaApp.Text    = snap.App.ToUpperInvariant();
             MediaPlayPauseIcon.Glyph = snap.Playing ? "\uE769" : "\uE768"; // Pause : Play
 
-            // Progress bar
+            // Progress line with elapsed / remaining times, like a phone-style player card
+            MediaElapsed.Text   = FormatTime(snap.PositionSeconds);
+            MediaRemaining.Text = snap.DurationSeconds > 0
+                ? "-" + FormatTime(Math.Max(0, snap.DurationSeconds - snap.PositionSeconds))
+                : string.Empty;
+
             if (snap.DurationSeconds > 0)
             {
                 double ratio = Math.Clamp(snap.PositionSeconds / snap.DurationSeconds, 0, 1);
@@ -1399,8 +1412,100 @@ public sealed partial class WindowIslandWindow : Window
             FoldedMediaMini.Visibility = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
             UpdateFoldedWeatherMini();
             if (snap.Playing) StartEqTimer(); else StopEqTimer();
+
+            // Lyrics follow the track: fetched once per title/artist pair.
+            _ = UpdateLyricsAsync(snap);
         }
         catch (Exception ex) { WindowIslandHost.Log("OnMediaUpdated: " + ex.Message); }
+    }
+
+    /// <summary>m:ss for the player's elapsed / remaining labels.</summary>
+    private static string FormatTime(double seconds)
+    {
+        if (double.IsNaN(seconds) || seconds < 0) seconds = 0;
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}"
+            : $"{span.Minutes}:{span.Seconds:00}";
+    }
+
+    private async Task UpdateLyricsAsync(MediaSnapshot snap)
+    {
+        string key = snap.Artist + "\u0001" + snap.Title;
+        if (key == _lyricsKey) return;
+        _lyricsKey = key;
+
+        ShowLyrics(null);                                    // hide the previous track's sheet at once
+        var lyrics = await _lyricsService.GetAsync(snap.Title, snap.Artist, snap.DurationSeconds);
+        if (_lyricsKey != key) return;                        // track changed while we were fetching
+        ShowLyrics(lyrics);
+    }
+
+    private void ClearLyrics()
+    {
+        _lyricsKey = string.Empty;
+        ShowLyrics(null);
+    }
+
+    /// <summary>
+    /// Renders the lyric sheet beside the player. While lyrics are on screen the tile grid steps
+    /// aside so the text has room; without lyrics the tiles come back.
+    /// </summary>
+    private void ShowLyrics(LyricsResult? lyrics)
+    {
+        try
+        {
+            LyricsStack.Children.Clear();
+
+            var lines = lyrics?.Lines ?? Array.Empty<string>();
+            foreach (var line in lines)
+            {
+                LyricsStack.Children.Add(new TextBlock
+                {
+                    Text = line,
+                    FontSize = 11,
+                    LineHeight = 15,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(210, 255, 255, 255))
+                });
+            }
+
+            bool show = lines.Count > 0;
+            LyricsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            TileGrid.Visibility    = show ? Visibility.Collapsed : Visibility.Visible;
+        }
+        catch (Exception ex) { WindowIslandHost.Log("ShowLyrics: " + ex.Message); }
+    }
+
+    private void RecentChevron_Click(object sender, RoutedEventArgs e) => SwitchTab(1);
+
+    /// <summary>Fills the Home tab's RECENTLY COPIED rows from the same clipboard history list.</summary>
+    private void UpdateHomeRecents(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
+    {
+        var grids = new[] { RecentItem0, RecentItem1, RecentItem2 };
+        var texts = new[] { RecentText0, RecentText1, RecentText2 };
+        var ages  = new[] { RecentAge0,  RecentAge1,  RecentAge2  };
+        var icons = new[] { RecentIcon0, RecentIcon1, RecentIcon2 };
+
+        for (int i = 0; i < grids.Length; i++)
+        {
+            bool has = i < rows.Count;
+            grids[i].Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+            if (!has) continue;
+
+            var row = rows[i];
+            texts[i].Text = row.Preview;
+            ages[i].Text  = row.Age;
+            icons[i].Glyph = row.Type switch
+            {
+                "image" => "\uEB9F",
+                "files" => "\uE7C3",
+                "text"  => "\uE8C3",
+                _       => "\uE77F"
+            };
+        }
+
+        RecentEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnStatsUpdated(HomeSnapshot snap)
@@ -1582,6 +1687,7 @@ public sealed partial class WindowIslandWindow : Window
     private void OnClipboardItemsLoaded(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
     {
         ClipboardList.Children.Clear();
+        UpdateHomeRecents(rows);
 
         if (rows.Count == 0)
         {

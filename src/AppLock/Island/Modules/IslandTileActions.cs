@@ -65,10 +65,17 @@ public sealed class IslandTileActions
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint count, INPUT[] inputs, int size);
 
+    /// <summary>
+    /// The Snipping Tool's own protocol. Handing it the source makes the tool open the right mode
+    /// (rectangle snip, screen recording, text extraction) instead of guessing from a key chord.
+    /// </summary>
+    private const string SnippingAreaUri = "ms-screenclip:///?source=PrintScreen";
+    private const string SnippingRecordUri = "ms-screenclip:///?source=ScreenRecorderHotKey&type=recording";
+    private const string SnippingTextUri = "ms-screenclip:///?source=TextExtractorHotKey&type=textExtractor";
+
     private readonly Func<Task> _hideIsland;
     private readonly Func<Task> _showIsland;
     private readonly Func<string> _screenshotsFolder;
-    private bool _powerToysHintShown;
 
     public IslandTileActions(Func<Task> hideIsland, Func<Task> showIsland, Func<string> screenshotsFolder)
     {
@@ -83,26 +90,15 @@ public sealed class IslandTileActions
         switch (id)
         {
             case "area":
-                await SendChordAfterHidingAsync(KEY_S, 1200);
+                await OpenSnippingToolAsync(SnippingAreaUri, KEY_S, 1200);
                 return null;
 
             case "record":
-                await SendChordAfterHidingAsync(KEY_R, 1400);
+                await OpenSnippingToolAsync(SnippingRecordUri, KEY_R, 1400);
                 return null;
 
             case "screentext":
-                if (!IsPowerToysInstalled())
-                {
-                    if (_powerToysHintShown) return null;
-                    _powerToysHintShown = true;
-                    return new TileOutcome(
-                        "Screen text needs PowerToys",
-                        "Install PowerToys Text Extractor, or change this shortcut in settings",
-                        "\uE7BA",
-                        "#FFD15C");
-                }
-
-                await SendChordAfterHidingAsync(KEY_T, 1200);
+                await OpenSnippingToolAsync(SnippingTextUri, KEY_T, 1200);
                 return null;
 
             case "fullscreen":
@@ -118,7 +114,11 @@ public sealed class IslandTileActions
 
     // ── Chords ───────────────────────────────────────────────────────────────
 
-    private async Task SendChordAfterHidingAsync(ushort key, int holdMs)
+    /// <summary>
+    /// Hides the island, then asks the Snipping Tool for the requested mode through its protocol.
+    /// The Win + Shift chord is only a fallback, for a machine where the protocol is not registered.
+    /// </summary>
+    private async Task OpenSnippingToolAsync(string uri, ushort fallbackKey, int holdMs)
     {
         try
         {
@@ -126,12 +126,31 @@ public sealed class IslandTileActions
 
             // The island has to be gone before the capture UI opens, or it shows up in it.
             await Task.Delay(180);
-            SendWinShift(key);
+
+            if (!TryActivateProtocol(uri))
+            {
+                SendWinShift(fallbackKey);
+            }
+
             await Task.Delay(holdMs);
         }
         finally
         {
             await _showIsland();
+        }
+    }
+
+    private static bool TryActivateProtocol(string uri)
+    {
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+            return process != null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] protocol launch failed for {uri}: {ex.Message}");
+            return false;
         }
     }
 
@@ -164,43 +183,6 @@ public sealed class IslandTileActions
         type = INPUT_KEYBOARD,
         u = new INPUTUNION { ki = new KEYBDINPUT { wVk = vk, dwFlags = KEYEVENTF_KEYUP } },
     };
-
-    /// <summary>PowerToys' Text Extractor owns Win + Shift + T; without it the chord does nothing.</summary>
-    private static bool IsPowerToysInstalled()
-    {
-        try
-        {
-            string local = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PowerToys", "PowerToys.exe");
-            if (File.Exists(local)) return true;
-
-            string machine = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerToys", "PowerToys.exe");
-            if (File.Exists(machine)) return true;
-
-            foreach (string root in new[]
-                     {
-                         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                         @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-                     })
-            {
-                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(root);
-                if (key == null) continue;
-                foreach (string name in key.GetSubKeyNames())
-                {
-                    if (!name.Contains("PowerToys", StringComparison.OrdinalIgnoreCase)) continue;
-                    using var entry = key.OpenSubKey(name);
-                    if (entry?.GetValue("InstallLocation") is string location && location.Length > 0) return true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Island] PowerToys detection failed: {ex.Message}");
-        }
-
-        return false;
-    }
 
     // ── Full screen screenshot ───────────────────────────────────────────────
 
