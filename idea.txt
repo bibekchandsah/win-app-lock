@@ -425,10 +425,11 @@ fixed - in self tab instead of showing in row show it in grid which will look mo
 fixed - add confirmation while clearing all shelf 
 fixed - in the text tab add the option for genertion QR too of entered text 
 fixed - increase the height of AI chat tab so that longer messages can be scrolled 
-optimize the spacing for adding custom AI assistant and for custom AI assistant on right click menu also addd edit option 
+fixed - optimize the spacing for adding custom AI assistant and for custom AI assistant on right click menu also addd edit option 
 
-in weather tab add support of mutliple cities 
-add visuals too in the cards 
+fixed - in weather tab add support of mutliple cities 
+fixed - add visuals too in the cards 
+fixed - also show the current time and date of selected cities 
 
 in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
 confirm before deleting note 
@@ -439,6 +440,16 @@ add support of bold, italic, underline, strike, list, numbered list, check list,
 
 in controls tab add support of wifi list and bluetooth list
 add the card for showing battery of bluetooths connected devices 
+lock screen, show/hide desktop, task view, calculator, custom card 
+
+change weather and control tab icon 
+use accent color in all tabs 
+add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
+user can add multiple search like @command and url for example 
+@youtube - command 
+https://www.youtube.com/results?search_query= - query 
+
+@incognito, @youtube, @maps, @images, @amazon, @flipkart, @wiki, @wikihow, @github, @translate, @stackoverflow, @reddit, @quora, @medium, @linkedin, @twitter/@x, @news, @scholar, @weather, @duckduckgo, @spotify, @coursera, @udemy, @discord, @pinterest, @unsplash, @google 
 
 
 

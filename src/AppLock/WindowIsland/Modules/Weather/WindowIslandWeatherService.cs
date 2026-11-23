@@ -33,6 +33,7 @@ public sealed class WindowIslandWeatherService
     private WeatherForecastData? _cachedData;
     private DateTime _lastFetchUtc = DateTime.MinValue;
     private DateTime _lastRainWarningTime = DateTime.MinValue;
+    private readonly Dictionary<string, (WeatherForecastData Data, DateTime FetchedUtc)> _memoryCaches = new();
 
     public event EventHandler<WeatherForecastData?>? WeatherUpdated;
     public event EventHandler<WindowIslandCard>? RainWarningTriggered;
@@ -100,28 +101,36 @@ public sealed class WindowIslandWeatherService
     public async Task<WeatherForecastData?> RefreshAsync(bool force = false)
     {
         var settings = SettingsProvider();
-        if (settings.WeatherLatitude == 0.0 && settings.WeatherLongitude == 0.0)
+        var city = settings.GetActiveCity();
+        if (city.Latitude == 0.0 && city.Longitude == 0.0)
         {
             return CurrentWeather;
         }
 
+        string cacheKey = $"{city.Latitude:F2}_{city.Longitude:F2}";
+
         // Respect 30-minute refresh rate limit unless forced
-        if (!force && DateTime.UtcNow - _lastFetchUtc < TimeSpan.FromMinutes(30) && _cachedData != null)
+        if (!force && _memoryCaches.TryGetValue(cacheKey, out var entry) && DateTime.UtcNow - entry.FetchedUtc < TimeSpan.FromMinutes(30))
         {
-            return _cachedData;
+            lock (_lock)
+            {
+                _cachedData = entry.Data;
+            }
+            return entry.Data;
         }
 
         try
         {
-            var fresh = await _provider.GetForecastAsync(settings.WeatherLatitude, settings.WeatherLongitude).ConfigureAwait(false);
+            var fresh = await _provider.GetForecastAsync(city.Latitude, city.Longitude).ConfigureAwait(false);
             if (fresh != null)
             {
-                fresh.CityName = settings.WeatherCity;
+                fresh.CityName = city.Name;
                 _lastFetchUtc = DateTime.UtcNow;
 
                 lock (_lock)
                 {
                     _cachedData = fresh;
+                    _memoryCaches[cacheKey] = (fresh, DateTime.UtcNow);
                 }
                 SaveCacheToDisk(fresh);
 
@@ -140,15 +149,69 @@ public sealed class WindowIslandWeatherService
         return await _provider.SearchLocationsAsync(query, ct).ConfigureAwait(false);
     }
 
-    public async Task SetLocationAsync(string cityName, double lat, double lon)
+    public async Task AddCityAsync(string cityName, double lat, double lon, string country = "")
     {
         var s = SettingsProvider();
-        s.WeatherCity = cityName;
-        s.WeatherLatitude = Math.Round(lat, 4);
-        s.WeatherLongitude = Math.Round(lon, 4);
+        var list = s.GetWeatherCities();
+        int existing = list.FindIndex(c => Math.Abs(c.Latitude - lat) < 0.05 && Math.Abs(c.Longitude - lon) < 0.05);
+        if (existing >= 0)
+        {
+            s.ActiveWeatherCityIndex = existing;
+        }
+        else
+        {
+            list.Add(new WeatherCity(cityName, Math.Round(lat, 4), Math.Round(lon, 4), country));
+            s.ActiveWeatherCityIndex = list.Count - 1;
+        }
+
+        var active = list[s.ActiveWeatherCityIndex];
+        s.WeatherCity = active.Name;
+        s.WeatherLatitude = active.Latitude;
+        s.WeatherLongitude = active.Longitude;
         SettingsSaver?.Invoke(s);
 
         await RefreshAsync(force: true).ConfigureAwait(false);
+    }
+
+    public async Task SelectCityAsync(int index)
+    {
+        var s = SettingsProvider();
+        var list = s.GetWeatherCities();
+        if (index < 0 || index >= list.Count) return;
+
+        s.ActiveWeatherCityIndex = index;
+        var active = list[index];
+        s.WeatherCity = active.Name;
+        s.WeatherLatitude = active.Latitude;
+        s.WeatherLongitude = active.Longitude;
+        SettingsSaver?.Invoke(s);
+
+        await RefreshAsync(force: false).ConfigureAwait(false);
+    }
+
+    public async Task RemoveCityAsync(int index)
+    {
+        var s = SettingsProvider();
+        var list = s.GetWeatherCities();
+        if (list.Count <= 1 || index < 0 || index >= list.Count) return;
+
+        list.RemoveAt(index);
+        if (s.ActiveWeatherCityIndex >= list.Count)
+        {
+            s.ActiveWeatherCityIndex = list.Count - 1;
+        }
+        var active = list[s.ActiveWeatherCityIndex];
+        s.WeatherCity = active.Name;
+        s.WeatherLatitude = active.Latitude;
+        s.WeatherLongitude = active.Longitude;
+        SettingsSaver?.Invoke(s);
+
+        await RefreshAsync(force: false).ConfigureAwait(false);
+    }
+
+    public async Task SetLocationAsync(string cityName, double lat, double lon)
+    {
+        await AddCityAsync(cityName, lat, lon).ConfigureAwait(false);
     }
 
     public void CheckRainSnowWarning(WeatherForecastData data)

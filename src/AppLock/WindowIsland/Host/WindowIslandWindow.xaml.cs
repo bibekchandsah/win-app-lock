@@ -587,6 +587,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             RefreshWeatherUI();
         }
+        else if (_previousTab == 6)
+        {
+            if (WeatherCityOverlay != null) WeatherCityOverlay.Visibility = Visibility.Collapsed;
+        }
         if (_activeTab == 7)
         {
             RefreshControlsUI();
@@ -819,6 +823,12 @@ public sealed partial class WindowIslandWindow : Window
                 if (ChatAddOverlay != null && ChatAddOverlay.Visibility == Visibility.Visible)
                 {
                     ChatCancelAdd_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+                }
+                if (WeatherCityOverlay != null && WeatherCityOverlay.Visibility == Visibility.Visible)
+                {
+                    WeatherSearchCancel_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
                 }
@@ -3323,48 +3333,97 @@ public sealed partial class WindowIslandWindow : Window
     private void RefreshWeatherUI()
     {
         var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
-        if (string.IsNullOrWhiteSpace(settings.WeatherCity))
+        var city = settings.GetActiveCity();
+        if (string.IsNullOrWhiteSpace(city.Name) || (city.Latitude == 0 && city.Longitude == 0))
         {
             WeatherCityOverlay.Visibility = Visibility.Visible;
-            WeatherSearchCancel.Visibility = Visibility.Collapsed;
+            RenderSavedCitiesUI();
             WeatherCityText.Text = "No city set";
             WeatherBigTemp.Text = "--";
             WeatherConditionText.Text = "Tap to set location";
-            WeatherFeelsLikeText.Text = "Feels like -- · H: -- L: --";
+            WeatherFeelsLikeText.Text = "Feels like -- · Today --";
             WeatherOutlookText.Text = "Please enter your city to fetch weather data.";
             WeatherHoursStack.Children.Clear();
             WeatherWeekStack.Children.Clear();
+            WeatherUpdatedText.Text = string.Empty;
+            WeatherCityTimeText.Text = string.Empty;
             return;
         }
 
-        WeatherSearchCancel.Visibility = Visibility.Visible;
+        WeatherCityText.Text = city.Name;
+        try
+        {
+            double offsetHours = Math.Round(city.Longitude / 15.0 * 2.0) / 2.0;
+            var cityTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(Math.Clamp(offsetHours, -12, 14)));
+            WeatherCityTimeText.Text = cityTime.ToString("ddd, h:mm tt");
+        }
+        catch
+        {
+            WeatherCityTimeText.Text = DateTime.Now.ToString("ddd, h:mm tt");
+        }
 
         var weather = WindowIslandWeatherService.Instance.CurrentWeather;
         if (weather == null)
         {
-            WeatherCityText.Text = settings.WeatherCity;
             WeatherBigTemp.Text = "--";
             WeatherConditionText.Text = "Loading...";
             WeatherFeelsLikeText.Text = "Fetching forecast from MET Norway...";
+            WeatherUpdatedText.Text = string.Empty;
             _ = WindowIslandWeatherService.Instance.RefreshAsync();
             return;
         }
 
-        WeatherCityText.Text = string.IsNullOrEmpty(weather.CityName) ? settings.WeatherCity : weather.CityName;
+        WeatherCityText.Text = string.IsNullOrEmpty(weather.CityName) ? city.Name : weather.CityName;
         WeatherBigTemp.Text = WindowIslandWeatherService.FormatTemp(weather.CurrentTempC, settings.WeatherUnits);
         WeatherConditionIcon.Glyph = weather.IconGlyph;
         WeatherConditionText.Text = weather.ConditionText;
-        WeatherFeelsLikeText.Text = $"Feels like {WindowIslandWeatherService.FormatTemp(weather.FeelsLikeC, settings.WeatherUnits)} · H: {WindowIslandWeatherService.FormatTemp(weather.HighC, settings.WeatherUnits)} L: {WindowIslandWeatherService.FormatTemp(weather.LowC, settings.WeatherUnits)}";
-        WeatherOutlookText.Text = weather.SummaryOutlook;
+        WeatherFeelsLikeText.Text = $"Feels like {WindowIslandWeatherService.FormatTemp(weather.FeelsLikeC, settings.WeatherUnits)} · Today {WindowIslandWeatherService.FormatTemp(weather.LowC, settings.WeatherUnits)}...{WindowIslandWeatherService.FormatTemp(weather.HighC, settings.WeatherUnits)}";
+        WeatherOutlookText.Text = string.IsNullOrWhiteSpace(weather.SummaryOutlook) ? $"{weather.ConditionText} throughout the day." : weather.SummaryOutlook;
         WeatherUpdatedText.Text = GetFriendlyUpdatedTime(weather.UpdatedTime);
 
-        // Metric Tiles
-        WeatherWindText.Text = $"{WindowIslandWeatherService.FormatSpeed(weather.WindSpeedMps, settings.WeatherUnits)} {weather.WindDirectionCompass}";
-        WeatherHumidityText.Text = $"{(int)Math.Round(weather.HumidityPercent)}% · Dew {WindowIslandWeatherService.FormatTemp(weather.DewPointC, settings.WeatherUnits)}";
-        WeatherPressureText.Text = $"{(int)Math.Round(weather.PressureHpa)} hPa · {weather.PressureTrend}";
-        WeatherSunText.Text = $"{(weather.Sunrise.Year > 2000 ? weather.Sunrise.ToString("HH:mm") : "--:--")} · {(weather.Sunset.Year > 2000 ? weather.Sunset.ToString("HH:mm") : "--:--")}";
-        WeatherPrecipText.Text = $"{weather.PrecipitationTodayMm:0.0} mm";
-        WeatherUvText.Text = $"{weather.UvIndex:0.0} ({weather.UvLevel})";
+        // Metric Tiles visuals & values
+        // 1. Wind: Compass rotation, speed & direction text
+        WeatherWindSpeedText.Text = WindowIslandWeatherService.FormatSpeed(weather.WindSpeedMps, settings.WeatherUnits);
+        WeatherWindDirText.Text = weather.WindDirectionCompass;
+        WeatherWindRotate.Angle = weather.WindDirectionDeg;
+
+        // 2. Humidity: Percentage, progress bar, dew point
+        WeatherHumidityValText.Text = $"{(int)Math.Round(weather.HumidityPercent)}%";
+        WeatherDewText.Text = $"Dew point {WindowIslandWeatherService.FormatTemp(weather.DewPointC, settings.WeatherUnits)}";
+        WeatherHumidityFill.Width = Math.Clamp((weather.HumidityPercent / 100.0) * 80.0, 4, 80);
+
+        // 3. Pressure: Value, trend, needle rotation (-50 to +50 deg from 970 to 1050 hPa)
+        WeatherPressureValText.Text = $"{(int)Math.Round(weather.PressureHpa)} hPa";
+        WeatherPressureTrendText.Text = weather.PressureTrend.ToLowerInvariant().Contains("fall") ? "↓ falling" : (weather.PressureTrend.ToLowerInvariant().Contains("rise") ? "↑ rising" : "→ steady");
+        double clampedPressure = Math.Clamp(weather.PressureHpa, 970, 1050);
+        WeatherPressureRotate.Angle = ((clampedPressure - 1010) / 40.0) * 50.0;
+
+        // 4. Sun: Trajectory arc & dot, sunrise & sunset times
+        WeatherSunTimesText.Text = $"↑ {(weather.Sunrise.Year > 2000 ? weather.Sunrise.ToString("h:mm tt") : "6:30 AM")}  ↓ {(weather.Sunset.Year > 2000 ? weather.Sunset.ToString("h:mm tt") : "5:30 PM")}";
+        double sunProgress = 0.5;
+        if (weather.Sunrise.Year > 2000 && weather.Sunset.Year > 2000 && weather.Sunset > weather.Sunrise)
+        {
+            var cur = DateTime.Now.TimeOfDay;
+            var sr = weather.Sunrise.TimeOfDay;
+            var ss = weather.Sunset.TimeOfDay;
+            if (cur <= sr) sunProgress = 0.0;
+            else if (cur >= ss) sunProgress = 1.0;
+            else sunProgress = (cur - sr).TotalMinutes / (ss - sr).TotalMinutes;
+        }
+        double sunX = 2 + sunProgress * 84;
+        double sunY = 18 - 4 * sunProgress * (1.0 - sunProgress) * 20;
+        WeatherSunDot.Margin = new Thickness(sunX, sunY, 0, 0);
+
+        // 5. Precipitation: Value, mini-bar fill, subtext
+        WeatherPrecipValText.Text = $"{weather.PrecipitationTodayMm:0.0} mm today";
+        WeatherPrecipSubText.Text = weather.PrecipitationTodayMm > 0 ? "Rain recorded today" : "No rain expected today";
+        WeatherPrecipFill.Width = Math.Clamp((weather.PrecipitationTodayMm / 20.0) * 80.0, 0, 80);
+
+        // 6. UV Index: Value & level, spectrum thumb indicator
+        WeatherUvValText.Text = $"{weather.UvIndex:0.0} {weather.UvLevel.ToLowerInvariant()}";
+        WeatherUvSubText.Text = $"Tomorrow up to {(int)Math.Ceiling(weather.UvIndex)}";
+        double uvPos = Math.Clamp((weather.UvIndex / 11.0) * 72.0, 0, 72);
+        WeatherUvThumb.Margin = new Thickness(uvPos, 0, 0, 0);
 
         // Build hourly & week forecast items
         BuildWeatherHourlyItems(weather.Hourly, settings.WeatherUnits);
@@ -3521,8 +3580,112 @@ public sealed partial class WindowIslandWindow : Window
 
     private void WeatherChangeCityBtn_Click(object sender, RoutedEventArgs e)
     {
+        WeatherSearchResultsStack.Children.Clear();
+        WeatherSearchFeedback.Visibility = Visibility.Collapsed;
+        WeatherSearchInput.Text = string.Empty;
+        RenderSavedCitiesUI();
         WeatherCityOverlay.Visibility = Visibility.Visible;
         WeatherSearchInput.Focus(FocusState.Programmatic);
+    }
+
+    private void RenderSavedCitiesUI()
+    {
+        WeatherSavedCitiesStack.Children.Clear();
+        var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
+        var cities = settings.GetWeatherCities();
+
+        for (int i = 0; i < cities.Count; i++)
+        {
+            int index = i;
+            var c = cities[i];
+            bool isActive = (index == settings.ActiveWeatherCityIndex);
+
+            var itemGrid = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(0, 1, 0, 1)
+            };
+            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var selectBtn = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x30, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
+                BorderBrush = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x80, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 6, 10, 6)
+            };
+
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            sp.Children.Add(new FontIcon
+            {
+                Glyph = "\uE707",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF))
+            });
+
+            var nameText = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(c.Country) ? c.Name : $"{c.Name}, {c.Country}",
+                FontSize = 11,
+                FontWeight = isActive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            sp.Children.Add(nameText);
+
+            if (isActive)
+            {
+                sp.Children.Add(new FontIcon
+                {
+                    Glyph = "\uE73E",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF)),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+
+            selectBtn.Content = sp;
+            selectBtn.Click += async (_, _) =>
+            {
+                WeatherCityOverlay.Visibility = Visibility.Collapsed;
+                await WindowIslandWeatherService.Instance.SelectCityAsync(index);
+                RefreshWeatherUI();
+            };
+
+            Grid.SetColumn(selectBtn, 0);
+            itemGrid.Children.Add(selectBtn);
+
+            if (cities.Count > 1)
+            {
+                var delBtn = new Button
+                {
+                    Width = 28,
+                    Height = 28,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(4, 0, 0, 0),
+                    Background = new SolidColorBrush(ColorHelper.FromArgb(0x10, 0xFF, 0xFF, 0xFF)),
+                    BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6)
+                };
+                delBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 10, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF)) };
+                delBtn.Click += async (_, _) =>
+                {
+                    await WindowIslandWeatherService.Instance.RemoveCityAsync(index);
+                    RenderSavedCitiesUI();
+                    RefreshWeatherUI();
+                };
+                Grid.SetColumn(delBtn, 1);
+                itemGrid.Children.Add(delBtn);
+            }
+
+            WeatherSavedCitiesStack.Children.Add(itemGrid);
+        }
     }
 
     private void WeatherSearchCancel_Click(object sender, RoutedEventArgs e)
@@ -3593,7 +3756,8 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         WeatherCityOverlay.Visibility = Visibility.Collapsed;
                         WeatherSearchFeedback.Visibility = Visibility.Collapsed;
-                        await WindowIslandWeatherService.Instance.SetLocationAsync(loc.DisplayName, loc.Latitude, loc.Longitude);
+                        string simpleName = loc.DisplayName.Split(',')[0].Trim();
+                        await WindowIslandWeatherService.Instance.AddCityAsync(simpleName, loc.Latitude, loc.Longitude, loc.Country);
                         RefreshWeatherUI();
                     };
 

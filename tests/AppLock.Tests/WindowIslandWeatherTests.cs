@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AppLock.Models;
 using AppLock.WindowIsland.Events;
 using AppLock.WindowIsland.Modules.Weather;
 using Xunit;
@@ -148,6 +149,65 @@ public class WindowIslandWeatherTests
         Assert.Equal(WindowIslandCardPriority.Rain, receivedCard.Priority);
         Assert.Contains("Rain Alert", receivedCard.Title);
         Assert.Contains("2.4 mm", receivedCard.Detail);
+    }
+
+    [Fact]
+    public void WindowIslandSettings_WeatherCities_InitializesAndClones()
+    {
+        var settings = new WindowIslandSettings();
+        var cities = settings.GetWeatherCities();
+        Assert.NotEmpty(cities);
+        Assert.Equal("Kathmandu", cities[0].Name);
+
+        // Add a new city
+        cities.Add(new WeatherCity("London", 51.5074, -0.1278, "United Kingdom"));
+        settings.ActiveWeatherCityIndex = 1;
+        Assert.Equal("London", settings.GetActiveCity().Name);
+
+        var clone = settings.Clone();
+        Assert.Equal(2, clone.WeatherCities.Count);
+        Assert.Equal("London", clone.WeatherCities[1].Name);
+        Assert.Equal(1, clone.ActiveWeatherCityIndex);
+
+        // Mutating clone does not mutate original
+        clone.WeatherCities[0].Name = "Tokyo";
+        Assert.Equal("Kathmandu", settings.WeatherCities[0].Name);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task WeatherService_MultiCity_AddSelectRemoveWorks()
+    {
+        var settings = new WindowIslandSettings();
+        WindowIslandSettings? savedSettings = null;
+        WindowIslandWeatherService.SettingsProvider = () => settings;
+        WindowIslandWeatherService.SettingsSaver = s => savedSettings = s;
+
+        var mockProvider = new FakeWeatherProvider();
+        var service = new WindowIslandWeatherService(mockProvider);
+
+        // Add London
+        await service.AddCityAsync("London", 51.5074, -0.1278, "UK");
+        Assert.Equal("London", settings.WeatherCity);
+        Assert.Equal(51.5074, settings.WeatherLatitude);
+        Assert.Equal(-0.1278, settings.WeatherLongitude);
+        Assert.Equal(2, settings.WeatherCities.Count); // Kathmandu + London
+        Assert.Equal(1, settings.ActiveWeatherCityIndex);
+
+        // Select Kathmandu (index 0)
+        await service.SelectCityAsync(0);
+        Assert.Equal(0, settings.ActiveWeatherCityIndex);
+        Assert.Equal("Kathmandu", settings.WeatherCity);
+
+        // Remove Kathmandu (index 0)
+        await service.RemoveCityAsync(0);
+        Assert.Single(settings.WeatherCities);
+        Assert.Equal("London", settings.WeatherCities[0].Name);
+        Assert.Equal(0, settings.ActiveWeatherCityIndex);
+        Assert.Equal("London", settings.WeatherCity);
+
+        // Prevent removing the last city
+        await service.RemoveCityAsync(0);
+        Assert.Single(settings.WeatherCities);
     }
 
     private class FakeWeatherProvider : IWeatherProvider

@@ -65,6 +65,33 @@ public sealed class WindowIslandSettings
     public string WeatherUnits { get; set; } = "metric"; // "metric" (°C, m/s) or "imperial" (°F, mph)
     public bool WeatherTempOnIsland { get; set; } = true;
     public bool WeatherRainWarning { get; set; } = true;
+    public System.Collections.Generic.List<WeatherCity> WeatherCities { get; set; } = new();
+    public int ActiveWeatherCityIndex { get; set; } = 0;
+
+    public System.Collections.Generic.List<WeatherCity> GetWeatherCities()
+    {
+        if (WeatherCities == null || WeatherCities.Count == 0)
+        {
+            WeatherCities = new System.Collections.Generic.List<WeatherCity>();
+            if (!string.IsNullOrWhiteSpace(WeatherCity) && (WeatherLatitude != 0 || WeatherLongitude != 0))
+            {
+                WeatherCities.Add(new WeatherCity(WeatherCity, WeatherLatitude, WeatherLongitude));
+            }
+            else
+            {
+                WeatherCities.Add(new WeatherCity("Kathmandu", 27.7172, 85.3240, "Nepal"));
+            }
+        }
+        return WeatherCities;
+    }
+
+    public WeatherCity GetActiveCity()
+    {
+        var list = GetWeatherCities();
+        int idx = Math.Clamp(ActiveWeatherCityIndex, 0, list.Count - 1);
+        ActiveWeatherCityIndex = idx;
+        return list[idx];
+    }
 
     // ── Milestone 12: Notification / Alert Card Settings ─────────────────────
     /// <summary>Push a card when VPN connects or disconnects.</summary>
@@ -164,7 +191,36 @@ public sealed class WindowIslandSettings
             }
         }
         clone.ChosenApps = new System.Collections.Generic.List<string>(ChosenApps ?? new());
+        clone.WeatherCities = new System.Collections.Generic.List<WeatherCity>();
+        if (WeatherCities != null)
+        {
+            foreach (var c in WeatherCities)
+            {
+                clone.WeatherCities.Add(new WeatherCity(c.Name, c.Latitude, c.Longitude, c.Country));
+            }
+        }
         return clone;
+    }
+}
+
+/// <summary>
+/// Model for a saved city location in Window Island Weather tab.
+/// </summary>
+public sealed class WeatherCity
+{
+    public string Name { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string Country { get; set; } = string.Empty;
+
+    public WeatherCity() { }
+
+    public WeatherCity(string name, double lat, double lon, string country = "")
+    {
+        Name = name;
+        Latitude = lat;
+        Longitude = lon;
+        Country = country;
     }
 }
 
