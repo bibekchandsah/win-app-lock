@@ -166,6 +166,8 @@ public sealed partial class WindowIslandWindow : Window
     private WindowIslandReminderStore?        _reminderStore;
     private WindowIslandTimer?                _timer;
     private string?                           _activeNoteId;
+    private string?                           _loadedNoteId;
+    private DQTimer?                          _noteSaveTimer;
     private bool                              _noteUpdating;
 
     // Milestone 10: Weather
@@ -499,6 +501,8 @@ public sealed partial class WindowIslandWindow : Window
         _reminderStore = null;
         _timer?.Dispose();
         _timer = null;
+        FlushPendingNoteSave();
+        _noteSaveTimer?.Stop();
         _notesStore = null;
 
         _eventQueue?.Dispose();
@@ -585,6 +589,7 @@ public sealed partial class WindowIslandWindow : Window
         }
         else
         {
+            if (_previousTab == 5) FlushPendingNoteSave();
             ResetNoteDeleteBtnUI();
             if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
         }
@@ -2945,6 +2950,19 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 9: Note & Timer & Reminders ─────────────────────────────────
 
+    private void FlushPendingNoteSave()
+    {
+        if (_noteSaveTimer != null)
+        {
+            _noteSaveTimer.Stop();
+            if (!string.IsNullOrEmpty(_activeNoteId))
+            {
+                NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
+                _notesStore?.UpdateNote(_activeNoteId, rtf);
+            }
+        }
+    }
+
     private void RefreshNotesUI()
     {
         if (_notesStore == null) return;
@@ -2952,7 +2970,14 @@ public sealed partial class WindowIslandWindow : Window
 
         NoteTabStrip.Children.Clear();
 
-        if (notes.Count == 0) return;
+        if (notes.Count == 0)
+        {
+            _loadedNoteId = null;
+            _noteUpdating = true;
+            NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+            _noteUpdating = false;
+            return;
+        }
 
         if (string.IsNullOrEmpty(_activeNoteId) || !notes.Any(n => n.Id == _activeNoteId))
         {
@@ -2981,17 +3006,25 @@ public sealed partial class WindowIslandWindow : Window
             {
                 if (s is Button b && b.Tag is string nid)
                 {
-                    _activeNoteId = nid;
-                    RefreshNotesUI();
+                    if (_activeNoteId != nid)
+                    {
+                        FlushPendingNoteSave();
+                        _activeNoteId = nid;
+                        RefreshNotesUI();
+                    }
                 }
             };
             NoteTabStrip.Children.Add(btn);
         }
 
         var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
-        _noteUpdating = true;
-        LoadNoteIntoEditor(activeNote.Content);
-        _noteUpdating = false;
+        if (_loadedNoteId != _activeNoteId)
+        {
+            _loadedNoteId = _activeNoteId;
+            _noteUpdating = true;
+            LoadNoteIntoEditor(activeNote.Content);
+            _noteUpdating = false;
+        }
     }
 
     private void LoadNoteIntoEditor(string? content)
@@ -3017,6 +3050,7 @@ public sealed partial class WindowIslandWindow : Window
 
     private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
     {
+        FlushPendingNoteSave();
         if (NoteNewTitleOverlay != null)
         {
             int nextIndex = (_notesStore?.Notes.Count ?? 0) + 1;
@@ -3030,6 +3064,7 @@ public sealed partial class WindowIslandWindow : Window
             var note = _notesStore?.CreateNote();
             if (note != null)
             {
+                _loadedNoteId = null;
                 _activeNoteId = note.Id;
                 RefreshNotesUI();
                 NoteContentBox.Focus(FocusState.Programmatic);
@@ -3072,9 +3107,11 @@ public sealed partial class WindowIslandWindow : Window
             title = $"Note {(_notesStore?.Notes.Count ?? 0) + 1}";
         }
         if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
+        FlushPendingNoteSave();
         var note = _notesStore?.CreateNote(title);
         if (note != null)
         {
+            _loadedNoteId = null;
             _activeNoteId = note.Id;
             RefreshNotesUI();
             NoteContentBox.Focus(FocusState.Programmatic);
@@ -3116,8 +3153,10 @@ public sealed partial class WindowIslandWindow : Window
         if (_noteDeleteConfirming)
         {
             ResetNoteDeleteBtnUI();
+            _noteSaveTimer?.Stop();
             _notesStore?.DeleteNote(_activeNoteId);
             _activeNoteId = null;
+            _loadedNoteId = null;
             RefreshNotesUI();
             return;
         }
@@ -3143,8 +3182,17 @@ public sealed partial class WindowIslandWindow : Window
     private void NoteContentBox_TextChanged(object sender, RoutedEventArgs e)
     {
         if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId)) return;
-        NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-        _notesStore?.UpdateNote(_activeNoteId, rtf);
+        _noteSaveTimer?.Stop();
+        _noteSaveTimer = DispatcherQueue.CreateTimer();
+        _noteSaveTimer.Interval = TimeSpan.FromMilliseconds(400);
+        _noteSaveTimer.Tick += (_, _) =>
+        {
+            _noteSaveTimer?.Stop();
+            if (string.IsNullOrEmpty(_activeNoteId)) return;
+            NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
+            _notesStore?.UpdateNote(_activeNoteId, rtf);
+        };
+        _noteSaveTimer.Start();
     }
 
     // ── Formatting toolbar handlers ──────────────────────────────────────────
@@ -3240,19 +3288,21 @@ public sealed partial class WindowIslandWindow : Window
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             var sel = NoteContentBox.Document.Selection;
-            sel.Expand(TextRangeUnit.Paragraph);
-            sel.GetText(TextGetOptions.None, out string lineText);
+            var range = sel.GetClone();
+            range.Expand(TextRangeUnit.Paragraph);
+            range.GetText(TextGetOptions.None, out string lineText);
             if (lineText.TrimStart().StartsWith("☐ "))
             {
                 if (lineText.Trim() == "☐")
                 {
-                    sel.Text = string.Empty;
+                    range.SetText(TextSetOptions.None, string.Empty);
                     e.Handled = true;
                 }
                 else
                 {
-                    NoteContentBox.Document.Selection.Collapse(false);
-                    NoteContentBox.Document.Selection.Text = "\r\n☐ ";
+                    sel.Collapse(false);
+                    sel.SetText(TextSetOptions.None, "\r\n☐ ");
+                    sel.Collapse(false);
                     e.Handled = true;
                 }
             }
@@ -3316,6 +3366,12 @@ public sealed partial class WindowIslandWindow : Window
             remStr = remStr.Substring(1);
         TimerDisplay.Text = remStr;
 
+        if (TimerCircleRing != null)
+        {
+            double remainingFraction = Math.Clamp(1.0 - progress, 0.0, 1.0);
+            TimerCircleRing.Value = remainingFraction * 100.0;
+        }
+
         if (_timer?.State == IslandTimerState.Running)
         {
             FoldedTimerMini.Visibility = Visibility.Visible;
@@ -3335,6 +3391,10 @@ public sealed partial class WindowIslandWindow : Window
         UpdateFoldedWeatherMini();
         UpdateTimerButtonsState(IslandTimerState.Idle);
         TimerDisplay.Text = "5:00";
+        if (TimerCircleRing != null)
+        {
+            TimerCircleRing.Value = 0.0;
+        }
 
         var accent = GetSystemAccentColor();
         string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
@@ -3454,6 +3514,10 @@ public sealed partial class WindowIslandWindow : Window
         _timer?.Reset();
         UpdateTimerButtonsState(IslandTimerState.Idle);
         TimerDisplay.Text = "5:00";
+        if (TimerCircleRing != null)
+        {
+            TimerCircleRing.Value = 100.0;
+        }
         FoldedTimerMini.Visibility = Visibility.Collapsed;
         UpdateFoldedWeatherMini();
     }
