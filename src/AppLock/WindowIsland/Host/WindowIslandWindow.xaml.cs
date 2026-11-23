@@ -320,6 +320,11 @@ public sealed partial class WindowIslandWindow : Window
         // Milestone 9: Note, Timer, Reminders
         _notesStore = new WindowIslandNotesStore();
         _notesStore.Changed += () => DispatcherQueue.TryEnqueue(RefreshNotesUI);
+        NoteContentBox.Loaded += (_, _) =>
+        {
+            _loadedNoteId = null;
+            RefreshNotesUI();
+        };
         _reminderStore = new WindowIslandReminderStore();
         _reminderStore.Changed += () => DispatcherQueue.TryEnqueue(RefreshRemindersUI);
         _reminderStore.ReminderTriggered += OnReminderTriggered;
@@ -585,6 +590,7 @@ public sealed partial class WindowIslandWindow : Window
         }
         if (_activeTab == 5)
         {
+            _loadedNoteId = null;
             RefreshNotesUI();
             RefreshRemindersUI();
         }
@@ -618,6 +624,12 @@ public sealed partial class WindowIslandWindow : Window
 
         // Force layout pass on incoming tab so its composition visual and geometry exist
         _tabContents[_activeTab].UpdateLayout();
+
+        if (_activeTab == 5)
+        {
+            _loadedNoteId = null;
+            RefreshNotesUI();
+        }
 
         UpdateTabVisuals();
         UpdateTabHighlight(animate);
@@ -2956,10 +2968,10 @@ public sealed partial class WindowIslandWindow : Window
         if (_noteSaveTimer != null)
         {
             _noteSaveTimer.Stop();
-            if (!string.IsNullOrEmpty(_activeNoteId))
+            if (NoteContentBox != null && !string.IsNullOrEmpty(_activeNoteId))
             {
                 NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-                _notesStore?.UpdateNote(_activeNoteId, rtf);
+                _notesStore?.UpdateNote(_activeNoteId, (rtf ?? string.Empty).TrimEnd('\0'));
             }
         }
     }
@@ -3019,7 +3031,8 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
-        if (_loadedNoteId != _activeNoteId)
+        NoteContentBox.Document.GetText(TextGetOptions.None, out string curTxt);
+        if (_loadedNoteId != _activeNoteId || (string.IsNullOrWhiteSpace(curTxt) && !string.IsNullOrEmpty(activeNote.Content)))
         {
             _loadedNoteId = _activeNoteId;
             _noteUpdating = true;
@@ -3033,19 +3046,37 @@ public sealed partial class WindowIslandWindow : Window
         if (string.IsNullOrEmpty(content))
         {
             NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+            UpdateFormattingToolbarUI();
+            return;
         }
-        else if (content.TrimStart().StartsWith("{\\rtf"))
+
+        string clean = content.TrimEnd('\0', '\r', '\n');
+        if (clean.TrimStart().StartsWith("{\\rtf"))
         {
-            NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, content);
+            try
+            {
+                NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, clean);
+            }
+            catch
+            {
+                NoteContentBox.Document.SetText(TextSetOptions.None, clean);
+            }
         }
-        else if (content.Contains("<mark") || content.Contains("**") || content.Contains("*") || content.Contains("<u>") || content.Contains("~~"))
+        else if (clean.Contains("<mark") || clean.Contains("**") || clean.Contains("*") || clean.Contains("<u>") || clean.Contains("~~"))
         {
-            string rtf = MarkdownToRtf(content);
-            NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, rtf);
+            string rtf = MarkdownToRtf(clean);
+            try
+            {
+                NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, rtf);
+            }
+            catch
+            {
+                NoteContentBox.Document.SetText(TextSetOptions.None, clean);
+            }
         }
         else
         {
-            NoteContentBox.Document.SetText(TextSetOptions.None, content);
+            NoteContentBox.Document.SetText(TextSetOptions.None, clean);
         }
         UpdateFormattingToolbarUI();
     }
@@ -3192,7 +3223,7 @@ public sealed partial class WindowIslandWindow : Window
             _noteSaveTimer?.Stop();
             if (string.IsNullOrEmpty(_activeNoteId)) return;
             NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-            _notesStore?.UpdateNote(_activeNoteId, rtf);
+            _notesStore?.UpdateNote(_activeNoteId, (rtf ?? string.Empty).TrimEnd('\0'));
         };
         _noteSaveTimer.Start();
     }
@@ -3726,15 +3757,54 @@ public sealed partial class WindowIslandWindow : Window
 
         if (list.Count == 0)
         {
-            var empty = new TextBlock
+            var placeholderStack = new StackPanel
             {
-                Text = "No active reminders",
-                FontSize = 9.5,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 10, 0, 0)
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 12, 6, 12),
+                Spacing = 4
             };
-            ReminderList.Children.Add(empty);
+
+            var guideTitle = new TextBlock
+            {
+                Text = "Type below what and when:",
+                FontSize = 9.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            var ex1 = new TextBlock
+            {
+                Text = "\u201Ccall mum tomorrow at 9\u201D",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            var ex2 = new TextBlock
+            {
+                Text = "\u201Cpills every day at 23:00\u201D",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            var ex3 = new TextBlock
+            {
+                Text = "\u201Cin 20 minutes turn the stove off\u201D",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+
+            placeholderStack.Children.Add(guideTitle);
+            placeholderStack.Children.Add(ex1);
+            placeholderStack.Children.Add(ex2);
+            placeholderStack.Children.Add(ex3);
+
+            ReminderList.Children.Add(placeholderStack);
             return;
         }
 

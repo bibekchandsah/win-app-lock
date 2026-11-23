@@ -2205,67 +2205,73 @@
                                          KeyDown="ReminderNaturalInput_KeyDown" />
 
                                 <!-- Suggestions (below the input box) -->
-                                <Grid Grid.Row="3" Margin="0,4,0,0">
-                                    <!-- When? Presets (Visible when no time detected) -->
-                                    <StackPanel x:Name="ReminderWhenPanel"
-                                                Orientation="Horizontal"
-                                                Spacing="4"
-                                                HorizontalAlignment="Left">
-                                        <TextBlock Text="When?"
-                                                   FontSize="9"
-                                                   Foreground="#60FFFFFF"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,2,0" />
-                                        <Button Content="10 min" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="10m" />
-                                        <Button Content="1 hour" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="1h" />
-                                        <Button Content="Tomorrow" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="tomorrow" />
-                                    </StackPanel>
+                                <StackPanel Grid.Row="3" Margin="0,5,0,0" Spacing="4">
+                                    <!-- When? Presets (Visible when no time detected, horizontally scrollable) -->
+                                    <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                                                  VerticalScrollBarVisibility="Disabled"
+                                                  HorizontalScrollMode="Enabled">
+                                        <StackPanel x:Name="ReminderWhenPanel"
+                                                    Orientation="Horizontal"
+                                                    Spacing="4"
+                                                    HorizontalAlignment="Left">
+                                            <TextBlock Text="When?"
+                                                       FontSize="9"
+                                                       Foreground="#60FFFFFF"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,2,0" />
+                                            <Button Content="10 min" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="10m" />
+                                            <Button Content="1 hour" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="1h" />
+                                            <Button Content="Tomorrow" FontSize="8.5" Padding="7,2" CornerRadius="10" Style="{StaticResource TabButtonStyle}" Click="ReminderQuickPreset_Click" Tag="tomorrow" />
+                                        </StackPanel>
+                                    </ScrollViewer>
 
-                                    <!-- Detected Time Pill + Stepper Panel (Visible when time detected) -->
+                                    <!-- Detected Time Pill + Stepper Panel in TWO ROWS (Visible when time detected) -->
                                     <StackPanel x:Name="ReminderDetectedContainer"
-                                                Orientation="Horizontal"
-                                                Spacing="5"
+                                                Spacing="4"
                                                 Visibility="Collapsed">
-                                        <!-- Detected Time Pill -->
+                                        <!-- Row 1: Detected Time Pill -->
                                         <Button x:Name="ReminderDetectedPill"
                                                 Background="#332405"
                                                 BorderBrush="#664600"
                                                 BorderThickness="1"
                                                 CornerRadius="12"
-                                                Padding="8,2"
-                                                Height="22"
-                                                VerticalAlignment="Center"
+                                                Padding="10,2"
+                                                Height="23"
+                                                HorizontalAlignment="Left"
                                                 Click="ReminderDetectedPill_Click">
-                                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                <TextBlock Text="&#x21B5;" FontSize="10" Foreground="#FFA726" FontWeight="Bold" VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                                <TextBlock Text="&#x21B5;" FontSize="10.5" Foreground="#FFA726" FontWeight="Bold" VerticalAlignment="Center" />
                                                 <TextBlock x:Name="ReminderDetectedText"
                                                            Text="in 5 min"
-                                                           FontSize="9"
+                                                           FontSize="9.5"
                                                            FontWeight="SemiBold"
                                                            Foreground="#FFA726"
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
 
-                                        <!-- Day Stepper -->
-                                        <Border Background="#252528" CornerRadius="10" Padding="2,0" Height="22" VerticalAlignment="Center">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="&#x2212;" FontSize="10" Padding="5,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="-day" />
-                                                <TextBlock Text="day" FontSize="8.5" Foreground="#80FFFFFF" VerticalAlignment="Center" Margin="2,0" />
-                                                <Button Content="+" FontSize="10" Padding="5,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="+day" />
-                                            </StackPanel>
-                                        </Border>
+                                        <!-- Row 2: Steppers Row -->
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
+                                            <!-- Day Stepper -->
+                                            <Border Background="#252528" CornerRadius="10" Padding="2,0" Height="22">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="&#x2212;" FontSize="10" Padding="6,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="-day" />
+                                                    <TextBlock Text="day" FontSize="8.5" Foreground="#80FFFFFF" VerticalAlignment="Center" Margin="2,0" />
+                                                    <Button Content="+" FontSize="10" Padding="6,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="+day" />
+                                                </StackPanel>
+                                            </Border>
 
-                                        <!-- 15 Min Stepper -->
-                                        <Border Background="#252528" CornerRadius="10" Padding="2,0" Height="22" VerticalAlignment="Center">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="&#x2212;" FontSize="10" Padding="5,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="-15m" />
-                                                <TextBlock Text="15 min" FontSize="8.5" Foreground="#80FFFFFF" VerticalAlignment="Center" Margin="2,0" />
-                                                <Button Content="+" FontSize="10" Padding="5,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="+15m" />
-                                            </StackPanel>
-                                        </Border>
+                                            <!-- 15 Min Stepper -->
+                                            <Border Background="#252528" CornerRadius="10" Padding="2,0" Height="22">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="&#x2212;" FontSize="10" Padding="6,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="-15m" />
+                                                    <TextBlock Text="15 min" FontSize="8.5" Foreground="#80FFFFFF" VerticalAlignment="Center" Margin="2,0" />
+                                                    <Button Content="+" FontSize="10" Padding="6,0" Background="Transparent" BorderThickness="0" Foreground="#A0FFFFFF" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="+15m" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
                                     </StackPanel>
-                                </Grid>
+                                </StackPanel>
                             </Grid>
                         </Grid>
 
