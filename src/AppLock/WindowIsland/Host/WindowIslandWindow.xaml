@@ -2997,24 +2997,27 @@
                                       HorizontalScrollBarVisibility="Disabled"
                                       Margin="0,0,0,6">
                             <StackPanel Spacing="8">
-                                <!-- Bluetooth Battery Card (wide) -->
-                                <Border x:Name="ControlsBtBatteryCard"
-                                        Background="#16FFFFFF"
-                                        BorderBrush="#20FFFFFF"
-                                        BorderThickness="1"
-                                        CornerRadius="8"
-                                        Padding="10,8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <FontIcon Glyph="&#xE702;" FontSize="13" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Column="1" x:Name="ControlsBtBatteryCardTitle" Text="Bluetooth devices" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2" x:Name="ControlsBtBatteryCardStatus" Text="No devices connected" FontSize="10" Foreground="#80FFFFFF" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
+                                <!-- Bluetooth Battery Card(s) (wide) -->
+                                <StackPanel x:Name="ControlsBtBatteryContainer" Spacing="4">
+                                    <Border x:Name="ControlsBtBatteryCard"
+                                            Tapped="ControlsBtBatteryCard_Tapped"
+                                            Background="#16FFFFFF"
+                                            BorderBrush="#20FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="10,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon Glyph="&#xE702;" FontSize="13" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="ControlsBtBatteryCardTitle" Text="Bluetooth devices" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" x:Name="ControlsBtBatteryCardStatus" Text="No devices connected" FontSize="10" Foreground="#80FFFFFF" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
 
                                 <!-- Quick cards section header -->
                                 <Grid Margin="2,2,2,0">

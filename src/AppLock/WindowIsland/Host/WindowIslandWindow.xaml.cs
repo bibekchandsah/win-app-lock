@@ -4823,31 +4823,47 @@ public sealed partial class WindowIslandWindow : Window
             if (ControlsPowerRow != null)
                 ControlsPowerRow.Visibility = _settings.Controls.ShowPowerRow ? Visibility.Visible : Visibility.Collapsed;
 
-            // 8. Bluetooth Battery Card
-            if (ControlsBtBatteryCard != null && _settings.Controls.ShowBluetoothBatteryCard)
+            // 8. Bluetooth Battery Cards (supports multiple connected devices)
+            if (ControlsBtBatteryContainer != null && _settings.Controls.ShowBluetoothBatteryCard)
             {
                 var btDevices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
-                var connectedBt = btDevices.FirstOrDefault(d => d.IsConnected);
-                if (connectedBt != null)
+                var connectedDevices = btDevices
+                    .Where(d => d.IsConnected)
+                    .OrderByDescending(d => d.BatteryPercent.HasValue)
+                    .ThenBy(d => d.Name)
+                    .ToList();
+
+                var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+                ControlsBtBatteryContainer.Children.Clear();
+
+                if (connectedDevices.Count > 0)
                 {
-                    ControlsBtBatteryCardTitle.Text = connectedBt.Name;
-                    ControlsBtBatteryCardStatus.Text = connectedBt.BatteryPercent.HasValue
-                        ? $"🔋 {connectedBt.BatteryPercent.Value}% · Connected"
-                        : "Connected";
-                    ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(GetSystemAccentColor());
-                    ControlsBtBatteryCard.Visibility = Visibility.Visible;
+                    foreach (var dev in connectedDevices)
+                    {
+                        var card = CreateBtBatteryCard(dev, accentBrush);
+                        ControlsBtBatteryContainer.Children.Add(card);
+                    }
+                    ControlsBtBatteryContainer.Visibility = Visibility.Visible;
                 }
                 else
                 {
-                    ControlsBtBatteryCardTitle.Text = "Bluetooth devices";
-                    ControlsBtBatteryCardStatus.Text = "No devices connected";
-                    ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(128, 255, 255, 255));
-                    ControlsBtBatteryCard.Visibility = _settings.Controls.HideBatteryCardWhenNone ? Visibility.Collapsed : Visibility.Visible;
+                    if (ControlsBtBatteryCard != null)
+                    {
+                        if (ControlsBtBatteryCard.Parent is Panel p)
+                        {
+                            p.Children.Remove(ControlsBtBatteryCard);
+                        }
+                        ControlsBtBatteryCardTitle.Text = "Bluetooth devices";
+                        ControlsBtBatteryCardStatus.Text = "No devices connected";
+                        ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(128, 255, 255, 255));
+                        ControlsBtBatteryContainer.Children.Add(ControlsBtBatteryCard);
+                    }
+                    ControlsBtBatteryContainer.Visibility = _settings.Controls.HideBatteryCardWhenNone ? Visibility.Collapsed : Visibility.Visible;
                 }
             }
-            else if (ControlsBtBatteryCard != null)
+            else if (ControlsBtBatteryContainer != null)
             {
-                ControlsBtBatteryCard.Visibility = Visibility.Collapsed;
+                ControlsBtBatteryContainer.Visibility = Visibility.Collapsed;
             }
 
             RenderQuickCardsGrid();
@@ -5240,6 +5256,90 @@ public sealed partial class WindowIslandWindow : Window
         grid.Children.Add(actionBtn);
 
         return grid;
+    }
+
+    private void ControlsBtBatteryCard_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        ControlsBtListBtn_Click(this, new RoutedEventArgs());
+    }
+
+    private Border CreateBtBatteryCard(WindowIslandControlsService.IslandBtDevice dev, Brush accentBrush)
+    {
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(22, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 8, 10, 8)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        string glyph = dev.DeviceType switch
+        {
+            "Headphones" => "\uE7F6",
+            "Speaker" => "\uE7F5",
+            "Phone" => "\uE8EA",
+            _ => "\uE702"
+        };
+
+        var icon = new FontIcon
+        {
+            Glyph = glyph,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x60, 0xCD, 0xFF)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        Grid.SetColumn(icon, 0);
+        grid.Children.Add(icon);
+
+        var title = new TextBlock
+        {
+            Text = dev.Name,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        Grid.SetColumn(title, 1);
+        grid.Children.Add(title);
+
+        string statusText = dev.BatteryPercent.HasValue
+            ? $"🔋 {dev.BatteryPercent.Value}% · Connected"
+            : "Connected";
+
+        var status = new TextBlock
+        {
+            Text = statusText,
+            FontSize = 10,
+            Foreground = accentBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(status, 2);
+        grid.Children.Add(status);
+
+        border.Child = grid;
+
+        border.PointerEntered += (s, e) =>
+        {
+            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(36, 255, 255, 255));
+        };
+        border.PointerExited += (s, e) =>
+        {
+            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(22, 255, 255, 255));
+        };
+        border.Tapped += (s, e) =>
+        {
+            ControlsBtListBtn_Click(this, new RoutedEventArgs());
+        };
+
+        return border;
     }
 
     private async void ControlsBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)

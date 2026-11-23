@@ -222,4 +222,25 @@ public class WindowIslandControlsTests
         Assert.Equal(emojiSsid, net.Ssid);
         Assert.True(net.IsConnected);
     }
+
+    [Fact]
+    public void IslandBtDevice_MultipleConnectedWithBattery_OrdersCorrectly()
+    {
+        var dev1 = new WindowIslandControlsService.IslandBtDevice("Airdopes 161", "11:22:33:44:55:66", "Headphones", true, 100);
+        var dev2 = new WindowIslandControlsService.IslandBtDevice("CMF Buds", "AA:BB:CC:DD:EE:FF", "Headphones", true, 90);
+        var dev3 = new WindowIslandControlsService.IslandBtDevice("OPPO F17 Pro", "00:11:22:33:44:55", "Phone", false, null);
+
+        var list = new System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> { dev3, dev2, dev1 };
+        var connected = list
+            .Where(d => d.IsConnected)
+            .OrderByDescending(d => d.BatteryPercent.HasValue)
+            .ThenBy(d => d.Name)
+            .ToList();
+
+        Assert.Equal(2, connected.Count);
+        Assert.Equal("Airdopes 161", connected[0].Name);
+        Assert.Equal(100, connected[0].BatteryPercent);
+        Assert.Equal("CMF Buds", connected[1].Name);
+        Assert.Equal(90, connected[1].BatteryPercent);
+    }
 }
