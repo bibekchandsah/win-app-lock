@@ -82,13 +82,14 @@ public class WindowIslandWeatherTests
     }
 
     [Theory]
-    [InlineData("clearsky_day", "\uE706", "Clear Sky")]
+    [InlineData("clearsky_day", "\u2600", "Clear Sky")]
+    [InlineData("clearsky_night", "\uE708", "Clear Sky")]
     [InlineData("rain", "\uE754", "Rain")]
     [InlineData("heavyrain", "\uE754", "Heavy Rain")]
-    [InlineData("snow", "\uE774", "Snow")]
+    [InlineData("snow", "\u2744", "Snow")]
     [InlineData("thunderstorm", "\uE755", "Thunderstorm")]
     [InlineData("fog", "\uE752", "Foggy")]
-    [InlineData("partlycloudy_day", "\uE70C", "Partly Cloudy")]
+    [InlineData("partlycloudy_day", "\u26C5", "Partly Cloudy")]
     public void SymbolMapping_MapsKnownSymbolsCorrectly(string symbol, string expectedGlyph, string expectedCondition)
     {
         string glyph = MetNorwayWeatherProvider.SymbolToGlyph(symbol);
@@ -208,6 +209,19 @@ public class WindowIslandWeatherTests
         // Prevent removing the last city
         await service.RemoveCityAsync(0);
         Assert.Single(settings.WeatherCities);
+    }
+
+    [Fact]
+    public void WeatherService_GetCityUtcOffset_ReturnsAccurateOffset()
+    {
+        // Explicit offset stored
+        var tokyo = new WeatherCity("Tokyo", 35.6762, 139.6503, "Japan", utcOffsetSeconds: 32400); // +9h
+        Assert.Equal(TimeSpan.FromHours(9), WindowIslandWeatherService.GetCityUtcOffset(tokyo));
+
+        // 15-minute longitude fallback for Kathmandu
+        var ktm = new WeatherCity("Kathmandu", 27.7172, 85.3240, "Nepal");
+        var offset = WindowIslandWeatherService.GetCityUtcOffset(ktm);
+        Assert.True(offset.TotalHours >= 5.5 && offset.TotalHours <= 6.0);
     }
 
     private class FakeWeatherProvider : IWeatherProvider

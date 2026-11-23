@@ -2036,11 +2036,13 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- Left Card: Current Conditions & Outlook with Vivid Blue Gradient -->
-                            <Border Grid.Column="0"
+                            <Border x:Name="WeatherHeroCard"
+                                    Grid.Column="0"
                                     BorderBrush="#35FFFFFF"
                                     BorderThickness="1"
                                     CornerRadius="12"
-                                    Padding="14,12,14,10">
+                                    Padding="14,12,14,10"
+                                    ToolTipService.ToolTip="Current weather conditions and daily summary">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                         <GradientStop Color="#FF2B7CE9" Offset="0.0"/>
@@ -2106,7 +2108,8 @@
                                     <!-- Weather icon + Large Temperature -->
                                     <StackPanel Grid.Row="1" Spacing="0" Margin="0,4,0,0">
                                         <FontIcon x:Name="WeatherConditionIcon"
-                                                  Glyph="&#xE706;"
+                                                  FontFamily="Segoe UI Symbol, Segoe Fluent Icons"
+                                                  Glyph="&#x2600;"
                                                   FontSize="38"
                                                   Foreground="#FFEB3B"
                                                   HorizontalAlignment="Left"
@@ -2254,9 +2257,11 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- 1. WIND TILE with Compass Dial -->
-                                    <Border Grid.Row="0" Grid.Column="0"
+                                    <Border x:Name="WeatherWindCard"
+                                            Grid.Row="0" Grid.Column="0"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Wind speed, direction, and compass orientation">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
@@ -2296,9 +2301,11 @@
                                     </Border>
 
                                     <!-- 2. HUMIDITY TILE with Progress Bar -->
-                                    <Border Grid.Row="0" Grid.Column="1"
+                                    <Border x:Name="WeatherHumidityCard"
+                                            Grid.Row="0" Grid.Column="1"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Relative humidity percentage and dew point">
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="HUMIDITY" FontSize="9" FontWeight="SemiBold" Foreground="#80FFFFFF"/>
                                             <TextBlock x:Name="WeatherHumidityValText" Text="39%" FontSize="18" FontWeight="SemiBold" Foreground="#FFFFFFFF" Margin="0,2,0,0"/>
@@ -2311,9 +2318,11 @@
                                     </Border>
 
                                     <!-- 3. PRESSURE TILE with Arc Gauge -->
-                                    <Border Grid.Row="0" Grid.Column="2"
+                                    <Border x:Name="WeatherPressureCard"
+                                            Grid.Row="0" Grid.Column="2"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Barometric pressure in hPa and rising/falling trend">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
@@ -2359,27 +2368,31 @@
                                     </Border>
 
                                     <!-- 4. SUN TILE with Trajectory Arc -->
-                                    <Border Grid.Row="1" Grid.Column="0"
+                                    <Border x:Name="WeatherSunCard"
+                                            Grid.Row="1" Grid.Column="0"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Sunrise, sunset times and current solar position">
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="SUN" FontSize="9" FontWeight="SemiBold" Foreground="#80FFFFFF"/>
                                             <Grid Height="24" Margin="0,2,0,2">
-                                                <!-- Arc -->
-                                                <Path Data="M 2,18 Q 44,-4 86,18"
-                                                      Stroke="#40FFFFFF"
-                                                      StrokeDashArray="2,2"
-                                                      StrokeThickness="1.5"
-                                                      HorizontalAlignment="Center"/>
-                                                <!-- Horizon line -->
-                                                <Border Height="1" Background="#20FFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
-                                                <!-- Sun dot -->
-                                                <Ellipse x:Name="WeatherSunDot"
-                                                         Width="7" Height="7"
-                                                         Fill="#FFD700"
-                                                         HorizontalAlignment="Left"
-                                                         VerticalAlignment="Top"
-                                                         Margin="44,2,0,0"/>
+                                                <Canvas x:Name="WeatherSunCanvas" Width="88" Height="22" HorizontalAlignment="Center">
+                                                    <!-- Parabolic arc from (2, 18) to (86, 18) -->
+                                                    <Path Data="M 2,18 Q 44,-2 86,18"
+                                                          Stroke="#40FFFFFF"
+                                                          StrokeDashArray="2,2"
+                                                          StrokeThickness="1.5"/>
+                                                    <!-- Horizon line -->
+                                                    <Line X1="0" Y1="18" X2="88" Y2="18"
+                                                          Stroke="#20FFFFFF"
+                                                          StrokeThickness="1"/>
+                                                    <!-- Sun dot -->
+                                                    <Ellipse x:Name="WeatherSunDot"
+                                                             Width="8" Height="8"
+                                                             Fill="#FFD700"
+                                                             Canvas.Left="40"
+                                                             Canvas.Top="4"/>
+                                                </Canvas>
                                             </Grid>
                                             <TextBlock x:Name="WeatherSunTimesText"
                                                        Text="↑ 6:30 AM  ↓ 5:09 PM"
@@ -2390,9 +2403,11 @@
                                     </Border>
 
                                     <!-- 5. PRECIPITATION TILE -->
-                                    <Border Grid.Row="1" Grid.Column="1"
+                                    <Border x:Name="WeatherPrecipCard"
+                                            Grid.Row="1" Grid.Column="1"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Precipitation accumulation recorded today">
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="PRECIPITATION" FontSize="9" FontWeight="SemiBold" Foreground="#80FFFFFF"/>
                                             <TextBlock x:Name="WeatherPrecipValText" Text="0 mm today" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFFFF" Margin="0,2,0,0"/>
@@ -2405,9 +2420,11 @@
                                     </Border>
 
                                     <!-- 6. UV INDEX TILE with Spectrum Gradient Bar -->
-                                    <Border Grid.Row="1" Grid.Column="2"
+                                    <Border x:Name="WeatherUvCard"
+                                            Grid.Row="1" Grid.Column="2"
                                             Background="#14FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="1"
-                                            CornerRadius="10" Padding="8,6">
+                                            CornerRadius="10" Padding="8,6"
+                                            ToolTipService.ToolTip="Ultraviolet radiation intensity and protection level">
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="UV INDEX" FontSize="9" FontWeight="SemiBold" Foreground="#80FFFFFF"/>
                                             <TextBlock x:Name="WeatherUvValText" Text="5 moderate" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFFFF" Margin="0,2,0,0"/>

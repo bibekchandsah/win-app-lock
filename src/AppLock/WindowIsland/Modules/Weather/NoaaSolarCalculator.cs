@@ -14,7 +14,7 @@ public static class NoaaSolarCalculator
     /// Calculates local sunrise and sunset for a given geographic coordinate and date.
     /// Returns (Sunrise, Sunset) in local time.
     /// </summary>
-    public static (DateTime? Sunrise, DateTime? Sunset) CalculateSunriseSunset(double lat, double lon, DateTime date)
+    public static (DateTime? Sunrise, DateTime? Sunset) CalculateSunriseSunset(double lat, double lon, DateTime date, TimeSpan? tzOffset = null)
     {
         try
         {
@@ -25,10 +25,10 @@ public static class NoaaSolarCalculator
             DateTime? sunriseUtc = CalculateEventUtc(lat, lon, dayOfYear, isSunrise: true, date.Year);
             DateTime? sunsetUtc  = CalculateEventUtc(lat, lon, dayOfYear, isSunrise: false, date.Year);
 
-            // Convert to location's local solar time using geographic longitude offset
-            double tzOffsetHours = lon / 15.0;
-            DateTime? localSunrise = sunriseUtc.HasValue ? sunriseUtc.Value.AddHours(tzOffsetHours) : null;
-            DateTime? localSunset  = sunsetUtc.HasValue  ? sunsetUtc.Value.AddHours(tzOffsetHours)  : null;
+            // Convert to location's local clock time using provided timezone offset, or fallback to solar longitude offset
+            TimeSpan offset = tzOffset ?? TimeSpan.FromHours(lon / 15.0);
+            DateTime? localSunrise = sunriseUtc.HasValue ? sunriseUtc.Value.Add(offset) : null;
+            DateTime? localSunset  = sunsetUtc.HasValue  ? sunsetUtc.Value.Add(offset)  : null;
 
             return (localSunrise, localSunset);
         }

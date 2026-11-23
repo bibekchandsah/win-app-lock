@@ -196,7 +196,7 @@ public sealed class WindowIslandSettings
         {
             foreach (var c in WeatherCities)
             {
-                clone.WeatherCities.Add(new WeatherCity(c.Name, c.Latitude, c.Longitude, c.Country));
+                clone.WeatherCities.Add(new WeatherCity(c.Name, c.Latitude, c.Longitude, c.Country, c.UtcOffsetSeconds));
             }
         }
         return clone;
@@ -212,15 +212,17 @@ public sealed class WeatherCity
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public string Country { get; set; } = string.Empty;
+    public int UtcOffsetSeconds { get; set; } = int.MinValue;
 
     public WeatherCity() { }
 
-    public WeatherCity(string name, double lat, double lon, string country = "")
+    public WeatherCity(string name, double lat, double lon, string country = "", int utcOffsetSeconds = int.MinValue)
     {
         Name = name;
         Latitude = lat;
         Longitude = lon;
         Country = country;
+        UtcOffsetSeconds = utcOffsetSeconds;
     }
 }
 

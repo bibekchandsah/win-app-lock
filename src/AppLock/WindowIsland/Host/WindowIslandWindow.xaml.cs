@@ -3351,16 +3351,9 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         WeatherCityText.Text = city.Name;
-        try
-        {
-            double offsetHours = Math.Round(city.Longitude / 15.0 * 2.0) / 2.0;
-            var cityTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(Math.Clamp(offsetHours, -12, 14)));
-            WeatherCityTimeText.Text = cityTime.ToString("ddd, h:mm tt");
-        }
-        catch
-        {
-            WeatherCityTimeText.Text = DateTime.Now.ToString("ddd, h:mm tt");
-        }
+        var tzOffset = WindowIslandWeatherService.GetCityUtcOffset(city);
+        var cityTime = DateTimeOffset.UtcNow.ToOffset(tzOffset);
+        WeatherCityTimeText.Text = cityTime.ToString("ddd, h:mm tt");
 
         var weather = WindowIslandWeatherService.Instance.CurrentWeather;
         if (weather == null)
@@ -3399,20 +3392,43 @@ public sealed partial class WindowIslandWindow : Window
         WeatherPressureRotate.Angle = ((clampedPressure - 1010) / 40.0) * 50.0;
 
         // 4. Sun: Trajectory arc & dot, sunrise & sunset times
-        WeatherSunTimesText.Text = $"↑ {(weather.Sunrise.Year > 2000 ? weather.Sunrise.ToString("h:mm tt") : "6:30 AM")}  ↓ {(weather.Sunset.Year > 2000 ? weather.Sunset.ToString("h:mm tt") : "5:30 PM")}";
+        var (calcSunrise, calcSunset) = NoaaSolarCalculator.CalculateSunriseSunset(city.Latitude, city.Longitude, DateTime.Today, tzOffset);
+        DateTime sunrise = calcSunrise ?? weather.Sunrise;
+        DateTime sunset  = calcSunset  ?? weather.Sunset;
+
+        WeatherSunTimesText.Text = $"↑ {sunrise:h:mm tt}  ↓ {sunset:h:mm tt}";
+
+        var cur = cityTime.TimeOfDay;
+        var sr  = sunrise.TimeOfDay;
+        var ss  = sunset.TimeOfDay;
         double sunProgress = 0.5;
-        if (weather.Sunrise.Year > 2000 && weather.Sunset.Year > 2000 && weather.Sunset > weather.Sunrise)
+        bool isDaytime = true;
+
+        if (ss > sr)
         {
-            var cur = DateTime.Now.TimeOfDay;
-            var sr = weather.Sunrise.TimeOfDay;
-            var ss = weather.Sunset.TimeOfDay;
-            if (cur <= sr) sunProgress = 0.0;
-            else if (cur >= ss) sunProgress = 1.0;
-            else sunProgress = (cur - sr).TotalMinutes / (ss - sr).TotalMinutes;
+            if (cur <= sr)
+            {
+                sunProgress = 0.0;
+                isDaytime = false;
+            }
+            else if (cur >= ss)
+            {
+                sunProgress = 1.0;
+                isDaytime = false;
+            }
+            else
+            {
+                sunProgress = (cur - sr).TotalMinutes / (ss - sr).TotalMinutes;
+                isDaytime = true;
+            }
         }
-        double sunX = 2 + sunProgress * 84;
-        double sunY = 18 - 4 * sunProgress * (1.0 - sunProgress) * 20;
-        WeatherSunDot.Margin = new Thickness(sunX, sunY, 0, 0);
+
+        // Parabolic trajectory on 88x22 Canvas from (2, 18) via (44, -2) to (86, 18)
+        double sunX = 2.0 + 84.0 * sunProgress;
+        double sunY = 18.0 - 40.0 * sunProgress * (1.0 - sunProgress);
+        Canvas.SetLeft(WeatherSunDot, Math.Clamp(sunX - 4.0, 0, 84));
+        Canvas.SetTop(WeatherSunDot, Math.Clamp(sunY - 4.0, 0, 20));
+        WeatherSunDot.Opacity = isDaytime ? 1.0 : 0.45;
 
         // 5. Precipitation: Value, mini-bar fill, subtext
         WeatherPrecipValText.Text = $"{weather.PrecipitationTodayMm:0.0} mm today";
@@ -3424,6 +3440,54 @@ public sealed partial class WindowIslandWindow : Window
         WeatherUvSubText.Text = $"Tomorrow up to {(int)Math.Ceiling(weather.UvIndex)}";
         double uvPos = Math.Clamp((weather.UvIndex / 11.0) * 72.0, 0, 72);
         WeatherUvThumb.Margin = new Thickness(uvPos, 0, 0, 0);
+
+        // Set rich informative tooltips on all cards
+        ToolTipService.SetToolTip(WeatherHeroCard,
+            $"Weather in {city.Name}\n{weather.ConditionText}, {WeatherBigTemp.Text}\nFeels like {WindowIslandWeatherService.FormatTemp(weather.FeelsLikeC, settings.WeatherUnits)} · High: {WindowIslandWeatherService.FormatTemp(weather.HighC, settings.WeatherUnits)}, Low: {WindowIslandWeatherService.FormatTemp(weather.LowC, settings.WeatherUnits)}\n{weather.SummaryOutlook}");
+
+        string windAdvice = weather.WindSpeedMps switch
+        {
+            < 0.5 => "Calm air (smoke rises vertically).",
+            < 3.3 => "Light breeze (wind felt on face, leaves rustle).",
+            < 8.0 => "Gentle to moderate breeze (small branches move).",
+            < 14.0 => "Fresh breeze (small trees sway).",
+            _ => "Strong wind (inconvenience in walking)."
+        };
+        ToolTipService.SetToolTip(WeatherWindCard,
+            $"Wind Conditions\nSpeed: {WeatherWindSpeedText.Text} · Direction: {weather.WindDirectionCompass} ({weather.WindDirectionDeg:0}°)\n{windAdvice}");
+
+        string humidityAdvice = weather.DewPointC switch
+        {
+            < 10 => "Dry and crisp air.",
+            < 16 => "Comfortable moisture levels.",
+            < 21 => "Somewhat humid and muggy.",
+            _ => "Very humid and oppressive."
+        };
+        ToolTipService.SetToolTip(WeatherHumidityCard,
+            $"Relative Humidity & Dew Point\nHumidity: {(int)Math.Round(weather.HumidityPercent)}% · Dew Point: {WeatherDewText.Text.Replace("Dew point ", "")}\n{humidityAdvice}");
+
+        string pressureAdvice = weather.PressureHpa >= 1013 ? "High pressure indicates fair, stable weather." : "Low pressure indicates clouds, wind, or changing conditions.";
+        ToolTipService.SetToolTip(WeatherPressureCard,
+            $"Barometric Pressure\nPressure: {WeatherPressureValText.Text} · Trend: {WeatherPressureTrendText.Text}\n{pressureAdvice}");
+
+        string sunStatus = isDaytime
+            ? $"Sun is {(int)Math.Round(sunProgress * 100)}% through the daytime path."
+            : (cur < sr ? "Nighttime (before sunrise)." : "Nighttime (after sunset).");
+        ToolTipService.SetToolTip(WeatherSunCard,
+            $"Solar Cycle\nSunrise: {sunrise:h:mm tt} · Sunset: {sunset:h:mm tt}\n{sunStatus} Day length: {(ss - sr).Hours}h {(ss - sr).Minutes}m.");
+
+        ToolTipService.SetToolTip(WeatherPrecipCard,
+            $"Precipitation Today\nRain/Snow: {WeatherPrecipValText.Text}\nLiquid water equivalent measured from midnight to now.");
+
+        string uvAdvice = weather.UvIndex switch
+        {
+            < 3 => "Low UV: No protection required for short exposure.",
+            < 6 => "Moderate UV: Wear sunglasses and sun protection outdoors.",
+            < 8 => "High UV: Seek shade during midday, wear hat and sunscreen.",
+            _ => "Very High / Extreme UV: Avoid sun exposure during peak hours."
+        };
+        ToolTipService.SetToolTip(WeatherUvCard,
+            $"Ultraviolet (UV) Radiation Index\nLevel: {weather.UvIndex:0.0} ({weather.UvLevel})\n{uvAdvice}");
 
         // Build hourly & week forecast items
         BuildWeatherHourlyItems(weather.Hourly, settings.WeatherUnits);
@@ -3466,6 +3530,7 @@ public sealed partial class WindowIslandWindow : Window
 
             sp.Children.Add(new FontIcon
             {
+                FontFamily = new FontFamily("Segoe UI Symbol, Segoe Fluent Icons"),
                 Glyph = pt.IconGlyph,
                 FontSize = 13,
                 Foreground = new SolidColorBrush(pt.SymbolCode.Contains("rain") || pt.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
@@ -3493,6 +3558,8 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             itemBorder.Child = sp;
+            ToolTipService.SetToolTip(itemBorder,
+                $"{pt.Time:h:mm tt} ({timeLabel})\n{pt.ConditionText}\nTemp: {WindowIslandWeatherService.FormatTemp(pt.TempC, units)}" + (pt.PrecipitationMm > 0 ? $"\nPrecipitation: {pt.PrecipitationMm:0.0} mm" : ""));
             WeatherHoursStack.Children.Add(itemBorder);
             isFirst = false;
         }
@@ -3528,6 +3595,7 @@ public sealed partial class WindowIslandWindow : Window
 
             sp.Children.Add(new FontIcon
             {
+                FontFamily = new FontFamily("Segoe UI Symbol, Segoe Fluent Icons"),
                 Glyph = d.IconGlyph,
                 FontSize = 13,
                 Foreground = new SolidColorBrush(d.SymbolCode.Contains("rain") || d.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
@@ -3543,6 +3611,8 @@ public sealed partial class WindowIslandWindow : Window
             });
 
             itemBorder.Child = sp;
+            ToolTipService.SetToolTip(itemBorder,
+                $"{d.DayName} ({d.Date:MMM d})\n{d.ConditionText}\nHigh: {WindowIslandWeatherService.FormatTemp(d.TempHighC, units)}, Low: {WindowIslandWeatherService.FormatTemp(d.TempLowC, units)}" + (d.PrecipitationMm > 0 ? $"\nPrecipitation: {d.PrecipitationMm:0.0} mm" : ""));
             WeatherWeekStack.Children.Add(itemBorder);
         }
     }

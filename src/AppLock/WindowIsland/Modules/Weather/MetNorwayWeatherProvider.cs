@@ -126,7 +126,7 @@ public sealed class MetNorwayWeatherProvider : IWeatherProvider
         }
     }
 
-    public static WeatherForecastData? ParseMetNorwayJson(string json, double lat, double lon)
+    public static WeatherForecastData? ParseMetNorwayJson(string json, double lat, double lon, TimeSpan? tzOffset = null)
     {
         try
         {
@@ -187,7 +187,7 @@ public sealed class MetNorwayWeatherProvider : IWeatherProvider
             };
 
             // NOAA Sunrise / Sunset calculation
-            var (sunrise, sunset) = NoaaSolarCalculator.CalculateSunriseSunset(lat, lon, DateTime.Today);
+            var (sunrise, sunset) = NoaaSolarCalculator.CalculateSunriseSunset(lat, lon, DateTime.Today, tzOffset);
             result.Sunrise = sunrise ?? DateTime.Today.AddHours(6);
             result.Sunset  = sunset  ?? DateTime.Today.AddHours(18);
 
@@ -354,21 +354,20 @@ public sealed class MetNorwayWeatherProvider : IWeatherProvider
 
     public static string SymbolToGlyph(string symbol)
     {
-        if (string.IsNullOrEmpty(symbol)) return "\uE706";
+        if (string.IsNullOrEmpty(symbol)) return "\u2600";
         string s = symbol.ToLowerInvariant();
 
         if (s.Contains("thunder")) return "\uE755";
         if (s.Contains("heavyrain")) return "\uE754";
         if (s.Contains("sleet")) return "\uE776";
-        if (s.Contains("snow")) return "\uE774";
+        if (s.Contains("snow")) return "\u2744";
         if (s.Contains("rain")) return "\uE754";
         if (s.Contains("fog")) return "\uE752";
-        if (s.Contains("partlycloudy")) return "\uE70C";
-        if (s.Contains("fair")) return "\uE70C";
+        if (s.Contains("partlycloudy") || s.Contains("fair")) return s.Contains("night") ? "\uE708" : "\u26C5";
         if (s.Contains("cloudy")) return "\uE753";
-        if (s.Contains("clear")) return s.Contains("night") ? "\uE708" : "\uE706";
+        if (s.Contains("clear")) return s.Contains("night") ? "\uE708" : "\u2600";
 
-        return "\uE706";
+        return "\u2600";
     }
 
     public static string SymbolToConditionText(string symbol)

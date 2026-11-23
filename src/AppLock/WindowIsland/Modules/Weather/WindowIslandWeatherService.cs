@@ -107,6 +107,11 @@ public sealed class WindowIslandWeatherService
             return CurrentWeather;
         }
 
+        if (city.UtcOffsetSeconds == int.MinValue)
+        {
+            _ = TryFetchCityUtcOffsetAsync(city);
+        }
+
         string cacheKey = $"{city.Latitude:F2}_{city.Longitude:F2}";
 
         // Respect 30-minute refresh rate limit unless forced
@@ -170,7 +175,47 @@ public sealed class WindowIslandWeatherService
         s.WeatherLongitude = active.Longitude;
         SettingsSaver?.Invoke(s);
 
+        _ = TryFetchCityUtcOffsetAsync(active);
+
         await RefreshAsync(force: true).ConfigureAwait(false);
+    }
+
+    public static TimeSpan GetCityUtcOffset(WeatherCity city)
+    {
+        if (city.UtcOffsetSeconds != int.MinValue)
+        {
+            return TimeSpan.FromSeconds(city.UtcOffsetSeconds);
+        }
+
+        // Check if within local machine timezone range (~1.5 hours)
+        var localOffset = TimeZoneInfo.Local.GetUtcOffset(DateTime.UtcNow);
+        double approxSolarHours = city.Longitude / 15.0;
+        if (Math.Abs(localOffset.TotalHours - approxSolarHours) <= 1.5)
+        {
+            return localOffset;
+        }
+
+        // 15-minute standard interval fallback (e.g. Nepal +5:45, India +5:30)
+        double rounded15MinHours = Math.Round(approxSolarHours * 4.0) / 4.0;
+        return TimeSpan.FromHours(Math.Clamp(rounded15MinHours, -12, 14));
+    }
+
+    public static async Task TryFetchCityUtcOffsetAsync(WeatherCity city)
+    {
+        try
+        {
+            string url = $"https://api.open-meteo.com/v1/forecast?latitude={city.Latitude.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}&longitude={city.Longitude.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}&current=temperature_2m&timezone=auto";
+            using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            string json = await client.GetStringAsync(url).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("utc_offset_seconds", out var prop))
+            {
+                city.UtcOffsetSeconds = prop.GetInt32();
+                var s = SettingsProvider();
+                SettingsSaver?.Invoke(s);
+            }
+        }
+        catch { }
     }
 
     public async Task SelectCityAsync(int index)
