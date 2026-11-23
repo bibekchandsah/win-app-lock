@@ -1227,13 +1227,13 @@
                             <Button x:Name="ClipboardClearBtn"
                                     Grid.Column="1"
                                     Margin="6,0,0,0"
-                                    Content="Clear"
-                                    FontSize="10"
                                     Padding="8,4"
                                     CornerRadius="6"
                                     Click="ClipboardClear_Click"
                                     Style="{StaticResource TabButtonStyle}"
-                                    ToolTipService.ToolTip="Clear clipboard history" />
+                                    ToolTipService.ToolTip="Clear clipboard history">
+                                <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                            </Button>
                         </Grid>
 
                         <!-- Item list -->

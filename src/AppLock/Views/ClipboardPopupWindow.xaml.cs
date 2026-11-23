@@ -10,6 +10,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
 using WinRT.Interop;
@@ -300,6 +301,7 @@ public sealed partial class ClipboardPopupWindow : Window
 
     public void HidePopup()
     {
+        ResetFooterClearButton();
         if (!_isVisible) return;
         _isVisible = false;
 
@@ -1351,10 +1353,42 @@ public sealed partial class ClipboardPopupWindow : Window
         _ = RefreshItemsAsync();
     }
 
+    private bool _clearConfirming;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _clearConfirmTimer;
+
+    private void ResetFooterClearButton()
+    {
+        _clearConfirming = false;
+        _clearConfirmTimer?.Stop();
+        if (FooterClearAllButton != null)
+        {
+            FooterClearAllButton.Content = "Clear";
+            FooterClearAllButton.Foreground = null;
+        }
+    }
+
     private async void FooterClearAll_Click(object sender, RoutedEventArgs e)
     {
-        await ServiceContainer.ClipboardStore.ClearHistoryAsync(includePinned: false);
-        _ = RefreshItemsAsync();
+        if (_clearConfirming)
+        {
+            ResetFooterClearButton();
+            await ServiceContainer.ClipboardStore.ClearHistoryAsync(includePinned: false);
+            _ = RefreshItemsAsync();
+            return;
+        }
+
+        _clearConfirming = true;
+        FooterClearAllButton.Content = "Confirm Clear?";
+        FooterClearAllButton.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71));
+
+        _clearConfirmTimer?.Stop();
+        _clearConfirmTimer = DispatcherQueue.CreateTimer();
+        _clearConfirmTimer.Interval = TimeSpan.FromSeconds(3);
+        _clearConfirmTimer.Tick += (_, _) =>
+        {
+            ResetFooterClearButton();
+        };
+        _clearConfirmTimer.Start();
     }
 
     private void FooterSettings_Click(object sender, RoutedEventArgs e)

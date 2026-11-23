@@ -553,6 +553,7 @@ public sealed partial class WindowIslandWindow : Window
 
         // Refresh clipboard / shelf / notes on switch
         if (_activeTab == 1) _clipboardState?.Refresh();
+        else ResetClipboardClearButton();
         if (_activeTab == 2) RefreshShelfUI();
         if (_activeTab == 3) RefreshTextUI();
         if (_activeTab == 4)
@@ -1729,17 +1730,54 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 6: Clipboard tab ─────────────────────────────────────────────
 
+    private bool _clipboardClearConfirming;
+    private DQTimer? _clipboardClearConfirmTimer;
+
+    private void ResetClipboardClearButton()
+    {
+        _clipboardClearConfirming = false;
+        _clipboardClearConfirmTimer?.Stop();
+        if (ClipboardClearBtn != null)
+        {
+            ClipboardClearBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 12 };
+        }
+    }
+
     private void ClipboardSearch_TextChanged(object sender, TextChangedEventArgs e)
         => _clipboardState?.Refresh(ClipboardSearch.Text.Trim());
 
     private async void ClipboardClear_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (_clipboardClearConfirming)
         {
-            await (_clipboardState?.ClearAsync() ?? Task.CompletedTask);
-            _clipboardState?.Refresh();
+            ResetClipboardClearButton();
+            try
+            {
+                await (_clipboardState?.ClearAsync() ?? Task.CompletedTask);
+                _clipboardState?.Refresh(ClipboardSearch?.Text?.Trim());
+            }
+            catch { }
+            return;
         }
-        catch { }
+
+        _clipboardClearConfirming = true;
+        ClipboardClearBtn.Content = new TextBlock
+        {
+            Text = "Clear all?",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        _clipboardClearConfirmTimer?.Stop();
+        _clipboardClearConfirmTimer = DispatcherQueue.CreateTimer();
+        _clipboardClearConfirmTimer.Interval = TimeSpan.FromSeconds(3);
+        _clipboardClearConfirmTimer.Tick += (_, _) =>
+        {
+            ResetClipboardClearButton();
+        };
+        _clipboardClearConfirmTimer.Start();
     }
 
     private void OnClipboardItemsLoaded(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
@@ -1785,20 +1823,125 @@ public sealed partial class WindowIslandWindow : Window
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Type icon
-        string glyph = row.Type switch
+        // Leading visual: image preview thumbnail, text badge ("T"), or file icon
+        FrameworkElement leadingVisual;
+        if (row.Type == "image")
         {
-            "image" => "\uEB9F",
-            "files" => "\uE7C3",
-            "text"  => "\uE8C3",
-            _       => "\uE77F"
-        };
-        var icon = new FontIcon { Glyph = glyph, FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(icon, 0);
-        inner.Children.Add(icon);
+            string? imagePath = null;
+            if (!string.IsNullOrEmpty(row.Thumb))
+            {
+                if (File.Exists(row.Thumb))
+                {
+                    imagePath = row.Thumb;
+                }
+                else
+                {
+                    try
+                    {
+                        string candidate = Path.Combine(ServiceContainer.ClipboardStore.StoragePath, row.Thumb);
+                        if (File.Exists(candidate)) imagePath = candidate;
+                    }
+                    catch { }
+                }
+            }
+
+            if (imagePath != null)
+            {
+                try
+                {
+                    var bmp = new BitmapImage(new Uri(imagePath))
+                    {
+                        DecodePixelHeight = 56
+                    };
+                    var img = new Image
+                    {
+                        Source = bmp,
+                        Stretch = Stretch.UniformToFill,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    var thumbBorder = new Border
+                    {
+                        Width = 36,
+                        Height = 28,
+                        CornerRadius = new CornerRadius(4),
+                        Margin = new Thickness(0, 0, 8, 0),
+                        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255)),
+                        BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)),
+                        BorderThickness = new Thickness(1),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = img
+                    };
+                    leadingVisual = thumbBorder;
+                }
+                catch
+                {
+                    leadingVisual = new FontIcon
+                    {
+                        Glyph = "\uEB9F",
+                        FontSize = 13,
+                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 8, 0)
+                    };
+                }
+            }
+            else
+            {
+                leadingVisual = new FontIcon
+                {
+                    Glyph = "\uEB9F",
+                    FontSize = 13,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+            }
+        }
+        else if (row.Type == "text")
+        {
+            var textBadge = new Border
+            {
+                Width = 20,
+                Height = 20,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = "T",
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 13,
+                    FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI, sans-serif"),
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextAlignment = TextAlignment.Center
+                }
+            };
+            leadingVisual = textBadge;
+        }
+        else
+        {
+            string glyph = row.Type switch
+            {
+                "files" => "\uE8B7",
+                _       => "\uE77F"
+            };
+            leadingVisual = new FontIcon
+            {
+                Glyph = glyph,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+        }
+
+        Grid.SetColumn(leadingVisual, 0);
+        inner.Children.Add(leadingVisual);
 
         // Preview + source
-        var textStack = new StackPanel { Spacing = 1 };
+        var textStack = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         var preview = new TextBlock
         {
             Text = row.Preview,
@@ -1818,24 +1961,78 @@ public sealed partial class WindowIslandWindow : Window
         Grid.SetColumn(textStack, 1);
         inner.Children.Add(textStack);
 
-        // Pin indicator
-        if (row.Pinned)
+        // Interactive Pin Toggle Button
+        var pinBtn = new Button
         {
-            var pin = new FontIcon { Glyph = "\uE840", FontSize = 10, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-            Grid.SetColumn(pin, 2);
-            inner.Children.Add(pin);
-        }
+            Style = (Style)RootGrid.Resources["TabButtonStyle"],
+            Padding = new Thickness(4),
+            MinWidth = 24,
+            Height = 24,
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTipService.SetToolTip(pinBtn, row.Pinned ? "Unpin item" : "Pin item");
+        var pinIcon = new FontIcon
+        {
+            Glyph = row.Pinned ? "\uE840" : "\uE718",
+            FontSize = 11,
+            Foreground = row.Pinned
+                ? new SolidColorBrush(GetSystemAccentColor())
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255))
+        };
+        pinBtn.Content = pinIcon;
+        pinBtn.PointerEntered += (_, _) =>
+        {
+            if (!row.Pinned)
+            {
+                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255));
+            }
+        };
+        pinBtn.PointerExited += (_, _) =>
+        {
+            if (!row.Pinned)
+            {
+                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255));
+            }
+        };
+        pinBtn.Click += async (s, e) =>
+        {
+            try
+            {
+                await (_clipboardState?.PinAsync(row.Id) ?? Task.CompletedTask);
+                _clipboardState?.Refresh(ClipboardSearch?.Text?.Trim());
+            }
+            catch { }
+        };
+        Grid.SetColumn(pinBtn, 2);
+        inner.Children.Add(pinBtn);
 
         border.Child = inner;
 
-        // Click = paste; Shift+Click = copy only
+        // Click = paste; Shift+Click = copy only (unless pin button clicked)
         border.PointerPressed += async (_, pe) =>
         {
+            var originalSource = pe.OriginalSource as DependencyObject;
+            if (originalSource != null && IsDescendantOf(originalSource, pinBtn))
+            {
+                return;
+            }
+
             bool shift = pe.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
             await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift) ?? Task.CompletedTask);
         };
 
         return new Grid { Children = { border } };
+    }
+
+    private static bool IsDescendantOf(DependencyObject? node, DependencyObject target)
+    {
+        while (node != null)
+        {
+            if (node == target) return true;
+            node = VisualTreeHelper.GetParent(node);
+        }
+        return false;
     }
 
     // ── Milestone 6: Shelf tab ─────────────────────────────────────────────────

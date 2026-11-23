@@ -134,9 +134,19 @@ public sealed class IslandClipboardTab
             Thumb(item));
     }
 
-    /// <summary>Relative path under the clipboard folder, served by the page through `island.clips`.</summary>
+    /// <summary>Path to thumbnail or image. Full path if file exists, or relative path under the clipboard folder.</summary>
     private static string Thumb(ClipboardItem item)
     {
+        if (!string.IsNullOrEmpty(item.ThumbPath) && File.Exists(item.ThumbPath))
+        {
+            return item.ThumbPath;
+        }
+
+        if (!string.IsNullOrEmpty(item.ImagePath) && File.Exists(item.ImagePath))
+        {
+            return item.ImagePath;
+        }
+
         if (!string.IsNullOrEmpty(item.ThumbPath))
         {
             string name = Path.GetFileName(item.ThumbPath);
