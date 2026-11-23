@@ -1217,22 +1217,22 @@
                             <TextBox x:Name="ClipboardSearch"
                                      Grid.Column="0"
                                      PlaceholderText="Search…"
-                                     FontSize="11"
-                                     Height="30"
-                                     MinHeight="30"
+                                     FontSize="12"
+                                     Height="32"
+                                     MinHeight="32"
                                      VerticalAlignment="Center"
                                      VerticalContentAlignment="Center"
                                      Background="#20FFFFFF"
                                      Foreground="#F0FFFFFF"
                                      BorderBrush="#30FFFFFF"
                                      CornerRadius="6"
-                                     Padding="10,5,10,5"
+                                     Padding="10,7,10,3"
                                      TextChanged="ClipboardSearch_TextChanged"
                                      KeyDown="ClipboardSearch_KeyDown" />
                             <Button x:Name="ClipboardClearBtn"
                                     Grid.Column="1"
                                     Margin="6,0,0,0"
-                                    Height="30"
+                                    Height="32"
                                     Padding="8,4"
                                     CornerRadius="6"
                                     VerticalAlignment="Center"
@@ -1247,7 +1247,7 @@
                         <ScrollViewer Grid.Row="1"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel x:Name="ClipboardList" Spacing="2" />
+                            <StackPanel x:Name="ClipboardList" Spacing="4" />
                         </ScrollViewer>
 
                         <!-- Footer hint -->

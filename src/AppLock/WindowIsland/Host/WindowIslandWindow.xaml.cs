@@ -552,7 +552,11 @@ public sealed partial class WindowIslandWindow : Window
         else StopHomeState();
 
         // Refresh clipboard / shelf / notes on switch
-        if (_activeTab == 1) _clipboardState?.Refresh();
+        if (_activeTab == 1)
+        {
+            _clipboardState?.Refresh();
+            DispatcherQueue.TryEnqueue(() => ClipboardSearch?.Focus(FocusState.Programmatic));
+        }
         else ResetClipboardClearButton();
         if (_activeTab == 2) RefreshShelfUI();
         if (_activeTab == 3) RefreshTextUI();
@@ -1011,6 +1015,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             _measuringFrames = false;
             DispatcherQueue.TryEnqueue(UpdateStatsDisplay);
+            if (_activeTab == 1)
+            {
+                DispatcherQueue.TryEnqueue(() => ClipboardSearch?.Focus(FocusState.Programmatic));
+            }
             if (_activeTab == 4)
             {
                 DispatcherQueue.TryEnqueue(() =>
@@ -1909,14 +1917,14 @@ public sealed partial class WindowIslandWindow : Window
         var selectedBg = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
         var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255));
 
-        // Outer border button
+        // Outer border button with comfortable sizing
         var border = new Border
         {
             Background = isSelected ? selectedBg : normalBg,
             BorderBrush = isSelected ? accentBrush : normalBorder,
             BorderThickness = new Thickness(isSelected ? 1.5 : 1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 5, 8, 5),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 8, 10, 8),
             Tag = index
         };
         border.PointerEntered  += (s, _) =>
@@ -1937,7 +1945,7 @@ public sealed partial class WindowIslandWindow : Window
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Leading visual: image preview thumbnail, text badge ("T"), or file icon
+        // Leading visual: prominent image preview thumbnail (64x48) or rounded badge (36x36)
         FrameworkElement leadingVisual;
         if (row.Type == "image")
         {
@@ -1959,13 +1967,25 @@ public sealed partial class WindowIslandWindow : Window
                 }
             }
 
+            var thumbBorder = new Border
+            {
+                Width = 64,
+                Height = 48,
+                CornerRadius = new CornerRadius(6),
+                Margin = new Thickness(0, 0, 10, 0),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
             if (imagePath != null)
             {
                 try
                 {
                     var bmp = new BitmapImage(new Uri(imagePath))
                     {
-                        DecodePixelHeight = 56
+                        DecodePixelHeight = 96
                     };
                     var img = new Image
                     {
@@ -1974,59 +1994,50 @@ public sealed partial class WindowIslandWindow : Window
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center
                     };
-                    var thumbBorder = new Border
-                    {
-                        Width = 36,
-                        Height = 28,
-                        CornerRadius = new CornerRadius(4),
-                        Margin = new Thickness(0, 0, 8, 0),
-                        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255)),
-                        BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)),
-                        BorderThickness = new Thickness(1),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Child = img
-                    };
-                    leadingVisual = thumbBorder;
+                    thumbBorder.Child = img;
                 }
                 catch
                 {
-                    leadingVisual = new FontIcon
+                    thumbBorder.Child = new FontIcon
                     {
                         Glyph = "\uEB9F",
-                        FontSize = 13,
-                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 8, 0)
+                        FontSize = 18,
+                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
                     };
                 }
             }
             else
             {
-                leadingVisual = new FontIcon
+                thumbBorder.Child = new FontIcon
                 {
                     Glyph = "\uEB9F",
-                    FontSize = 13,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 8, 0)
+                    FontSize = 18,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
             }
+            leadingVisual = thumbBorder;
         }
         else if (row.Type == "text")
         {
             var textBadge = new Border
             {
-                Width = 20,
-                Height = 20,
-                Margin = new Thickness(0, 0, 8, 0),
+                Width = 36,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+                Margin = new Thickness(0, 0, 10, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = "T",
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 16,
                     FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI, sans-serif"),
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextAlignment = TextAlignment.Center
@@ -2041,33 +2052,45 @@ public sealed partial class WindowIslandWindow : Window
                 "files" => "\uE8B7",
                 _       => "\uE77F"
             };
-            leadingVisual = new FontIcon
+            var fileBadge = new Border
             {
-                Glyph = glyph,
-                FontSize = 13,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
+                Width = 36,
+                Height = 36,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+                Margin = new Thickness(0, 0, 10, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0)
+                Child = new FontIcon
+                {
+                    Glyph = glyph,
+                    FontSize = 16,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
             };
+            leadingVisual = fileBadge;
         }
 
         Grid.SetColumn(leadingVisual, 0);
         inner.Children.Add(leadingVisual);
 
-        // Preview + source
-        var textStack = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        // Preview + source (larger, readable fonts)
+        var textStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         var preview = new TextBlock
         {
             Text = row.Preview,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            FontSize = 13,
+            MaxLines = 2,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var source = new TextBlock
         {
             Text = string.IsNullOrEmpty(row.Source) ? row.Age : $"{row.Source} · {row.Age}",
-            FontSize = 9,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         textStack.Children.Add(preview);
@@ -2080,33 +2103,33 @@ public sealed partial class WindowIslandWindow : Window
         {
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
             Padding = new Thickness(4),
-            MinWidth = 24,
-            Height = 24,
-            Margin = new Thickness(6, 0, 0, 0),
+            MinWidth = 28,
+            Height = 28,
+            Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         ToolTipService.SetToolTip(pinBtn, row.Pinned ? "Unpin item" : "Pin item");
         var pinIcon = new FontIcon
         {
             Glyph = row.Pinned ? "\uE840" : "\uE718",
-            FontSize = 11,
+            FontSize = 13,
             Foreground = row.Pinned
                 ? new SolidColorBrush(GetSystemAccentColor())
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255))
         };
         pinBtn.Content = pinIcon;
         pinBtn.PointerEntered += (_, _) =>
         {
             if (!row.Pinned)
             {
-                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255));
+                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255));
             }
         };
         pinBtn.PointerExited += (_, _) =>
         {
             if (!row.Pinned)
             {
-                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(90, 255, 255, 255));
+                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255));
             }
         };
         pinBtn.Click += async (s, e) =>
