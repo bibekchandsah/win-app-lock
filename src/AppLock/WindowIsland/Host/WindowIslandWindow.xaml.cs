@@ -169,6 +169,7 @@ public sealed partial class WindowIslandWindow : Window
     private string?                           _loadedNoteId;
     private DQTimer?                          _noteSaveTimer;
     private bool                              _noteUpdating;
+    private DateTime?                         _reminderParsedDue;
 
     // Milestone 10: Weather
     private bool                              _showingWeeklyWeather;
@@ -3814,53 +3815,118 @@ public sealed partial class WindowIslandWindow : Window
         return grid;
     }
 
-    private void ReminderPreset_Click(object sender, RoutedEventArgs e)
+    private void ReminderNaturalInput_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (sender is Button b && b.Tag is string minsStr)
+        string text = ReminderNaturalInput?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
         {
-            ReminderTimeInput.Text = $"{minsStr}m";
-            ReminderTitleInput.Focus(FocusState.Programmatic);
+            _reminderParsedDue = null;
+            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+            if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
+            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var result = WindowIslandReminderParser.Parse(text);
+        if (result.HasExplicitTime)
+        {
+            _reminderParsedDue = result.DueTimeUtc;
+            if (ReminderDetectedText != null) ReminderDetectedText.Text = WindowIslandReminderParser.FormatPill(result.DueTimeUtc);
+            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Visible;
+            if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Collapsed;
+            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            _reminderParsedDue = null;
+            if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+            if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
+            if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
         }
     }
 
-    private void ReminderInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    private void ReminderNaturalInput_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            SubmitReminder();
+            SubmitNaturalReminder();
             e.Handled = true;
         }
     }
 
-    private void ReminderAddBtn_Click(object sender, RoutedEventArgs e)
+    private void ReminderDetectedPill_Click(object sender, RoutedEventArgs e)
     {
-        SubmitReminder();
+        SubmitNaturalReminder();
     }
 
-    private void SubmitReminder()
+    private void ReminderQuickPreset_Click(object sender, RoutedEventArgs e)
     {
-        string title = ReminderTitleInput.Text.Trim();
-        string timeStr = ReminderTimeInput.Text.Trim();
-
-        if (string.IsNullOrEmpty(title))
+        if (sender is not Button b) return;
+        string text = ReminderNaturalInput?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
         {
-            ReminderTitleInput.Focus(FocusState.Programmatic);
+            ReminderNaturalInput?.Focus(FocusState.Programmatic);
             return;
         }
 
-        if (!string.IsNullOrEmpty(timeStr) && WindowIslandDurationParser.TryParse(timeStr, out TimeSpan duration) && duration > TimeSpan.Zero)
+        string tag = b.Tag as string ?? "10m";
+        DateTime due = tag switch
         {
-            _reminderStore?.Add(title, duration);
+            "1h" => DateTime.UtcNow.AddHours(1),
+            "tomorrow" => DateTime.Now.Date.AddDays(1).AddHours(9).ToUniversalTime(),
+            _ => DateTime.UtcNow.AddMinutes(10)
+        };
+        _reminderStore?.Add(text, due);
+        ClearReminderInput();
+        RefreshRemindersUI();
+    }
+
+    private void ReminderAdjust_Click(object sender, RoutedEventArgs e)
+    {
+        if (_reminderParsedDue == null || sender is not Button b) return;
+        string tag = b.Tag as string ?? string.Empty;
+        _reminderParsedDue = tag switch
+        {
+            "+day" => _reminderParsedDue.Value.AddDays(1),
+            "-day" => _reminderParsedDue.Value.AddDays(-1),
+            "+15m" => _reminderParsedDue.Value.AddMinutes(15),
+            "-15m" => _reminderParsedDue.Value.AddMinutes(-15),
+            _ => _reminderParsedDue.Value
+        };
+        if (_reminderParsedDue < DateTime.UtcNow)
+            _reminderParsedDue = DateTime.UtcNow.AddMinutes(1);
+
+        if (ReminderDetectedText != null)
+            ReminderDetectedText.Text = WindowIslandReminderParser.FormatPill(_reminderParsedDue.Value);
+    }
+
+    private void SubmitNaturalReminder()
+    {
+        string text = ReminderNaturalInput?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(text)) return;
+
+        if (_reminderParsedDue.HasValue)
+        {
+            var parsed = WindowIslandReminderParser.Parse(text);
+            string title = !string.IsNullOrWhiteSpace(parsed.Title) ? parsed.Title : text;
+            _reminderStore?.Add(title, _reminderParsedDue.Value);
         }
         else
         {
-            string combined = string.IsNullOrEmpty(timeStr) ? title : $"{title} in {timeStr}";
-            _reminderStore?.AddFromPhrase(combined);
+            _reminderStore?.AddFromPhrase(text);
         }
 
-        ReminderTitleInput.Text = string.Empty;
-        ReminderTimeInput.Text = "10m";
+        ClearReminderInput();
         RefreshRemindersUI();
+    }
+
+    private void ClearReminderInput()
+    {
+        if (ReminderNaturalInput != null) ReminderNaturalInput.Text = string.Empty;
+        _reminderParsedDue = null;
+        if (ReminderDetectedPill != null) ReminderDetectedPill.Visibility = Visibility.Collapsed;
+        if (ReminderWhenPanel != null) ReminderWhenPanel.Visibility = Visibility.Visible;
+        if (ReminderStepperPanel != null) ReminderStepperPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnReminderTriggered(IslandReminder reminder)

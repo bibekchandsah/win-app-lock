@@ -133,4 +133,45 @@ public class WindowIslandNotesAndTimerTests : IDisposable
 
         Assert.DoesNotContain(store.ActiveReminders, r => r.Id == rem.Id);
     }
+
+    [Fact]
+    public void ReminderParser_ParsesRelativeForMinutes()
+    {
+        var result = WindowIslandReminderParser.Parse("watch youtube for 5min");
+        Assert.True(result.Success);
+        Assert.True(result.HasExplicitTime);
+        Assert.Equal("watch youtube", result.Title);
+        Assert.True(result.DueTimeUtc > DateTime.UtcNow);
+        Assert.True(result.DueTimeUtc <= DateTime.UtcNow.AddMinutes(6));
+
+        string pill = WindowIslandReminderParser.FormatPill(result.DueTimeUtc);
+        Assert.Equal("in 5 min", pill);
+    }
+
+    [Fact]
+    public void ReminderParser_ParsesTomorrow()
+    {
+        var result = WindowIslandReminderParser.Parse("call mum tomorrow at 9");
+        Assert.True(result.Success);
+        Assert.True(result.HasExplicitTime);
+        Assert.Equal("call mum", result.Title);
+        Assert.True(result.DueTimeUtc > DateTime.UtcNow);
+
+        string pill = WindowIslandReminderParser.FormatPill(result.DueTimeUtc);
+        Assert.Contains("tomorrow", pill, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ReminderStore_AddWithDateTime()
+    {
+        using var store = new WindowIslandReminderStore();
+        DateTime target = DateTime.UtcNow.AddMinutes(25);
+        var rem = store.Add("Oven timer", target);
+
+        Assert.NotNull(rem);
+        Assert.Equal("Oven timer", rem.Title);
+        Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
+
+        store.Delete(rem.Id);
+    }
 }

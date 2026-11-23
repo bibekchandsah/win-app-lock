@@ -75,6 +75,22 @@ public sealed class WindowIslandReminderStore : IDisposable
         return reminder;
     }
 
+    public IslandReminder Add(string title, DateTime dueTimeUtc)
+    {
+        var reminder = new IslandReminder
+        {
+            Title = string.IsNullOrWhiteSpace(title) ? "Reminder" : title.Trim(),
+            DueTimeUtc = dueTimeUtc > DateTime.UtcNow ? dueTimeUtc : DateTime.UtcNow.AddMinutes(1)
+        };
+        lock (_lock)
+        {
+            _reminders.Add(reminder);
+        }
+        Save();
+        Changed?.Invoke();
+        return reminder;
+    }
+
     public IslandReminder? AddFromPhrase(string phrase)
     {
         var result = WindowIslandReminderParser.Parse(phrase);
