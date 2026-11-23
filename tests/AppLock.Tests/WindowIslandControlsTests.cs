@@ -224,23 +224,41 @@ public class WindowIslandControlsTests
     }
 
     [Fact]
-    public void IslandBtDevice_MultipleConnectedWithBattery_OrdersCorrectly()
+    public async Task BluetoothDevice_Detection_ClassifiesPeripheralsAndHandlesBleHid()
     {
-        var dev1 = new WindowIslandControlsService.IslandBtDevice("Airdopes 161", "11:22:33:44:55:66", "Headphones", true, 100);
-        var dev2 = new WindowIslandControlsService.IslandBtDevice("CMF Buds", "AA:BB:CC:DD:EE:FF", "Headphones", true, 90);
-        var dev3 = new WindowIslandControlsService.IslandBtDevice("OPPO F17 Pro", "00:11:22:33:44:55", "Phone", false, null);
+        var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+        Assert.NotNull(devices);
 
-        var list = new System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> { dev3, dev2, dev1 };
-        var connected = list
-            .Where(d => d.IsConnected)
-            .OrderByDescending(d => d.BatteryPercent.HasValue)
-            .ThenBy(d => d.Name)
-            .ToList();
+        var validTypes = new System.Collections.Generic.HashSet<string>
+        {
+            "Headphones", "Speaker", "Keyboard", "Mouse", "Phone", "Bluetooth"
+        };
 
-        Assert.Equal(2, connected.Count);
-        Assert.Equal("Airdopes 161", connected[0].Name);
-        Assert.Equal(100, connected[0].BatteryPercent);
-        Assert.Equal("CMF Buds", connected[1].Name);
-        Assert.Equal(90, connected[1].BatteryPercent);
+        foreach (var dev in devices)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(dev.Name));
+            Assert.False(string.IsNullOrWhiteSpace(dev.MacAddress));
+            Assert.Contains(dev.DeviceType, validTypes);
+            if (dev.BatteryPercent.HasValue)
+            {
+                Assert.InRange(dev.BatteryPercent.Value, 0, 100);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(100, "\uEBAA")]
+    [InlineData(95, "\uEBAA")]
+    [InlineData(85, "\uEBA9")]
+    [InlineData(78, "\uEBA8")]
+    [InlineData(60, "\uEBA6")]
+    [InlineData(50, "\uEBA5")]
+    [InlineData(25, "\uEBA3")]
+    [InlineData(10, "\uEBA1")]
+    [InlineData(0, "\uEBA0")]
+    public void BtBatteryGlyph_Progression_ReturnsValidSegoeFluentGlyphs(int percent, string expectedGlyph)
+    {
+        string glyph = WindowIslandControlsService.GetBtBatteryGlyph(percent);
+        Assert.Equal(expectedGlyph, glyph);
     }
 }

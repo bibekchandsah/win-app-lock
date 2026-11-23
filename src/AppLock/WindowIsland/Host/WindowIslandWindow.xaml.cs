@@ -5179,6 +5179,15 @@ public sealed partial class WindowIslandWindow : Window
         return grid;
     }
 
+    private static string GetBtBatteryGlyph(int percent) => WindowIslandControlsService.GetBtBatteryGlyph(percent);
+
+    private static SolidColorBrush GetBtBatteryBrush(int percent, Brush accentBrush)
+    {
+        if (percent <= 15) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107)); // Red
+        if (percent <= 25) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 185, 0));   // Amber
+        return accentBrush as SolidColorBrush ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 205, 255));
+    }
+
     private Grid BuildBluetoothDeviceRow(WindowIslandControlsService.IslandBtDevice dev)
     {
         var accentBrush = new SolidColorBrush(GetSystemAccentColor());
@@ -5198,6 +5207,8 @@ public sealed partial class WindowIslandWindow : Window
         {
             "Headphones" => "\uE7F6",
             "Speaker"    => "\uE7F5",
+            "Keyboard"   => "\uE765",
+            "Mouse"      => "\uE962",
             "Phone"      => "\uE8EA",
             _            => "\uE702"
         };
@@ -5234,22 +5245,51 @@ public sealed partial class WindowIslandWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
-        string statusText = dev.IsConnected ? "Connected" : "Not connected";
-        if (dev.BatteryPercent.HasValue)
-        {
-            statusText += $" · 🔋 {dev.BatteryPercent.Value}%";
-        }
-
+        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         var status = new TextBlock
         {
-            Text = statusText,
+            Text = dev.IsConnected ? "Connected" : "Not connected",
             FontSize = 9.5,
             Foreground = dev.IsConnected
                 ? accentBrush
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            VerticalAlignment = VerticalAlignment.Center
         };
+        statusRow.Children.Add(status);
+
+        if (dev.BatteryPercent.HasValue)
+        {
+            var dotSep = new TextBlock
+            {
+                Text = "·",
+                FontSize = 9.5,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            statusRow.Children.Add(dotSep);
+
+            int bVal = Math.Clamp(dev.BatteryPercent.Value, 0, 100);
+            var batIcon = new FontIcon
+            {
+                Glyph = GetBtBatteryGlyph(bVal),
+                FontSize = 11,
+                Foreground = GetBtBatteryBrush(bVal, accentBrush),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            statusRow.Children.Add(batIcon);
+
+            var batText = new TextBlock
+            {
+                Text = $"{bVal}%",
+                FontSize = 9.5,
+                Foreground = GetBtBatteryBrush(bVal, accentBrush),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            statusRow.Children.Add(batText);
+        }
+
         stack.Children.Add(title);
-        stack.Children.Add(status);
+        stack.Children.Add(statusRow);
         Grid.SetColumn(stack, 1);
         grid.Children.Add(stack);
 
@@ -5330,9 +5370,11 @@ public sealed partial class WindowIslandWindow : Window
         string glyph = dev.DeviceType switch
         {
             "Headphones" => "\uE7F6",
-            "Speaker" => "\uE7F5",
-            "Phone" => "\uE8EA",
-            _ => "\uE702"
+            "Speaker"    => "\uE7F5",
+            "Keyboard"   => "\uE765",
+            "Mouse"      => "\uE962",
+            "Phone"      => "\uE8EA",
+            _            => "\uE702"
         };
 
         var icon = new FontIcon
@@ -5340,7 +5382,7 @@ public sealed partial class WindowIslandWindow : Window
             Glyph = glyph,
             FontSize = 24,
             Foreground = dev.IsConnected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x60, 0xCD, 0xFF))
+                ? (accentBrush as SolidColorBrush ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x60, 0xCD, 0xFF)))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
             HorizontalAlignment = HorizontalAlignment.Center
         };
@@ -5421,16 +5463,36 @@ public sealed partial class WindowIslandWindow : Window
         // 4. Bottom: Battery or Connect button
         if (dev.IsConnected && dev.BatteryPercent.HasValue)
         {
-            var batteryText = new TextBlock
+            int bVal = Math.Clamp(dev.BatteryPercent.Value, 0, 100);
+            var batteryStack = new StackPanel
             {
-                Text = $"{dev.BatteryPercent.Value}% 🔋",
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Spacing = 5
+            };
+
+            var batText = new TextBlock
+            {
+                Text = $"{bVal}%",
                 FontSize = 10.5,
                 FontWeight = Microsoft.UI.Text.FontWeights.Medium,
-                Foreground = accentBrush,
-                HorizontalAlignment = HorizontalAlignment.Center
+                Foreground = GetBtBatteryBrush(bVal, accentBrush),
+                VerticalAlignment = VerticalAlignment.Center
             };
-            Grid.SetRow(batteryText, 3);
-            grid.Children.Add(batteryText);
+            batteryStack.Children.Add(batText);
+
+            var batIcon = new FontIcon
+            {
+                Glyph = GetBtBatteryGlyph(bVal),
+                FontSize = 12,
+                Foreground = GetBtBatteryBrush(bVal, accentBrush),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            batteryStack.Children.Add(batIcon);
+
+            Grid.SetRow(batteryStack, 3);
+            grid.Children.Add(batteryStack);
         }
         else if (!dev.IsConnected)
         {

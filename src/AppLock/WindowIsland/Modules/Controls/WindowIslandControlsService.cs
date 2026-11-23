@@ -379,6 +379,21 @@ public sealed class WindowIslandControlsService
 
     public sealed record IslandBtDevice(string Name, string MacAddress, string DeviceType, bool IsConnected, int? BatteryPercent);
 
+    public static string GetBtBatteryGlyph(int percent) => percent switch
+    {
+        >= 95 => "\uEBAA", // 100%
+        >= 85 => "\uEBA9", // 90%
+        >= 75 => "\uEBA8", // 80%
+        >= 65 => "\uEBA7", // 70%
+        >= 55 => "\uEBA6", // 60%
+        >= 45 => "\uEBA5", // 50%
+        >= 35 => "\uEBA4", // 40%
+        >= 25 => "\uEBA3", // 30%
+        >= 15 => "\uEBA2", // 20%
+        >= 5  => "\uEBA1", // 10%
+        _     => "\uEBA0"  // 0%
+    };
+
     public static async Task<System.Collections.Generic.List<IslandBtDevice>> GetBluetoothDevicesAsync()
     {
         return await Task.Run(async () =>
@@ -415,20 +430,22 @@ public sealed class WindowIslandControlsService
             }
             catch { }
 
-            // 2. Query paired devices with real-time IsConnected status via WinRT DeviceInformation
+            // 2. Query paired devices with real-time IsConnected status via WinRT DeviceInformation (Classic + BLE)
             var connMacMap = new System.Collections.Generic.Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var connNameMap = new System.Collections.Generic.Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                var selector = Windows.Devices.Bluetooth.BluetoothDevice.GetDeviceSelectorFromPairingState(true);
+                var classicSelector = Windows.Devices.Bluetooth.BluetoothDevice.GetDeviceSelectorFromPairingState(true);
+                var leSelector = Windows.Devices.Bluetooth.BluetoothLEDevice.GetDeviceSelectorFromPairingState(true);
                 var properties = new[]
                 {
                     "System.ItemNameDisplay",
                     "System.Devices.Aep.IsConnected",
                     "System.Devices.Aep.DeviceAddress"
                 };
-                var aepDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(selector, properties);
-                foreach (var ad in aepDevs)
+
+                var classicDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(classicSelector, properties);
+                foreach (var ad in classicDevs)
                 {
                     bool isConn = ad.Properties.TryGetValue("System.Devices.Aep.IsConnected", out var cVal) && cVal is bool b && b;
                     if (ad.Properties.TryGetValue("System.Devices.Aep.DeviceAddress", out var aVal) && aVal != null)
@@ -439,6 +456,47 @@ public sealed class WindowIslandControlsService
                     if (!string.IsNullOrWhiteSpace(ad.Name))
                     {
                         connNameMap[ad.Name] = isConn;
+                    }
+                }
+
+                var leDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(leSelector, properties);
+                foreach (var ad in leDevs)
+                {
+                    bool isConn = ad.Properties.TryGetValue("System.Devices.Aep.IsConnected", out var cVal) && cVal is bool b && b;
+                    if (ad.Properties.TryGetValue("System.Devices.Aep.DeviceAddress", out var aVal) && aVal != null)
+                    {
+                        string clean = aVal.ToString()!.Replace(":", "").ToLowerInvariant();
+                        if (isConn || !connMacMap.ContainsKey(clean))
+                            connMacMap[clean] = isConn;
+                    }
+                    if (!string.IsNullOrWhiteSpace(ad.Name))
+                    {
+                        if (isConn || !connNameMap.ContainsKey(ad.Name))
+                            connNameMap[ad.Name] = isConn;
+                    }
+                }
+            }
+            catch { }
+
+            // 2b. Query active Bluetooth HID devices (Keyboards, Mice) from PnP
+            try
+            {
+                var hidDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
+                    "System.Devices.DeviceInstanceId:~~\"HID\" AND (System.Devices.DeviceInstanceId:~~\"1812\" OR System.Devices.DeviceInstanceId:~~\"1124\")",
+                    new[] { "System.ItemNameDisplay" },
+                    Windows.Devices.Enumeration.DeviceInformationKind.Device);
+
+                foreach (var hd in hidDevs)
+                {
+                    string idPart = hd.Id;
+                    int closeBrace = idPart.IndexOf('}');
+                    if (closeBrace >= 0)
+                        idPart = idPart.Substring(closeBrace + 1);
+
+                    var m = System.Text.RegularExpressions.Regex.Match(idPart, @"[_\&]([0-9A-Fa-f]{12})[_\&\\\/]");
+                    if (m.Success)
+                    {
+                        connMacMap[m.Groups[1].Value.ToLowerInvariant()] = true;
                     }
                 }
             }
@@ -485,6 +543,7 @@ public sealed class WindowIslandControlsService
                 using var devKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices");
                 if (devKey != null)
                 {
+                    var rawEntries = new System.Collections.Generic.List<(string Name, string Mac)>();
                     foreach (string mac in devKey.GetSubKeyNames())
                     {
                         using var subKey = devKey.OpenSubKey(mac);
@@ -510,9 +569,18 @@ public sealed class WindowIslandControlsService
                                 name = strFn.TrimEnd('\0').Trim();
                         }
 
-                        if (string.IsNullOrWhiteSpace(name)) continue;
-                        if (!seen.Add(name)) continue;
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            rawEntries.Add((name, mac));
+                        }
+                    }
 
+                    // Group by name so if a device has multiple MAC registrations (e.g. multi-profile mouse), we choose the connected one
+                    var groupedByName = rawEntries.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var group in groupedByName)
+                    {
+                        string name = group.Key;
                         string lower = name.ToLowerInvariant();
                         string type = "Bluetooth";
                         if (lower.Contains("buds") || lower.Contains("airdopes") || lower.Contains("airpods") ||
@@ -524,41 +592,78 @@ public sealed class WindowIslandControlsService
                         {
                             type = "Speaker";
                         }
+                        else if (lower.Contains("keyboard") || lower.Contains(" k1") || lower.Contains("keychron") || lower.Contains("kbd"))
+                        {
+                            type = "Keyboard";
+                        }
+                        else if (lower.Contains("mouse") || lower.Contains("polygear") || lower.Contains("trackball"))
+                        {
+                            type = "Mouse";
+                        }
                         else if (lower.Contains("phone") || lower.Contains("oppo") || lower.Contains("iphone") ||
                                  lower.Contains("galaxy") || lower.Contains("redmi") || lower.Contains("pixel"))
                         {
                             type = "Phone";
                         }
 
-                        string cleanMac = mac.Replace(":", "").ToLowerInvariant();
-
+                        // Determine if any MAC in group is connected
+                        string bestMac = group.First().Mac;
                         bool isConnected = false;
-                        if (connMacMap.TryGetValue(cleanMac, out bool cmc))
-                            isConnected = cmc;
-                        else if (connNameMap.TryGetValue(name, out bool cmn))
-                            isConnected = cmn;
-                        else
-                            isConnected = activeAudioNames.Any(an => an.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(an, StringComparison.OrdinalIgnoreCase));
 
+                        foreach (var entry in group)
+                        {
+                            string cMac = entry.Mac.Replace(":", "").ToLowerInvariant();
+                            if (connMacMap.TryGetValue(cMac, out bool cmc) && cmc)
+                            {
+                                isConnected = true;
+                                bestMac = entry.Mac;
+                                break;
+                            }
+                        }
+
+                        if (!isConnected)
+                        {
+                            if (connNameMap.TryGetValue(name, out bool cmn) && cmn)
+                                isConnected = true;
+                            else if (connNameMap.Keys.Any(k => (k.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(k, StringComparison.OrdinalIgnoreCase)) && connNameMap[k]))
+                                isConnected = true;
+                            else
+                                isConnected = activeAudioNames.Any(an => an.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(an, StringComparison.OrdinalIgnoreCase));
+                        }
+
+                        string cleanBestMac = bestMac.Replace(":", "").ToLowerInvariant();
                         int? battery = null;
-                        if (batteryMap.TryGetValue(cleanMac, out int bMac))
+                        if (batteryMap.TryGetValue(cleanBestMac, out int bMac))
                         {
                             battery = bMac;
                         }
                         else
                         {
-                            // Match by name or substring
-                            foreach (var bKvp in batteryMap)
+                            // Try other MACs in group for battery
+                            foreach (var entry in group)
                             {
-                                if (bKvp.Key.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(bKvp.Key, StringComparison.OrdinalIgnoreCase))
+                                string cMac = entry.Mac.Replace(":", "").ToLowerInvariant();
+                                if (batteryMap.TryGetValue(cMac, out int bOther))
                                 {
-                                    battery = bKvp.Value;
+                                    battery = bOther;
                                     break;
+                                }
+                            }
+
+                            if (!battery.HasValue)
+                            {
+                                foreach (var bKvp in batteryMap)
+                                {
+                                    if (bKvp.Key.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(bKvp.Key, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        battery = bKvp.Value;
+                                        break;
+                                    }
                                 }
                             }
                         }
 
-                        list.Add(new IslandBtDevice(name, mac, type, isConnected, battery));
+                        list.Add(new IslandBtDevice(name, bestMac, type, isConnected, battery));
                     }
                 }
             }
