@@ -450,7 +450,7 @@ improve check list it's not toggled now
 
 
 fixed - change control tab icon 
-in controls tab add support of wifi list and bluetooth list
+fixed - in controls tab add support of wifi list and bluetooth list
 add the card for showing battery of bluetooths connected devices 
 
 lock screen, show/hide desktop, task view, calculator, custom card like :
@@ -462,6 +462,7 @@ command: ms-settings:startupapps
 move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
 move "lock, sleep, restart, shut down" to the bottom
 
+adjust shelf clear color 
 add height adjust in right end side of AI Chat so that user can increase or decrease dynamically
 use accent color in all tabs 
 add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,

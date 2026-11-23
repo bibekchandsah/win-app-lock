@@ -2868,43 +2868,69 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Wi-Fi Tile -->
-                            <Button Grid.Column="0"
-                                    x:Name="ControlsWifiBtn"
-                                    Click="ControlsWifiBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Background="#15FFFFFF"
-                                    BorderBrush="#20FFFFFF"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6"
-                                    ToolTipService.ToolTip="Toggle Wi-Fi">
-                                <StackPanel Spacing="2">
-                                    <FontIcon x:Name="ControlsWifiIcon" Glyph="&#xE701;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
-                                    <TextBlock Text="Wi-Fi" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
-                                    <TextBlock x:Name="ControlsWifiStatus" Text="Connected" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- Wi-Fi Tile with List Icon -->
+                            <Grid Grid.Column="0">
+                                <Button x:Name="ControlsWifiBtn"
+                                        Click="ControlsWifiBtn_Click"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="#15FFFFFF"
+                                        BorderBrush="#20FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                        ToolTipService.ToolTip="Toggle Wi-Fi">
+                                    <StackPanel Spacing="2">
+                                        <FontIcon x:Name="ControlsWifiIcon" Glyph="&#xE701;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Wi-Fi" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                        <TextBlock x:Name="ControlsWifiStatus" Text="Connected" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ControlsWifiListBtn"
+                                        Click="ControlsWifiListBtn_Click"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Width="20" Height="20"
+                                        Padding="0"
+                                        Margin="0,3,3,0"
+                                        CornerRadius="4"
+                                        Style="{StaticResource TabButtonStyle}"
+                                        ToolTipService.ToolTip="Wi-Fi networks list">
+                                    <FontIcon Glyph="&#xE8FD;" FontSize="9.5" Foreground="#A0FFFFFF"/>
+                                </Button>
+                            </Grid>
 
-                            <!-- Bluetooth Tile -->
-                            <Button Grid.Column="1"
-                                    x:Name="ControlsBtBtn"
-                                    Click="ControlsBtBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Background="#15FFFFFF"
-                                    BorderBrush="#20FFFFFF"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6"
-                                    ToolTipService.ToolTip="Toggle Bluetooth">
-                                <StackPanel Spacing="2">
-                                    <FontIcon x:Name="ControlsBtIcon" Glyph="&#xE702;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
-                                    <TextBlock Text="Bluetooth" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
-                                    <TextBlock x:Name="ControlsBtStatus" Text="On" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- Bluetooth Tile with List Icon -->
+                            <Grid Grid.Column="1">
+                                <Button x:Name="ControlsBtBtn"
+                                        Click="ControlsBtBtn_Click"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="#15FFFFFF"
+                                        BorderBrush="#20FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                        ToolTipService.ToolTip="Toggle Bluetooth">
+                                    <StackPanel Spacing="2">
+                                        <FontIcon x:Name="ControlsBtIcon" Glyph="&#xE702;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Bluetooth" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                        <TextBlock x:Name="ControlsBtStatus" Text="On" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ControlsBtListBtn"
+                                        Click="ControlsBtListBtn_Click"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Width="20" Height="20"
+                                        Padding="0"
+                                        Margin="0,3,3,0"
+                                        CornerRadius="4"
+                                        Style="{StaticResource TabButtonStyle}"
+                                        ToolTipService.ToolTip="Bluetooth devices list">
+                                    <FontIcon Glyph="&#xE8FD;" FontSize="9.5" Foreground="#A0FFFFFF"/>
+                                </Button>
+                            </Grid>
 
                             <!-- Dark Theme Tile -->
                             <Button Grid.Column="2"
@@ -3062,6 +3088,63 @@
                                 </StackPanel>
                             </Button>
                         </Grid>
+
+                        <!-- Device List Overlay (for Wi-Fi networks & Bluetooth devices) -->
+                        <Border x:Name="ControlsDeviceOverlay"
+                                Grid.RowSpan="3"
+                                Visibility="Collapsed"
+                                Background="#F218181B"
+                                BorderBrush="#35FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12,8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header -->
+                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                    <TextBlock x:Name="ControlsDeviceOverlayTitle"
+                                               Text="Bluetooth devices"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FFFFFFFF"
+                                               VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+                                        <Button x:Name="ControlsDeviceSettingsBtn"
+                                                Click="ControlsDeviceSettingsBtn_Click"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                Padding="6,2"
+                                                CornerRadius="4"
+                                                ToolTipService.ToolTip="Open Windows Settings">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE713;" FontSize="10" Foreground="#B0FFFFFF"/>
+                                                <TextBlock Text="Settings" FontSize="9.5" Foreground="#D0FFFFFF"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="ControlsDeviceCloseBtn"
+                                                Click="ControlsDeviceCloseBtn_Click"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                Width="22" Height="22"
+                                                Padding="0"
+                                                CornerRadius="4"
+                                                ToolTipService.ToolTip="Close">
+                                            <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="#A0FFFFFF"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Scrollable Device List -->
+                                <ScrollViewer Grid.Row="1"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              MaxHeight="120">
+                                    <StackPanel x:Name="ControlsDeviceList" Spacing="6"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
                     </Grid>
                 </Grid>
 

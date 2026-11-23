@@ -129,6 +129,174 @@ public sealed class WindowIslandControlsService
         return string.Empty;
     }
 
+    public sealed record IslandWiFiNetwork(string Ssid, bool IsConnected, string Status);
+
+    public static async Task<System.Collections.Generic.List<IslandWiFiNetwork>> GetWiFiNetworksAsync()
+    {
+        return await Task.Run(() =>
+        {
+            var list = new System.Collections.Generic.List<IslandWiFiNetwork>();
+            string currentSsid = GetConnectedSsid();
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = "wlan show profiles",
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    string output = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit(2000);
+
+                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        int colon = line.IndexOf(':');
+                        if (colon > 0 && line.Contains("All User Profile"))
+                        {
+                            string ssid = line[(colon + 1)..].Trim();
+                            if (!string.IsNullOrEmpty(ssid) && !list.Any(w => w.Ssid == ssid))
+                            {
+                                bool isCur = string.Equals(ssid, currentSsid, StringComparison.OrdinalIgnoreCase);
+                                list.Add(new IslandWiFiNetwork(ssid, isCur, isCur ? "Connected" : "Saved"));
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (!string.IsNullOrEmpty(currentSsid) && !list.Any(w => w.Ssid == currentSsid))
+            {
+                list.Insert(0, new IslandWiFiNetwork(currentSsid, true, "Connected"));
+            }
+            else
+            {
+                list = list.OrderByDescending(w => w.IsConnected).ToList();
+            }
+
+            return list;
+        });
+    }
+
+    public static async Task<bool> ConnectWiFiAsync(string ssid)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = $"wlan connect name=\"{ssid}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                var proc = Process.Start(psi);
+                proc?.WaitForExit(3000);
+                return proc?.ExitCode == 0;
+            }
+            catch { return false; }
+        });
+    }
+
+    public static async Task DisconnectWiFiAsync()
+    {
+        await Task.Run(() =>
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = "wlan disconnect",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                var proc = Process.Start(psi);
+                proc?.WaitForExit(2000);
+            }
+            catch { }
+        });
+    }
+
+    public sealed record IslandBtDevice(string Name, string MacAddress, string DeviceType, bool IsConnected);
+
+    public static async Task<System.Collections.Generic.List<IslandBtDevice>> GetBluetoothDevicesAsync()
+    {
+        return await Task.Run(async () =>
+        {
+            var list = new System.Collections.Generic.List<IslandBtDevice>();
+            try
+            {
+                using var devKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices");
+                if (devKey != null)
+                {
+                    foreach (string mac in devKey.GetSubKeyNames())
+                    {
+                        using var subKey = devKey.OpenSubKey(mac);
+                        if (subKey == null) continue;
+
+                        string name = string.Empty;
+                        object? nameVal = subKey.GetValue("Name");
+                        if (nameVal is byte[] bytes)
+                        {
+                            name = System.Text.Encoding.UTF8.GetString(bytes).TrimEnd('\0');
+                        }
+                        else if (nameVal is string strName)
+                        {
+                            name = strName.TrimEnd('\0');
+                        }
+
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+
+                        string lower = name.ToLowerInvariant();
+                        string type = "Bluetooth";
+                        if (lower.Contains("buds") || lower.Contains("airdopes") || lower.Contains("airpods") ||
+                            lower.Contains("headset") || lower.Contains("headphone") || lower.Contains("earphone"))
+                        {
+                            type = "Headphones";
+                        }
+                        else if (lower.Contains("speaker") || lower.Contains("breeze") || lower.Contains("boom") || lower.Contains("audio"))
+                        {
+                            type = "Speaker";
+                        }
+                        else if (lower.Contains("phone") || lower.Contains("oppo") || lower.Contains("iphone") ||
+                                 lower.Contains("galaxy") || lower.Contains("redmi") || lower.Contains("pixel"))
+                        {
+                            type = "Phone";
+                        }
+
+                        bool isConnected = false;
+                        try
+                        {
+                            if (ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+                            {
+                                var btDev = await Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(addr);
+                                if (btDev != null)
+                                {
+                                    isConnected = btDev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected;
+                                }
+                            }
+                        }
+                        catch { }
+
+                        list.Add(new IslandBtDevice(name, mac, type, isConnected));
+                    }
+                }
+            }
+            catch { }
+
+            return list.OrderByDescending(d => d.IsConnected).ThenBy(d => d.Name).ToList();
+        });
+    }
+
     // ── Bluetooth ──────────────────────────────────────────────────────────────
 
     public async Task<(bool Available, bool IsOn)> GetBluetoothStateAsync()

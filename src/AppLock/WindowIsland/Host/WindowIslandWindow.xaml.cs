@@ -612,6 +612,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             RefreshControlsUI();
         }
+        else if (_previousTab == 7)
+        {
+            if (ControlsDeviceOverlay != null) ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
+        }
 
         // Show new content, collapse previous
         for (int i = 0; i < TabCount; i++)
@@ -4851,6 +4855,299 @@ public sealed partial class WindowIslandWindow : Window
     {
         await WindowIslandControlsService.ToggleVpnAsync();
         RefreshControlsUI();
+    }
+
+    // ── Wi-Fi & Bluetooth Device Lists Overlay ───────────────────────────────
+
+    private string _controlsDeviceMode = "none";
+
+    private void ControlsWifiListBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _controlsDeviceMode = "wifi";
+        ControlsDeviceOverlayTitle.Text = "Wi-Fi networks";
+        ControlsDeviceOverlay.Visibility = Visibility.Visible;
+        _ = PopulateDeviceListAsync();
+    }
+
+    private void ControlsBtListBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _controlsDeviceMode = "bluetooth";
+        ControlsDeviceOverlayTitle.Text = "Bluetooth devices";
+        ControlsDeviceOverlay.Visibility = Visibility.Visible;
+        _ = PopulateDeviceListAsync();
+    }
+
+    private void ControlsDeviceCloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
+        _controlsDeviceMode = "none";
+    }
+
+    private void ControlsDeviceSettingsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string uri = _controlsDeviceMode == "wifi" ? "ms-settings:network-wifi" : "ms-settings:bluetooth";
+            Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private async Task PopulateDeviceListAsync()
+    {
+        ControlsDeviceList.Children.Clear();
+
+        var loading = new TextBlock
+        {
+            Text = "Loading devices...",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 15, 0, 0)
+        };
+        ControlsDeviceList.Children.Add(loading);
+
+        if (_controlsDeviceMode == "wifi")
+        {
+            var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
+            ControlsDeviceList.Children.Clear();
+
+            if (networks.Count == 0)
+            {
+                ControlsDeviceList.Children.Add(new TextBlock
+                {
+                    Text = "No Wi-Fi networks found",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 15, 0, 0)
+                });
+                return;
+            }
+
+            foreach (var net in networks)
+            {
+                var row = BuildWiFiDeviceRow(net);
+                ControlsDeviceList.Children.Add(row);
+            }
+        }
+        else if (_controlsDeviceMode == "bluetooth")
+        {
+            var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+            ControlsDeviceList.Children.Clear();
+
+            if (devices.Count == 0)
+            {
+                ControlsDeviceList.Children.Add(new TextBlock
+                {
+                    Text = "No paired Bluetooth devices found",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 15, 0, 0)
+                });
+                return;
+            }
+
+            foreach (var dev in devices)
+            {
+                var row = BuildBluetoothDeviceRow(dev);
+                ControlsDeviceList.Children.Add(row);
+            }
+        }
+    }
+
+    private Grid BuildWiFiDeviceRow(WindowIslandControlsService.IslandWiFiNetwork net)
+    {
+        var grid = new Grid
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left circular icon
+        var iconBorder = new Border
+        {
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var icon = new FontIcon
+        {
+            Glyph = "\uE701",
+            FontSize = 13,
+            Foreground = net.IsConnected
+                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        iconBorder.Child = icon;
+        Grid.SetColumn(iconBorder, 0);
+        grid.Children.Add(iconBorder);
+
+        // Middle details
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+        var title = new TextBlock
+        {
+            Text = net.Ssid,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var status = new TextBlock
+        {
+            Text = net.IsConnected ? "Connected" : "Saved",
+            FontSize = 8.5,
+            Foreground = net.IsConnected
+                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+        };
+        stack.Children.Add(title);
+        stack.Children.Add(status);
+        Grid.SetColumn(stack, 1);
+        grid.Children.Add(stack);
+
+        // Right button
+        var actionBtn = new Button
+        {
+            Content = net.IsConnected ? "Disconnect" : "Connect",
+            FontSize = 9.5,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Height = 22,
+            Padding = new Thickness(10, 0, 10, 0),
+            CornerRadius = new CornerRadius(11),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = net.IsConnected
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255))
+                : (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"],
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255))
+        };
+        actionBtn.Click += async (_, _) =>
+        {
+            if (net.IsConnected)
+            {
+                actionBtn.Content = "Disconnecting...";
+                await WindowIslandControlsService.DisconnectWiFiAsync();
+            }
+            else
+            {
+                actionBtn.Content = "Connecting...";
+                await WindowIslandControlsService.ConnectWiFiAsync(net.Ssid);
+            }
+            await Task.Delay(1200);
+            await PopulateDeviceListAsync();
+            RefreshControlsUI();
+        };
+        Grid.SetColumn(actionBtn, 2);
+        grid.Children.Add(actionBtn);
+
+        return grid;
+    }
+
+    private Grid BuildBluetoothDeviceRow(WindowIslandControlsService.IslandBtDevice dev)
+    {
+        var grid = new Grid
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left circular icon
+        string glyph = dev.DeviceType switch
+        {
+            "Headphones" => "\uE7F6",
+            "Speaker" => "\uE7F5",
+            "Phone" => "\uE8EA",
+            _ => "\uE702"
+        };
+        var iconBorder = new Border
+        {
+            Width = 28, Height = 28,
+            CornerRadius = new CornerRadius(14),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var icon = new FontIcon
+        {
+            Glyph = glyph,
+            FontSize = 13,
+            Foreground = dev.IsConnected
+                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        iconBorder.Child = icon;
+        Grid.SetColumn(iconBorder, 0);
+        grid.Children.Add(iconBorder);
+
+        // Middle details
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+        var title = new TextBlock
+        {
+            Text = dev.Name,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        var status = new TextBlock
+        {
+            Text = dev.IsConnected ? "Connected" : "Not connected",
+            FontSize = 8.5,
+            Foreground = dev.IsConnected
+                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+        };
+        stack.Children.Add(title);
+        stack.Children.Add(status);
+        Grid.SetColumn(stack, 1);
+        grid.Children.Add(stack);
+
+        // Right button
+        var actionBtn = new Button
+        {
+            Content = dev.IsConnected ? "Disconnect" : "Connect",
+            FontSize = 9.5,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Height = 22,
+            Padding = new Thickness(10, 0, 10, 0),
+            CornerRadius = new CornerRadius(11),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = dev.IsConnected
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255))
+                : (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"],
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255))
+        };
+        actionBtn.Click += async (_, _) =>
+        {
+            actionBtn.Content = "Opening...";
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = "ms-settings:bluetooth", UseShellExecute = true });
+            }
+            catch { }
+            await Task.Delay(1000);
+            await PopulateDeviceListAsync();
+            RefreshControlsUI();
+        };
+        Grid.SetColumn(actionBtn, 2);
+        grid.Children.Add(actionBtn);
+
+        return grid;
     }
 
     private async void ControlsBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
