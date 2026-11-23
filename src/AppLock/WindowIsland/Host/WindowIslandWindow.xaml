@@ -476,7 +476,7 @@
                                 ToolTipService.ToolTip="Home">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon x:Name="TabHomeIcon" Glyph="&#xE80F;" FontSize="13" />
-                                <TextBlock x:Name="TabHomeText" Text="Home" FontSize="11" />
+                                <TextBlock x:Name="TabHomeText" Text="Home" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
@@ -486,7 +486,10 @@
                                 Tag="1"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Clipboard">
-                            <FontIcon x:Name="TabClipboardIcon" Glyph="&#xF0E3;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabClipboardIcon" Glyph="&#xF0E3;" FontSize="13" />
+                                <TextBlock x:Name="TabClipboardText" Text="Clipboard" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Shelf -->
@@ -495,7 +498,10 @@
                                 Tag="2"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Shelf">
-                            <FontIcon x:Name="TabShelfIcon" Glyph="&#xE8F1;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabShelfIcon" Glyph="&#xE8F1;" FontSize="13" />
+                                <TextBlock x:Name="TabShelfText" Text="Shelf" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Text -->
@@ -504,7 +510,10 @@
                                 Tag="3"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Text tools">
-                            <FontIcon x:Name="TabTextIcon" Glyph="&#xE8D2;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabTextIcon" Glyph="&#xE8D2;" FontSize="13" />
+                                <TextBlock x:Name="TabTextText" Text="Text" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Chat -->
@@ -513,7 +522,10 @@
                                 Tag="4"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Chat (AI)">
-                            <FontIcon x:Name="TabChatIcon" Glyph="&#xE8BD;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabChatIcon" Glyph="&#xE8BD;" FontSize="13" />
+                                <TextBlock x:Name="TabChatText" Text="Chat" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Note -->
@@ -522,7 +534,10 @@
                                 Tag="5"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Note &amp; Timer">
-                            <FontIcon x:Name="TabNoteIcon" Glyph="&#xE70B;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabNoteIcon" Glyph="&#xE70B;" FontSize="13" />
+                                <TextBlock x:Name="TabNoteText" Text="Note" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Weather -->
@@ -531,7 +546,10 @@
                                 Tag="6"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Weather">
-                            <FontIcon x:Name="TabWeatherIcon" Glyph="&#xE9CA;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabWeatherIcon" Glyph="&#xE9CA;" FontSize="13" />
+                                <TextBlock x:Name="TabWeatherText" Text="Weather" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
 
                         <!-- Controls -->
@@ -540,7 +558,10 @@
                                 Tag="7"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Controls">
-                            <FontIcon x:Name="TabControlsIcon" Glyph="&#xE713;" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabControlsIcon" Glyph="&#xE713;" FontSize="13" />
+                                <TextBlock x:Name="TabControlsText" Text="Controls" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
                         </Button>
                     </StackPanel>
 

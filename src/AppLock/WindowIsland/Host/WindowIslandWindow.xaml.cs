@@ -216,6 +216,7 @@ public sealed partial class WindowIslandWindow : Window
     private int _previousTab    = 0;
     private Grid[] _tabContents = Array.Empty<Grid>();
     private Button[] _tabButtons = Array.Empty<Button>();
+    private TextBlock[] _tabTextBlocks = Array.Empty<TextBlock>();
 
     // Frame-time measurement
     private readonly List<double> _frameTimes = new(2048);
@@ -246,6 +247,11 @@ public sealed partial class WindowIslandWindow : Window
         {
             TabHome, TabClipboard, TabShelf, TabText,
             TabChat, TabNote, TabWeather, TabControls
+        };
+        _tabTextBlocks = new TextBlock[]
+        {
+            TabHomeText, TabClipboardText, TabShelfText, TabTextText,
+            TabChatText, TabNoteText, TabWeatherText, TabControlsText
         };
 
         // Grab composition visuals for layer fading
@@ -669,25 +675,47 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateTabHighlight(bool animate)
     {
-        // Highlight the active tab button text/icon color
+        var accentColor = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accentColor);
+        var defaultBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(192, 255, 255, 255)); // #C0FFFFFF default
+
+        if (TabIndicator != null)
+        {
+            TabIndicator.Background = accentBrush;
+        }
+
+        // Highlight the active tab button text/icon with window accent color,
+        // show text only for the active tab (e.g. icon [clipboard]), remaining tabs show icon only
         for (int i = 0; i < TabCount; i++)
         {
             bool active = (i == _activeTab);
-            if (_tabButtons[i] != null)
+            if (_tabButtons != null && i < _tabButtons.Length && _tabButtons[i] != null)
             {
-                _tabButtons[i].Foreground = new SolidColorBrush(active
-                    ? Windows.UI.Color.FromArgb(255, 96, 205, 255)   // #60CDFF accent
-                    : Windows.UI.Color.FromArgb(192, 255, 255, 255)); // #C0FFFFFF default
+                _tabButtons[i].Foreground = active ? accentBrush : defaultBrush;
+            }
+            if (_tabTextBlocks != null && i < _tabTextBlocks.Length && _tabTextBlocks[i] != null)
+            {
+                _tabTextBlocks[i].Visibility = active ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
-        // Slide the tab indicator to the correct position
-        // Each tab button is ~40px wide with 2px spacing
+        // Slide the tab indicator to the correct position under active tab
+        float targetX = _activeTab * 34f;
+        try
+        {
+            if (_tabButtons != null && _activeTab < _tabButtons.Length && _tabButtons[_activeTab] != null && TabStrip != null)
+            {
+                var transform = _tabButtons[_activeTab].TransformToVisual(TabStrip);
+                var p = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+                targetX = (float)p.X + 4f;
+            }
+        }
+        catch { }
+
         if (animate)
         {
             var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
             var anim = v.Compositor.CreateVector3KeyFrameAnimation();
-            float targetX = _activeTab * 42f; // approximate tab button stride
             anim.InsertKeyFrame(1f, new Vector3(targetX, 0f, 0f));
             anim.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
             v.StartAnimation("Offset", anim);
@@ -695,7 +723,28 @@ public sealed partial class WindowIslandWindow : Window
         else
         {
             var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
-            v.Offset = new Vector3(_activeTab * 42f, 0f, 0f);
+            v.Offset = new Vector3(targetX, 0f, 0f);
+        }
+    }
+
+    private static Windows.UI.Color GetSystemAccentColor()
+    {
+        try
+        {
+            var uiSettings = new Windows.UI.ViewManagement.UISettings();
+            return uiSettings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Accent);
+        }
+        catch
+        {
+            try
+            {
+                if (Application.Current.Resources.TryGetValue("SystemAccentColor", out object res) && res is Windows.UI.Color c)
+                {
+                    return c;
+                }
+            }
+            catch { }
+            return Windows.UI.Color.FromArgb(255, 0, 120, 212); // Windows blue default
         }
     }
 
