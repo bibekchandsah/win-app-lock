@@ -1084,84 +1084,98 @@
                                 </ScrollViewer>
                             </Border>
 
-                        <!-- In-island Add Dialog Overlay -->
-                        <Border x:Name="LauncherAddOverlay"
-                                Grid.RowSpan="3" Grid.ColumnSpan="2"
-                                Background="#F0181818"
-                                CornerRadius="8"
-                                BorderBrush="#40FFFFFF"
-                                BorderThickness="1"
-                                Padding="14,10"
-                                Visibility="Collapsed">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
+                        <!-- In-island add-shortcut dialog: a scrim over the panel and a card in the middle -->
+                        <Grid x:Name="LauncherAddOverlay"
+                              Grid.RowSpan="3" Grid.ColumnSpan="2"
+                              Visibility="Collapsed">
+                            <Border Background="#B3000000" CornerRadius="14" />
 
-                                <TextBlock Grid.Row="0"
-                                           Text="A link for the launcher"
-                                           FontFamily="Segoe UI Variable Display"
-                                           FontWeight="SemiBold"
-                                           FontSize="12"
-                                           Foreground="#F0FFFFFF"
-                                           Margin="0,0,0,6" />
+                            <Border Width="392"
+                                    CornerRadius="14"
+                                    Background="#FF1C1C1C"
+                                    BorderBrush="#26FFFFFF"
+                                    BorderThickness="1"
+                                    Padding="18,16,18,14"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                <Grid RowSpacing="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                                <TextBox x:Name="LauncherTargetInput"
-                                         Grid.Row="1"
-                                         PlaceholderText="https://… or file/folder path"
-                                         FontSize="11"
-                                         Background="#20FFFFFF"
-                                         Foreground="#F0FFFFFF"
-                                         BorderBrush="#30FFFFFF"
-                                         CornerRadius="5"
-                                         Padding="8,4"
-                                         Margin="0,0,0,4" />
+                                    <StackPanel Grid.Row="0" Spacing="3">
+                                        <TextBlock Text="A link for the launcher"
+                                                   FontFamily="Segoe UI Variable Display"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="#F0FFFFFF" />
+                                        <TextBlock Text="Paste a URL, or drag an app, folder or file onto the launcher bar."
+                                                   FontSize="10"
+                                                   LineHeight="14"
+                                                   Foreground="#80FFFFFF"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
 
-                                <TextBox x:Name="LauncherNameInput"
-                                         Grid.Row="2"
-                                         PlaceholderText="Name (optional)"
-                                         FontSize="11"
-                                         Background="#20FFFFFF"
-                                         Foreground="#F0FFFFFF"
-                                         BorderBrush="#30FFFFFF"
-                                         CornerRadius="5"
-                                         Padding="8,4"
-                                         Margin="0,0,0,4" />
+                                    <TextBox x:Name="LauncherTargetInput"
+                                             Grid.Row="1"
+                                             PlaceholderText="https://… or file/folder path"
+                                             FontSize="12"
+                                             Height="34"
+                                             Padding="10,0"
+                                             VerticalContentAlignment="Center"
+                                             Background="#14FFFFFF"
+                                             Foreground="#F0FFFFFF"
+                                             BorderBrush="#26FFFFFF"
+                                             CornerRadius="8" />
 
-                                <CheckBox x:Name="LauncherUseAppIconCheck"
-                                          Grid.Row="3"
-                                          Content="Use the site's or app's own icon"
-                                          IsChecked="True"
-                                          FontSize="10"
-                                          Foreground="#C0FFFFFF"
-                                          Margin="0,0,0,6" />
+                                    <TextBox x:Name="LauncherNameInput"
+                                             Grid.Row="2"
+                                             PlaceholderText="Name (optional)"
+                                             FontSize="12"
+                                             Height="34"
+                                             Padding="10,0"
+                                             VerticalContentAlignment="Center"
+                                             Background="#14FFFFFF"
+                                             Foreground="#F0FFFFFF"
+                                             BorderBrush="#26FFFFFF"
+                                             CornerRadius="8" />
 
-                                <StackPanel Grid.Row="4"
-                                            Orientation="Horizontal"
-                                            HorizontalAlignment="Right"
-                                            Spacing="6">
-                                    <Button Content="Cancel"
-                                            FontSize="11"
-                                            Padding="10,3"
-                                            CornerRadius="5"
-                                            Style="{StaticResource TabButtonStyle}"
-                                            Click="LauncherAddCancel_Click" />
-                                    <Button x:Name="LauncherAddConfirmBtn"
-                                            Content="Add"
-                                            FontSize="11"
-                                            Padding="14,3"
-                                            CornerRadius="5"
-                                            Background="#60CDFF"
-                                            Foreground="#000000"
-                                            FontWeight="SemiBold"
-                                            Click="LauncherAddConfirm_Click" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                                    <CheckBox x:Name="LauncherUseAppIconCheck"
+                                              Grid.Row="3"
+                                              Content="Use the site's or app's own icon"
+                                              IsChecked="True"
+                                              FontSize="11"
+                                              Foreground="#C0FFFFFF"
+                                              Margin="0,2,0,0" />
+
+                                    <StackPanel Grid.Row="4"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Spacing="8"
+                                                Margin="0,6,0,0">
+                                        <Button Content="Cancel"
+                                                Width="78" Height="32"
+                                                FontSize="11"
+                                                CornerRadius="8"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                Click="LauncherAddCancel_Click" />
+                                        <Button x:Name="LauncherAddConfirmBtn"
+                                                Content="Add"
+                                                Width="78" Height="32"
+                                                FontSize="11"
+                                                CornerRadius="8"
+                                                Background="#60CDFF"
+                                                Foreground="#000000"
+                                                FontWeight="SemiBold"
+                                                Click="LauncherAddConfirm_Click" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
                         </Grid>
 
                     <!-- Clipboard tab -->
