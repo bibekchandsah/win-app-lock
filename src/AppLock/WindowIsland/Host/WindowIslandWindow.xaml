@@ -50,6 +50,47 @@
                 <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
 
+            <!-- Media play/pause: a white disc that stays white on hover. The stock button
+                 template swaps in the theme's hover brush, which turned the disc dark and
+                 swallowed the black glyph. -->
+            <Style x:Key="MediaPlayButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="#F2FFFFFF" />
+                <Setter Property="Foreground" Value="#101010" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="CornerRadius" Value="19" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Disc"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{TemplateBinding CornerRadius}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Content}" />
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Disc.Opacity" Value="0.88" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Disc.Opacity" Value="0.72" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- Home tiles: same look as a tab button, but they fill their cell and hold two lines
                  of text (label plus a live reading), so the fixed 32 px height of a tab would clip. -->
             <Style x:Key="TileButtonStyle" TargetType="Button" BasedOn="{StaticResource TabButtonStyle}">
@@ -682,10 +723,7 @@
                                                         <Button x:Name="MediaPlayPause"
                                                                 Click="MediaPlayPause_Click"
                                                                 Width="38" Height="38"
-                                                                Padding="0"
-                                                                CornerRadius="19"
-                                                                Background="#F2FFFFFF"
-                                                                BorderThickness="0"
+                                                        Style="{StaticResource MediaPlayButtonStyle}"
                                                                 ToolTipService.ToolTip="Play / Pause">
                                                             <FontIcon x:Name="MediaPlayPauseIcon"
                                                                       Glyph="&#xE768;"
