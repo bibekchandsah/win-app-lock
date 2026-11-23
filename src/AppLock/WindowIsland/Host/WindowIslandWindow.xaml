@@ -1723,51 +1723,124 @@
                             </Grid>
                         </Border>
 
-                        <!-- In-island Add Custom Site Overlay -->
-                        <Border x:Name="ChatAddOverlay"
-                                Grid.RowSpan="2"
-                                Background="#E6181920"
-                                BorderBrush="#35FFFFFF"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16"
-                                Visibility="Collapsed">
-                            <StackPanel VerticalAlignment="Center"
-                                        HorizontalAlignment="Center"
-                                        Width="300"
-                                        Spacing="10">
-                                <TextBlock Text="Add Custom AI Site"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="#FFFFFFFF" />
-                                <TextBox x:Name="ChatNewNameBox"
-                                         Header="Site Name"
-                                         PlaceholderText="e.g. DeepSeek, Perplexity"
-                                         FontSize="12" />
-                                <TextBox x:Name="ChatNewUrlBox"
-                                         Header="HTTPS URL"
-                                         PlaceholderText="https://..."
-                                         FontSize="12" />
-                                <TextBlock x:Name="ChatAddErrorText"
-                                           Foreground="#FFFF6B6B"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Visibility="Collapsed" />
-                                <StackPanel Orientation="Horizontal"
-                                            HorizontalAlignment="Right"
-                                            Spacing="8"
-                                            Margin="0,6,0,0">
-                                    <Button Content="Cancel"
-                                            Click="ChatCancelAdd_Click"
-                                            FontSize="12"
-                                            Padding="12,4" />
-                                    <Button Content="Add"
-                                            Click="ChatConfirmAdd_Click"
-                                            FontSize="12"
-                                            Padding="16,4" />
+                        <!-- In-island Add / Edit Custom Site Overlay -->
+                        <Grid x:Name="ChatAddOverlay"
+                              Grid.RowSpan="2"
+                              Background="#CC0B0D11"
+                              CornerRadius="8"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch">
+                            <Border Background="#FF1E2128"
+                                    BorderBrush="#38FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="20,16"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Width="340">
+                                <StackPanel Spacing="12">
+                                    <!-- Header Row -->
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8BD;" FontSize="13" Foreground="#60CDFF" />
+                                            <TextBlock x:Name="ChatAddTitleText"
+                                                       Text="Add Custom AI Site"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#FFFFFFFF" />
+                                        </StackPanel>
+                                        <Button x:Name="ChatAddCloseBtn"
+                                                HorizontalAlignment="Right"
+                                                Width="24" Height="24" Padding="0"
+                                                CornerRadius="12"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                Click="ChatCancelAdd_Click"
+                                                ToolTipService.ToolTip="Close (Esc)">
+                                            <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="#A0FFFFFF" />
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Fields Stack -->
+                                    <StackPanel Spacing="10">
+                                        <!-- Site Name -->
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="Site Name"
+                                                       FontSize="11"
+                                                       FontWeight="Medium"
+                                                       Foreground="#B0FFFFFF" />
+                                            <TextBox x:Name="ChatNewNameBox"
+                                                     PlaceholderText="e.g. DeepSeek, Perplexity, Claude"
+                                                     FontSize="12"
+                                                     Height="32"
+                                                     Padding="10,6,10,6"
+                                                     CornerRadius="6"
+                                                     Background="#20FFFFFF"
+                                                     BorderBrush="#30FFFFFF"
+                                                     Foreground="#FFFFFFFF"
+                                                     KeyDown="ChatBox_KeyDown" />
+                                        </StackPanel>
+
+                                        <!-- HTTPS URL -->
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="HTTPS URL"
+                                                       FontSize="11"
+                                                       FontWeight="Medium"
+                                                       Foreground="#B0FFFFFF" />
+                                            <TextBox x:Name="ChatNewUrlBox"
+                                                     PlaceholderText="https://..."
+                                                     FontSize="12"
+                                                     Height="32"
+                                                     Padding="10,6,10,6"
+                                                     CornerRadius="6"
+                                                     Background="#20FFFFFF"
+                                                     BorderBrush="#30FFFFFF"
+                                                     Foreground="#FFFFFFFF"
+                                                     KeyDown="ChatBox_KeyDown" />
+                                        </StackPanel>
+
+                                        <!-- Error Text -->
+                                        <TextBlock x:Name="ChatAddErrorText"
+                                                   Foreground="#FFFF6B6B"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="Collapsed" />
+                                    </StackPanel>
+
+                                    <!-- Action Buttons -->
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Spacing="8"
+                                                Margin="0,4,0,0">
+                                        <Button Content="Cancel"
+                                                Click="ChatCancelAdd_Click"
+                                                FontSize="11"
+                                                Height="28"
+                                                Padding="14,2"
+                                                CornerRadius="14"
+                                                Background="#14FFFFFF"
+                                                BorderBrush="#25FFFFFF"
+                                                BorderThickness="1"
+                                                Foreground="#D0FFFFFF" />
+                                        <Button x:Name="ChatConfirmAddBtn"
+                                                Click="ChatConfirmAdd_Click"
+                                                Height="28"
+                                                Padding="18,2"
+                                                CornerRadius="14"
+                                                Background="#60CDFF"
+                                                BorderBrush="#60CDFF"
+                                                BorderThickness="1"
+                                                Foreground="#FF101216">
+                                            <TextBlock x:Name="ChatConfirmAddBtnText"
+                                                       Text="Add"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold" />
+                                        </Button>
+                                    </StackPanel>
                                 </StackPanel>
-                            </StackPanel>
-                        </Border>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- Note & Timer tab -->

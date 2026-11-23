@@ -127,6 +127,39 @@ public sealed class M13_ChatTests
     }
 
     [Fact]
+    public void UpdateChatSite_UpdatesNameAndUrlSuccessfully()
+    {
+        var settings = new WindowIslandSettings();
+        // Add a custom 4th site
+        Assert.True(WindowIslandChatManager.AddChatSite(settings, "CustomBot", "https://custom.ai"));
+        int customIndex = settings.ChatSites.Count - 1;
+
+        // Update the site
+        bool updated = WindowIslandChatManager.UpdateChatSite(settings, customIndex, "Perplexity AI", "https://perplexity.ai");
+        Assert.True(updated);
+        Assert.Equal("Perplexity AI", settings.ChatSites[customIndex].Name);
+        Assert.Equal("https://perplexity.ai/", settings.ChatSites[customIndex].Url);
+    }
+
+    [Fact]
+    public void UpdateChatSite_RejectsInvalidUrlOrEmptyName()
+    {
+        var settings = new WindowIslandSettings();
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, 0, "", "https://valid.com"));
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, 0, "   ", "https://valid.com"));
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, 0, "Name", "not_a_url"));
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, 0, "Name", "ftp://unsupported.com"));
+    }
+
+    [Fact]
+    public void UpdateChatSite_RejectsOutOfBoundsIndex()
+    {
+        var settings = new WindowIslandSettings();
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, -1, "Name", "https://valid.com"));
+        Assert.False(WindowIslandChatManager.UpdateChatSite(settings, 99, "Name", "https://valid.com"));
+    }
+
+    [Fact]
     public void RemoveChatSite_RemovesSiteSuccessfully()
     {
         var settings = new WindowIslandSettings();

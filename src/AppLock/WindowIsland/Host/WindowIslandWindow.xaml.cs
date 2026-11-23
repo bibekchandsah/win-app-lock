@@ -569,6 +569,12 @@ public sealed partial class WindowIslandWindow : Window
         }
         else if (_previousTab == 4)
         {
+            if (ChatAddOverlay != null)
+            {
+                ChatAddOverlay.Visibility = Visibility.Collapsed;
+                _editingChatIndex = -1;
+                if (ChatWebViewHost != null) ChatWebViewHost.Visibility = Visibility.Visible;
+            }
             SuspendChatWebView();
             StartChatIdleTimer();
         }
@@ -807,6 +813,12 @@ public sealed partial class WindowIslandWindow : Window
                 if (TextQrOverlay != null && TextQrOverlay.Visibility == Visibility.Visible)
                 {
                     TextQrOverlay.Visibility = Visibility.Collapsed;
+                    e.Handled = true;
+                    break;
+                }
+                if (ChatAddOverlay != null && ChatAddOverlay.Visibility == Visibility.Visible)
+                {
+                    ChatCancelAdd_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
                 }
@@ -3868,19 +3880,36 @@ public sealed partial class WindowIslandWindow : Window
             btn.Content = sp;
             btn.Click += (_, _) => SelectChatSite(index);
 
-            // Context menu to delete custom sites (keep at least 1 site)
-            if (sites.Count > 1 && i >= 3)
+            // Context menu to edit or delete custom sites (sites at index >= 3)
+            if (i >= 3)
             {
                 var flyout = new MenuFlyout();
-                var delItem = new MenuFlyoutItem { Text = $"Remove {site.Name}", Icon = new FontIcon { Glyph = "\uE74D" } };
-                delItem.Click += (_, _) =>
+
+                var editItem = new MenuFlyoutItem
                 {
-                    WindowIslandChatManager.RemoveChatSite(_settings, index);
-                    ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
-                    RenderChatSubTabs();
-                    _ = EnsureChatWebViewAsync();
+                    Text = $"Edit {site.Name}",
+                    Icon = new FontIcon { Glyph = "\uE70F" }
                 };
-                flyout.Items.Add(delItem);
+                editItem.Click += (_, _) => ShowEditChatSiteOverlay(index);
+                flyout.Items.Add(editItem);
+
+                if (sites.Count > 1)
+                {
+                    var delItem = new MenuFlyoutItem
+                    {
+                        Text = $"Remove {site.Name}",
+                        Icon = new FontIcon { Glyph = "\uE74D" }
+                    };
+                    delItem.Click += (_, _) =>
+                    {
+                        WindowIslandChatManager.RemoveChatSite(_settings, index);
+                        ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                        RenderChatSubTabs();
+                        _ = EnsureChatWebViewAsync();
+                    };
+                    flyout.Items.Add(delItem);
+                }
+
                 btn.ContextFlyout = flyout;
             }
 
@@ -4043,27 +4072,99 @@ public sealed partial class WindowIslandWindow : Window
         _chatIdleTimer?.Stop();
     }
 
+    private int _editingChatIndex = -1;
+
     private void ChatAddBtn_Click(object sender, RoutedEventArgs e)
     {
+        _editingChatIndex = -1;
+        ChatAddTitleText.Text = "Add Custom AI Site";
+        ChatConfirmAddBtnText.Text = "Add";
         ChatNewNameBox.Text = string.Empty;
         ChatNewUrlBox.Text = string.Empty;
         ChatAddErrorText.Visibility = Visibility.Collapsed;
+
+        if (ChatWebViewHost != null)
+        {
+            ChatWebViewHost.Visibility = Visibility.Collapsed;
+        }
+
         ChatAddOverlay.Visibility = Visibility.Visible;
+        DispatcherQueue.TryEnqueue(() => ChatNewNameBox?.Focus(FocusState.Programmatic));
+    }
+
+    private void ShowEditChatSiteOverlay(int index)
+    {
+        if (_settings?.ChatSites == null || index < 0 || index >= _settings.ChatSites.Count) return;
+        var site = _settings.ChatSites[index];
+
+        _editingChatIndex = index;
+        ChatAddTitleText.Text = "Edit Custom AI Site";
+        ChatConfirmAddBtnText.Text = "Save";
+        ChatNewNameBox.Text = site.Name;
+        ChatNewUrlBox.Text = site.Url;
+        ChatAddErrorText.Visibility = Visibility.Collapsed;
+
+        if (ChatWebViewHost != null)
+        {
+            ChatWebViewHost.Visibility = Visibility.Collapsed;
+        }
+
+        ChatAddOverlay.Visibility = Visibility.Visible;
+        DispatcherQueue.TryEnqueue(() => ChatNewNameBox?.Focus(FocusState.Programmatic));
     }
 
     private void ChatCancelAdd_Click(object sender, RoutedEventArgs e)
     {
         ChatAddOverlay.Visibility = Visibility.Collapsed;
+        _editingChatIndex = -1;
+        if (ChatWebViewHost != null)
+        {
+            ChatWebViewHost.Visibility = Visibility.Visible;
+        }
     }
 
     private void ChatConfirmAdd_Click(object sender, RoutedEventArgs e)
     {
         string name = ChatNewNameBox.Text.Trim();
         string url = ChatNewUrlBox.Text.Trim();
+
+        if (_editingChatIndex >= 0)
+        {
+            if (WindowIslandChatManager.UpdateChatSite(_settings, _editingChatIndex, name, url))
+            {
+                int editedIndex = _editingChatIndex;
+                _editingChatIndex = -1;
+                ChatAddOverlay.Visibility = Visibility.Collapsed;
+                if (ChatWebViewHost != null)
+                {
+                    ChatWebViewHost.Visibility = Visibility.Visible;
+                }
+                ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+
+                if (_settings.ActiveChatIndex == editedIndex)
+                {
+                    _chatLastNavigatedUrl = null; // force reload to the updated URL
+                }
+
+                RenderChatSubTabs();
+                _ = EnsureChatWebViewAsync();
+            }
+            else
+            {
+                ChatAddErrorText.Text = "Invalid site name or URL (must be valid http/https).";
+                ChatAddErrorText.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
         if (WindowIslandChatManager.AddChatSite(_settings, name, url))
         {
             _settings.ActiveChatIndex = _settings.ChatSites.Count - 1;
             ChatAddOverlay.Visibility = Visibility.Collapsed;
+            if (ChatWebViewHost != null)
+            {
+                ChatWebViewHost.Visibility = Visibility.Visible;
+            }
             ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
             RenderChatSubTabs();
             _ = EnsureChatWebViewAsync();
@@ -4072,6 +4173,20 @@ public sealed partial class WindowIslandWindow : Window
         {
             ChatAddErrorText.Text = "Invalid site name/URL, or max 6 sites reached.";
             ChatAddErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ChatBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            ChatConfirmAdd_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            ChatCancelAdd_Click(sender, e);
+            e.Handled = true;
         }
     }
 

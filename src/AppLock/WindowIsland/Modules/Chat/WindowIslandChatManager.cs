@@ -97,6 +97,22 @@ public static class WindowIslandChatManager
     }
 
     /// <summary>
+    /// Updates an existing chat site at the specified index.
+    /// </summary>
+    public static bool UpdateChatSite(WindowIslandSettings settings, int index, string name, string url)
+    {
+        if (settings == null || settings.ChatSites == null) return false;
+        if (index < 0 || index >= settings.ChatSites.Count) return false;
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (!IsValidUrl(url, out var uri) || uri == null) return false;
+
+        var existing = settings.ChatSites[index];
+        existing.Name = name.Trim();
+        existing.Url = uri.ToString();
+        return true;
+    }
+
+    /// <summary>
     /// Removes a chat site at the specified index, ensuring at least one site remains.
     /// </summary>
     public static bool RemoveChatSite(WindowIslandSettings settings, int index)
