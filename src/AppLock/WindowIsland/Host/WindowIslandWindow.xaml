@@ -559,7 +559,7 @@
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Controls">
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <FontIcon x:Name="TabControlsIcon" Glyph="&#xE713;" FontSize="13" />
+                                <FontIcon x:Name="TabControlsIcon" Glyph="&#xE9E9;" FontSize="13" />
                                 <TextBlock x:Name="TabControlsText" Text="Controls" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
                             </StackPanel>
                         </Button>

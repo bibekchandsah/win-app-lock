@@ -434,16 +434,22 @@ fixed - in night duration also it shows blue card instead of dark night card in 
 fixed - change the weather tab icon to cloud and sun combined icon
 fixed - scrolling or trackpad guesture of scrolling in left card should change the saved multiple address in loop
 show the circle dots in left card on the right side so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
+don't show accent color effect in weather left side card instead of it add multiple card theme for sunshine, raining, cloudy, thunderstrom, wind, morining, evening, sunrise, sunset, snow, fog and according to weather.
+
+
+fixed - in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
+fixed - confirm before deleting note 
+fixed - use window accent color instead of hardcoded blue color 
+fixed - user is unable to delete remainder
+fixed - add support of bold, italic, underline, strike, list, numbered list, check list, mark with colors
+fixed - allow user to add custom timer in remainder
+show ring in island too during timer 
+text in center of custom time in timer and remainder input 
+improve check list it's not toggled now 
 
 
 
-in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
-confirm before deleting note 
-allow user to add custom timer in remainder
-use window accent color instead of hardcoded blue color 
-user is unable to delete remainder
-add support of bold, italic, underline, strike, list, numbered list, check list, mark with colors
-
+fixed - change control tab icon 
 in controls tab add support of wifi list and bluetooth list
 add the card for showing battery of bluetooths connected devices 
 
@@ -453,11 +459,10 @@ command: ms-settings:defaultapps
 card name: startup apps
 command: ms-settings:startupapps
 
-move brightness bar to the bottom 
+move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
+move "lock, sleep, restart, shut down" to the bottom
 
-
-
-change control tab icon 
+add height adjust in right end side of AI Chat so that user can increase or decrease dynamically
 use accent color in all tabs 
 add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
 user can add multiple search like @command and url for example 
