@@ -433,6 +433,8 @@ fixed - also show the current time and date of selected cities
 fixed - in night duration also it shows blue card instead of dark night card in left side 
 fixed - change the weather tab icon to cloud and sun combined icon
 fixed - scrolling or trackpad guesture of scrolling in left card should change the saved multiple address in loop
+show the circle dots in left card on the right side so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
+
 
 
 in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
@@ -444,7 +446,16 @@ add support of bold, italic, underline, strike, list, numbered list, check list,
 
 in controls tab add support of wifi list and bluetooth list
 add the card for showing battery of bluetooths connected devices 
-lock screen, show/hide desktop, task view, calculator, custom card 
+
+lock screen, show/hide desktop, task view, calculator, custom card like :
+card name: Default apps 
+command: ms-settings:defaultapps
+card name: startup apps
+command: ms-settings:startupapps
+
+move brightness bar to the bottom 
+
+
 
 change control tab icon 
 use accent color in all tabs 

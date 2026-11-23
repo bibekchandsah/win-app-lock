@@ -583,6 +583,11 @@ public sealed partial class WindowIslandWindow : Window
             RefreshNotesUI();
             RefreshRemindersUI();
         }
+        else
+        {
+            ResetNoteDeleteBtnUI();
+            if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
+        }
         if (_activeTab == 6)
         {
             RefreshWeatherUI();
@@ -2954,6 +2959,7 @@ public sealed partial class WindowIslandWindow : Window
             _activeNoteId = notes[0].Id;
         }
 
+        var accent = GetSystemAccentColor();
         foreach (var note in notes)
         {
             bool isAct = (note.Id == _activeNoteId);
@@ -2964,10 +2970,10 @@ public sealed partial class WindowIslandWindow : Window
                 Padding = new Thickness(8, 2, 8, 2),
                 CornerRadius = new CornerRadius(4),
                 Background = isAct
-                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(50, 96, 205, 255))
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(50, accent.R, accent.G, accent.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)),
                 Foreground = isAct
-                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 205, 255))
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, accent.R, accent.G, accent.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
                 Tag = note.Id
             };
@@ -2990,7 +2996,62 @@ public sealed partial class WindowIslandWindow : Window
 
     private void NoteAddBtn_Click(object sender, RoutedEventArgs e)
     {
-        var note = _notesStore?.CreateNote();
+        if (NoteNewTitleOverlay != null)
+        {
+            int nextIndex = (_notesStore?.Notes.Count ?? 0) + 1;
+            NoteNewTitleBox.Text = $"Note {nextIndex}";
+            NoteNewTitleOverlay.Visibility = Visibility.Visible;
+            NoteNewTitleBox.Focus(FocusState.Programmatic);
+            NoteNewTitleBox.SelectAll();
+        }
+        else
+        {
+            var note = _notesStore?.CreateNote();
+            if (note != null)
+            {
+                _activeNoteId = note.Id;
+                RefreshNotesUI();
+                NoteContentBox.Focus(FocusState.Programmatic);
+            }
+        }
+    }
+
+    private void NoteNewTitleCancel_Click(object sender, RoutedEventArgs e)
+    {
+        if (NoteNewTitleOverlay != null)
+        {
+            NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void NoteNewTitleCreate_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitNewNoteTitle();
+    }
+
+    private void NoteNewTitleBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            SubmitNewNoteTitle();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
+            e.Handled = true;
+        }
+    }
+
+    private void SubmitNewNoteTitle()
+    {
+        string title = NoteNewTitleBox.Text.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            title = $"Note {(_notesStore?.Notes.Count ?? 0) + 1}";
+        }
+        if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
+        var note = _notesStore?.CreateNote(title);
         if (note != null)
         {
             _activeNoteId = note.Id;
@@ -3010,18 +3071,237 @@ public sealed partial class WindowIslandWindow : Window
         catch { }
     }
 
+    private bool _noteDeleteConfirming;
+    private DQTimer? _noteDeleteTimer;
+
+    private void ResetNoteDeleteBtnUI()
+    {
+        _noteDeleteConfirming = false;
+        _noteDeleteTimer?.Stop();
+        if (NoteDeleteBtn != null)
+        {
+            NoteDeleteBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 11, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)) };
+            ToolTipService.SetToolTip(NoteDeleteBtn, "Delete current note");
+        }
+    }
+
     private void NoteDeleteBtn_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_activeNoteId)) return;
-        _notesStore?.DeleteNote(_activeNoteId);
-        _activeNoteId = null;
-        RefreshNotesUI();
+
+        if (_noteDeleteConfirming)
+        {
+            ResetNoteDeleteBtnUI();
+            _notesStore?.DeleteNote(_activeNoteId);
+            _activeNoteId = null;
+            RefreshNotesUI();
+            return;
+        }
+
+        _noteDeleteConfirming = true;
+        NoteDeleteBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 11, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 99, 71)) };
+        ToolTipService.SetToolTip(NoteDeleteBtn, "Click again to confirm deletion");
+
+        _noteDeleteTimer?.Stop();
+        _noteDeleteTimer = DispatcherQueue.CreateTimer();
+        _noteDeleteTimer.Interval = TimeSpan.FromSeconds(3.5);
+        _noteDeleteTimer.Tick += (_, _) => ResetNoteDeleteBtnUI();
+        _noteDeleteTimer.Start();
     }
 
     private void NoteContentBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId)) return;
         _notesStore?.UpdateNote(_activeNoteId, NoteContentBox.Text);
+    }
+
+    // ── Formatting toolbar handlers ──────────────────────────────────────────
+
+    private void NoteFmtBold_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("**", "**");
+    private void NoteFmtItalic_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("*", "*");
+    private void NoteFmtUnderline_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("<u>", "</u>");
+    private void NoteFmtStrike_Click(object sender, RoutedEventArgs e) => WrapSelectedNoteText("~~", "~~");
+
+    private void NoteFmtBullet_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyLinePrefix((line, _) =>
+        {
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("- "))
+            {
+                int idx = line.IndexOf("- ");
+                return line.Remove(idx, 2);
+            }
+            return "- " + line;
+        });
+    }
+
+    private void NoteFmtNumbered_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyLinePrefix((line, index) =>
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\s*\d+\.\s*");
+            if (match.Success)
+            {
+                return line.Substring(match.Length);
+            }
+            return $"{index + 1}. " + line;
+        });
+    }
+
+    private void NoteFmtChecklist_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyLinePrefix((line, _) =>
+        {
+            if (line.Contains("- [ ] "))
+            {
+                return line.Replace("- [ ] ", "- [x] ");
+            }
+            if (line.Contains("- [x] "))
+            {
+                return line.Replace("- [x] ", "");
+            }
+            return "- [ ] " + line;
+        });
+    }
+
+    private void NoteFmtColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is string colorHex)
+        {
+            WrapSelectedNoteText($"<mark bg=\"{colorHex}\">", "</mark>");
+        }
+    }
+
+    private void WrapSelectedNoteText(string prefix, string suffix)
+    {
+        int selStart = NoteContentBox.SelectionStart;
+        int selLen = NoteContentBox.SelectionLength;
+        string text = NoteContentBox.Text ?? string.Empty;
+
+        if (selLen > 0)
+        {
+            string selText = text.Substring(selStart, selLen);
+            if (selText.StartsWith(prefix) && selText.EndsWith(suffix) && selText.Length >= prefix.Length + suffix.Length)
+            {
+                string unwrapped = selText.Substring(prefix.Length, selText.Length - prefix.Length - suffix.Length);
+                NoteContentBox.Text = text.Remove(selStart, selLen).Insert(selStart, unwrapped);
+                NoteContentBox.Select(selStart, unwrapped.Length);
+            }
+            else
+            {
+                string wrapped = prefix + selText + suffix;
+                NoteContentBox.Text = text.Remove(selStart, selLen).Insert(selStart, wrapped);
+                NoteContentBox.Select(selStart, wrapped.Length);
+            }
+        }
+        else
+        {
+            NoteContentBox.Text = text.Insert(selStart, prefix + suffix);
+            NoteContentBox.Select(selStart + prefix.Length, 0);
+        }
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
+
+    private void ApplyLinePrefix(Func<string, int, string> transformLine)
+    {
+        string text = NoteContentBox.Text ?? string.Empty;
+        int selStart = NoteContentBox.SelectionStart;
+        int selLen = NoteContentBox.SelectionLength;
+
+        int lineStart = text.LastIndexOf('\n', Math.Max(0, selStart - 1));
+        lineStart = (lineStart == -1) ? 0 : lineStart + 1;
+
+        int lineEnd = (selStart + selLen < text.Length) ? text.IndexOf('\n', selStart + selLen) : text.Length;
+        if (lineEnd == -1) lineEnd = text.Length;
+
+        string block = text.Substring(lineStart, lineEnd - lineStart);
+        var lines = block.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            lines[i] = transformLine(lines[i], i);
+        }
+        string newBlock = string.Join("\n", lines);
+        NoteContentBox.Text = text.Remove(lineStart, lineEnd - lineStart).Insert(lineStart, newBlock);
+        NoteContentBox.Select(lineStart, newBlock.Length);
+        NoteContentBox.Focus(FocusState.Programmatic);
+    }
+
+    private void NoteContentBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        bool isCtrl = ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        if (isCtrl && e.Key == Windows.System.VirtualKey.B)
+        {
+            WrapSelectedNoteText("**", "**");
+            e.Handled = true;
+        }
+        else if (isCtrl && e.Key == Windows.System.VirtualKey.I)
+        {
+            WrapSelectedNoteText("*", "*");
+            e.Handled = true;
+        }
+        else if (isCtrl && e.Key == Windows.System.VirtualKey.U)
+        {
+            WrapSelectedNoteText("<u>", "</u>");
+            e.Handled = true;
+        }
+        else if (isCtrl && (e.Key == Windows.System.VirtualKey.X || e.Key == Windows.System.VirtualKey.S))
+        {
+            var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
+            if (shift.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+            {
+                WrapSelectedNoteText("~~", "~~");
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            string text = NoteContentBox.Text ?? string.Empty;
+            int selStart = NoteContentBox.SelectionStart;
+            int lineStart = text.LastIndexOf('\n', Math.Max(0, selStart - 1));
+            lineStart = (lineStart == -1) ? 0 : lineStart + 1;
+            string currentLine = text.Substring(lineStart, selStart - lineStart);
+
+            if (currentLine.Trim() == "- [ ]" || currentLine.Trim() == "- [x]" || currentLine.Trim() == "-")
+            {
+                NoteContentBox.Text = text.Remove(lineStart, selStart - lineStart);
+                NoteContentBox.Select(lineStart, 0);
+                e.Handled = true;
+            }
+            else if (currentLine.StartsWith("- [ ] ") || currentLine.StartsWith("- [x] "))
+            {
+                NoteContentBox.Text = text.Insert(selStart, "\n- [ ] ");
+                NoteContentBox.Select(selStart + 7, 0);
+                e.Handled = true;
+            }
+            else if (currentLine.StartsWith("- "))
+            {
+                NoteContentBox.Text = text.Insert(selStart, "\n- ");
+                NoteContentBox.Select(selStart + 3, 0);
+                e.Handled = true;
+            }
+            else
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(currentLine, @"^(\d+)\.\s");
+                if (match.Success)
+                {
+                    if (currentLine.Trim() == match.Value.Trim())
+                    {
+                        NoteContentBox.Text = text.Remove(lineStart, selStart - lineStart);
+                        NoteContentBox.Select(lineStart, 0);
+                    }
+                    else if (int.TryParse(match.Groups[1].Value, out int num))
+                    {
+                        string nextNumStr = $"\n{num + 1}. ";
+                        NoteContentBox.Text = text.Insert(selStart, nextNumStr);
+                        NoteContentBox.Select(selStart + nextNumStr.Length, 0);
+                    }
+                    e.Handled = true;
+                }
+            }
+        }
     }
 
     // ── Timer UI ──────────────────────────────────────────────────────────────
@@ -3048,12 +3328,14 @@ public sealed partial class WindowIslandWindow : Window
         UpdateFoldedWeatherMini();
         TimerStartBtn.Content = "Start";
 
+        var accent = GetSystemAccentColor();
+        string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "timer",
             Icon: "\uE916",
             Title: "Timer finished",
             Detail: "Time's up!",
-            AccentHex: "#60CDFF",
+            AccentHex: accentHex,
             Priority: WindowIslandCardPriority.ReminderTimer,
             StayMs: 6000));
 
@@ -3068,6 +3350,34 @@ public sealed partial class WindowIslandWindow : Window
             TimerStartBtn.Content = "Pause";
         }
     }
+
+    private void TimerCustomSetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitCustomTimer();
+    }
+
+    private void TimerCustomInput_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            SubmitCustomTimer();
+            e.Handled = true;
+        }
+    }
+
+    private void SubmitCustomTimer()
+    {
+        string input = TimerCustomInput.Text.Trim();
+        if (TryParseDuration(input, out TimeSpan duration) && duration > TimeSpan.Zero)
+        {
+            _timer?.Start(duration);
+            TimerStartBtn.Content = "Pause";
+            TimerCustomInput.Text = string.Empty;
+        }
+    }
+
+    public static bool TryParseDuration(string? input, out TimeSpan duration)
+        => WindowIslandDurationParser.TryParse(input, out duration);
 
     private void TimerStartBtn_Click(object sender, RoutedEventArgs e)
     {
@@ -3170,7 +3480,9 @@ public sealed partial class WindowIslandWindow : Window
         Grid.SetColumn(stack, 1);
         grid.Children.Add(stack);
 
-        // Complete ✓ button
+        // Actions: Complete ✓ and Delete ✕
+        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+
         var doneBtn = new Button
         {
             Content = new FontIcon { Glyph = "\uE73E", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 108, 203, 95)) },
@@ -3181,8 +3493,22 @@ public sealed partial class WindowIslandWindow : Window
         };
         ToolTipService.SetToolTip(doneBtn, "Mark completed");
         doneBtn.Click += (_, _) => _reminderStore?.Complete(rem.Id);
-        Grid.SetColumn(doneBtn, 2);
-        grid.Children.Add(doneBtn);
+        btnPanel.Children.Add(doneBtn);
+
+        var delBtn = new Button
+        {
+            Content = new FontIcon { Glyph = "\uE74D", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 100, 100)) },
+            Style = (Style)RootGrid.Resources["TabButtonStyle"],
+            Width = 20, Height = 20,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTipService.SetToolTip(delBtn, "Delete reminder");
+        delBtn.Click += (_, _) => _reminderStore?.Delete(rem.Id);
+        btnPanel.Children.Add(delBtn);
+
+        Grid.SetColumn(btnPanel, 2);
+        grid.Children.Add(btnPanel);
 
         return grid;
     }
@@ -3443,8 +3769,9 @@ public sealed partial class WindowIslandWindow : Window
         };
         if (isDaytime)
         {
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x2B, 0x7C, 0xE9), Offset = 0.0 });
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x17, 0x43, 0x81), Offset = 1.0 });
+            var accent = GetSystemAccentColor();
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, accent.R, accent.G, accent.B), Offset = 0.0 });
+            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, (byte)(accent.R * 0.55), (byte)(accent.G * 0.55), (byte)(accent.B * 0.55)), Offset = 1.0 });
             WeatherHeroCard.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x35, 0xFF, 0xFF, 0xFF));
             WeatherConditionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xEB, 0x3B));
         }
@@ -4133,6 +4460,7 @@ public sealed partial class WindowIslandWindow : Window
             var site = sites[i];
             bool isActive = i == active;
 
+            var accent = GetSystemAccentColor();
             var btn = new Button
             {
                 Style = (Style)RootGrid.Resources["TabButtonStyle"],
@@ -4140,10 +4468,10 @@ public sealed partial class WindowIslandWindow : Window
                 Padding = new Thickness(8, 3, 8, 3),
                 CornerRadius = new CornerRadius(14),
                 Background = new SolidColorBrush(isActive
-                    ? ColorHelper.FromArgb(0x40, 0x60, 0xCD, 0xFF)
+                    ? ColorHelper.FromArgb(0x40, accent.R, accent.G, accent.B)
                     : ColorHelper.FromArgb(0x15, 0xFF, 0xFF, 0xFF)),
                 BorderBrush = new SolidColorBrush(isActive
-                    ? ColorHelper.FromArgb(0x80, 0x60, 0xCD, 0xFF)
+                    ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B)
                     : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
                 BorderThickness = new Thickness(1)
             };
@@ -4156,7 +4484,7 @@ public sealed partial class WindowIslandWindow : Window
                     Glyph = site.Icon,
                     FontSize = 11,
                     Foreground = new SolidColorBrush(isActive
-                        ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF)
+                        ? ColorHelper.FromArgb(0xFF, accent.R, accent.G, accent.B)
                         : ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF))
                 });
             }

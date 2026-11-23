@@ -1854,11 +1854,12 @@
                         <Grid Grid.Column="0" Margin="0,0,10,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" /> <!-- Note Tab Strip + actions -->
+                                <RowDefinition Height="Auto" /> <!-- Formatting toolbar -->
                                 <RowDefinition Height="*"    /> <!-- Text editor -->
                             </Grid.RowDefinitions>
 
                             <!-- Note headers + tools -->
-                            <Grid Grid.Row="0" Margin="0,0,0,4">
+                            <Grid Grid.Row="0" Margin="0,0,0,3">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"    />
                                     <ColumnDefinition Width="Auto" />
@@ -1905,10 +1906,65 @@
                                 </StackPanel>
                             </Grid>
 
+                            <!-- Formatting Toolbar: Bold, Italic, Underline, Strike, Bullet, Numbered, Checklist, Color Highlighting -->
+                            <Border Grid.Row="1"
+                                    Background="#10FFFFFF"
+                                    BorderBrush="#18FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="4,2"
+                                    Margin="0,0,0,4">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <!-- Bold -->
+                                    <Button x:Name="NoteFmtBold" Click="NoteFmtBold_Click" ToolTipService.ToolTip="Bold (**text** or Ctrl+B)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <TextBlock Text="B" FontWeight="Bold" FontSize="11" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <!-- Italic -->
+                                    <Button x:Name="NoteFmtItalic" Click="NoteFmtItalic_Click" ToolTipService.ToolTip="Italic (*text* or Ctrl+I)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <TextBlock Text="I" FontStyle="Italic" FontFamily="Times New Roman" FontSize="11" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <!-- Underline -->
+                                    <Button x:Name="NoteFmtUnderline" Click="NoteFmtUnderline_Click" ToolTipService.ToolTip="Underline (&lt;u&gt;text&lt;/u&gt; or Ctrl+U)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <TextBlock Text="U" TextDecorations="Underline" FontSize="11" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <!-- Strikethrough -->
+                                    <Button x:Name="NoteFmtStrike" Click="NoteFmtStrike_Click" ToolTipService.ToolTip="Strikethrough (~~text~~ or Ctrl+Shift+X)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <TextBlock Text="S" TextDecorations="Strikethrough" FontSize="11" Foreground="#D0FFFFFF"/>
+                                    </Button>
+                                    <Border Width="1" Height="14" Background="#25FFFFFF" Margin="3,0" VerticalAlignment="Center"/>
+                                    <!-- Bullet list -->
+                                    <Button x:Name="NoteFmtBullet" Click="NoteFmtBullet_Click" ToolTipService.ToolTip="Bullet list (- item)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <FontIcon Glyph="&#xE8FD;" FontSize="11" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <!-- Numbered list -->
+                                    <Button x:Name="NoteFmtNumbered" Click="NoteFmtNumbered_Click" ToolTipService.ToolTip="Numbered list (1. item)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <TextBlock Text="1." FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <!-- Checklist -->
+                                    <Button x:Name="NoteFmtChecklist" Click="NoteFmtChecklist_Click" ToolTipService.ToolTip="Checklist (- [ ] task)" Style="{StaticResource TabButtonStyle}" Width="24" Height="22" Padding="0">
+                                        <FontIcon Glyph="&#xE73A;" FontSize="11" Foreground="#FFFFFFFF"/>
+                                    </Button>
+                                    <Border Width="1" Height="14" Background="#25FFFFFF" Margin="3,0" VerticalAlignment="Center"/>
+                                    <!-- Highlight Colors -->
+                                    <Button x:Name="NoteFmtColorYellow" Click="NoteFmtColor_Click" Tag="#FFE600" ToolTipService.ToolTip="Highlight Yellow" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
+                                        <Border Width="11" Height="11" CornerRadius="5.5" Background="#FFE600"/>
+                                    </Button>
+                                    <Button x:Name="NoteFmtColorGreen" Click="NoteFmtColor_Click" Tag="#4CAF50" ToolTipService.ToolTip="Highlight Green" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
+                                        <Border Width="11" Height="11" CornerRadius="5.5" Background="#4CAF50"/>
+                                    </Button>
+                                    <Button x:Name="NoteFmtColorPink" Click="NoteFmtColor_Click" Tag="#FF4081" ToolTipService.ToolTip="Highlight Pink" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
+                                        <Border Width="11" Height="11" CornerRadius="5.5" Background="#FF4081"/>
+                                    </Button>
+                                    <Button x:Name="NoteFmtColorCyan" Click="NoteFmtColor_Click" Tag="#00E5FF" ToolTipService.ToolTip="Highlight Cyan" Style="{StaticResource TabButtonStyle}" Width="18" Height="18" Padding="0">
+                                        <Border Width="11" Height="11" CornerRadius="5.5" Background="#00E5FF"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Multi-line text box -->
                             <TextBox x:Name="NoteContentBox"
-                                     Grid.Row="1"
-                                     PlaceholderText="Write anything here: an order number, a to-do list, a code snippet. It saves itself."
+                                     Grid.Row="2"
+                                     PlaceholderText="Write anything here: an order number, a to-do list, formatted notes. It saves itself."
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      FontSize="11"
@@ -1917,6 +1973,7 @@
                                      BorderBrush="#25FFFFFF"
                                      CornerRadius="6"
                                      Padding="8,6"
+                                     KeyDown="NoteContentBox_KeyDown"
                                      TextChanged="NoteContentBox_TextChanged" />
                         </Grid>
 
@@ -1936,7 +1993,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <FontIcon Glyph="&#xE916;" FontSize="11" Foreground="#60CDFF" />
+                                        <FontIcon Glyph="&#xE916;" FontSize="11" Foreground="{ThemeResource SystemAccentColor}" />
                                         <TextBlock Text="TIMER"
                                                    FontSize="9"
                                                    FontWeight="SemiBold"
@@ -1949,7 +2006,7 @@
                                                FontFamily="Consolas"
                                                FontWeight="SemiBold"
                                                FontSize="15"
-                                               Foreground="#60CDFF"
+                                               Foreground="{ThemeResource SystemAccentColor}"
                                                VerticalAlignment="Center" />
                                 </Grid>
 
@@ -1961,16 +2018,44 @@
                                     <Button Content="25m" FontSize="9" Padding="6,2" CornerRadius="4" Style="{StaticResource TabButtonStyle}" Click="TimerPreset_Click" Tag="25" />
                                 </StackPanel>
 
+                                <!-- Custom timer input row -->
+                                <Grid Margin="0,2,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TimerCustomInput"
+                                             PlaceholderText="Custom (e.g. 45m, 1h, 90s)..."
+                                             FontSize="9.5"
+                                             Height="24"
+                                             Padding="6,2"
+                                             Background="#15FFFFFF"
+                                             Foreground="#F0FFFFFF"
+                                             BorderBrush="#25FFFFFF"
+                                             CornerRadius="4"
+                                             KeyDown="TimerCustomInput_KeyDown" />
+                                    <Button Grid.Column="1"
+                                            x:Name="TimerCustomSetBtn"
+                                            Content="Set"
+                                            FontSize="9"
+                                            Height="24"
+                                            Padding="8,2"
+                                            Margin="3,0,0,0"
+                                            CornerRadius="4"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Click="TimerCustomSetBtn_Click" />
+                                </Grid>
+
                                 <!-- Timer control buttons -->
-                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,2,0,0">
                                     <Button x:Name="TimerStartBtn"
                                             Content="Start"
                                             FontSize="10"
                                             FontWeight="SemiBold"
                                             Padding="10,2"
                                             CornerRadius="4"
-                                            Background="#2560CDFF"
-                                            Foreground="#60CDFF"
+                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                            Foreground="White"
                                             Click="TimerStartBtn_Click" />
                                     <Button x:Name="TimerResetBtn"
                                             Content="Reset"
@@ -2023,6 +2108,50 @@
                                 </ScrollViewer>
                             </Grid>
                         </Grid>
+
+                        <!-- Modal Overlay: Enter New Note Title -->
+                        <Border x:Name="NoteNewTitleOverlay"
+                                Grid.ColumnSpan="2"
+                                Visibility="Collapsed"
+                                Background="#EE14171E"
+                                BorderBrush="#35FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="16,14"
+                                Width="260"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="New Note" FontWeight="SemiBold" FontSize="13" Foreground="#FFFFFFFF"/>
+                                <TextBox x:Name="NoteNewTitleBox"
+                                         PlaceholderText="Enter note title..."
+                                         FontSize="12"
+                                         Height="32"
+                                         Padding="8,4"
+                                         Background="#20FFFFFF"
+                                         Foreground="#FFFFFFFF"
+                                         BorderBrush="#30FFFFFF"
+                                         CornerRadius="6"
+                                         KeyDown="NoteNewTitleBox_KeyDown"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                                    <Button Content="Cancel"
+                                            Click="NoteNewTitleCancel_Click"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            FontSize="11"
+                                            Padding="10,4"
+                                            CornerRadius="5"/>
+                                    <Button x:Name="NoteNewTitleCreateBtn"
+                                            Content="Create"
+                                            Click="NoteNewTitleCreate_Click"
+                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                            Foreground="White"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Padding="14,4"
+                                            CornerRadius="5"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
                     <!-- ═══════════════════════════════════════════════════════════
