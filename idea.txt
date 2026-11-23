@@ -462,6 +462,7 @@ command: ms-settings:startupapps
 move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
 move "lock, sleep, restart, shut down" to the bottom
 
+notes are getting cleared on new build
 adjust shelf clear color 
 add height adjust in right end side of AI Chat so that user can increase or decrease dynamically
 use accent color in all tabs 

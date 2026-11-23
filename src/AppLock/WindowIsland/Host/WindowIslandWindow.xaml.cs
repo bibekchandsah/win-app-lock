@@ -4895,75 +4895,92 @@ public sealed partial class WindowIslandWindow : Window
 
     private async Task PopulateDeviceListAsync()
     {
-        ControlsDeviceList.Children.Clear();
-
-        var loading = new TextBlock
+        try
         {
-            Text = "Loading devices...",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 15, 0, 0)
-        };
-        ControlsDeviceList.Children.Add(loading);
-
-        if (_controlsDeviceMode == "wifi")
-        {
-            var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
             ControlsDeviceList.Children.Clear();
 
-            if (networks.Count == 0)
+            var loading = new TextBlock
             {
-                ControlsDeviceList.Children.Add(new TextBlock
-                {
-                    Text = "No Wi-Fi networks found",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 15, 0, 0)
-                });
-                return;
-            }
+                Text = "Loading...",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 25, 0, 0)
+            };
+            ControlsDeviceList.Children.Add(loading);
 
-            foreach (var net in networks)
+            if (_controlsDeviceMode == "wifi")
             {
-                var row = BuildWiFiDeviceRow(net);
-                ControlsDeviceList.Children.Add(row);
+                var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
+                ControlsDeviceList.Children.Clear();
+
+                if (networks.Count == 0)
+                {
+                    ControlsDeviceList.Children.Add(new TextBlock
+                    {
+                        Text = "No Wi-Fi networks found",
+                        FontSize = 11,
+                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(0, 25, 0, 0)
+                    });
+                    return;
+                }
+
+                foreach (var net in networks)
+                {
+                    var row = BuildWiFiDeviceRow(net);
+                    ControlsDeviceList.Children.Add(row);
+                }
+            }
+            else if (_controlsDeviceMode == "bluetooth")
+            {
+                var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+                ControlsDeviceList.Children.Clear();
+
+                if (devices.Count == 0)
+                {
+                    ControlsDeviceList.Children.Add(new TextBlock
+                    {
+                        Text = "No paired Bluetooth devices found",
+                        FontSize = 11,
+                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(0, 25, 0, 0)
+                    });
+                    return;
+                }
+
+                foreach (var dev in devices)
+                {
+                    var row = BuildBluetoothDeviceRow(dev);
+                    ControlsDeviceList.Children.Add(row);
+                }
             }
         }
-        else if (_controlsDeviceMode == "bluetooth")
+        catch (Exception ex)
         {
-            var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
             ControlsDeviceList.Children.Clear();
-
-            if (devices.Count == 0)
+            ControlsDeviceList.Children.Add(new TextBlock
             {
-                ControlsDeviceList.Children.Add(new TextBlock
-                {
-                    Text = "No paired Bluetooth devices found",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 15, 0, 0)
-                });
-                return;
-            }
-
-            foreach (var dev in devices)
-            {
-                var row = BuildBluetoothDeviceRow(dev);
-                ControlsDeviceList.Children.Add(row);
-            }
+                Text = "Error: " + ex.Message,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 120, 120)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 20, 0, 0)
+            });
         }
     }
 
     private Grid BuildWiFiDeviceRow(WindowIslandControlsService.IslandWiFiNetwork net)
     {
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+
         var grid = new Grid
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4)
+            Padding = new Thickness(10, 6, 10, 6)
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -4972,18 +4989,18 @@ public sealed partial class WindowIslandWindow : Window
         // Left circular icon
         var iconBorder = new Border
         {
-            Width = 28, Height = 28,
-            CornerRadius = new CornerRadius(14),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
-            Margin = new Thickness(0, 0, 8, 0),
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(16),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         var icon = new FontIcon
         {
             Glyph = "\uE701",
-            FontSize = 13,
+            FontSize = 14,
             Foreground = net.IsConnected
-                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                ? accentBrush
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
@@ -4993,21 +5010,21 @@ public sealed partial class WindowIslandWindow : Window
         grid.Children.Add(iconBorder);
 
         // Middle details
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
         var title = new TextBlock
         {
             Text = net.Ssid,
-            FontSize = 11,
+            FontSize = 11.5,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(245, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var status = new TextBlock
         {
             Text = net.IsConnected ? "Connected" : "Saved",
-            FontSize = 8.5,
+            FontSize = 9.5,
             Foreground = net.IsConnected
-                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                ? accentBrush
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
         };
         stack.Children.Add(title);
@@ -5019,16 +5036,16 @@ public sealed partial class WindowIslandWindow : Window
         var actionBtn = new Button
         {
             Content = net.IsConnected ? "Disconnect" : "Connect",
-            FontSize = 9.5,
+            FontSize = 10,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Height = 22,
-            Padding = new Thickness(10, 0, 10, 0),
-            CornerRadius = new CornerRadius(11),
+            Height = 26,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(13),
             VerticalAlignment = VerticalAlignment.Center,
             Background = net.IsConnected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255))
-                : (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"],
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255))
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255))
+                : accentBrush,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255))
         };
         actionBtn.Click += async (_, _) =>
         {
@@ -5054,11 +5071,13 @@ public sealed partial class WindowIslandWindow : Window
 
     private Grid BuildBluetoothDeviceRow(WindowIslandControlsService.IslandBtDevice dev)
     {
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+
         var grid = new Grid
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4)
+            Padding = new Thickness(10, 6, 10, 6)
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -5068,24 +5087,24 @@ public sealed partial class WindowIslandWindow : Window
         string glyph = dev.DeviceType switch
         {
             "Headphones" => "\uE7F6",
-            "Speaker" => "\uE7F5",
-            "Phone" => "\uE8EA",
-            _ => "\uE702"
+            "Speaker"    => "\uE7F5",
+            "Phone"      => "\uE8EA",
+            _            => "\uE702"
         };
         var iconBorder = new Border
         {
-            Width = 28, Height = 28,
-            CornerRadius = new CornerRadius(14),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
-            Margin = new Thickness(0, 0, 8, 0),
+            Width = 32, Height = 32,
+            CornerRadius = new CornerRadius(16),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         var icon = new FontIcon
         {
             Glyph = glyph,
-            FontSize = 13,
+            FontSize = 14,
             Foreground = dev.IsConnected
-                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                ? accentBrush
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
@@ -5095,21 +5114,21 @@ public sealed partial class WindowIslandWindow : Window
         grid.Children.Add(iconBorder);
 
         // Middle details
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
         var title = new TextBlock
         {
             Text = dev.Name,
-            FontSize = 11,
+            FontSize = 11.5,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(245, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var status = new TextBlock
         {
             Text = dev.IsConnected ? "Connected" : "Not connected",
-            FontSize = 8.5,
+            FontSize = 9.5,
             Foreground = dev.IsConnected
-                ? (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"]
+                ? accentBrush
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
         };
         stack.Children.Add(title);
@@ -5121,25 +5140,37 @@ public sealed partial class WindowIslandWindow : Window
         var actionBtn = new Button
         {
             Content = dev.IsConnected ? "Disconnect" : "Connect",
-            FontSize = 9.5,
+            FontSize = 10,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Height = 22,
-            Padding = new Thickness(10, 0, 10, 0),
-            CornerRadius = new CornerRadius(11),
+            Height = 26,
+            Padding = new Thickness(14, 0, 14, 0),
+            CornerRadius = new CornerRadius(13),
             VerticalAlignment = VerticalAlignment.Center,
             Background = dev.IsConnected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255))
-                : (Brush)RootGrid.Resources["AccentFillColorDefaultBrush"],
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255))
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255))
+                : accentBrush,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255))
         };
         actionBtn.Click += async (_, _) =>
         {
-            actionBtn.Content = "Opening...";
-            try
+            if (dev.IsConnected)
             {
-                Process.Start(new ProcessStartInfo { FileName = "ms-settings:bluetooth", UseShellExecute = true });
+                actionBtn.Content = "Disconnecting...";
+                await WindowIslandControlsService.DisconnectBluetoothDeviceAsync(dev.MacAddress);
             }
-            catch { }
+            else
+            {
+                actionBtn.Content = "Connecting...";
+                bool ok = await WindowIslandControlsService.ConnectBluetoothDeviceAsync(dev.MacAddress);
+                if (!ok)
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = "ms-settings:bluetooth", UseShellExecute = true });
+                    }
+                    catch { }
+                }
+            }
             await Task.Delay(1000);
             await PopulateDeviceListAsync();
             RefreshControlsUI();

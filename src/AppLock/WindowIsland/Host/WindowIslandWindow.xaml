@@ -2856,6 +2856,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: 5 Control Tiles (Wi-Fi, Bluetooth, Dark Theme, Battery, VPN) -->
@@ -3091,13 +3092,13 @@
 
                         <!-- Device List Overlay (for Wi-Fi networks & Bluetooth devices) -->
                         <Border x:Name="ControlsDeviceOverlay"
-                                Grid.RowSpan="3"
+                                Grid.Row="0" Grid.RowSpan="4"
                                 Visibility="Collapsed"
-                                Background="#F218181B"
+                                Background="#1C1C1F"
                                 BorderBrush="#35FFFFFF"
                                 BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12,8">
+                                CornerRadius="10"
+                                Padding="14,10,14,10">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -3105,33 +3106,33 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Header -->
-                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
                                     <TextBlock x:Name="ControlsDeviceOverlayTitle"
                                                Text="Bluetooth devices"
-                                               FontSize="11.5"
+                                               FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="#FFFFFFFF"
                                                VerticalAlignment="Center"/>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                                         <Button x:Name="ControlsDeviceSettingsBtn"
                                                 Click="ControlsDeviceSettingsBtn_Click"
                                                 Style="{StaticResource TabButtonStyle}"
-                                                Padding="6,2"
+                                                Padding="8,3"
                                                 CornerRadius="4"
                                                 ToolTipService.ToolTip="Open Windows Settings">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <FontIcon Glyph="&#xE713;" FontSize="10" Foreground="#B0FFFFFF"/>
-                                                <TextBlock Text="Settings" FontSize="9.5" Foreground="#D0FFFFFF"/>
+                                                <FontIcon Glyph="&#xE713;" FontSize="10.5" Foreground="#C0FFFFFF"/>
+                                                <TextBlock Text="Settings" FontSize="10" Foreground="#E0FFFFFF"/>
                                             </StackPanel>
                                         </Button>
                                         <Button x:Name="ControlsDeviceCloseBtn"
                                                 Click="ControlsDeviceCloseBtn_Click"
                                                 Style="{StaticResource TabButtonStyle}"
-                                                Width="22" Height="22"
+                                                Width="24" Height="24"
                                                 Padding="0"
                                                 CornerRadius="4"
                                                 ToolTipService.ToolTip="Close">
-                                            <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="#A0FFFFFF"/>
+                                            <FontIcon Glyph="&#xE711;" FontSize="10.5" Foreground="#B0FFFFFF"/>
                                         </Button>
                                     </StackPanel>
                                 </Grid>
@@ -3139,8 +3140,7 @@
                                 <!-- Scrollable Device List -->
                                 <ScrollViewer Grid.Row="1"
                                               VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              MaxHeight="120">
+                                              HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel x:Name="ControlsDeviceList" Spacing="6"/>
                                 </ScrollViewer>
                             </Grid>

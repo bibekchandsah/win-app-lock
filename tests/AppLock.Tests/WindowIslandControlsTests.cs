@@ -113,4 +113,30 @@ public class WindowIslandControlsTests
         Assert.True(isConfirming);
         Assert.False(executed);
     }
+
+    [Fact]
+    public async Task GetWiFiNetworksAsync_ReturnsListWithoutThrowing()
+    {
+        var list = await WindowIslandControlsService.GetWiFiNetworksAsync();
+        Assert.NotNull(list);
+        // Each entry should have non-empty SSID
+        foreach (var item in list)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(item.Ssid));
+            Assert.False(string.IsNullOrWhiteSpace(item.Status));
+        }
+    }
+
+    [Fact]
+    public async Task GetBluetoothDevicesAsync_ReturnsListWithoutThrowing()
+    {
+        var list = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+        Assert.NotNull(list);
+        // Each entry should have non-empty Name and DeviceType
+        foreach (var item in list)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(item.Name));
+            Assert.False(string.IsNullOrWhiteSpace(item.DeviceType));
+        }
+    }
 }

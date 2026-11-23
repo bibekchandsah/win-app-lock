@@ -230,9 +230,45 @@ public sealed class WindowIslandControlsService
 
     public static async Task<System.Collections.Generic.List<IslandBtDevice>> GetBluetoothDevicesAsync()
     {
-        return await Task.Run(async () =>
+        return await Task.Run(() =>
         {
             var list = new System.Collections.Generic.List<IslandBtDevice>();
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var activeAudioNames = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var mmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render");
+                if (mmKey != null)
+                {
+                    foreach (string guid in mmKey.GetSubKeyNames())
+                    {
+                        using var devSub = mmKey.OpenSubKey(guid);
+                        if (devSub == null) continue;
+
+                        object? stateVal = devSub.GetValue("DeviceState");
+                        if (stateVal is int state && state == 1)
+                        {
+                            using var propKey = devSub.OpenSubKey("Properties");
+                            if (propKey != null)
+                            {
+                                foreach (string valName in propKey.GetValueNames())
+                                {
+                                    if (valName.Contains("a45c254e-df1c-4efd-8020-67d146a850e0", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (propKey.GetValue(valName) is string fname && !string.IsNullOrWhiteSpace(fname))
+                                        {
+                                            activeAudioNames.Add(fname);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
             try
             {
                 using var devKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices");
@@ -247,14 +283,24 @@ public sealed class WindowIslandControlsService
                         object? nameVal = subKey.GetValue("Name");
                         if (nameVal is byte[] bytes)
                         {
-                            name = System.Text.Encoding.UTF8.GetString(bytes).TrimEnd('\0');
+                            name = System.Text.Encoding.UTF8.GetString(bytes).TrimEnd('\0').Trim();
                         }
                         else if (nameVal is string strName)
                         {
-                            name = strName.TrimEnd('\0');
+                            name = strName.TrimEnd('\0').Trim();
+                        }
+
+                        if (string.IsNullOrWhiteSpace(name))
+                        {
+                            object? fnVal = subKey.GetValue("FriendlyName");
+                            if (fnVal is byte[] fnBytes)
+                                name = System.Text.Encoding.UTF8.GetString(fnBytes).TrimEnd('\0').Trim();
+                            else if (fnVal is string strFn)
+                                name = strFn.TrimEnd('\0').Trim();
                         }
 
                         if (string.IsNullOrWhiteSpace(name)) continue;
+                        if (!seen.Add(name)) continue;
 
                         string lower = name.ToLowerInvariant();
                         string type = "Bluetooth";
@@ -273,19 +319,7 @@ public sealed class WindowIslandControlsService
                             type = "Phone";
                         }
 
-                        bool isConnected = false;
-                        try
-                        {
-                            if (ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
-                            {
-                                var btDev = await Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(addr);
-                                if (btDev != null)
-                                {
-                                    isConnected = btDev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected;
-                                }
-                            }
-                        }
-                        catch { }
+                        bool isConnected = activeAudioNames.Any(an => an.Contains(name, StringComparison.OrdinalIgnoreCase));
 
                         list.Add(new IslandBtDevice(name, mac, type, isConnected));
                     }
@@ -294,6 +328,44 @@ public sealed class WindowIslandControlsService
             catch { }
 
             return list.OrderByDescending(d => d.IsConnected).ThenBy(d => d.Name).ToList();
+        });
+    }
+
+    public static async Task<bool> ConnectBluetoothDeviceAsync(string mac)
+    {
+        return await Task.Run(async () =>
+        {
+            try
+            {
+                if (ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+                {
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(2.5));
+                    var dev = await Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(addr).AsTask(cts.Token);
+                    if (dev != null)
+                    {
+                        var _ = await dev.GetRfcommServicesAsync().AsTask(cts.Token);
+                        return dev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        });
+    }
+
+    public static async Task DisconnectBluetoothDeviceAsync(string mac)
+    {
+        await Task.Run(() =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "ms-settings:bluetooth",
+                    UseShellExecute = true
+                });
+            }
+            catch { }
         });
     }
 
