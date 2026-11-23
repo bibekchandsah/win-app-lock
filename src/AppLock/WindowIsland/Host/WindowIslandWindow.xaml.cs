@@ -4822,8 +4822,33 @@ public sealed partial class WindowIslandWindow : Window
                 ControlsBrightnessRow.Visibility = _settings.Controls.ShowBrightness ? Visibility.Visible : Visibility.Collapsed;
             if (ControlsPowerRow != null)
                 ControlsPowerRow.Visibility = _settings.Controls.ShowPowerRow ? Visibility.Visible : Visibility.Collapsed;
-            if (ControlsBtBatteryCard != null)
-                ControlsBtBatteryCard.Visibility = _settings.Controls.ShowBluetoothBatteryCard ? Visibility.Visible : Visibility.Collapsed;
+
+            // 8. Bluetooth Battery Card
+            if (ControlsBtBatteryCard != null && _settings.Controls.ShowBluetoothBatteryCard)
+            {
+                var btDevices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+                var connectedBt = btDevices.FirstOrDefault(d => d.IsConnected);
+                if (connectedBt != null)
+                {
+                    ControlsBtBatteryCardTitle.Text = connectedBt.Name;
+                    ControlsBtBatteryCardStatus.Text = connectedBt.BatteryPercent.HasValue
+                        ? $"🔋 {connectedBt.BatteryPercent.Value}% · Connected"
+                        : "Connected";
+                    ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(GetSystemAccentColor());
+                    ControlsBtBatteryCard.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    ControlsBtBatteryCardTitle.Text = "Bluetooth devices";
+                    ControlsBtBatteryCardStatus.Text = "No devices connected";
+                    ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(128, 255, 255, 255));
+                    ControlsBtBatteryCard.Visibility = _settings.Controls.HideBatteryCardWhenNone ? Visibility.Collapsed : Visibility.Visible;
+                }
+            }
+            else if (ControlsBtBatteryCard != null)
+            {
+                ControlsBtBatteryCard.Visibility = Visibility.Collapsed;
+            }
 
             RenderQuickCardsGrid();
         }
@@ -5005,9 +5030,17 @@ public sealed partial class WindowIslandWindow : Window
             Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
+        string wifiGlyph = net.SignalBars switch
+        {
+            0 => "\uE871",
+            1 => "\uE872",
+            2 => "\uE873",
+            3 => "\uE874",
+            _ => "\uE701"
+        };
         var icon = new FontIcon
         {
-            Glyph = "\uE701",
+            Glyph = wifiGlyph,
             FontSize = 14,
             Foreground = net.IsConnected
                 ? accentBrush
@@ -5031,7 +5064,7 @@ public sealed partial class WindowIslandWindow : Window
         };
         var status = new TextBlock
         {
-            Text = net.IsConnected ? "Connected" : "Saved",
+            Text = net.Status,
             FontSize = 9.5,
             Foreground = net.IsConnected
                 ? accentBrush
@@ -5067,7 +5100,18 @@ public sealed partial class WindowIslandWindow : Window
             else
             {
                 actionBtn.Content = "Connecting...";
-                await WindowIslandControlsService.ConnectWiFiAsync(net.Ssid);
+                bool ok = await WindowIslandControlsService.ConnectWiFiAsync(net.Ssid);
+                if (!ok && !net.IsSaved)
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = "ms-availablenetworks:", UseShellExecute = true });
+                    }
+                    catch
+                    {
+                        try { Process.Start(new ProcessStartInfo { FileName = "ms-settings:network-wifi", UseShellExecute = true }); } catch { }
+                    }
+                }
             }
             await Task.Delay(1200);
             await PopulateDeviceListAsync();
@@ -5133,9 +5177,16 @@ public sealed partial class WindowIslandWindow : Window
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(245, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
+
+        string statusText = dev.IsConnected ? "Connected" : "Not connected";
+        if (dev.BatteryPercent.HasValue)
+        {
+            statusText += $" · 🔋 {dev.BatteryPercent.Value}%";
+        }
+
         var status = new TextBlock
         {
-            Text = dev.IsConnected ? "Connected" : "Not connected",
+            Text = statusText,
             FontSize = 9.5,
             Foreground = dev.IsConnected
                 ? accentBrush

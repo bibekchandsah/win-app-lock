@@ -129,15 +129,24 @@ public sealed class WindowIslandControlsService
         return string.Empty;
     }
 
-    public sealed record IslandWiFiNetwork(string Ssid, bool IsConnected, string Status);
+    public sealed record IslandWiFiNetwork(
+        string Ssid,
+        bool IsConnected,
+        string Status,
+        int SignalBars = 4,
+        string Band = "2.4 GHz",
+        bool IsSaved = false,
+        bool IsSecured = true);
 
     public static async Task<System.Collections.Generic.List<IslandWiFiNetwork>> GetWiFiNetworksAsync()
     {
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             var list = new System.Collections.Generic.List<IslandWiFiNetwork>();
             string currentSsid = GetConnectedSsid();
+            var savedProfiles = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // 1. Get saved profiles with UTF-8 encoding (supports emojis properly without mojibake)
             try
             {
                 var psi = new ProcessStartInfo
@@ -145,14 +154,15 @@ public sealed class WindowIslandControlsService
                     FileName = "netsh.exe",
                     Arguments = "wlan show profiles",
                     RedirectStandardOutput = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
                 using var proc = Process.Start(psi);
                 if (proc != null)
                 {
-                    string output = proc.StandardOutput.ReadToEnd();
-                    proc.WaitForExit(2000);
+                    string output = await proc.StandardOutput.ReadToEndAsync();
+                    await proc.WaitForExitAsync();
 
                     var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     foreach (var line in lines)
@@ -161,10 +171,9 @@ public sealed class WindowIslandControlsService
                         if (colon > 0 && line.Contains("All User Profile"))
                         {
                             string ssid = line[(colon + 1)..].Trim();
-                            if (!string.IsNullOrEmpty(ssid) && !list.Any(w => w.Ssid == ssid))
+                            if (!string.IsNullOrEmpty(ssid))
                             {
-                                bool isCur = string.Equals(ssid, currentSsid, StringComparison.OrdinalIgnoreCase);
-                                list.Add(new IslandWiFiNetwork(ssid, isCur, isCur ? "Connected" : "Saved"));
+                                savedProfiles.Add(ssid);
                             }
                         }
                     }
@@ -172,13 +181,155 @@ public sealed class WindowIslandControlsService
             }
             catch { }
 
-            if (!string.IsNullOrEmpty(currentSsid) && !list.Any(w => w.Ssid == currentSsid))
+            // 2. Query visible/nearby networks via WinRT WiFiAdapter
+            var visibleMap = new System.Collections.Generic.Dictionary<string, (int signal, string band, bool secured)>(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                list.Insert(0, new IslandWiFiNetwork(currentSsid, true, "Connected"));
+                var access = await Windows.Devices.WiFi.WiFiAdapter.RequestAccessAsync();
+                if (access == Windows.Devices.WiFi.WiFiAccessStatus.Allowed)
+                {
+                    var adapters = await Windows.Devices.WiFi.WiFiAdapter.FindAllAdaptersAsync();
+                    if (adapters.Count > 0)
+                    {
+                        var adapter = adapters[0];
+                        var report = adapter.NetworkReport;
+                        if (report != null && report.AvailableNetworks.Count > 0)
+                        {
+                            foreach (var net in report.AvailableNetworks)
+                            {
+                                if (string.IsNullOrWhiteSpace(net.Ssid)) continue;
+                                string band = net.ChannelCenterFrequencyInKilohertz switch
+                                {
+                                    < 3000000 => "2.4 GHz",
+                                    >= 4900000 and <= 5900000 => "5 GHz",
+                                    >= 5925000 => "6 GHz",
+                                    _ => "5 GHz"
+                                };
+                                bool secured = net.SecuritySettings.NetworkAuthenticationType != Windows.Networking.Connectivity.NetworkAuthenticationType.Open80211 &&
+                                               net.SecuritySettings.NetworkAuthenticationType != Windows.Networking.Connectivity.NetworkAuthenticationType.None;
+                                int bars = Math.Clamp((int)net.SignalBars, 0, 4);
+
+                                if (!visibleMap.TryGetValue(net.Ssid, out var existing) || bars > existing.signal)
+                                {
+                                    visibleMap[net.Ssid] = (bars, band, secured);
+                                }
+                            }
+                        }
+
+                        // Background scan for subsequent refreshes
+                        _ = Task.Run(async () =>
+                        {
+                            try { await adapter.ScanAsync(); } catch { }
+                        });
+                    }
+                }
             }
-            else
+            catch { }
+
+            // 3. Fallback to netsh mode=bssid if WinRT found no visible networks
+            if (visibleMap.Count == 0)
             {
-                list = list.OrderByDescending(w => w.IsConnected).ToList();
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = "wlan show networks mode=bssid",
+                        RedirectStandardOutput = true,
+                        StandardOutputEncoding = System.Text.Encoding.UTF8,
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        string output = await proc.StandardOutput.ReadToEndAsync();
+                        await proc.WaitForExitAsync();
+
+                        string? curSsid = null;
+                        int curSignal = 3;
+                        string curBand = "2.4 GHz";
+                        bool curSecured = true;
+
+                        var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var rawLine in lines)
+                        {
+                            string line = rawLine.Trim();
+                            if (line.StartsWith("SSID ", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!string.IsNullOrEmpty(curSsid))
+                                {
+                                    if (!visibleMap.TryGetValue(curSsid, out var ex) || curSignal > ex.signal)
+                                        visibleMap[curSsid] = (curSignal, curBand, curSecured);
+                                }
+                                int colon = line.IndexOf(':');
+                                curSsid = colon > 0 ? line[(colon + 1)..].Trim() : null;
+                                curSignal = 3;
+                                curBand = "2.4 GHz";
+                                curSecured = true;
+                            }
+                            else if (line.StartsWith("Signal", StringComparison.OrdinalIgnoreCase))
+                            {
+                                int colon = line.IndexOf(':');
+                                if (colon > 0)
+                                {
+                                    string pctStr = line[(colon + 1)..].Replace("%", "").Trim();
+                                    if (int.TryParse(pctStr, out int pct))
+                                    {
+                                        curSignal = pct >= 80 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : pct >= 20 ? 1 : 0;
+                                    }
+                                }
+                            }
+                            else if (line.StartsWith("Band", StringComparison.OrdinalIgnoreCase))
+                            {
+                                int colon = line.IndexOf(':');
+                                if (colon > 0) curBand = line[(colon + 1)..].Trim();
+                            }
+                            else if (line.StartsWith("Authentication", StringComparison.OrdinalIgnoreCase))
+                            {
+                                curSecured = !line.Contains("Open", StringComparison.OrdinalIgnoreCase);
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(curSsid))
+                        {
+                            if (!visibleMap.TryGetValue(curSsid, out var ex) || curSignal > ex.signal)
+                                visibleMap[curSsid] = (curSignal, curBand, curSecured);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 4. Merge all networks
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Connected network first
+            if (!string.IsNullOrEmpty(currentSsid))
+            {
+                visibleMap.TryGetValue(currentSsid, out var vis);
+                string band = !string.IsNullOrEmpty(vis.band) ? vis.band : "2.4 GHz";
+                int signal = vis.signal > 0 ? vis.signal : 4;
+                list.Add(new IslandWiFiNetwork(currentSsid, true, $"Connected · {band}", signal, band, true, vis.secured));
+                seen.Add(currentSsid);
+            }
+
+            // Visible networks in range
+            foreach (var kvp in visibleMap)
+            {
+                string ssid = kvp.Key;
+                if (!seen.Add(ssid)) continue;
+
+                bool isSaved = savedProfiles.Contains(ssid);
+                string status = isSaved ? $"Saved · {kvp.Value.band}" : (kvp.Value.secured ? $"Secured · {kvp.Value.band}" : $"Open · {kvp.Value.band}");
+                list.Add(new IslandWiFiNetwork(ssid, false, status, kvp.Value.signal, kvp.Value.band, isSaved, kvp.Value.secured));
+            }
+
+            // Saved networks out of range
+            foreach (var saved in savedProfiles)
+            {
+                if (!seen.Add(saved)) continue;
+                list.Add(new IslandWiFiNetwork(saved, false, "Saved (out of range)", 0, "", true, true));
             }
 
             return list;
@@ -226,15 +377,74 @@ public sealed class WindowIslandControlsService
         });
     }
 
-    public sealed record IslandBtDevice(string Name, string MacAddress, string DeviceType, bool IsConnected);
+    public sealed record IslandBtDevice(string Name, string MacAddress, string DeviceType, bool IsConnected, int? BatteryPercent);
 
     public static async Task<System.Collections.Generic.List<IslandBtDevice>> GetBluetoothDevicesAsync()
     {
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             var list = new System.Collections.Generic.List<IslandBtDevice>();
             var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // 1. Query battery properties across devices
+            var batteryMap = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var props = new[] { "System.ItemNameDisplay", "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2" };
+                var devs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(
+                    "System.Devices.InterfaceClassGuid:=\"{E0CBF06C-CD8B-4647-BB8A-263B43F0F974}\" OR System.Devices.DeviceInstanceId:~~\"BTHENUM\" OR System.Devices.DeviceInstanceId:~~\"BTHLE\"",
+                    props,
+                    Windows.Devices.Enumeration.DeviceInformationKind.Device);
+
+                foreach (var d in devs)
+                {
+                    if (d.Properties.TryGetValue("{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2", out var bVal) && bVal != null)
+                    {
+                        int bat = Convert.ToInt32(bVal);
+                        var m = System.Text.RegularExpressions.Regex.Match(d.Id, @"([0-9A-Fa-f]{12})");
+                        if (m.Success)
+                        {
+                            batteryMap[m.Groups[1].Value.ToLowerInvariant()] = bat;
+                        }
+                        if (!string.IsNullOrWhiteSpace(d.Name))
+                        {
+                            batteryMap[d.Name] = bat;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Query paired devices with real-time IsConnected status via WinRT DeviceInformation
+            var connMacMap = new System.Collections.Generic.Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var connNameMap = new System.Collections.Generic.Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var selector = Windows.Devices.Bluetooth.BluetoothDevice.GetDeviceSelectorFromPairingState(true);
+                var properties = new[]
+                {
+                    "System.ItemNameDisplay",
+                    "System.Devices.Aep.IsConnected",
+                    "System.Devices.Aep.DeviceAddress"
+                };
+                var aepDevs = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(selector, properties);
+                foreach (var ad in aepDevs)
+                {
+                    bool isConn = ad.Properties.TryGetValue("System.Devices.Aep.IsConnected", out var cVal) && cVal is bool b && b;
+                    if (ad.Properties.TryGetValue("System.Devices.Aep.DeviceAddress", out var aVal) && aVal != null)
+                    {
+                        string clean = aVal.ToString()!.Replace(":", "").ToLowerInvariant();
+                        connMacMap[clean] = isConn;
+                    }
+                    if (!string.IsNullOrWhiteSpace(ad.Name))
+                    {
+                        connNameMap[ad.Name] = isConn;
+                    }
+                }
+            }
+            catch { }
+
+            // Also check MMDevices audio render active state for audio devices
             var activeAudioNames = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
@@ -269,6 +479,7 @@ public sealed class WindowIslandControlsService
             }
             catch { }
 
+            // 3. Enumerate paired devices from registry
             try
             {
                 using var devKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices");
@@ -319,9 +530,35 @@ public sealed class WindowIslandControlsService
                             type = "Phone";
                         }
 
-                        bool isConnected = activeAudioNames.Any(an => an.Contains(name, StringComparison.OrdinalIgnoreCase));
+                        string cleanMac = mac.Replace(":", "").ToLowerInvariant();
 
-                        list.Add(new IslandBtDevice(name, mac, type, isConnected));
+                        bool isConnected = false;
+                        if (connMacMap.TryGetValue(cleanMac, out bool cmc))
+                            isConnected = cmc;
+                        else if (connNameMap.TryGetValue(name, out bool cmn))
+                            isConnected = cmn;
+                        else
+                            isConnected = activeAudioNames.Any(an => an.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(an, StringComparison.OrdinalIgnoreCase));
+
+                        int? battery = null;
+                        if (batteryMap.TryGetValue(cleanMac, out int bMac))
+                        {
+                            battery = bMac;
+                        }
+                        else
+                        {
+                            // Match by name or substring
+                            foreach (var bKvp in batteryMap)
+                            {
+                                if (bKvp.Key.Contains(name, StringComparison.OrdinalIgnoreCase) || name.Contains(bKvp.Key, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    battery = bKvp.Value;
+                                    break;
+                                }
+                            }
+                        }
+
+                        list.Add(new IslandBtDevice(name, mac, type, isConnected, battery));
                     }
                 }
             }

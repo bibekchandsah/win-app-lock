@@ -185,4 +185,41 @@ public class WindowIslandControlsTests
         Assert.False(restored.ShowPowerRow);
         Assert.Equal(6, restored.Cards.Count);
     }
+
+    [Fact]
+    public async Task GetBluetoothDevicesAsync_ReturnsDevicesList()
+    {
+        var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+        Assert.NotNull(devices);
+        // If devices exist, check properties
+        foreach (var dev in devices)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(dev.Name));
+            if (dev.BatteryPercent.HasValue)
+            {
+                Assert.InRange(dev.BatteryPercent.Value, 0, 100);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetWiFiNetworksAsync_ReturnsNetworksList()
+    {
+        var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
+        Assert.NotNull(networks);
+        foreach (var net in networks)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(net.Ssid));
+            Assert.InRange(net.SignalBars, 0, 4);
+        }
+    }
+
+    [Fact]
+    public void IslandWiFiNetwork_EmojiSsid_PreservedCorrectly()
+    {
+        string emojiSsid = "Not Your WiFi📶,Bro";
+        var net = new WindowIslandControlsService.IslandWiFiNetwork(emojiSsid, true, "Connected", 4, "5 GHz", true, true);
+        Assert.Equal(emojiSsid, net.Ssid);
+        Assert.True(net.IsConnected);
+    }
 }
