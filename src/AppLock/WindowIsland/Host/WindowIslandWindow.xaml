@@ -2092,10 +2092,9 @@
                                          BorderBrush="#25FFFFFF"
                                          CornerRadius="6"
                                          Padding="8,6"
-                                         KeyDown="NoteContentBox_KeyDown"
+                                         PreviewKeyDown="NoteContentBox_PreviewKeyDown"
                                          TextChanged="NoteContentBox_TextChanged"
-                                         SelectionChanged="NoteContentBox_SelectionChanged"
-                                         Tapped="NoteContentBox_Tapped" />
+                                         SelectionChanged="NoteContentBox_SelectionChanged" />
                         </Grid>
 
                         <!-- ── Right: Timer & Reminders ── -->

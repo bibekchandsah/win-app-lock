@@ -343,6 +343,7 @@ public sealed partial class WindowIslandWindow : Window
             _loadedNoteId = null;
             RefreshNotesUI();
         };
+        NoteContentBox.AddHandler(UIElement.TappedEvent, new TappedEventHandler(NoteContentBox_Tapped), true);
         _reminderStore = new WindowIslandReminderStore();
         _reminderStore.Changed += () => DispatcherQueue.TryEnqueue(RefreshRemindersUI);
         _reminderStore.ReminderTriggered += OnReminderTriggered;
@@ -3560,7 +3561,7 @@ public sealed partial class WindowIslandWindow : Window
         if (_noteSaveTimer != null)
         {
             _noteSaveTimer.Stop();
-            if (NoteContentBox != null && !string.IsNullOrEmpty(_activeNoteId))
+            if (NoteContentBox != null && NoteContentBox.IsLoaded && !string.IsNullOrEmpty(_activeNoteId))
             {
                 NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
                 rtf = (rtf ?? string.Empty).TrimEnd('\0');
@@ -3628,6 +3629,11 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         var activeNote = notes.FirstOrDefault(n => n.Id == _activeNoteId) ?? notes[0];
+        if (!NoteContentBox.IsLoaded)
+        {
+            return;
+        }
+
         // Only push note text into the editor when the active note actually changed. Reloading
         // whenever the editor reads back empty (it does while the island is folded) made
         // SetText raise TextChanged -> auto-save -> Changed -> RefreshNotesUI -> SetText, an
@@ -3637,7 +3643,12 @@ public sealed partial class WindowIslandWindow : Window
             _loadedNoteId = _activeNoteId;
             _noteUpdating = true;
             LoadNoteIntoEditor(activeNote.Content);
-            _noteUpdating = false;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                CaptureEditorBaseline();
+                _noteUpdating = false;
+                UpdateFormattingToolbarUI();
+            });
         }
     }
 
@@ -3834,20 +3845,11 @@ public sealed partial class WindowIslandWindow : Window
 
     private void NoteContentBox_TextChanged(object sender, RoutedEventArgs e)
     {
-        if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId)) return;
+        if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId) || !NoteContentBox.IsLoaded) return;
         _noteSaveTimer?.Stop();
         _noteSaveTimer = DispatcherQueue.CreateTimer();
         _noteSaveTimer.Interval = TimeSpan.FromMilliseconds(400);
-        _noteSaveTimer.Tick += (_, _) =>
-        {
-            _noteSaveTimer?.Stop();
-            if (string.IsNullOrEmpty(_activeNoteId)) return;
-            NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-            rtf = (rtf ?? string.Empty).TrimEnd('\0');
-            if (string.Equals(rtf, _editorBaselineRtf, StringComparison.Ordinal)) return;
-            _notesStore?.UpdateNote(_activeNoteId, rtf);
-            _editorBaselineRtf = rtf;
-        };
+        _noteSaveTimer.Tick += (_, _) => FlushPendingNoteSave();
         _noteSaveTimer.Start();
     }
 
@@ -3986,16 +3988,19 @@ public sealed partial class WindowIslandWindow : Window
         range.Expand(TextRangeUnit.Paragraph);
         range.GetText(TextGetOptions.None, out string lineText);
 
+        string trimmed = lineText.TrimStart();
+        int indentLen = lineText.Length - trimmed.Length;
         int caretPos = sel.StartPosition;
         int paraStart = range.StartPosition;
 
-        // Tapped near the start of the line (on or near the circle)
-        if (caretPos <= paraStart + 3)
+        // Tapped on or near the circle/checkmark at the start of the checklist item
+        if (caretPos <= paraStart + indentLen + 2)
         {
-            string trimmed = lineText.TrimStart();
             if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
             {
                 ToggleChecklistLine(range, lineText);
+                int markerEnd = paraStart + indentLen + 2;
+                sel.SetRange(markerEnd, markerEnd);
             }
         }
     }
@@ -4006,42 +4011,48 @@ public sealed partial class WindowIslandWindow : Window
         int indentLen = lineText.Length - trimmed.Length;
         string indent = lineText.Substring(0, indentLen);
 
+        // Preserve any trailing paragraph break (\r / \n) without formatting it
+        string body = trimmed.TrimEnd('\r', '\n');
+        string trailingBreak = trimmed.Substring(body.Length);
+
         var accent = GetSystemAccentColor();
 
-        if (trimmed.StartsWith("○ ") || trimmed.StartsWith("☐ "))
+        if (body.StartsWith("○ ") || body.StartsWith("☐ "))
         {
             // Transition: Unchecked -> Checked
-            string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
-            range.SetText(TextSetOptions.None, indent + "✔ " + content);
+            string content = body.Length > 2 ? body.Substring(2) : string.Empty;
+            range.SetText(TextSetOptions.None, indent + "✔ " + content + trailingBreak);
 
             // Format checkmark with window accent color
             var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
             markerRange.CharacterFormat.ForegroundColor = accent;
             markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
 
-            // Format line text with strikethrough & dimmed color
+            // Format line text with strikethrough & dimmed color (excluding trailingBreak)
             if (content.Length > 0)
             {
-                var textRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen + 2, range.EndPosition);
+                int textStart = range.StartPosition + indentLen + 2;
+                var textRange = NoteContentBox.Document.GetRange(textStart, textStart + content.Length);
                 textRange.CharacterFormat.Strikethrough = FormatEffect.On;
                 textRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(160, 200, 200, 200);
             }
         }
-        else if (trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☑ "))
+        else if (body.StartsWith("✔ ") || body.StartsWith("● ") || body.StartsWith("☑ "))
         {
             // Transition: Checked -> Unchecked
-            string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
-            range.SetText(TextSetOptions.None, indent + "○ " + content);
+            string content = body.Length > 2 ? body.Substring(2) : string.Empty;
+            range.SetText(TextSetOptions.None, indent + "○ " + content + trailingBreak);
 
             // Format circle with soft white
             var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
             markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
             markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
 
-            // Remove strikethrough & restore white color
+            // Remove strikethrough & restore white color (excluding trailingBreak)
             if (content.Length > 0)
             {
-                var textRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen + 2, range.EndPosition);
+                int textStart = range.StartPosition + indentLen + 2;
+                var textRange = NoteContentBox.Document.GetRange(textStart, textStart + content.Length);
                 textRange.CharacterFormat.Strikethrough = FormatEffect.Off;
                 textRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
             }
@@ -4049,7 +4060,7 @@ public sealed partial class WindowIslandWindow : Window
         else
         {
             // Convert normal line to checklist item
-            range.SetText(TextSetOptions.None, indent + "○ " + trimmed);
+            range.SetText(TextSetOptions.None, indent + "○ " + body + trailingBreak);
             var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
             markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
             markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
@@ -4058,33 +4069,131 @@ public sealed partial class WindowIslandWindow : Window
         UpdateFormattingToolbarUI();
     }
 
+    private static bool IsChecklistPrefix(string trimmed) =>
+        trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ ");
+
     private void NoteFmtChecklist_Click(object sender, RoutedEventArgs e)
     {
         var sel = NoteContentBox.Document.Selection;
-        var range = sel.GetClone();
-        range.Expand(TextRangeUnit.Paragraph);
-        range.GetText(TextGetOptions.None, out string lineText);
-
-        string trimmed = lineText.TrimStart();
-        if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
+        if (sel.ParagraphFormat.ListType != MarkerType.None)
         {
-            if (trimmed.StartsWith("○ ") || trimmed.StartsWith("☐ "))
+            sel.ParagraphFormat.ListType = MarkerType.None;
+        }
+
+        var range = sel.GetClone();
+        // If selection ends at the very start of the next line, pull back 1 char so we don't include that extra line
+        if (sel.Length > 0 && range.EndPosition > range.StartPosition)
+        {
+            var tail = NoteContentBox.Document.GetRange(range.EndPosition - 1, range.EndPosition);
+            tail.GetText(TextGetOptions.None, out string tailChar);
+            if (tailChar == "\r" || tailChar == "\n")
             {
-                ToggleChecklistLine(range, lineText);
+                range.EndPosition--;
+            }
+        }
+
+        range.Expand(TextRangeUnit.Paragraph);
+        range.GetText(TextGetOptions.None, out string rawText);
+
+        bool hadTrailingCr = rawText.EndsWith('\r') || rawText.EndsWith('\n');
+        string core = rawText.TrimEnd('\r', '\n');
+        string trailingBreak = rawText.Substring(core.Length);
+        string[] lines = core.Split('\r');
+
+        bool allAreChecklist = lines.Length > 0 && lines.All(l =>
+        {
+            string t = l.TrimStart();
+            if (lines.Length > 1 && string.IsNullOrEmpty(t)) return true;
+            return IsChecklistPrefix(t);
+        });
+
+        int startPos = range.StartPosition;
+        var updatedLines = new string[lines.Length];
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            string trimmed = line.TrimStart();
+            int indentLen = line.Length - trimmed.Length;
+            string indent = line.Substring(0, indentLen);
+
+            if (allAreChecklist)
+            {
+                if (IsChecklistPrefix(trimmed))
+                {
+                    updatedLines[i] = indent + (trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty);
+                }
+                else
+                {
+                    updatedLines[i] = line;
+                }
             }
             else
             {
-                // Remove checklist marker
-                string indent = lineText.Substring(0, lineText.Length - trimmed.Length);
-                string content = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
-                range.SetText(TextSetOptions.None, indent + content);
-                range.CharacterFormat.Strikethrough = FormatEffect.Off;
-                range.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+                if (lines.Length > 1 && string.IsNullOrEmpty(trimmed))
+                {
+                    updatedLines[i] = line;
+                }
+                else if (IsChecklistPrefix(trimmed))
+                {
+                    updatedLines[i] = line;
+                }
+                else
+                {
+                    updatedLines[i] = indent + "○ " + trimmed;
+                }
             }
+        }
+
+        string newCore = string.Join("\r", updatedLines);
+        range.SetText(TextSetOptions.None, newCore + trailingBreak);
+
+        // Apply clean formatting per line
+        var accent = GetSystemAccentColor();
+        int cursorOffset = startPos;
+        for (int i = 0; i < updatedLines.Length; i++)
+        {
+            string l = updatedLines[i];
+            string t = l.TrimStart();
+            int indentLen = l.Length - t.Length;
+
+            if (IsChecklistPrefix(t))
+            {
+                var markerRange = NoteContentBox.Document.GetRange(cursorOffset + indentLen, cursorOffset + indentLen + 1);
+                bool isChecked = t.StartsWith("✔ ") || t.StartsWith("● ") || t.StartsWith("☑ ");
+                markerRange.CharacterFormat.ForegroundColor = isChecked
+                    ? accent
+                    : Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+
+                int textLen = Math.Max(0, t.Length - 2);
+                if (textLen > 0)
+                {
+                    var textRange = NoteContentBox.Document.GetRange(cursorOffset + indentLen + 2, cursorOffset + indentLen + 2 + textLen);
+                    textRange.CharacterFormat.Strikethrough = isChecked ? FormatEffect.On : FormatEffect.Off;
+                    textRange.CharacterFormat.ForegroundColor = isChecked
+                        ? Windows.UI.Color.FromArgb(160, 200, 200, 200)
+                        : Windows.UI.Color.FromArgb(255, 240, 240, 240);
+                }
+            }
+            else if (l.Length > 0)
+            {
+                var lineRange = NoteContentBox.Document.GetRange(cursorOffset, cursorOffset + l.Length);
+                lineRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+                lineRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+            }
+
+            cursorOffset += l.Length + 1; // +1 for '\r'
+        }
+
+        if (lines.Length == 1)
+        {
+            int caretTarget = startPos + updatedLines[0].Length;
+            sel.SetRange(caretTarget, caretTarget);
         }
         else
         {
-            ToggleChecklistLine(range, lineText);
+            sel.SetRange(startPos, startPos + newCore.Length);
         }
 
         NoteContentBox.Focus(FocusState.Programmatic);
@@ -4124,7 +4233,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateFormattingToolbarUI();
     }
 
-    private void NoteContentBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    private void NoteContentBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
@@ -4132,20 +4241,50 @@ public sealed partial class WindowIslandWindow : Window
             var range = sel.GetClone();
             range.Expand(TextRangeUnit.Paragraph);
             range.GetText(TextGetOptions.None, out string lineText);
-            string trimmed = lineText.Trim();
-            if (trimmed == "○" || trimmed == "✔" || trimmed == "●" || trimmed == "☐" || trimmed == "☑")
+
+            string trimmedStart = lineText.TrimStart();
+            string body = trimmedStart.TrimEnd('\r', '\n');
+            int indentLen = lineText.Length - trimmedStart.Length;
+            string indent = lineText.Substring(0, indentLen);
+
+            if (IsCtrlDown() && IsChecklistPrefix(body))
             {
-                range.SetText(TextSetOptions.None, string.Empty);
+                int oldPos = sel.StartPosition;
+                ToggleChecklistLine(range, lineText);
+                sel.SetRange(oldPos, oldPos);
+                e.Handled = true;
+                return;
+            }
+
+            if (body == "○" || body == "○ " || body == "✔" || body == "✔ " || body == "●" || body == "☐" || body == "☑")
+            {
+                // Empty checklist line -> exit checklist mode
+                string trailingBreak = trimmedStart.Substring(body.Length);
+                range.SetText(TextSetOptions.None, indent + trailingBreak);
                 range.CharacterFormat.Strikethrough = FormatEffect.Off;
+                range.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+                int pos = range.StartPosition + indentLen;
+                sel.SetRange(pos, pos);
+                UpdateFormattingToolbarUI();
                 e.Handled = true;
             }
-            else if (trimmed.StartsWith("○ ") || trimmed.StartsWith("✔ ") || trimmed.StartsWith("● ") || trimmed.StartsWith("☐ ") || trimmed.StartsWith("☑ "))
+            else if (IsChecklistPrefix(body))
             {
+                // Continue checklist on the new line
                 sel.Collapse(false);
-                sel.SetText(TextSetOptions.None, "\r\n○ ");
-                sel.Collapse(false);
+                int insertPos = sel.StartPosition;
+                string insertion = "\r" + indent + "○ ";
+                sel.SetText(TextSetOptions.None, insertion);
+
+                var markerRange = NoteContentBox.Document.GetRange(insertPos + 1 + indentLen, insertPos + 1 + indentLen + 1);
+                markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
+
+                int newCaret = insertPos + insertion.Length;
+                sel.SetRange(newCaret, newCaret);
                 sel.CharacterFormat.Strikethrough = FormatEffect.Off;
-                sel.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                sel.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+                UpdateFormattingToolbarUI();
                 e.Handled = true;
             }
         }
