@@ -611,15 +611,6 @@
                 <!-- ── Content Area ─────────────────────────────────────────── -->
                 <Grid x:Name="ContentHost" Grid.Row="1">
 
-                    <!-- Tab indicator strip (1px line under tab buttons, slides to active tab) -->
-                    <Border x:Name="TabIndicator"
-                            Width="24" Height="2"
-                            Background="#60CDFF"
-                            CornerRadius="1"
-                            VerticalAlignment="Bottom"
-                            HorizontalAlignment="Left"
-                            Margin="0,-2,0,0" />
-
                     <!-- Home tab — media player + volume + 8 tiles + launcher shortcuts -->
                         <!-- Home tab - media / recently-copied card, tiles, and a bottom bar with the
                              volume slider and the launcher. Cards and tiles share one radius and one surface so

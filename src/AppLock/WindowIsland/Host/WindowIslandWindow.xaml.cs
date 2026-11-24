@@ -774,11 +774,6 @@ public sealed partial class WindowIslandWindow : Window
         var accentBrush = new SolidColorBrush(accentColor);
         var defaultBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(192, 255, 255, 255)); // #C0FFFFFF default
 
-        if (TabIndicator != null)
-        {
-            TabIndicator.Background = accentBrush;
-        }
-
         // Highlight the active tab button text/icon with window accent color,
         // show text only for the active tab (e.g. icon [clipboard]), remaining tabs show icon only
         for (int i = 0; i < TabCount; i++)
@@ -792,33 +787,6 @@ public sealed partial class WindowIslandWindow : Window
             {
                 _tabTextBlocks[i].Visibility = active ? Visibility.Visible : Visibility.Collapsed;
             }
-        }
-
-        // Slide the tab indicator to the correct position under active tab
-        float targetX = _activeTab * 34f;
-        try
-        {
-            if (_tabButtons != null && _activeTab < _tabButtons.Length && _tabButtons[_activeTab] != null && TabStrip != null)
-            {
-                var transform = _tabButtons[_activeTab].TransformToVisual(TabStrip);
-                var p = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-                targetX = (float)p.X + 4f;
-            }
-        }
-        catch { }
-
-        if (animate)
-        {
-            var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
-            var anim = v.Compositor.CreateVector3KeyFrameAnimation();
-            anim.InsertKeyFrame(1f, new Vector3(targetX, 0f, 0f));
-            anim.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
-            v.StartAnimation("Offset", anim);
-        }
-        else
-        {
-            var v = ElementCompositionPreview.GetElementVisual(TabIndicator);
-            v.Offset = new Vector3(targetX, 0f, 0f);
         }
     }
 
