@@ -1204,8 +1204,8 @@ public sealed partial class WindowIslandWindow : Window
         double scale  = _scale > 0 ? _scale : 1.0;
         float factor  = (float)(_settings.SizePercent / 100.0);
 
-        float widthDip  = isCommand ? 520f : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
-        float heightDip = isCommand ? 270f : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
+        float heightDip = isCommand ? IslandMotion.CommandBarSize.H : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
         float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip) * factor;
         float leftDip   = (WindowWidthDip - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
@@ -3289,7 +3289,7 @@ public sealed partial class WindowIslandWindow : Window
         FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
-        _compositor.AnimateToCommand(520f, 270f, () =>
+        _compositor.AnimateToCommand(IslandMotion.CommandBarSize.W, IslandMotion.CommandBarSize.H, () =>
         {
             _measuringFrames = false;
         });

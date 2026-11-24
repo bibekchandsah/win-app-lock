@@ -373,8 +373,8 @@
         <Grid x:Name="CommandLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
-              Width="520"
-              Height="270"
+              Width="660"
+              Height="320"
               Opacity="0"
               IsHitTestVisible="False">
             <Grid Margin="16,10,16,10">

@@ -142,7 +142,7 @@ public sealed class WindowIslandCompositor : IDisposable
     }
 
     /// <summary>Animate notch into Command Bar expansion.</summary>
-    public void AnimateToCommand(float widthDip = 520f, float heightDip = 270f, Action? onCompleted = null)
+    public void AnimateToCommand(float widthDip = 660f, float heightDip = 320f, Action? onCompleted = null)
     {
         if (_disposed) return;
         _isCommand = true;
