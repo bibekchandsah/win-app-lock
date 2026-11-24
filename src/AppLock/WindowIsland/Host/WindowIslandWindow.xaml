@@ -904,7 +904,11 @@
                                             <Slider x:Name="VolumeSlider"
                                                     Grid.Column="2"
                                                     VerticalAlignment="Center"
-                                                    ValueChanged="VolumeSlider_ValueChanged" />
+                                                    ValueChanged="VolumeSlider_ValueChanged"
+                                                    PointerPressed="VolumeSlider_PointerPressed"
+                                                    PointerReleased="VolumeSlider_PointerReleased"
+                                                    PointerCaptureLost="VolumeSlider_PointerReleased"
+                                                    PointerCanceled="VolumeSlider_PointerReleased" />
 
                                             <TextBlock x:Name="VolumeText"
                                                        Grid.Column="3"

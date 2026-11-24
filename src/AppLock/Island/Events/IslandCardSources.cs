@@ -522,6 +522,7 @@ public sealed class IslandVolumeController : IDisposable
 {
     private SpeakerVolumeService? _service;
     private bool _failed;
+    private bool _initialized;
 
     private SpeakerDevice? DefaultSpeaker()
     {
@@ -529,8 +530,20 @@ public sealed class IslandVolumeController : IDisposable
 
         try
         {
+            // Enumerating devices reads a property store per endpoint, so it is paid once per
+            // controller; GetSpeakers() afterwards is a cached list.
             _service ??= new SpeakerVolumeService();
-            if (!_service.Initialize() && _service.GetSpeakers().Count == 0) return null;
+            if (!_initialized)
+            {
+                _initialized = true;
+                if (!_service.Initialize() && _service.GetSpeakers().Count == 0) return null;
+            }
+            else
+            {
+                // Only the default flag is re-checked (one cheap lookup, no enumeration) so a
+                // headset switch is picked up without paying for the full device list again.
+                _service.RefreshDefaultFlags();
+            }
 
             foreach (SpeakerDevice speaker in _service.GetSpeakers())
             {
@@ -571,10 +584,12 @@ public sealed class IslandVolumeController : IDisposable
 
         try
         {
+            // SpeakerDevice.GetVolume/SetVolume both work in percent; mixing a 0-1 scalar in here
+            // clamped every step to 1, which is why a wheel/hotkey nudge used to drop to ~1%.
             float current = speaker.GetVolume();
-            float next = Math.Clamp(current + (delta / 100f), 0f, 1f);
+            float next = Math.Clamp(current + delta, 0f, 100f);
             speaker.SetVolume(next);
-            return Math.Clamp((int)Math.Round(next * 100), 0, 100);
+            return Math.Clamp((int)Math.Round(next), 0, 100);
         }
         catch
         {
@@ -645,5 +660,6 @@ public sealed class IslandVolumeController : IDisposable
     {
         _service?.Dispose();
         _service = null;
+        _initialized = false;
     }
 }

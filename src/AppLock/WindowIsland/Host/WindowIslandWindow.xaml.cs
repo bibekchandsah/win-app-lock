@@ -144,6 +144,11 @@ public sealed partial class WindowIslandWindow : Window
     private bool                    _appVolumeMode;     // slider drives the playing app instead of the device
     private string?                 _appSessionId;
     private bool                    _volumeTargetMuted;
+    private long                    _volumeLastWriteMs;   // last user-driven slider change
+    private bool                    _volumePointerDown;
+    private long                    _lastVolumeCardMs;
+    private int                     _pendingVolumeCard = -1;
+    private DQTimer?                _volumeCardTimer;
     private DQTimer?                _eqTimer;
     private readonly Random         _eqRng = new();
 
@@ -1864,6 +1869,9 @@ public sealed partial class WindowIslandWindow : Window
     {
         _volumeUiTimer?.Stop();
         _volumeUiTimer = null;
+        _volumeCardTimer?.Stop();
+        _volumeCardTimer = null;
+        _pendingVolumeCard = -1;
         if (VolumeDeviceOverlay != null) VolumeDeviceOverlay.Visibility = Visibility.Collapsed;
     }
 
@@ -1906,11 +1914,24 @@ public sealed partial class WindowIslandWindow : Window
                 muted = _audio.IsDeviceMuted();
             }
 
-            _volumeChanging = true;
-            if (volume >= 0) VolumeSlider.Value = volume;
-            _volumeChanging = false;
+            // Never move the thumb while the user is dragging it: the drag writes the volume a
+            // few dozen times a second, and a refresh landing in between would fight the gesture
+            // (and could leave the level at whatever the last sync wrote).
+            bool userIsAdjusting = _volumePointerDown || Environment.TickCount64 - _volumeLastWriteMs < 1200;
+            if (!userIsAdjusting)
+            {
+                _volumeChanging = true;
+                if (volume >= 0) VolumeSlider.Value = volume;
+                _volumeChanging = false;
+            }
 
-            VolumeSlider.IsEnabled = _appVolumeMode ? hasApp : _audio.HasDevices;
+            // Showing or hiding the two-part switch re-flows the row and shifts the slider under
+            // the finger; do that only between gestures, never while one is in progress.
+            if (!userIsAdjusting)
+            {
+                VolumeSlider.IsEnabled = _appVolumeMode ? hasApp : _audio.HasDevices;
+            }
+
             VolumeText.Text = volume < 0 ? "—" : $"{volume}%";
             UpdateVolumeIcon(volume, muted);
 
@@ -2092,10 +2113,18 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Volume slider ─────────────────────────────────────────────────────────
 
+    private void VolumeSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
+        => _volumePointerDown = true;
+
+    private void VolumeSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+        => _volumePointerDown = false;
+
     private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (_volumeChanging) return;
         int vol = (int)e.NewValue;
+
+        _volumeLastWriteMs = Environment.TickCount64;
 
         if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
         {
@@ -2103,26 +2132,63 @@ public sealed partial class WindowIslandWindow : Window
         }
         else
         {
+            // One write path: the island audio helper already owns the default endpoint.
             _audio?.SetDeviceVolume(vol);
-            _volumeController?.Set(vol);
         }
 
         VolumeText.Text = $"{vol}%";
         UpdateVolumeIcon(vol, _volumeTargetMuted);
-        // Push a volume card when the user adjusts the slider
-        if (_settings.CardVolumeEnabled)
+        QueueVolumeCard(vol);
+    }
+
+    /// <summary>
+    /// A drag raises this handler many times a second; pushing a card for each one re-laid out the
+    /// island and cost a whole core. Push immediately if the last card is old enough, otherwise
+    /// keep only the newest value and show it once the drag pauses.
+    /// </summary>
+    private void QueueVolumeCard(int vol)
+    {
+        if (!_settings.CardVolumeEnabled) return;
+
+        if (Environment.TickCount64 - _lastVolumeCardMs >= 250)
         {
-            string icon = vol == 0 ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
-            _eventQueue?.Push(new WindowIslandCard(
-                Kind: "volume",
-                Icon: icon,
-                Title: "Volume",
-                Detail: $"{vol}%",
-                AccentHex: "#60CDFF",
-                Priority: WindowIslandCardPriority.Volume,
-                StayMs: _settings.GetCardStayMs(),
-                Value: vol));
+            PushVolumeCard(vol);
+            return;
         }
+
+        _pendingVolumeCard = vol;
+        if (_volumeCardTimer == null)
+        {
+            _volumeCardTimer = DispatcherQueue.CreateTimer();
+            _volumeCardTimer.Interval = TimeSpan.FromMilliseconds(250);
+            _volumeCardTimer.IsRepeating = false;
+            _volumeCardTimer.Tick += (_, _) =>
+            {
+                int pending = _pendingVolumeCard;
+                _pendingVolumeCard = -1;
+                if (pending >= 0) PushVolumeCard(pending);
+            };
+        }
+
+        _volumeCardTimer.Stop();
+        _volumeCardTimer.Start();
+    }
+
+    private void PushVolumeCard(int vol)
+    {
+        _lastVolumeCardMs = Environment.TickCount64;
+        _pendingVolumeCard = -1;
+
+        string icon = vol == 0 ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "volume",
+            Icon: icon,
+            Title: "Volume",
+            Detail: $"{vol}%",
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.Volume,
+            StayMs: _settings.GetCardStayMs(),
+            Value: vol));
     }
 
     // ── Tile button handlers ──────────────────────────────────────────────────
