@@ -1414,7 +1414,7 @@
                                         BorderThickness="1"
                                         Foreground="#E0FFFFFF">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <FontIcon Glyph="&#xE720;" FontSize="11" Foreground="#60CDFF" />
+                                        <FontIcon x:Name="TextDictationIcon" Glyph="&#xE720;" FontSize="11" Foreground="#60CDFF" />
                                         <TextBlock Text="Dictation" FontSize="11" />
                                     </StackPanel>
                                 </Button>
@@ -1489,7 +1489,7 @@
                                         Background="#12FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1"
                                         ToolTipService.ToolTip="Generate QR Code from text">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <FontIcon Glyph="&#xED14;" FontSize="11" Foreground="#60CDFF" />
+                                        <FontIcon x:Name="TextQrBtnIcon" Glyph="&#xED14;" FontSize="11" Foreground="#60CDFF" />
                                         <TextBlock Text="QR Code" FontSize="10" Foreground="#D0FFFFFF" />
                                     </StackPanel>
                                 </Button>
@@ -1581,7 +1581,7 @@
                                     <!-- Header with Title and Close Button -->
                                     <Grid Width="220">
                                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xED14;" FontSize="13" Foreground="#60CDFF" />
+                                            <FontIcon x:Name="TextQrOverlayIcon" Glyph="&#xED14;" FontSize="13" Foreground="#60CDFF" />
                                             <TextBlock Text="QR Code" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFFFF" />
                                         </StackPanel>
                                         <Button x:Name="TextQrCloseBtn"
@@ -1739,7 +1739,7 @@
                                                 BorderThickness="0"
                                                 CornerRadius="12">
                                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                <FontIcon Glyph="&#xE740;" FontSize="10" Foreground="#60CDFF" />
+                                                <FontIcon x:Name="ChatHeightGripIcon" Glyph="&#xE740;" FontSize="10" Foreground="#60CDFF" />
                                                 <TextBlock x:Name="ChatHeightLabel" Text="Standard" FontSize="10" Foreground="#D0FFFFFF" VerticalAlignment="Center" />
                                             </StackPanel>
                                             <Button.Flyout>
@@ -1859,7 +1859,7 @@
                                     <!-- Header Row -->
                                     <Grid>
                                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE8BD;" FontSize="13" Foreground="#60CDFF" />
+                                            <FontIcon x:Name="ChatAddOverlayIcon" Glyph="&#xE8BD;" FontSize="13" Foreground="#60CDFF" />
                                             <TextBlock x:Name="ChatAddTitleText"
                                                        Text="Add Custom AI Site"
                                                        FontSize="13"
@@ -3157,7 +3157,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <FontIcon Glyph="&#xE702;" FontSize="13" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <FontIcon x:Name="ControlsBtBatteryCardIcon" Glyph="&#xE702;" FontSize="13" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <TextBlock Grid.Column="1" x:Name="ControlsBtBatteryCardTitle" Text="Bluetooth devices" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF" VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="2" x:Name="ControlsBtBatteryCardStatus" Text="No devices connected" FontSize="10" Foreground="#80FFFFFF" VerticalAlignment="Center"/>
                                         </Grid>

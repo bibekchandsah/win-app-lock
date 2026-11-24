@@ -789,6 +789,30 @@ public sealed partial class WindowIslandWindow : Window
                 _tabTextBlocks[i].Visibility = active ? Visibility.Visible : Visibility.Collapsed;
             }
         }
+
+        ApplyTextTabAccent(accentColor);
+    }
+
+    private void ApplyTextTabAccent(Windows.UI.Color accent)
+    {
+        var accentBrush = new SolidColorBrush(accent);
+        if (TextDictationIcon != null) TextDictationIcon.Foreground = accentBrush;
+        if (TextQrBtnIcon != null) TextQrBtnIcon.Foreground = accentBrush;
+        if (TextQrOverlayIcon != null) TextQrOverlayIcon.Foreground = accentBrush;
+        if (TextPasteToAppBtn != null)
+        {
+            TextPasteToAppBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x20, accent.R, accent.G, accent.B));
+            TextPasteToAppBtn.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x50, accent.R, accent.G, accent.B));
+            TextPasteToAppBtn.Foreground = accentBrush;
+        }
+    }
+
+    private static Windows.UI.Color GetContrastingForeground(Windows.UI.Color bg)
+    {
+        double lum = 0.299 * bg.R + 0.587 * bg.G + 0.114 * bg.B;
+        return lum > 150
+            ? ColorHelper.FromArgb(0xFF, 0x10, 0x12, 0x16)
+            : ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
     }
 
     private static Windows.UI.Color GetSystemAccentColor()
@@ -3161,6 +3185,9 @@ public sealed partial class WindowIslandWindow : Window
         _editingShortcutId = null;
         LauncherAddTitle.Text = "A link for the launcher";
         LauncherAddConfirmBtn.Content = "Add";
+        var accent = GetSystemAccentColor();
+        LauncherAddConfirmBtn.Background = new SolidColorBrush(accent);
+        LauncherAddConfirmBtn.Foreground = new SolidColorBrush(GetContrastingForeground(accent));
         LauncherTargetInput.Text = string.Empty;
         LauncherNameInput.Text = string.Empty;
         LauncherUseAppIconCheck.IsChecked = true;
@@ -3173,6 +3200,10 @@ public sealed partial class WindowIslandWindow : Window
     {
         _editingShortcutId = item.Id;
         LauncherAddTitle.Text = "Edit shortcut";
+        LauncherAddConfirmBtn.Content = "Save";
+        var accent = GetSystemAccentColor();
+        LauncherAddConfirmBtn.Background = new SolidColorBrush(accent);
+        LauncherAddConfirmBtn.Foreground = new SolidColorBrush(GetContrastingForeground(accent));
         LauncherAddConfirmBtn.Content = "Save";
         LauncherTargetInput.Text = item.Target;
         LauncherNameInput.Text = item.Name;
@@ -5653,32 +5684,36 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
+            var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+            var disabledBrush = new SolidColorBrush(ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+
             // 1. Wi-Fi
             var (hasWifi, wifiOn, wifiSsid) = await WindowIslandControlsService.Instance.GetWiFiStateAsync();
             ControlsWifiBtn.IsEnabled = hasWifi;
             ControlsWifiStatus.Text = hasWifi ? (wifiOn ? wifiSsid : "Off") : "No adapter";
-            ControlsWifiIcon.Foreground = new SolidColorBrush(wifiOn ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+            ControlsWifiIcon.Foreground = wifiOn ? accentBrush : disabledBrush;
 
             // 2. Bluetooth
             var (hasBt, btOn) = await WindowIslandControlsService.Instance.GetBluetoothStateAsync();
             ControlsBtBtn.IsEnabled = hasBt;
             ControlsBtStatus.Text = hasBt ? (btOn ? "On" : "Off") : "No adapter";
-            ControlsBtIcon.Foreground = new SolidColorBrush(btOn ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+            ControlsBtIcon.Foreground = btOn ? accentBrush : disabledBrush;
 
             // 3. Dark Theme
             bool isDark = WindowIslandControlsService.IsSystemDarkTheme();
             ControlsThemeStatus.Text = isDark ? "Dark" : "Light";
-            ControlsThemeIcon.Foreground = new SolidColorBrush(isDark ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
+            ControlsThemeIcon.Foreground = isDark ? accentBrush : new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
 
             // 4. Battery
             var (hasBattery, batPct, isCharging, batText) = WindowIslandControlsService.GetBatteryInfo();
             ControlsBatteryStatus.Text = hasBattery ? $"{batPct}% · {batText}" : "On mains power";
             ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : "\uE83F";
+            ControlsBatteryIcon.Foreground = accentBrush;
 
             // 5. VPN
             var (vpnConnected, vpnName) = WindowIslandControlsService.GetVpnStatus();
             ControlsVpnStatus.Text = vpnConnected ? vpnName : "Off";
-            ControlsVpnIcon.Foreground = new SolidColorBrush(vpnConnected ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+            ControlsVpnIcon.Foreground = vpnConnected ? accentBrush : disabledBrush;
 
             // 6. Brightness
             if (ServiceContainer.BrightnessService.IsAvailable)
@@ -5703,8 +5738,6 @@ public sealed partial class WindowIslandWindow : Window
                 var connectedDevices = btOn
                     ? btDevices.Where(d => d.IsConnected).OrderByDescending(d => d.BatteryPercent.HasValue).ThenBy(d => d.Name).ToList()
                     : new System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice>();
-
-                var accentBrush = new SolidColorBrush(GetSystemAccentColor());
 
                 ControlsBtBatteryContainer.Children.Clear();
                 ControlsBtBatteryContainer.RowDefinitions.Clear();
@@ -5747,6 +5780,12 @@ public sealed partial class WindowIslandWindow : Window
                         if (ControlsBtBatteryCard.Parent is Panel p)
                         {
                             p.Children.Remove(ControlsBtBatteryCard);
+                        }
+                        if (ControlsBtBatteryCardIcon != null)
+                        {
+                            ControlsBtBatteryCardIcon.Foreground = btOn
+                                ? accentBrush
+                                : new SolidColorBrush(ColorHelper.FromArgb(0x60, 0xFF, 0xFF, 0xFF));
                         }
                         ControlsBtBatteryCardTitle.Text = "Bluetooth devices";
                         ControlsBtBatteryCardStatus.Text = btOn ? "No devices connected" : "Bluetooth is turned off";
@@ -7554,6 +7593,7 @@ public sealed partial class WindowIslandWindow : Window
         _editingChatIndex = -1;
         ChatAddTitleText.Text = "Add Custom AI Site";
         ChatConfirmAddBtnText.Text = "Add";
+        ApplyChatAddDialogAccent();
         ChatNewNameBox.Text = string.Empty;
         ChatNewUrlBox.Text = string.Empty;
         ChatAddErrorText.Visibility = Visibility.Collapsed;
@@ -7575,6 +7615,7 @@ public sealed partial class WindowIslandWindow : Window
         _editingChatIndex = index;
         ChatAddTitleText.Text = "Edit Custom AI Site";
         ChatConfirmAddBtnText.Text = "Save";
+        ApplyChatAddDialogAccent();
         ChatNewNameBox.Text = site.Name;
         ChatNewUrlBox.Text = site.Url;
         ChatAddErrorText.Visibility = Visibility.Collapsed;
@@ -7725,8 +7766,25 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private void ApplyChatAddDialogAccent()
+    {
+        var accent = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accent);
+        if (ChatAddOverlayIcon != null) ChatAddOverlayIcon.Foreground = accentBrush;
+        if (ChatConfirmAddBtn != null)
+        {
+            ChatConfirmAddBtn.Background = accentBrush;
+            ChatConfirmAddBtn.BorderBrush = accentBrush;
+            ChatConfirmAddBtn.Foreground = new SolidColorBrush(GetContrastingForeground(accent));
+        }
+    }
+
     private void UpdateChatHeightLabel()
     {
+        if (ChatHeightGripIcon != null)
+        {
+            ChatHeightGripIcon.Foreground = new SolidColorBrush(GetSystemAccentColor());
+        }
         if (ChatHeightLabel == null) return;
         float h = _settings.ChatHeightDip > 0 ? _settings.ChatHeightDip : 440f;
         if (Math.Abs(h - 340f) < 2f) ChatHeightLabel.Text = "Compact";
