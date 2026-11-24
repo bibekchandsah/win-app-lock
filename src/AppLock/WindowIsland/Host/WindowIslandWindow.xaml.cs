@@ -3274,6 +3274,18 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 8: Command Bar & Actions ─────────────────────────────────────
 
+    public void ToggleCommandBar()
+    {
+        if (_compositor != null && _compositor.IsCommand)
+        {
+            CloseCommandBar();
+        }
+        else
+        {
+            OpenCommandBar();
+        }
+    }
+
     public void OpenCommandBar()
     {
         if (_compositor == null) return;
@@ -3389,7 +3401,7 @@ public sealed partial class WindowIslandWindow : Window
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 5, 8, 5)
+            Padding = new Thickness(10, 6, 10, 6)
         };
 
         var grid = new Grid();
@@ -3429,20 +3441,51 @@ public sealed partial class WindowIslandWindow : Window
         grid.Children.Add(stack);
 
         border.Child = grid;
+        border.Tag = title;
 
         border.PointerEntered += (_, _) =>
         {
-            _selectedCommandIndex = index;
-            RenderCommandResults();
+            if (_selectedCommandIndex != index)
+            {
+                _selectedCommandIndex = index;
+                UpdateCommandSelectionVisuals(scrollIntoView: false);
+            }
         };
 
-        border.PointerPressed += async (_, _) =>
+        border.PointerPressed += async (_, e) =>
         {
+            e.Handled = true;
             _selectedCommandIndex = index;
             await ExecuteSelectedCommandAsync(false);
         };
 
         return border;
+    }
+
+    private void UpdateCommandSelectionVisuals(bool scrollIntoView)
+    {
+        for (int i = 0; i < CommandResultList.Children.Count; i++)
+        {
+            if (CommandResultList.Children[i] is not Border border) continue;
+            bool isSel = (i == _selectedCommandIndex);
+
+            border.Background = isSel
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 96, 205, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255));
+            border.BorderBrush = isSel
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 96, 205, 255))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+
+            if (border.Tag is TextBlock title)
+            {
+                title.FontWeight = isSel ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+            }
+
+            if (isSel && scrollIntoView)
+            {
+                border.StartBringIntoView();
+            }
+        }
     }
 
     private async Task ExecuteSelectedCommandAsync(bool showInFolder)
@@ -3494,7 +3537,7 @@ public sealed partial class WindowIslandWindow : Window
             if (_currentCommandItems.Count > 0)
             {
                 _selectedCommandIndex = (_selectedCommandIndex + 1) % _currentCommandItems.Count;
-                RenderCommandResults();
+                UpdateCommandSelectionVisuals(scrollIntoView: true);
             }
             e.Handled = true;
             return;
@@ -3505,7 +3548,7 @@ public sealed partial class WindowIslandWindow : Window
             if (_currentCommandItems.Count > 0)
             {
                 _selectedCommandIndex = (_selectedCommandIndex + _currentCommandItems.Count - 1) % _currentCommandItems.Count;
-                RenderCommandResults();
+                UpdateCommandSelectionVisuals(scrollIntoView: true);
             }
             e.Handled = true;
             return;
