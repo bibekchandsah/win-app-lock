@@ -53,7 +53,8 @@ public sealed class WindowIslandClipboardState : IDisposable
         });
     }
 
-    public Task<bool> PasteAsync(string id, bool copyOnly) => _tab.PasteAsync(id, copyOnly);
+    public Task<bool> PasteAsync(string id, bool copyOnly, nint targetWindow = 0)
+        => _tab.PasteAsync(id, copyOnly, targetWindow);
     public Task<bool> PinAsync(string id)                   => _tab.PinAsync(id);
     public Task ClearAsync()                                => _tab.ClearAsync();
 

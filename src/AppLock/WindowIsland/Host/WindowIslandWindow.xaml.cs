@@ -174,6 +174,7 @@ public sealed partial class WindowIslandWindow : Window
     private List<CommandBarItem>              _currentCommandItems = new();
     private int                               _selectedCommandIndex;
     private nint                              _previousForegroundWindow = nint.Zero;
+    private nint                              _pasteTargetWindow = nint.Zero;  // app the user was in when the island opened
 
     // Milestone 9: Note & Timer & Reminders
     private WindowIslandNotesStore?           _notesStore;
@@ -1087,6 +1088,11 @@ public sealed partial class WindowIslandWindow : Window
     public void Expand()
     {
         if (_compositor == null || _compositor.IsOpen) return;
+
+        // Remember the user's app before any click here can hand focus to the island itself
+        // (opening the Clipboard tab focuses its search box), so pastes still land in that app.
+        nint foreground = GetForegroundWindow();
+        if (foreground != nint.Zero && foreground != _hwnd) _pasteTargetWindow = foreground;
 
         if (_eventQueue?.HasVisibleCard == true)
         {
@@ -2359,7 +2365,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             bool shift = IsShiftDown();
             var row = _currentClipboardRows[_selectedClipboardIndex];
-            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift) ?? Task.CompletedTask);
+            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift, _pasteTargetWindow) ?? Task.CompletedTask);
         }
     }
 
@@ -2727,7 +2733,7 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             bool shift = pe.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
-            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift) ?? Task.CompletedTask);
+            await (_clipboardState?.PasteAsync(row.Id, copyOnly: shift, _pasteTargetWindow) ?? Task.CompletedTask);
         };
 
         return new Grid { Children = { border } };

@@ -52,18 +52,19 @@ public sealed class IslandClipboardTab
     }
 
     /// <summary>Pastes (or only copies) the item into the app that had focus. True when it worked.</summary>
-    public async Task<bool> PasteAsync(string id, bool copyOnly)
+    public async Task<bool> PasteAsync(string id, bool copyOnly, IntPtr targetWindow = default)
     {
         ClipboardItem? item = await FindAsync(id);
         if (item == null) return false;
 
-        // The island never activates for mouse clicks, so the foreground window is still the app the
-        // user was in — exactly the window the paste has to go to.
-        IntPtr target = GetForegroundWindow();
+        // Opening the Clipboard tab focuses its search box, which makes the island itself the
+        // foreground window — so a paste must go to the window the caller captured when the island
+        // opened, not to whatever GetForegroundWindow returns now.
+        IntPtr target = targetWindow != IntPtr.Zero ? targetWindow : GetForegroundWindow();
         var result = await ServiceContainer.ClipboardPasteService.PasteItemAsync(
             item, target, plainTextOnly: false, copyOnly: copyOnly);
 
-        IslandSpikeLog.Write($"clipboard: paste {id} copyOnly={copyOnly} -> {result.Success} ({result.Message})");
+        IslandSpikeLog.Write($"clipboard: paste {id} copyOnly={copyOnly} target=0x{target:X} -> {result.Success} ({result.Message})");
         return result.Success;
     }
 
