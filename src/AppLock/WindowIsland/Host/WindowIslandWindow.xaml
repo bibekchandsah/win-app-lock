@@ -2540,6 +2540,23 @@
                                                    Margin="0,0,0,0"/>
                                     </StackPanel>
 
+                                    <!-- Saved City Dots Indicator (Right side, vertically centered across whole card) -->
+                                    <Border x:Name="WeatherCityDotsContainer"
+                                            Grid.Row="0"
+                                            Grid.RowSpan="5"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Background="#24000000"
+                                            BorderBrush="#20FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="3,5"
+                                            Margin="0,0,-4,0">
+                                        <StackPanel x:Name="WeatherCityDotsPanel"
+                                                    Spacing="3"
+                                                    HorizontalAlignment="Center"/>
+                                    </Border>
+
                                     <!-- Condition & Feels Like -->
                                     <StackPanel Grid.Row="2" Spacing="2" Margin="0,2,0,0">
                                         <TextBlock x:Name="WeatherConditionText"
@@ -2893,7 +2910,7 @@
                                 <!-- Header -->
                                 <Grid Grid.Row="0" Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                        <FontIcon Glyph="&#xE707;" FontSize="13" Foreground="#60CDFF"/>
+                                        <FontIcon x:Name="WeatherLocationsHeaderIcon" Glyph="&#xE707;" FontSize="13" Foreground="#60CDFF"/>
                                         <TextBlock Text="Weather Locations"
                                                    FontFamily="Segoe UI Variable Display"
                                                    FontWeight="SemiBold"

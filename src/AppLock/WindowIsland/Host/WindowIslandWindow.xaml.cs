@@ -4907,6 +4907,8 @@ public sealed partial class WindowIslandWindow : Window
         WeatherHeroCard.BorderBrush = new SolidColorBrush(Argb(palette.BorderColor));
         WeatherConditionIcon.Foreground = new SolidColorBrush(Argb(palette.IconColor));
 
+        RenderWeatherCityDots(settings);
+
         // 5. Precipitation: Value, mini-bar fill, subtext
         WeatherPrecipValText.Text = $"{weather.PrecipitationTodayMm:0.0} mm today";
         WeatherPrecipSubText.Text = weather.PrecipitationTodayMm > 0 ? "Rain recorded today" : "No rain expected today";
@@ -5126,6 +5128,108 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private void RenderWeatherCityDots(WindowIslandSettings settings)
+    {
+        if (WeatherCityDotsPanel == null || WeatherCityDotsContainer == null) return;
+        WeatherCityDotsPanel.Children.Clear();
+
+        var cities = settings.GetWeatherCities();
+        if (cities == null || cities.Count == 0)
+        {
+            WeatherCityDotsContainer.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        WeatherCityDotsContainer.Visibility = Visibility.Visible;
+        int activeIdx = Math.Clamp(settings.ActiveWeatherCityIndex, 0, cities.Count - 1);
+        bool hasMoreThanThree = cities.Count > 3;
+
+        if (hasMoreThanThree)
+        {
+            var upBtn = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE70E", FontSize = 8, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)) },
+                Background = new SolidColorBrush(ColorHelper.FromArgb(0, 0, 0, 0)),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(3, 2, 3, 2),
+                MinWidth = 0,
+                MinHeight = 0,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            ToolTipService.SetToolTip(upBtn, "Previous saved address");
+            upBtn.Click += async (_, _) =>
+            {
+                int prev = (activeIdx - 1 + cities.Count) % cities.Count;
+                await WindowIslandWeatherService.Instance.SelectCityAsync(prev);
+                RefreshWeatherUI();
+            };
+            WeatherCityDotsPanel.Children.Add(upBtn);
+        }
+
+        int windowStart = hasMoreThanThree ? Math.Clamp(activeIdx - 1, 0, cities.Count - 3) : 0;
+        int visibleCount = Math.Min(3, cities.Count);
+
+        for (int offset = 0; offset < visibleCount; offset++)
+        {
+            int cityIdx = windowStart + offset;
+            var city = cities[cityIdx];
+            bool isSel = (cityIdx == activeIdx);
+            string address = string.IsNullOrWhiteSpace(city.Country) ? city.Name : $"{city.Name}, {city.Country}";
+
+            var dot = new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Width = isSel ? 8 : 6,
+                Height = isSel ? 8 : 6,
+                Fill = new SolidColorBrush(isSel
+                    ? ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)
+                    : ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var dotBtn = new Button
+            {
+                Content = dot,
+                Background = new SolidColorBrush(ColorHelper.FromArgb(0, 0, 0, 0)),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(3),
+                MinWidth = 0,
+                MinHeight = 0,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            ToolTipService.SetToolTip(dotBtn, $"{address} ({cityIdx + 1}/{cities.Count})");
+            dotBtn.Click += async (_, _) =>
+            {
+                await WindowIslandWeatherService.Instance.SelectCityAsync(cityIdx);
+                RefreshWeatherUI();
+            };
+
+            WeatherCityDotsPanel.Children.Add(dotBtn);
+        }
+
+        if (hasMoreThanThree)
+        {
+            var downBtn = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE70D", FontSize = 8, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)) },
+                Background = new SolidColorBrush(ColorHelper.FromArgb(0, 0, 0, 0)),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(3, 2, 3, 2),
+                MinWidth = 0,
+                MinHeight = 0,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            ToolTipService.SetToolTip(downBtn, "Next saved address");
+            downBtn.Click += async (_, _) =>
+            {
+                int next = (activeIdx + 1) % cities.Count;
+                await WindowIslandWeatherService.Instance.SelectCityAsync(next);
+                RefreshWeatherUI();
+            };
+            WeatherCityDotsPanel.Children.Add(downBtn);
+        }
+    }
+
     private DateTime _lastWeatherScrollTime = DateTime.MinValue;
 
     private async void WeatherHeroCard_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -5160,6 +5264,10 @@ public sealed partial class WindowIslandWindow : Window
 
     private void WeatherChangeCityBtn_Click(object sender, RoutedEventArgs e)
     {
+        if (WeatherLocationsHeaderIcon != null)
+        {
+            WeatherLocationsHeaderIcon.Foreground = new SolidColorBrush(GetSystemAccentColor());
+        }
         WeatherSearchResultsStack.Children.Clear();
         WeatherSearchFeedback.Visibility = Visibility.Collapsed;
         WeatherSearchInput.Text = string.Empty;
@@ -5173,6 +5281,7 @@ public sealed partial class WindowIslandWindow : Window
         WeatherSavedCitiesStack.Children.Clear();
         var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
         var cities = settings.GetWeatherCities();
+        var accent = GetSystemAccentColor();
 
         for (int i = 0; i < cities.Count; i++)
         {
@@ -5192,8 +5301,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
-                Background = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x30, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
-                BorderBrush = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x80, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x30, accent.R, accent.G, accent.B) : ColorHelper.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
+                BorderBrush = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B) : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 6, 10, 6)
@@ -5204,7 +5313,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = "\uE707",
                 FontSize = 11,
-                Foreground = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF))
+                Foreground = new SolidColorBrush(isActive ? accent : ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF))
             });
 
             var nameText = new TextBlock
@@ -5224,7 +5333,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Glyph = "\uE73E",
                     FontSize = 10,
-                    Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF)),
+                    Foreground = new SolidColorBrush(accent),
                     VerticalAlignment = VerticalAlignment.Center
                 });
             }
