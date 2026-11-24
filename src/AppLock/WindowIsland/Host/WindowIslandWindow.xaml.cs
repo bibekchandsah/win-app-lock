@@ -146,6 +146,7 @@ public sealed partial class WindowIslandWindow : Window
     private bool                    _volumeTargetMuted;
     private long                    _volumeLastWriteMs;   // last user-driven slider change
     private bool                    _volumePointerDown;
+    private string                  _mediaAppName = string.Empty;   // app the player is showing
     private long                    _lastVolumeCardMs;
     private int                     _pendingVolumeCard = -1;
     private DQTimer?                _volumeCardTimer;
@@ -1547,6 +1548,7 @@ public sealed partial class WindowIslandWindow : Window
         _homeState = null;
         StopVolumeUi();
         StopEqTimer();
+        _mediaAppName = string.Empty;
         // Hide folded media mini when home tab is not active
         FoldedMediaMini.Visibility = Visibility.Collapsed;
     }
@@ -1556,6 +1558,8 @@ public sealed partial class WindowIslandWindow : Window
         try
         {
             _isMediaPlaying = snap.Playing;
+
+            _mediaAppName = snap.HasSession ? snap.App : string.Empty;
 
             if (!snap.HasSession || string.IsNullOrEmpty(snap.Title))
             {
@@ -1921,9 +1925,11 @@ public sealed partial class WindowIslandWindow : Window
             if (_audio == null) return;
             _audio.Refresh();
 
-            var app = _audio.FindPlayingSession();
+            // Follow the app the player card is showing, so cycling it with the chevron also moves
+            // the app-volume target; otherwise the loudest session wins.
+            var app = _audio.FindPlayingSession(_mediaAppName);
             bool audible = app != null && app.Peak > 0.0005f;
-            bool hasApp = app != null && (audible || _isMediaPlaying);
+            bool hasApp = app != null && (audible || _isMediaPlaying || _audio.HasAudibleSession());
 
             if (!hasApp) _appVolumeMode = false;
             _appSessionId = app?.SessionId;

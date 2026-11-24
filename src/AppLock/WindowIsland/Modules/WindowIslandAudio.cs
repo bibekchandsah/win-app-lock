@@ -219,10 +219,11 @@ public sealed class WindowIslandAudio : IDisposable
     }
 
     /// <summary>
-    /// The app session currently producing audio: the named process when it has a session,
-    /// otherwise the loudest one. Null when no app has an audio session at all.
+    /// The session the bar should show: the audio of <paramref name="preferredApp"/> (the app the
+    /// player is showing, e.g. "Microsoft Edge") when it has one, otherwise the loudest session.
+    /// Null when no app has an audio session at all.
     /// </summary>
-    public IslandAudioSession? FindPlayingSession(string? preferredProcess = null)
+    public IslandAudioSession? FindPlayingSession(string? preferredApp = null)
     {
         var sessions = ReadSessions();
         if (sessions.Count == 0) return null;
@@ -233,21 +234,52 @@ public sealed class WindowIslandAudio : IDisposable
             if (session.Peak > choice.Peak) choice = session;
         }
 
-        if (!string.IsNullOrEmpty(preferredProcess))
+        if (!string.IsNullOrEmpty(preferredApp))
         {
+            RawSession? match = null;
             foreach (var session in sessions)
             {
-                if (string.Equals(ProcessNameFor(session.ProcessId), preferredProcess, StringComparison.OrdinalIgnoreCase))
-                {
-                    choice = session;
-                    break;
-                }
+                if (!AppMatchesProcess(preferredApp, ProcessNameFor(session.ProcessId))) continue;
+                if (match == null || session.Peak > match.Value.Peak) match = session;
             }
+
+            if (match != null) choice = match.Value;
         }
 
         return new IslandAudioSession(
             choice.SessionId, choice.ProcessId, ProcessNameFor(choice.ProcessId),
             choice.Volume, choice.Muted, choice.Peak);
+    }
+
+    /// <summary>True while any app is actually producing sound.</summary>
+    public bool HasAudibleSession()
+    {
+        foreach (var session in ReadSessions())
+        {
+            if (session.Peak > AudiblePeak) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Loose match between an SMTC app name and an audio process: "Microsoft Edge" owns
+    /// msedge.exe, "Google Chrome" owns chrome.exe, "Media Player" owns MediaPlayer.exe.
+    /// </summary>
+    private static bool AppMatchesProcess(string appName, string processName)
+    {
+        if (string.IsNullOrEmpty(processName)) return false;
+
+        string app = appName.Replace(" ", string.Empty).ToLowerInvariant();
+        string proc = processName.ToLowerInvariant();
+
+        if (proc.Length >= 3 && app.Contains(proc, StringComparison.Ordinal)) return true;
+        if (proc.StartsWith("ms", StringComparison.Ordinal) && proc.Length > 4
+            && app.Contains(proc[2..], StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private readonly record struct RawSession(
