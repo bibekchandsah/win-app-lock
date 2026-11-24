@@ -699,6 +699,7 @@ public sealed partial class WindowIslandWindow : Window
         _compositor?.AnimateToTab(_activeTab);
         _compositor?.UpdateWindowWidth(WindowWidthDip, _settings);
         PositionAndSize();
+        UpdateHitRegion(open: true);
     }
 
     private void AnimateTabSwitch(int fromTab, int toTab)
@@ -7417,7 +7418,9 @@ public sealed partial class WindowIslandWindow : Window
         if (_activeTab == 4 && _compositor != null && _compositor.IsOpen)
         {
             PositionAndSize();
+            UpdateHitRegion(open: true);
             _compositor.AnimateToTab(4);
+            OpenLayer.UpdateLayout();
         }
     }
 
