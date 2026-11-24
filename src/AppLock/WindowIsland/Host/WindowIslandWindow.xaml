@@ -373,11 +373,11 @@
         <Grid x:Name="CommandLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
-              Width="660"
-              Height="320"
+              Width="700"
+              Height="380"
               Opacity="0"
               IsHitTestVisible="False">
-            <Grid Margin="16,10,16,10">
+            <Grid Margin="16,10,16,12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- Search Box -->
                     <RowDefinition Height="*"    /> <!-- Results list -->
@@ -399,7 +399,7 @@
                               Margin="4,0,8,0" />
                     <TextBox x:Name="CommandInput"
                              Grid.Column="1"
-                             PlaceholderText="Search files, apps, commands, or calculate…"
+                             PlaceholderText="Search files, apps, math, or @command (e.g. @youtube, @google, @github)…"
                              FontSize="12"
                              Background="Transparent"
                              BorderBrush="Transparent"
@@ -434,7 +434,7 @@
 
                 <!-- Footer Hints -->
                 <Grid Grid.Row="2" Margin="0,4,0,0">
-                    <TextBlock Text="↵ Open  ·  Ctrl+↵ In folder  ·  Alt+↵ Copy  ·  Esc Close"
+                    <TextBlock Text="↵ Open  ·  Tab Auto-fill  ·  Ctrl+↵ In folder  ·  Alt+↵ Copy  ·  Type @ for web searches  ·  Esc Close"
                                FontSize="9"
                                Foreground="#50FFFFFF"
                                HorizontalAlignment="Center" />

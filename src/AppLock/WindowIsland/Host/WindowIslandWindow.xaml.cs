@@ -332,7 +332,8 @@ public sealed partial class WindowIslandWindow : Window
         // Milestone 8: Command bar & File index
         _fileIndex = new WindowIslandFileIndex();
         _fileIndex.StartBackgroundIndexing();
-        _commandService = new WindowIslandCommandService(_fileIndex, _launcher!);
+        _commandService = new WindowIslandCommandService(_fileIndex, _launcher!, _settings);
+        _commandService.SearchCommandAdded += _ => ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
 
         // Milestone 9: Note, Timer, Reminders
         _notesStore = new WindowIslandNotesStore();
@@ -469,6 +470,7 @@ public sealed partial class WindowIslandWindow : Window
     public void ApplySettings(WindowIslandSettings settings)
     {
         _settings = settings;
+        _commandService?.UpdateSettings(settings);
         IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
         UpdateChatHeightLabel();
         PositionAndSize();
@@ -1535,14 +1537,15 @@ public sealed partial class WindowIslandWindow : Window
         uint dpi = GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
-        // The window is always sized to WindowWidthDip so the notch is centered properly
-        float winW = WindowWidthDip;
-        float winH = IslandMotion.TabSize(_activeTab).H + 60f;
+        bool isCmd = _compositor?.IsCommand == true;
+        float winW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
+        float winH = isCmd ? (IslandMotion.CommandBarSize.H + 60f) : (IslandMotion.TabSize(_activeTab).H + 60f);
 
-        // The open layer is the panel's content: it fills the window so the shell never shows
-        // an empty strip under the cards.
-        OpenLayer.Width  = winW;
-        OpenLayer.Height = winH;
+        // The open and command layers fill the window so the shell never shows an empty strip
+        OpenLayer.Width    = winW;
+        OpenLayer.Height   = winH;
+        CommandLayer.Width = winW;
+        CommandLayer.Height= winH;
 
         var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
         _windowX        = rect.X;
@@ -3276,7 +3279,12 @@ public sealed partial class WindowIslandWindow : Window
         _previousForegroundWindow = GetForegroundWindow();
         SetForegroundWindow(_hwnd);
 
-        _compositor.UpdateWindowWidth(WindowWidthDip, _settings);
+        _compositor.UpdateWindowWidth(IslandMotion.WindowWidthForCommand, _settings);
+        _compositor.AnimateToCommand(IslandMotion.CommandBarSize.W, IslandMotion.CommandBarSize.H, () =>
+        {
+            _measuringFrames = false;
+        });
+
         PositionAndSize();
         UpdateHitRegion(open: false, isCard: false, isCommand: true);
 
@@ -3288,11 +3296,6 @@ public sealed partial class WindowIslandWindow : Window
         FadeVisual(_cardVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
-
-        _compositor.AnimateToCommand(IslandMotion.CommandBarSize.W, IslandMotion.CommandBarSize.H, () =>
-        {
-            _measuringFrames = false;
-        });
 
         CommandInput.Text = string.Empty;
         ExecuteCommandQuery(string.Empty);
@@ -3350,7 +3353,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             var hint = new TextBlock
             {
-                Text = "Type a file name, app name, math (e.g. 2*(3+4)), or command (lock, note, weather)…",
+                Text = "Type a file name, app name, math (e.g. 2*(3+4)), or @command (e.g. @youtube, @google, @github, @incognito, lock, note, weather)…",
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -3458,6 +3461,23 @@ public sealed partial class WindowIslandWindow : Window
 
     private async void CommandInput_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (e.Key == Windows.System.VirtualKey.Tab)
+        {
+            if (_selectedCommandIndex >= 0 && _selectedCommandIndex < _currentCommandItems.Count)
+            {
+                var sel = _currentCommandItems[_selectedCommandIndex];
+                if (sel.Title.StartsWith("@"))
+                {
+                    int spaceIdx = sel.Title.IndexOf(' ');
+                    string cmd = spaceIdx > 0 ? sel.Title[..spaceIdx] : sel.Title;
+                    CommandInput.Text = $"{cmd} ";
+                    CommandInput.SelectionStart = CommandInput.Text.Length;
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
             CloseCommandBar();

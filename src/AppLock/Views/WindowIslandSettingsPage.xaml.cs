@@ -110,6 +110,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         CloseDelaySlider.Value        = s.CloseDelayMs;
         FrameStatsToggle.IsOn         = s.ShowFrameStats;
         UpdateDelayLabels();
+        RefreshSearchCommandsList();
 
         _loading = false;
     }
@@ -252,6 +253,163 @@ public sealed partial class WindowIslandSettingsPage : Page
         {
             WeatherSearchBtn.IsEnabled = true;
         }
+    }
+
+    // ── Web Search Commands (@) ────────────────────────────────────────────────
+
+    private void RefreshSearchCommandsList()
+    {
+        if (SearchCommandsListPanel == null) return;
+        SearchCommandsListPanel.Children.Clear();
+
+        var searches = ServiceContainer.Settings.WindowIsland.GetCustomSearches();
+        for (int i = 0; i < searches.Count; i++)
+        {
+            var item = searches[i];
+            int index = i;
+
+            var border = new Border
+            {
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(16, 255, 255, 255)),
+                BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(24, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Tag badge
+            var tagBadge = new Border
+            {
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(35, 96, 205, 255)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var tagText = new TextBlock
+            {
+                Text = item.Command,
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 205, 255))
+            };
+            tagBadge.Child = tagText;
+            Grid.SetColumn(tagBadge, 0);
+            grid.Children.Add(tagBadge);
+
+            // Name & URL
+            var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 8, 0) };
+            var nameText = new TextBlock
+            {
+                Text = item.Name,
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.Medium,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            var urlText = new TextBlock
+            {
+                Text = item.QueryUrl,
+                FontSize = 10,
+                Opacity = 0.6,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            infoStack.Children.Add(nameText);
+            infoStack.Children.Add(urlText);
+            Grid.SetColumn(infoStack, 1);
+            grid.Children.Add(infoStack);
+
+            // Delete button
+            var delBtn = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE74D", FontSize = 11 },
+                Padding = new Thickness(6, 4, 6, 4),
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                BorderThickness = new Thickness(0)
+            };
+            ToolTipService.SetToolTip(delBtn, "Delete command");
+            delBtn.Click += (_, _) =>
+            {
+                if (index >= 0 && index < searches.Count)
+                {
+                    searches.RemoveAt(index);
+                    ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                    WindowIslandHost.Instance.ApplySettings(ServiceContainer.Settings.WindowIsland);
+                    RefreshSearchCommandsList();
+                }
+            };
+            Grid.SetColumn(delBtn, 2);
+            grid.Children.Add(delBtn);
+
+            border.Child = grid;
+            SearchCommandsListPanel.Children.Add(border);
+        }
+    }
+
+    private void AddSearchBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string cmd = NewSearchCommandBox.Text.Trim();
+        string name = NewSearchNameBox.Text.Trim();
+        string url = NewSearchUrlBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(cmd) || string.IsNullOrWhiteSpace(url))
+        {
+            SearchCommandValidationText.Text = "Please enter both a command (e.g. @reddit) and a search URL.";
+            SearchCommandValidationText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            SearchCommandValidationText.Text = "URL must start with http:// or https://";
+            SearchCommandValidationText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        string normCmd = CustomSearchCommand.NormalizeCommand(cmd);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = normCmd.TrimStart('@');
+            if (name.Length > 0) name = char.ToUpper(name[0]) + name[1..];
+        }
+
+        SearchCommandValidationText.Visibility = Visibility.Collapsed;
+
+        var searches = ServiceContainer.Settings.WindowIsland.GetCustomSearches();
+        var existing = searches.FirstOrDefault(s => string.Equals(s.Command, normCmd, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.Name = name;
+            existing.QueryUrl = url;
+            existing.BaseUrl = CustomSearchCommand.ExtractBaseUrl(url);
+        }
+        else
+        {
+            searches.Add(new CustomSearchCommand(normCmd, name, url));
+        }
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.ApplySettings(ServiceContainer.Settings.WindowIsland);
+
+        NewSearchCommandBox.Text = string.Empty;
+        NewSearchNameBox.Text = string.Empty;
+        NewSearchUrlBox.Text = string.Empty;
+
+        RefreshSearchCommandsList();
+    }
+
+    private void ResetSearchesBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ServiceContainer.Settings.WindowIsland.CustomSearches = WindowIslandSettings.DefaultCustomSearches();
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.ApplySettings(ServiceContainer.Settings.WindowIsland);
+        RefreshSearchCommandsList();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

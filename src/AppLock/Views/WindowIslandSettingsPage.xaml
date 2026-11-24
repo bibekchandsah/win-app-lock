@@ -273,6 +273,75 @@
                 <TextBlock Text="Default: Ctrl+Shift+W" FontSize="11" Opacity="0.5" />
             </StackPanel>
 
+            <!-- Web Search Commands (@) -->
+            <TextBlock Text="Web Search Commands (@)" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Quick Web Searches in Command Bar" FontWeight="SemiBold" FontSize="13" />
+                    <TextBlock Text="Type @command followed by your search term in the Command Bar (e.g. @youtube nepali music, @github winui, @amazon laptop). You can add custom searches or reset to defaults below."
+                               FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
+
+                    <!-- Add Custom Search Form -->
+                    <TextBlock Text="Add New Search Command" FontWeight="Medium" FontSize="12" Margin="0,4,0,0" />
+                    <Grid ColumnSpacing="8" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="NewSearchCommandBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="@tag (e.g. @wiki)" />
+                        <TextBox x:Name="NewSearchNameBox"
+                                 Grid.Column="1"
+                                 PlaceholderText="Name (e.g. Wikipedia)" />
+                        <TextBox x:Name="NewSearchUrlBox"
+                                 Grid.Column="2"
+                                 PlaceholderText="URL (e.g. https://en.wikipedia.org/wiki/Special:Search?search=)" />
+                        <Button x:Name="AddSearchBtn"
+                                Grid.Column="3"
+                                Click="AddSearchBtn_Click"
+                                ToolTipService.ToolTip="Add Search Command">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE710;" FontSize="11" />
+                                <TextBlock Text="Add" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <TextBlock x:Name="SearchCommandValidationText" FontSize="11" Foreground="#FF6B6B" Visibility="Collapsed" />
+
+                    <!-- Search Commands List Header -->
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Configured Search Commands" FontWeight="Medium" FontSize="12" VerticalAlignment="Center" />
+                        <Button x:Name="ResetSearchesBtn"
+                                Grid.Column="1"
+                                Content="Reset to Defaults"
+                                FontSize="11"
+                                Padding="8,4"
+                                Click="ResetSearchesBtn_Click" />
+                    </Grid>
+
+                    <Border BorderThickness="1"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            CornerRadius="6"
+                            MaxHeight="260"
+                            Padding="6">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="SearchCommandsListPanel" Spacing="4" />
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+            </Border>
+
             <!-- Polish & Performance (Milestone 16) -->
             <TextBlock Text="Performance &amp; Polish" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0"/>
             <StackPanel Spacing="10">

@@ -58,6 +58,51 @@ public sealed class WindowIslandSettings
     public bool CardClipboardEnabled  { get; set; } = true;
     public bool CardScreenshotEnabled { get; set; } = true;
 
+    // ── Milestone 8: Command Bar & Web Searches (@) ──────────────────────────
+    /// <summary>Configurable list of search engine shortcuts in the Command Bar (e.g. "@youtube nepali music").</summary>
+    public System.Collections.Generic.List<CustomSearchCommand> CustomSearches { get; set; } = DefaultCustomSearches();
+
+    public System.Collections.Generic.List<CustomSearchCommand> GetCustomSearches()
+    {
+        if (CustomSearches == null || CustomSearches.Count == 0)
+        {
+            CustomSearches = DefaultCustomSearches();
+        }
+        return CustomSearches;
+    }
+
+    public static System.Collections.Generic.List<CustomSearchCommand> DefaultCustomSearches() => new()
+    {
+        new CustomSearchCommand("@google", "Google", "https://www.google.com/search?q=", "https://www.google.com", "\uE721", "#4285F4"),
+        new CustomSearchCommand("@youtube", "YouTube", "https://www.youtube.com/results?search_query=", "https://www.youtube.com", "\uE714", "#FF0000"),
+        new CustomSearchCommand("@incognito", "Incognito Search", "https://duckduckgo.com/?q=", "https://duckduckgo.com", "\uE727", "#9E9E9E", isIncognito: true),
+        new CustomSearchCommand("@maps", "Google Maps", "https://www.google.com/maps/search/", "https://www.google.com/maps", "\uE707", "#34A853"),
+        new CustomSearchCommand("@images", "Google Images", "https://www.google.com/search?tbm=isch&q=", "https://images.google.com", "\uEB9F", "#FBBC05"),
+        new CustomSearchCommand("@amazon", "Amazon", "https://www.amazon.com/s?k=", "https://www.amazon.com", "\uE719", "#FF9900"),
+        new CustomSearchCommand("@flipkart", "Flipkart", "https://www.flipkart.com/search?q=", "https://www.flipkart.com", "\uE7BF", "#2874F0"),
+        new CustomSearchCommand("@wiki", "Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search=", "https://en.wikipedia.org", "\uE82D", "#6B7280"),
+        new CustomSearchCommand("@wikihow", "wikiHow", "https://www.wikihow.com/wikiHowTo?search=", "https://www.wikihow.com", "\uE82D", "#93B874"),
+        new CustomSearchCommand("@github", "GitHub", "https://github.com/search?q=", "https://github.com", "\uE943", "#A371F7"),
+        new CustomSearchCommand("@translate", "Google Translate", "https://translate.google.com/?sl=auto&tl=en&text=", "https://translate.google.com", "\uE8C1", "#1A73E8"),
+        new CustomSearchCommand("@stackoverflow", "Stack Overflow", "https://stackoverflow.com/search?q=", "https://stackoverflow.com", "\uE7BA", "#F48024"),
+        new CustomSearchCommand("@reddit", "Reddit", "https://www.reddit.com/search/?q=", "https://www.reddit.com", "\uE8BD", "#FF4500"),
+        new CustomSearchCommand("@quora", "Quora", "https://www.quora.com/search?q=", "https://www.quora.com", "\uE76E", "#B92B27"),
+        new CustomSearchCommand("@medium", "Medium", "https://medium.com/search?q=", "https://medium.com", "\uE70F", "#00AB6C"),
+        new CustomSearchCommand("@linkedin", "LinkedIn", "https://www.linkedin.com/search/results/all/?keywords=", "https://www.linkedin.com", "\uE77B", "#0A66C2"),
+        new CustomSearchCommand("@twitter", "Twitter / X", "https://x.com/search?q=", "https://x.com", "\uE735", "#1DA1F2"),
+        new CustomSearchCommand("@x", "X", "https://x.com/search?q=", "https://x.com", "\uE735", "#E7E9EA"),
+        new CustomSearchCommand("@news", "Google News", "https://news.google.com/search?q=", "https://news.google.com", "\uE8A1", "#EA4335"),
+        new CustomSearchCommand("@scholar", "Google Scholar", "https://scholar.google.com/scholar?q=", "https://scholar.google.com", "\uE82D", "#4285F4"),
+        new CustomSearchCommand("@weather", "Weather", "https://www.google.com/search?q=weather+", "https://www.google.com/search?q=weather", "\uE9CA", "#FFB900"),
+        new CustomSearchCommand("@duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q=", "https://duckduckgo.com", "\uE774", "#DE5833"),
+        new CustomSearchCommand("@spotify", "Spotify", "https://open.spotify.com/search/", "https://open.spotify.com", "\uE8D6", "#1DB954"),
+        new CustomSearchCommand("@coursera", "Coursera", "https://www.coursera.org/search?query=", "https://www.coursera.org", "\uE7BE", "#0056D2"),
+        new CustomSearchCommand("@udemy", "Udemy", "https://www.udemy.com/courses/search/?q=", "https://www.udemy.com", "\uE7BE", "#A435F0"),
+        new CustomSearchCommand("@discord", "Discord", "https://discord.com/search?q=", "https://discord.com", "\uE8BD", "#5865F2"),
+        new CustomSearchCommand("@pinterest", "Pinterest", "https://www.pinterest.com/search/pins/?q=", "https://www.pinterest.com", "\uE718", "#BD081C"),
+        new CustomSearchCommand("@unsplash", "Unsplash", "https://unsplash.com/s/photos/", "https://unsplash.com", "\uEB9F", "#FFFFFF")
+    };
+
     // ── Milestone 10: Weather Settings ───────────────────────────────────────
     public string WeatherCity { get; set; } = string.Empty;
     public double WeatherLatitude { get; set; } = 0.0;
@@ -197,6 +242,14 @@ public sealed class WindowIslandSettings
             }
         }
         clone.ChosenApps = new System.Collections.Generic.List<string>(ChosenApps ?? new());
+        clone.CustomSearches = new System.Collections.Generic.List<CustomSearchCommand>();
+        if (CustomSearches != null)
+        {
+            foreach (var cs in CustomSearches)
+            {
+                clone.CustomSearches.Add(cs.Clone());
+            }
+        }
         clone.WeatherCities = new System.Collections.Generic.List<WeatherCity>();
         if (WeatherCities != null)
         {

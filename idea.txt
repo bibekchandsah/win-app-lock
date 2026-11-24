@@ -459,7 +459,7 @@ show ring in island too during timer
 improve check list it's not toggled now 
 when the app is locked and user click setting icon from dynamic island then it bypasses the lock and opens directly prevent it
 use accent color in all tabs 
-add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
+fixed - add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
 user can add multiple search like @command and url for example 
 @youtube - command 
 https://www.youtube.com/results?search_query= - query 

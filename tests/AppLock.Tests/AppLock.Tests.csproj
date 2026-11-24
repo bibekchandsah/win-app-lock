@@ -74,6 +74,7 @@
     <Compile Include="..\..\src\AppLock\Models\KeyboardSettings.cs" Link="Models\KeyboardSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\IslandSettings.cs" Link="Models\IslandSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\WindowIslandSettings.cs" Link="Models\WindowIslandSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Models\CustomSearchCommand.cs" Link="Models\CustomSearchCommand.cs" />
     <Compile Include="..\..\src\AppLock\Models\ControlsSettings.cs" Link="Models\ControlsSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\LockKeyIndicatorSettings.cs" Link="Models\LockKeyIndicatorSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
