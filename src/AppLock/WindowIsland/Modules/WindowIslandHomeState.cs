@@ -109,6 +109,9 @@ public sealed class WindowIslandHomeState : IDisposable
 
     public Task MediaCommandAsync(string command) => _media.CommandAsync(command);
 
+    /// <summary>Moves the player to the next app that has media (called on the UI thread).</summary>
+    public void CycleMediaSession() => _media.CycleSession();
+
     public void Dispose()
     {
         Stop();

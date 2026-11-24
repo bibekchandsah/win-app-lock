@@ -730,8 +730,8 @@
                                                         </Grid>
                                                     </StackPanel>
 
-                                                    <StackPanel Grid.Row="3"
-                                                                Orientation="Horizontal"
+                                                    <Grid Grid.Row="3">
+                                                    <StackPanel Orientation="Horizontal"
                                                                 HorizontalAlignment="Center"
                                                                 Spacing="14">
                                                         <Button x:Name="MediaPrev"
@@ -759,6 +759,19 @@
                                                             <FontIcon Glyph="&#xE893;" FontSize="13" />
                                                         </Button>
                                                     </StackPanel>
+
+                                                    <!-- Cycles through every app that has media (only with more than one) -->
+                                                    <Button x:Name="MediaNextApp"
+                                                            Click="MediaNextApp_Click"
+                                                            Width="26" Height="26" MinWidth="26" Padding="0"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="Collapsed"
+                                                            Style="{StaticResource TabButtonStyle}"
+                                                            ToolTipService.ToolTip="Show the next app that is playing">
+                                                        <FontIcon Glyph="&#xE76C;" FontSize="11" />
+                                                    </Button>
+                                                    </Grid>
                                                 </Grid>
 
                                                 <Grid x:Name="RecentPanel" Visibility="Visible">
@@ -940,6 +953,26 @@
                                             </Button>
                                         </Grid>
                                     </Border>
+
+                                    <!-- Output-device list, opened from the volume bar's device button.
+                                         Right-aligned inside the volume bar's own column so it opens
+                                         directly above that button, and kept inside the panel
+                                         instead of a popup so the island's hover tracking never
+                                         sees the pointer leave the island. -->
+                                    <Border x:Name="VolumeDeviceOverlay"
+                                            Grid.Row="0"
+                                            Width="250"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Margin="0,0,0,6"
+                                            CornerRadius="12"
+                                            Background="#F21A1A1A"
+                                            BorderBrush="#2AFFFFFF"
+                                            BorderThickness="1"
+                                            Padding="6"
+                                            Visibility="Collapsed">
+                                        <StackPanel x:Name="VolumeDeviceList" Spacing="2" />
+                                    </Border>
                                 </Grid>
 
                                 <!-- Tile grid: fills the right column top to bottom -->
@@ -1053,24 +1086,6 @@
 
                                 </Grid>
                             </Grid>
-
-                            <!-- Output-device list, opened from the volume bar's device button. It lives
-                                 inside the panel instead of a popup window so the island's hover
-                                 tracking never sees the pointer leave the island. -->
-                            <Border x:Name="VolumeDeviceOverlay"
-                                    Grid.Row="0"
-                                    Width="240"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Bottom"
-                                    Margin="0,0,0,6"
-                                    CornerRadius="12"
-                                    Background="#F21A1A1A"
-                                    BorderBrush="#2AFFFFFF"
-                                    BorderThickness="1"
-                                    Padding="6"
-                                    Visibility="Collapsed">
-                                <StackPanel x:Name="VolumeDeviceList" Spacing="2" />
-                            </Border>
 
                             <!-- Launcher: full width at the bottom -->
                             <Border Grid.Row="2"

@@ -18,9 +18,10 @@ public sealed record MediaSnapshot(
     string App,
     double PositionSeconds,
     double DurationSeconds,
-    string ArtFile)
+    string ArtFile,
+    int SessionCount)
 {
-    public static MediaSnapshot Empty { get; } = new(false, false, string.Empty, string.Empty, string.Empty, 0, 0, string.Empty);
+    public static MediaSnapshot Empty { get; } = new(false, false, string.Empty, string.Empty, string.Empty, 0, 0, string.Empty, 0);
 }
 
 /// <summary>
@@ -34,6 +35,10 @@ public sealed class MediaSessionSource : IDisposable
 
     private readonly int _artVersion;
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
+    private GlobalSystemMediaTransportControlsSession? _session;
+    private IReadOnlyList<GlobalSystemMediaTransportControlsSession> _sessions =
+        Array.Empty<GlobalSystemMediaTransportControlsSession>();
+    private bool _pinned;   // the user picked this session with the chevron
     private string _artFile = string.Empty;
     private string _artKey = string.Empty;
     private bool _managerFailed;
@@ -67,7 +72,7 @@ public sealed class MediaSessionSource : IDisposable
 
         try
         {
-            var session = _manager.GetCurrentSession();
+            var session = _session = ResolveSession();
             if (session == null)
             {
                 _artKey = string.Empty;
@@ -103,7 +108,13 @@ public sealed class MediaSessionSource : IDisposable
                 else _artFile = string.Empty;
             }
 
-            return new MediaSnapshot(true, playing, title, artist, app, position, duration, _artFile);
+            int count = 0;
+            foreach (var candidate in _sessions)
+            {
+                if (StatusOf(candidate) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed) count++;
+            }
+
+            return new MediaSnapshot(true, playing, title, artist, app, position, duration, _artFile, count);
         }
         catch (Exception ex)
         {
@@ -112,13 +123,98 @@ public sealed class MediaSessionSource : IDisposable
         }
     }
 
+    /// <summary>
+    /// The session the player should follow. Windows moves "current" to another app the instant
+    /// this one pauses, so a paused track was replaced by whatever else had a session and the next
+    /// Play hit that other app instead of resuming the track on screen.
+    /// </summary>
+    private GlobalSystemMediaTransportControlsSession? PickSession()
+    {
+        if (_manager == null) return null;
+
+        GlobalSystemMediaTransportControlsSession? current;
+        try { current = _manager.GetCurrentSession(); } catch { current = null; }
+
+        if (_session != null && StatusOf(_session) == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused
+            && StatusOf(current) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+        {
+            try
+            {
+                foreach (var candidate in _manager.GetSessions())
+                {
+                    if (ReferenceEquals(candidate, _session)) return _session;
+                }
+            }
+            catch { }
+        }
+
+        return current;
+    }
+
+    /// <summary>
+    /// The session to read: the one the user cycled to while it still exists, otherwise the
+    /// automatic pick. Also refreshes the session list the chevron walks through.
+    /// </summary>
+    private GlobalSystemMediaTransportControlsSession? ResolveSession()
+    {
+        if (_manager == null) return null;
+
+        try { _sessions = _manager.GetSessions(); }
+        catch { _sessions = Array.Empty<GlobalSystemMediaTransportControlsSession>(); }
+
+        if (_pinned && _session != null)
+        {
+            foreach (var candidate in _sessions)
+            {
+                if (ReferenceEquals(candidate, _session)) return _session;
+            }
+        }
+
+        _pinned = false;
+        return PickSession();
+    }
+
+    /// <summary>Shows the next app that has media; the list wraps so every app can be reached.</summary>
+    public void CycleSession()
+    {
+        var sessions = new List<GlobalSystemMediaTransportControlsSession>();
+        foreach (var candidate in _sessions)
+        {
+            if (StatusOf(candidate) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed)
+            {
+                sessions.Add(candidate);
+            }
+        }
+
+        if (sessions.Count < 2) return;
+
+        int index = -1;
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            if (ReferenceEquals(sessions[i], _session)) { index = i; break; }
+        }
+
+        _session = sessions[(index + 1) % sessions.Count];
+        _pinned = true;
+        _artKey = string.Empty; // force the new cover to load
+    }
+
+    private static GlobalSystemMediaTransportControlsSessionPlaybackStatus StatusOf(
+        GlobalSystemMediaTransportControlsSession? session)
+    {
+        if (session == null) return GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed;
+        try { return session.GetPlaybackInfo().PlaybackStatus; }
+        catch { return GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed; }
+    }
+
     public async Task CommandAsync(string command)
     {
         try
         {
             _manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            var session = _manager.GetCurrentSession();
+            var session = _session ?? PickSession() ?? _manager.GetCurrentSession();
             if (session == null) return;
+            _session = session;
 
             switch (command)
             {

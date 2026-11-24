@@ -1336,22 +1336,52 @@ public sealed partial class WindowIslandWindow : Window
         AdjustVolume(delta > 0 ? 2 : -2);
     }
 
+    /// <summary>One wheel notch or hotkey step on whichever target the volume bar shows.</summary>
     private void AdjustVolume(int delta)
     {
-        if (!_settings.CardVolumeEnabled) return;
-        int newVol = _volumeController?.Step(delta) ?? -1;
-        if (newVol < 0) return;
-        int stay = _settings.GetCardStayMs();
-        string icon = newVol == 0 ? "\uE74F" : (newVol < 33 ? "\uE992" : (newVol < 66 ? "\uE993" : "\uE995"));
-        _eventQueue?.Push(new WindowIslandCard(
-            Kind: "volume",
-            Icon: icon,
-            Title: "Volume",
-            Detail: $"{newVol}%",
-            AccentHex: "#60CDFF",
-            Priority: WindowIslandCardPriority.Volume,
-            StayMs: stay,
-            Value: newVol));
+        if (_audio == null) return;
+
+        int current;
+        if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
+        {
+            // App mode: the same session the slider drives, never the system volume.
+            var session = _audio.FindSession(_appSessionId);
+            if (session == null) return;
+            current = session.Volume;
+        }
+        else
+        {
+            current = _audio.GetDeviceVolume();
+        }
+
+        if (current < 0) return;
+        ApplyVolumeLevel(Math.Clamp(current + delta, 0, 100), pushCard: true);
+    }
+
+    /// <summary>Writes the level to the bar's current target and repaints the row.</summary>
+    private void ApplyVolumeLevel(int vol, bool pushCard)
+    {
+        vol = Math.Clamp(vol, 0, 100);
+        _volumeLastWriteMs = Environment.TickCount64;
+
+        if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
+        {
+            _audio?.SetSessionVolume(_appSessionId, vol);
+        }
+        else
+        {
+            // One write path: the island audio helper already owns the default endpoint.
+            _audio?.SetDeviceVolume(vol);
+        }
+
+        _volumeChanging = true;
+        VolumeSlider.Value = vol;
+        _volumeChanging = false;
+
+        VolumeText.Text = $"{vol}%";
+        UpdateVolumeIcon(vol, _volumeTargetMuted);
+
+        if (pushCard) QueueVolumeCard(vol);
     }
 
     private void OnCapsLockChanged(bool isOn)
@@ -1530,6 +1560,7 @@ public sealed partial class WindowIslandWindow : Window
             if (!snap.HasSession || string.IsNullOrEmpty(snap.Title))
             {
                 MediaPlayerPanel.Visibility = Visibility.Collapsed;
+                MediaNextApp.Visibility     = Visibility.Collapsed;
                 RecentPanel.Visibility      = Visibility.Visible;
                 FoldedMediaMini.Visibility  = Visibility.Collapsed;
                 StopEqTimer();
@@ -1539,6 +1570,9 @@ public sealed partial class WindowIslandWindow : Window
 
             MediaPlayerPanel.Visibility = Visibility.Visible;
             RecentPanel.Visibility      = Visibility.Collapsed;
+
+            // The chevron only makes sense while another app also has media to show.
+            MediaNextApp.Visibility = snap.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
 
             MediaTitle.Text  = snap.Title;
             MediaArtist.Text = snap.Artist;
@@ -2105,6 +2139,10 @@ public sealed partial class WindowIslandWindow : Window
     private void MediaPlayPause_Click(object sender, RoutedEventArgs e)
         => _ = _homeState?.MediaCommandAsync("toggle");
 
+    /// <summary>Shows the next app that has media; the panel stays on it, so Play/Pause hit it.</summary>
+    private void MediaNextApp_Click(object sender, RoutedEventArgs e)
+        => _homeState?.CycleMediaSession();
+
     private void MediaPrev_Click(object sender, RoutedEventArgs e)
         => _ = _homeState?.MediaCommandAsync("previous");
 
@@ -2122,23 +2160,7 @@ public sealed partial class WindowIslandWindow : Window
     private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (_volumeChanging) return;
-        int vol = (int)e.NewValue;
-
-        _volumeLastWriteMs = Environment.TickCount64;
-
-        if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
-        {
-            _audio?.SetSessionVolume(_appSessionId, vol);
-        }
-        else
-        {
-            // One write path: the island audio helper already owns the default endpoint.
-            _audio?.SetDeviceVolume(vol);
-        }
-
-        VolumeText.Text = $"{vol}%";
-        UpdateVolumeIcon(vol, _volumeTargetMuted);
-        QueueVolumeCard(vol);
+        ApplyVolumeLevel((int)e.NewValue, pushCard: true);
     }
 
     /// <summary>
