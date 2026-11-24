@@ -2531,40 +2531,34 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Navigate to the Window Island settings page (called from WindowIslandWindow).</summary>
     public void NavigateToWindowIslandSettings()
-    {
-        try
-        {
-            // Bring the main window to focus
-            _appWindow?.Show();
-            Activate();
-
-            // Navigate to Others page, then to Window Island settings
-            if (ContentFrame.CurrentSourcePageType != typeof(Views.WindowIslandSettingsPage))
-            {
-                ContentFrame.Navigate(typeof(Views.WindowIslandSettingsPage));
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[WindowIsland] NavigateToWindowIslandSettings error: {ex.Message}");
-        }
-    }
+        => _ = NavigateProtectedPageAsync(typeof(Views.WindowIslandSettingsPage));
 
     public void NavigateToSpeedMeterSettings()
+        => _ = NavigateProtectedPageAsync(typeof(Views.SpeedMeterPage));
+
+    private async Task NavigateProtectedPageAsync(Type pageType)
     {
         try
         {
             _appWindow?.Show();
+            PInvoke.ShowWindow(_hwnd, SHOW_WINDOW_CMD.SW_SHOW);
             Activate();
+            PInvoke.SetForegroundWindow(_hwnd);
 
-            if (ContentFrame.CurrentSourcePageType != typeof(Views.SpeedMeterPage))
+            if (!_isMainAuthenticated)
             {
-                ContentFrame.Navigate(typeof(Views.SpeedMeterPage));
+                await ShowLogin();
+                if (!_isMainAuthenticated) return;
+            }
+
+            if (ContentFrame.CurrentSourcePageType != pageType)
+            {
+                ContentFrame.Navigate(pageType);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WindowIsland] NavigateToSpeedMeterSettings error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WindowIsland] NavigateProtectedPageAsync error: {ex.Message}");
         }
     }
 
