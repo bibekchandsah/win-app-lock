@@ -261,4 +261,62 @@ public class WindowIslandControlsTests
         string glyph = WindowIslandControlsService.GetBtBatteryGlyph(percent);
         Assert.Equal(expectedGlyph, glyph);
     }
+
+    [Fact]
+    public void QuickCardCatalog_ReturnsBuiltIns()
+    {
+        var cards = QuickCardCatalog.GetCatalogCards();
+        Assert.NotNull(cards);
+        Assert.True(cards.Count >= 6);
+        Assert.Contains(cards, c => c.Id == "lock");
+        Assert.Contains(cards, c => c.Id == "calculator");
+    }
+
+    [Theory]
+    [InlineData("", "calc.exe", false, "Card name is required.")]
+    [InlineData("Very Long Name Exceeding Twenty Four Characters Total", "calc.exe", false, "Card name cannot exceed 24 characters.")]
+    [InlineData("Valid", "", false, "Command or URI is required.")]
+    [InlineData("Valid", "ms-settings:sound", true, "")]
+    [InlineData("Valid", "calc.exe", true, "")]
+    public void QuickCardCatalog_ValidatesCardProperly(string name, string cmd, bool expectedValid, string expectedErr)
+    {
+        var (isValid, err) = QuickCardCatalog.ValidateCard(name, cmd);
+        Assert.Equal(expectedValid, isValid);
+        if (!expectedValid)
+        {
+            Assert.Equal(expectedErr, err);
+        }
+    }
+
+    [Fact]
+    public void QuickCardCatalog_CuratedIcons_HasSufficientSelection()
+    {
+        var icons = QuickCardCatalog.GetCuratedIcons();
+        Assert.NotNull(icons);
+        Assert.True(icons.Count >= 50);
+        Assert.All(icons, ic =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(ic.Name));
+            Assert.False(string.IsNullOrWhiteSpace(ic.Glyph));
+        });
+    }
+
+    [Theory]
+    [InlineData("e701", true, "\uE701", "E701")]
+    [InlineData("E704", true, "\uE704", "E704")]
+    [InlineData("0xE701", true, "\uE701", "E701")]
+    [InlineData("\\uE701", true, "\uE701", "E701")]
+    [InlineData("&#xE701;", true, "\uE701", "E701")]
+    [InlineData("invalid", false, "", "")]
+    [InlineData("", false, "", "")]
+    public void QuickCardCatalog_TryParseHexGlyph_ParsesCorrectly(string input, bool expectedSuccess, string expectedGlyph, string expectedHex)
+    {
+        bool success = QuickCardCatalog.TryParseHexGlyph(input, out string glyph, out string hex);
+        Assert.Equal(expectedSuccess, success);
+        if (expectedSuccess)
+        {
+            Assert.Equal(expectedGlyph, glyph);
+            Assert.Equal(expectedHex, hex);
+        }
+    }
 }

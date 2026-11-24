@@ -14,15 +14,17 @@ public static class QuickCardRunner
     private const byte VK_LWIN = 0x5B;
     private const byte VK_TAB = 0x09;
     private const byte VK_D = 0x44;
+    private const byte VK_SHIFT = 0x10;
+    private const byte VK_S = 0x53;
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
-    public static async Task ExecuteCardAsync(QuickCard card, Action? onBeforeRun = null)
+    public static async Task<(bool Success, string Error)> ExecuteCardAsync(QuickCard card, Action? onBeforeRun = null)
     {
-        if (card == null) return;
+        if (card == null) return (false, "Card is null.");
 
         onBeforeRun?.Invoke();
 
-        await Task.Run(async () =>
+        return await Task.Run(async () =>
         {
             try
             {
@@ -30,30 +32,53 @@ public static class QuickCardRunner
                 {
                     case "lock":
                         WindowIslandControlsService.LockComputer();
-                        break;
+                        return (true, string.Empty);
 
                     case "desktop":
                         ToggleDesktop();
-                        break;
+                        return (true, string.Empty);
 
                     case "taskview":
                         await Task.Delay(100);
                         OpenTaskView();
-                        break;
+                        return (true, string.Empty);
 
                     case "calculator":
-                        LaunchProcess("calc.exe", "");
-                        break;
+                        try { LaunchProcess("calc.exe", ""); }
+                        catch { LaunchProcess("calculator:", ""); }
+                        return (true, string.Empty);
+
+                    case "screenshot":
+                        try { LaunchProcess("ms-screenclip:", ""); }
+                        catch
+                        {
+                            keybd_event(VK_LWIN, 0, 0, 0);
+                            keybd_event(VK_SHIFT, 0, 0, 0);
+                            keybd_event(VK_S, 0, 0, 0);
+                            keybd_event(VK_S, 0, KEYEVENTF_KEYUP, 0);
+                            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
+                            keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0);
+                        }
+                        return (true, string.Empty);
+
+                    case "terminal":
+                        try { LaunchProcess("wt.exe", card.Arguments ?? ""); }
+                        catch { LaunchProcess("cmd.exe", card.Arguments ?? ""); }
+                        return (true, string.Empty);
 
                     default:
                         if (!string.IsNullOrWhiteSpace(card.Command))
                         {
                             LaunchProcess(card.Command, card.Arguments, card.RunAsAdmin);
+                            return (true, string.Empty);
                         }
-                        break;
+                        return (false, "Card has no command.");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
         });
     }
 
@@ -86,7 +111,7 @@ public static class QuickCardRunner
         keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0);
     }
 
-    private static void LaunchProcess(string command, string arguments, bool runAsAdmin = false)
+    private static void LaunchProcess(string command, string? arguments, bool runAsAdmin = false)
     {
         var psi = new ProcessStartInfo
         {

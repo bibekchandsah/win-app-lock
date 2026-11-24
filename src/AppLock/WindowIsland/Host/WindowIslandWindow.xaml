@@ -2144,23 +2144,24 @@
                                     <TextBox x:Name="TimerCustomInput"
                                              PlaceholderText="25, 1:30, 90 s, 2 h"
                                              FontSize="10"
-                                             Height="26"
-                                             MinHeight="0"
-                                             Padding="8,0"
+                                             Height="28"
+                                             MinHeight="28"
+                                             Padding="8,5,8,5"
+                                             VerticalAlignment="Center"
                                              VerticalContentAlignment="Center"
                                              HorizontalContentAlignment="Center"
                                              TextAlignment="Center"
                                              Background="#25FFFFFF"
                                              Foreground="#FFFFFFFF"
                                              BorderBrush="#35FFFFFF"
-                                             CornerRadius="13"
+                                             CornerRadius="14"
                                              KeyDown="TimerCustomInput_KeyDown" />
                                     <Button Grid.Column="1"
                                             x:Name="TimerCustomPlayBtn"
-                                            Width="26" Height="26"
+                                            Width="28" Height="28"
                                             Padding="0"
                                             Margin="4,0,0,0"
-                                            CornerRadius="13"
+                                            CornerRadius="14"
                                             Background="{ThemeResource AccentFillColorDefaultBrush}"
                                             Foreground="White"
                                             ToolTipService.ToolTip="Start custom timer"
@@ -2169,7 +2170,7 @@
                                     </Button>
                                     <Button Grid.Column="2"
                                             x:Name="TimerCustomCloseBtn"
-                                            Width="20" Height="26"
+                                            Width="20" Height="28"
                                             Padding="0"
                                             Margin="2,0,0,0"
                                             Style="{StaticResource TabButtonStyle}"
@@ -2228,13 +2229,15 @@
                                          x:Name="ReminderNaturalInput"
                                          PlaceholderText="What to remind... (e.g. call mum tomorrow at 9)"
                                          FontSize="10"
-                                         Height="28"
-                                         Padding="10,3"
+                                         Height="30"
+                                         MinHeight="30"
+                                         Padding="12,5,12,5"
+                                         VerticalContentAlignment="Center"
                                          Background="#1C1C1E"
                                          Foreground="#FFFFFF"
                                          BorderBrush="#25FFFFFF"
                                          BorderThickness="1"
-                                         CornerRadius="13"
+                                         CornerRadius="15"
                                          TextChanged="ReminderNaturalInput_TextChanged"
                                          KeyDown="ReminderNaturalInput_KeyDown" />
 
@@ -2327,7 +2330,9 @@
                                          PlaceholderText="Enter note title..."
                                          FontSize="12"
                                          Height="32"
-                                         Padding="8,4"
+                                         MinHeight="32"
+                                         Padding="10,6,10,6"
+                                         VerticalContentAlignment="Center"
                                          Background="#20FFFFFF"
                                          Foreground="#FFFFFFFF"
                                          BorderBrush="#30FFFFFF"
@@ -3242,6 +3247,264 @@
                                               HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel x:Name="ControlsDeviceList" Spacing="6"/>
                                 </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <!-- Quick Card Add / Edit Overlay -->
+                        <Border x:Name="ControlsAddCardOverlay"
+                                Grid.Row="0" Grid.RowSpan="2"
+                                Visibility="Collapsed"
+                                Background="#1C1C1F"
+                                BorderBrush="#35FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="14,10,14,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header -->
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ControlsAddCardTitle"
+                                                   Text="Add card"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FFFFFFFF"
+                                                   VerticalAlignment="Center"/>
+
+                                        <!-- Tab Switcher (Built-in / Custom) -->
+                                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Button x:Name="ControlsCardTabBuiltInBtn"
+                                                    Click="ControlsCardTabBuiltInBtn_Click"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    Background="#25FFFFFF"
+                                                    Padding="10,3"
+                                                    CornerRadius="4">
+                                                <TextBlock x:Name="ControlsCardTabBuiltInText" Text="Built-in" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                            </Button>
+                                            <Button x:Name="ControlsCardTabCustomBtn"
+                                                    Click="ControlsCardTabCustomBtn_Click"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    Background="Transparent"
+                                                    Padding="10,3"
+                                                    CornerRadius="4">
+                                                <TextBlock x:Name="ControlsCardTabCustomText" Text="Custom" FontSize="10" Foreground="#A0FFFFFF"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Close Button -->
+                                    <Button x:Name="ControlsAddCardCloseBtn"
+                                            Click="ControlsAddCardCloseBtn_Click"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource TabButtonStyle}"
+                                            Width="24" Height="24"
+                                            Padding="0"
+                                            CornerRadius="4"
+                                            ToolTipService.ToolTip="Close (Esc)">
+                                        <FontIcon Glyph="&#xE711;" FontSize="10.5" Foreground="#B0FFFFFF"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Tab 1: Built-in Catalog List -->
+                                <Grid x:Name="ControlsAddCardBuiltInPanel" Grid.Row="1" Visibility="Visible">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <Grid x:Name="ControlsBuiltInGrid" ColumnSpacing="6" RowSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                        </Grid>
+                                    </ScrollViewer>
+                                </Grid>
+
+                                <!-- Tab 2: Custom Card Form -->
+                                <Grid x:Name="ControlsAddCardCustomPanel" Grid.Row="1" Visibility="Collapsed">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+                                        <StackPanel Spacing="8">
+                                            <!-- Row 1: Name and Admin Checkbox -->
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="Card name" FontSize="10" Foreground="#A0FFFFFF"/>
+                                                    <TextBox x:Name="ControlsCardNameBox"
+                                                             PlaceholderText="e.g. Steam, Discord, Music..."
+                                                             MaxLength="24"
+                                                             Height="30"
+                                                             MinHeight="30"
+                                                             FontSize="11"
+                                                             CornerRadius="5"
+                                                             Background="#20FFFFFF"
+                                                             BorderBrush="#30FFFFFF"
+                                                             Foreground="#FFFFFFFF"
+                                                             Padding="10,5,10,5"
+                                                             VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <CheckBox Grid.Column="1"
+                                                          x:Name="ControlsCardAdminCheck"
+                                                          Content="Run as admin"
+                                                          FontSize="10.5"
+                                                          Foreground="#D0FFFFFF"
+                                                          VerticalAlignment="Bottom"
+                                                          Margin="0,0,0,2"/>
+                                            </Grid>
+
+                                            <!-- Row 2: Command & Browse button -->
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="Command / URI / App path" FontSize="10" Foreground="#A0FFFFFF"/>
+                                                <Grid ColumnSpacing="6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="ControlsCardCommandBox"
+                                                             PlaceholderText="e.g. ms-settings:sound or calc.exe or C:\app.exe"
+                                                             Height="30"
+                                                             MinHeight="30"
+                                                             FontSize="11"
+                                                             CornerRadius="5"
+                                                             Background="#20FFFFFF"
+                                                             BorderBrush="#30FFFFFF"
+                                                             Foreground="#FFFFFFFF"
+                                                             Padding="10,5,10,5"
+                                                             VerticalContentAlignment="Center"/>
+                                                    <Button Grid.Column="1"
+                                                            x:Name="ControlsCardBrowseBtn"
+                                                            Click="ControlsCardBrowseBtn_Click"
+                                                            Height="30"
+                                                            Padding="10,0"
+                                                            Style="{StaticResource TabButtonStyle}"
+                                                            Background="#25FFFFFF"
+                                                            CornerRadius="5"
+                                                            ToolTipService.ToolTip="Browse executable or file">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <FontIcon Glyph="&#xEC50;" FontSize="11" Foreground="#C0FFFFFF"/>
+                                                            <TextBlock Text="Browse" FontSize="10" Foreground="#E0FFFFFF"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- Row 3: Arguments (optional) -->
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="Arguments (optional)" FontSize="10" Foreground="#A0FFFFFF"/>
+                                                <TextBox x:Name="ControlsCardArgsBox"
+                                                         PlaceholderText="e.g. --profile Default"
+                                                         Height="30"
+                                                         MinHeight="30"
+                                                         FontSize="11"
+                                                         CornerRadius="5"
+                                                         Background="#20FFFFFF"
+                                                         BorderBrush="#30FFFFFF"
+                                                         Foreground="#FFFFFFFF"
+                                                         Padding="10,5,10,5"
+                                                         VerticalContentAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Row 4: Icon Selection -->
+                                            <StackPanel Spacing="3">
+                                                <Grid>
+                                                    <TextBlock Text="Icon" FontSize="10" Foreground="#A0FFFFFF" VerticalAlignment="Center"/>
+                                                    <HyperlinkButton Content="Segoe Fluent Icons (e701, e704...)"
+                                                                     Click="ControlsCardIconDocsLink_Click"
+                                                                     HorizontalAlignment="Right"
+                                                                     FontSize="9.5"
+                                                                     Padding="0"
+                                                                     Foreground="#60CDFF"
+                                                                     ToolTipService.ToolTip="Browse Microsoft Segoe Fluent Icons list"/>
+                                                </Grid>
+                                                <Grid ColumnSpacing="8" Margin="0,0,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Selected Icon Preview -->
+                                                    <Border Width="30" Height="30"
+                                                            CornerRadius="5"
+                                                            Background="#25FFFFFF"
+                                                            BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                                            BorderThickness="1">
+                                                        <FontIcon x:Name="ControlsCardSelectedIcon"
+                                                                  Glyph="&#xE71D;"
+                                                                  FontSize="15"
+                                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                                    </Border>
+
+                                                    <!-- Search Icons Input -->
+                                                    <TextBox Grid.Column="1"
+                                                             x:Name="ControlsCardIconSearchBox"
+                                                             PlaceholderText="Search name or hex glyph (e.g. e701, e704, lock)..."
+                                                             TextChanged="ControlsCardIconSearchBox_TextChanged"
+                                                             Height="30"
+                                                             MinHeight="30"
+                                                             FontSize="10.5"
+                                                             CornerRadius="5"
+                                                             Background="#20FFFFFF"
+                                                             BorderBrush="#30FFFFFF"
+                                                             Foreground="#FFFFFFFF"
+                                                             Padding="10,5,10,5"
+                                                             VerticalContentAlignment="Center"/>
+                                                </Grid>
+
+                                                <!-- Icons Panel -->
+                                                <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                                    <StackPanel x:Name="ControlsCardIconsPanel" Spacing="4"/>
+                                                </ScrollViewer>
+                                            </StackPanel>
+
+                                            <!-- Validation Error Text -->
+                                            <TextBlock x:Name="ControlsCardErrorText"
+                                                       Foreground="#FFFF6B6B"
+                                                       FontSize="10"
+                                                       TextWrapping="Wrap"
+                                                       Visibility="Collapsed"/>
+
+                                            <!-- Action Buttons -->
+                                            <Grid Margin="0,4,0,0">
+                                                <Button x:Name="ControlsCardTestBtn"
+                                                        Click="ControlsCardTestBtn_Click"
+                                                        HorizontalAlignment="Left"
+                                                        Style="{StaticResource TabButtonStyle}"
+                                                        Background="#20FFFFFF"
+                                                        Padding="12,4"
+                                                        CornerRadius="5">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <FontIcon Glyph="&#xE768;" FontSize="10.5" Foreground="#A0FFFFFF"/>
+                                                        <TextBlock Text="Test" FontSize="10" Foreground="#E0FFFFFF"/>
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                                                    <Button x:Name="ControlsCardCancelBtn"
+                                                            Click="ControlsAddCardCloseBtn_Click"
+                                                            Style="{StaticResource TabButtonStyle}"
+                                                            Padding="12,4"
+                                                            CornerRadius="5">
+                                                        <TextBlock Text="Cancel" FontSize="10" Foreground="#B0FFFFFF"/>
+                                                    </Button>
+                                                    <Button x:Name="ControlsCardSaveBtn"
+                                                            Click="ControlsCardSaveBtn_Click"
+                                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                            Padding="14,4"
+                                                            CornerRadius="5">
+                                                        <TextBlock x:Name="ControlsCardSaveBtnText" Text="Add card" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>

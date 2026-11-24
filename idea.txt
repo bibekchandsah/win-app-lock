@@ -413,7 +413,7 @@ implemented - when notification is shown black window border flashes everytime w
 speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
 font weight has no effect
 implemented - make network access toast notificaton as default custom notification and user can customize it in setting page
-date and time in net speed with second support
+fixed - date and time in net speed with second support
 
 add search box to search in google, edge 
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
@@ -426,45 +426,37 @@ fixed - add confirmation while clearing all shelf
 fixed - in the text tab add the option for genertion QR too of entered text 
 fixed - increase the height of AI chat tab so that longer messages can be scrolled 
 fixed - optimize the spacing for adding custom AI assistant and for custom AI assistant on right click menu also addd edit option 
-
 fixed - in weather tab add support of mutliple cities 
 fixed - add visuals too in the cards 
 fixed - also show the current time and date of selected cities 
 fixed - in night duration also it shows blue card instead of dark night card in left side 
 fixed - change the weather tab icon to cloud and sun combined icon
 fixed - scrolling or trackpad guesture of scrolling in left card should change the saved multiple address in loop
-show the circle dots in left card on the right side so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
-don't show accent color effect in weather left side card instead of it add multiple card theme for sunshine, raining, cloudy, thunderstrom, wind, morining, evening, sunrise, sunset, snow, fog and according to weather.
-
-
 fixed - in note tab when user click "+" then let user enter the title for note instead of hardcoded "note n"
 fixed - confirm before deleting note 
 fixed - use window accent color instead of hardcoded blue color 
 fixed - user is unable to delete remainder
 fixed - add support of bold, italic, underline, strike, list, numbered list, check list, mark with colors
 fixed - allow user to add custom timer in remainder
-show ring in island too during timer 
-text in center of custom time in timer and remainder input 
-improve check list it's not toggled now 
-
-
-
+fixed - text in center of custom time in timer and remainder input 
 fixed - change control tab icon 
 fixed - in controls tab add support of wifi list and bluetooth list
-add the card for showing battery of bluetooths connected devices 
-
-lock screen, show/hide desktop, task view, calculator, custom card like :
+fixed - add the card for showing battery of bluetooths connected devices 
+fixed - lock screen, show/hide desktop, task view, calculator, custom card like :
 card name: Default apps 
 command: ms-settings:defaultapps
 card name: startup apps
 command: ms-settings:startupapps
+fixed - move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
+fixed - move "lock, sleep, restart, shut down" to the bottom
+fixed - notes are getting cleared on new build
+fixed - adjust shelf clear color 
 
-move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
-move "lock, sleep, restart, shut down" to the bottom
-
-notes are getting cleared on new build
+show the circle dots in left card on the right side so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
+don't show accent color effect in weather left side card instead of it add multiple card theme for sunshine, raining, cloudy, thunderstrom, wind, morining, evening, sunrise, sunset, snow, fog and according to weather.
+show ring in island too during timer 
+improve check list it's not toggled now 
 when the app is locked and user click setting icon from dynamic island then it bypasses the lock and opens directly prevent it
-adjust shelf clear color 
 add height adjust in right end side of AI Chat so that user can increase or decrease dynamically
 use accent color in all tabs 
 add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
@@ -513,6 +505,8 @@ Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
 startup check: "D:\programming exercise\winUI\win app lock\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe" --startup
 
 dotnet build "src\AppLock\AppLock.csproj" -c Release -p:Platform=x64
+dotnet build -c Release
+.\src\AppLock\bin\x64\Release\net8.0-windows10.0.19041.0\AppLock.exe
 
 
 

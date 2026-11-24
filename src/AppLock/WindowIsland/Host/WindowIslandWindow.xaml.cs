@@ -652,6 +652,7 @@ public sealed partial class WindowIslandWindow : Window
         else if (_previousTab == 7)
         {
             if (ControlsDeviceOverlay != null) ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
+            if (ControlsAddCardOverlay != null) ControlsAddCardOverlay.Visibility = Visibility.Collapsed;
         }
 
         // Show new content, collapse previous
@@ -887,6 +888,19 @@ public sealed partial class WindowIslandWindow : Window
                 if (ChatAddOverlay != null && ChatAddOverlay.Visibility == Visibility.Visible)
                 {
                     ChatCancelAdd_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+                }
+                if (ControlsAddCardOverlay != null && ControlsAddCardOverlay.Visibility == Visibility.Visible)
+                {
+                    CloseControlsAddCardOverlay();
+                    e.Handled = true;
+                    break;
+                }
+                if (ControlsDeviceOverlay != null && ControlsDeviceOverlay.Visibility == Visibility.Visible)
+                {
+                    ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
+                    _controlsDeviceMode = "none";
                     e.Handled = true;
                     break;
                 }
@@ -6434,6 +6448,8 @@ public sealed partial class WindowIslandWindow : Window
             };
 
             var flyout = new MenuFlyout();
+            var editMenu = new MenuFlyoutItem { Text = "Edit…", Icon = new FontIcon { Glyph = "\uE70F" } };
+            editMenu.Click += (_, _) => OpenControlsEditCardOverlay(card);
             var moveToStartMenu = new MenuFlyoutItem { Text = "Move to start", Icon = new FontIcon { Glyph = "\uE898" } };
             moveToStartMenu.Click += (_, _) =>
             {
@@ -6449,6 +6465,7 @@ public sealed partial class WindowIslandWindow : Window
                 ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
                 RenderQuickCardsGrid();
             };
+            flyout.Items.Add(editMenu);
             flyout.Items.Add(moveToStartMenu);
             flyout.Items.Add(removeMenu);
             btn.ContextFlyout = flyout;
@@ -6527,11 +6544,446 @@ public sealed partial class WindowIslandWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center
             });
             addBtn.Content = addStack;
+            addBtn.Click += (_, _) => OpenControlsAddCardOverlay();
 
             Grid.SetRow(addBtn, addRow);
             Grid.SetColumn(addBtn, addCol);
             ControlsQuickCardsGrid.Children.Add(addBtn);
         }
+    }
+
+    // ── Quick Cards Add / Edit Overlay ─────────────────────────────────────────
+
+    private QuickCard? _editingCard = null;
+    private string _selectedIconGlyph = "\uE71D";
+
+    private void OpenControlsAddCardOverlay()
+    {
+        _editingCard = null;
+        ControlsAddCardTitle.Text = "Add card";
+        ControlsCardSaveBtnText.Text = "Add card";
+
+        ControlsCardNameBox.Text = string.Empty;
+        ControlsCardCommandBox.Text = string.Empty;
+        ControlsCardArgsBox.Text = string.Empty;
+        ControlsCardAdminCheck.IsChecked = false;
+        ControlsCardIconSearchBox.Text = string.Empty;
+
+        _selectedIconGlyph = "\uE71D";
+        ControlsCardSelectedIcon.Glyph = _selectedIconGlyph;
+
+        ControlsCardErrorText.Visibility = Visibility.Collapsed;
+        ControlsCardErrorText.Text = string.Empty;
+
+        SwitchToCardTab(builtIn: true);
+        RenderBuiltInCatalog();
+        RenderCuratedIcons();
+
+        ControlsAddCardOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void OpenControlsEditCardOverlay(QuickCard card)
+    {
+        _editingCard = card;
+        ControlsAddCardTitle.Text = "Edit card";
+        ControlsCardSaveBtnText.Text = "Save changes";
+
+        ControlsCardNameBox.Text = card.Name ?? string.Empty;
+        ControlsCardCommandBox.Text = card.Command ?? string.Empty;
+        ControlsCardArgsBox.Text = card.Arguments ?? string.Empty;
+        ControlsCardAdminCheck.IsChecked = card.RunAsAdmin;
+        ControlsCardIconSearchBox.Text = string.Empty;
+
+        _selectedIconGlyph = string.IsNullOrEmpty(card.IconGlyph) ? "\uE71D" : card.IconGlyph;
+        ControlsCardSelectedIcon.Glyph = _selectedIconGlyph;
+
+        ControlsCardErrorText.Visibility = Visibility.Collapsed;
+        ControlsCardErrorText.Text = string.Empty;
+
+        SwitchToCardTab(builtIn: false);
+        RenderCuratedIcons();
+
+        ControlsAddCardOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void CloseControlsAddCardOverlay()
+    {
+        if (ControlsAddCardOverlay != null)
+        {
+            ControlsAddCardOverlay.Visibility = Visibility.Collapsed;
+        }
+        _editingCard = null;
+    }
+
+    private void SwitchToCardTab(bool builtIn)
+    {
+        ControlsAddCardBuiltInPanel.Visibility = builtIn ? Visibility.Visible : Visibility.Collapsed;
+        ControlsAddCardCustomPanel.Visibility = builtIn ? Visibility.Collapsed : Visibility.Visible;
+
+        ControlsCardTabBuiltInBtn.Background = builtIn ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        ControlsCardTabBuiltInText.Foreground = builtIn ? new SolidColorBrush(Microsoft.UI.Colors.White) : new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255));
+        ControlsCardTabBuiltInText.FontWeight = builtIn ? FontWeights.SemiBold : FontWeights.Normal;
+
+        ControlsCardTabCustomBtn.Background = !builtIn ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        ControlsCardTabCustomText.Foreground = !builtIn ? new SolidColorBrush(Microsoft.UI.Colors.White) : new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255));
+        ControlsCardTabCustomText.FontWeight = !builtIn ? FontWeights.SemiBold : FontWeights.Normal;
+    }
+
+    private void ControlsCardTabBuiltInBtn_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchToCardTab(builtIn: true);
+        RenderBuiltInCatalog();
+    }
+
+    private void ControlsCardTabCustomBtn_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchToCardTab(builtIn: false);
+        RenderCuratedIcons();
+    }
+
+    private void ControlsAddCardCloseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        CloseControlsAddCardOverlay();
+    }
+
+    private void RenderBuiltInCatalog()
+    {
+        if (ControlsBuiltInGrid == null) return;
+        ControlsBuiltInGrid.Children.Clear();
+        ControlsBuiltInGrid.RowDefinitions.Clear();
+
+        var catalog = QuickCardCatalog.GetCatalogCards();
+        var currentCards = _settings.Controls.Cards ?? QuickCard.Defaults();
+
+        int rowsNeeded = (int)Math.Ceiling(catalog.Count / 4.0);
+        if (rowsNeeded < 1) rowsNeeded = 1;
+
+        for (int r = 0; r < rowsNeeded; r++)
+        {
+            ControlsBuiltInGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        var accentColor = GetSystemAccentColor();
+
+        for (int i = 0; i < catalog.Count; i++)
+        {
+            var item = catalog[i];
+            int row = i / 4;
+            int col = i % 4;
+
+            bool isAdded = currentCards.Any(c => c.Id == item.Id ||
+                (!string.IsNullOrWhiteSpace(c.Command) && string.Equals(c.Command, item.Command, StringComparison.OrdinalIgnoreCase)));
+
+            var btn = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 52,
+                Background = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(8, 255, 255, 255)) : new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+                BorderBrush = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)) : new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 4, 6, 4),
+                Opacity = isAdded ? 0.5 : 1.0
+            };
+
+            var stack = new StackPanel
+            {
+                Spacing = 2,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            stack.Children.Add(new FontIcon
+            {
+                Glyph = string.IsNullOrEmpty(item.IconGlyph) ? "\uE71D" : item.IconGlyph,
+                FontSize = 14,
+                Foreground = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)) : new SolidColorBrush(accentColor),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = item.Name,
+                FontSize = 10,
+                FontWeight = isAdded ? FontWeights.Normal : FontWeights.SemiBold,
+                Foreground = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 110
+            });
+
+            if (isAdded)
+            {
+                ToolTipService.SetToolTip(btn, $"{item.Name} (Already added)");
+            }
+            else
+            {
+                ToolTipService.SetToolTip(btn, string.IsNullOrWhiteSpace(item.Command) ? $"Add {item.Name}" : $"Add {item.Name}\n{item.Command}");
+                btn.Click += (_, _) =>
+                {
+                    if (currentCards.Count >= 24)
+                    {
+                        ControlsCardErrorText.Text = "Maximum 24 cards reached.";
+                        ControlsCardErrorText.Visibility = Visibility.Visible;
+                        return;
+                    }
+
+                    var newCard = new QuickCard
+                    {
+                        Id = item.Id,
+                        Name = item.Name,
+                        IconGlyph = item.IconGlyph,
+                        Kind = item.Kind,
+                        Command = item.Command,
+                        Arguments = item.Arguments,
+                        RunAsAdmin = item.RunAsAdmin
+                    };
+                    currentCards.Add(newCard);
+                    ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                    RenderQuickCardsGrid();
+                    CloseControlsAddCardOverlay();
+                };
+            }
+
+            btn.Content = stack;
+            Grid.SetRow(btn, row);
+            Grid.SetColumn(btn, col);
+            ControlsBuiltInGrid.Children.Add(btn);
+        }
+    }
+
+    private void ControlsCardIconDocsLink_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://learn.microsoft.com/en-us/windows/apps/design/iconography/segoe-fluent-icons-font#icon-list",
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private void RenderCuratedIcons(string filter = "")
+    {
+        if (ControlsCardIconsPanel == null) return;
+        ControlsCardIconsPanel.Children.Clear();
+
+        string trimmedFilter = filter.Trim();
+        bool hasHex = QuickCardCatalog.TryParseHexGlyph(trimmedFilter, out string hexGlyph, out string hexCode);
+
+        if (hasHex)
+        {
+            _selectedIconGlyph = hexGlyph;
+            ControlsCardSelectedIcon.Glyph = hexGlyph;
+        }
+
+        var icons = QuickCardCatalog.GetCuratedIcons();
+        if (!string.IsNullOrWhiteSpace(trimmedFilter))
+        {
+            icons = icons.Where(ic =>
+                ic.Name.Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase) ||
+                ((int)ic.Glyph[0]).ToString("x4").Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (hasHex && !icons.Any(ic => ic.Glyph == hexGlyph))
+            {
+                icons.Insert(0, ($"Hex 0x{hexCode}", hexGlyph));
+            }
+        }
+
+        var accentColor = GetSystemAccentColor();
+        const int iconsPerRow = 14;
+        int rowCount = (int)Math.Ceiling(icons.Count / (double)iconsPerRow);
+
+        for (int r = 0; r < rowCount; r++)
+        {
+            var rowStack = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4
+            };
+
+            for (int c = 0; c < iconsPerRow; c++)
+            {
+                int idx = r * iconsPerRow + c;
+                if (idx >= icons.Count) break;
+
+                var (name, glyph) = icons[idx];
+                bool isSelected = glyph == _selectedIconGlyph;
+
+                var iconBtn = new Button
+                {
+                    Width = 28,
+                    Height = 28,
+                    Padding = new Thickness(0),
+                    CornerRadius = new CornerRadius(5),
+                    Background = isSelected ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, accentColor.R, accentColor.G, accentColor.B)) : new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)),
+                    BorderBrush = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+                    BorderThickness = new Thickness(isSelected ? 1.5 : 1)
+                };
+                string hexLabel = ((int)glyph[0]).ToString("X4");
+                ToolTipService.SetToolTip(iconBtn, $"{name} (0x{hexLabel})");
+
+                iconBtn.Content = new FontIcon
+                {
+                    Glyph = glyph,
+                    FontSize = 13,
+                    Foreground = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255))
+                };
+
+                iconBtn.Click += (_, _) =>
+                {
+                    _selectedIconGlyph = glyph;
+                    ControlsCardSelectedIcon.Glyph = glyph;
+                    RenderCuratedIcons(ControlsCardIconSearchBox.Text);
+                };
+
+                rowStack.Children.Add(iconBtn);
+            }
+
+            ControlsCardIconsPanel.Children.Add(rowStack);
+        }
+    }
+
+    private void ControlsCardIconSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RenderCuratedIcons(ControlsCardIconSearchBox.Text);
+    }
+
+    private async void ControlsCardBrowseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, _hwnd);
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                ControlsCardCommandBox.Text = file.Path;
+                if (string.IsNullOrWhiteSpace(ControlsCardNameBox.Text))
+                {
+                    ControlsCardNameBox.Text = file.DisplayName;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async void ControlsCardTestBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string name = ControlsCardNameBox.Text;
+        string cmd = ControlsCardCommandBox.Text;
+
+        var (isValid, error) = QuickCardCatalog.ValidateCard(name, cmd);
+        if (!isValid)
+        {
+            ControlsCardErrorText.Text = error;
+            ControlsCardErrorText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107));
+            ControlsCardErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var testCard = new QuickCard
+        {
+            Id = "test",
+            Name = name.Trim(),
+            Command = cmd.Trim(),
+            Arguments = ControlsCardArgsBox.Text?.Trim() ?? string.Empty,
+            RunAsAdmin = ControlsCardAdminCheck.IsChecked == true
+        };
+
+        var (success, errMsg) = await QuickCardRunner.ExecuteCardAsync(testCard);
+        if (!success)
+        {
+            ControlsCardErrorText.Text = $"Couldn't run card: {errMsg}";
+            ControlsCardErrorText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107));
+            ControlsCardErrorText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ControlsCardErrorText.Text = "Card launched successfully!";
+            ControlsCardErrorText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 255, 140));
+            ControlsCardErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ControlsCardSaveBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string name = ControlsCardNameBox.Text;
+        string cmd = ControlsCardCommandBox.Text;
+
+        var (isValid, error) = QuickCardCatalog.ValidateCard(name, cmd);
+        if (!isValid)
+        {
+            ControlsCardErrorText.Text = error;
+            ControlsCardErrorText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107));
+            ControlsCardErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var cards = _settings.Controls.Cards ?? QuickCard.Defaults();
+
+        if (_editingCard == null)
+        {
+            if (cards.Count >= 24)
+            {
+                ControlsCardErrorText.Text = "Maximum 24 cards reached.";
+                ControlsCardErrorText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107));
+                ControlsCardErrorText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            string trimmedCmd = cmd.Trim();
+            QuickCardKind kind = QuickCardKind.Builtin;
+            if (trimmedCmd.Contains("://") || trimmedCmd.StartsWith("ms-", StringComparison.OrdinalIgnoreCase) ||
+                trimmedCmd.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+                trimmedCmd.StartsWith("calculator:", StringComparison.OrdinalIgnoreCase))
+            {
+                kind = QuickCardKind.Uri;
+            }
+            else if (trimmedCmd.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                     trimmedCmd.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                     trimmedCmd.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                     trimmedCmd.EndsWith(".msc", StringComparison.OrdinalIgnoreCase))
+            {
+                kind = QuickCardKind.Executable;
+            }
+            else
+            {
+                kind = QuickCardKind.Path;
+            }
+
+            var newCard = new QuickCard
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                IsCustom = true,
+                Name = name.Trim(),
+                Command = trimmedCmd,
+                Arguments = ControlsCardArgsBox.Text?.Trim() ?? string.Empty,
+                IconGlyph = _selectedIconGlyph,
+                Kind = kind,
+                RunAsAdmin = ControlsCardAdminCheck.IsChecked == true
+            };
+
+            cards.Add(newCard);
+        }
+        else
+        {
+            _editingCard.Name = name.Trim();
+            _editingCard.Command = cmd.Trim();
+            _editingCard.Arguments = ControlsCardArgsBox.Text?.Trim() ?? string.Empty;
+            _editingCard.IconGlyph = _selectedIconGlyph;
+            _editingCard.RunAsAdmin = ControlsCardAdminCheck.IsChecked == true;
+        }
+
+        ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+        RenderQuickCardsGrid();
+        CloseControlsAddCardOverlay();
     }
 
     // ── Milestone 13: Chat tab (WebView2) ──────────────────────────────────────

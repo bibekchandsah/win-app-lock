@@ -1,0 +1,142 @@
+[
+  {
+    "id": "lock",
+    "name": "Lock screen",
+    "iconGlyph": "\uE72E",
+    "kind": "Builtin",
+    "command": ""
+  },
+  {
+    "id": "desktop",
+    "name": "Show desktop",
+    "iconGlyph": "\uE7F4",
+    "kind": "Builtin",
+    "command": ""
+  },
+  {
+    "id": "taskview",
+    "name": "Task view",
+    "iconGlyph": "\uE7C4",
+    "kind": "Builtin",
+    "command": ""
+  },
+  {
+    "id": "calculator",
+    "name": "Calculator",
+    "iconGlyph": "\uE8EF",
+    "kind": "Builtin",
+    "command": "calc.exe"
+  },
+  {
+    "id": "settings",
+    "name": "Settings",
+    "iconGlyph": "\uE713",
+    "kind": "Uri",
+    "command": "ms-settings:"
+  },
+  {
+    "id": "taskmanager",
+    "name": "Task Manager",
+    "iconGlyph": "\uE9F9",
+    "kind": "Executable",
+    "command": "taskmgr.exe"
+  },
+  {
+    "id": "explorer",
+    "name": "File Explorer",
+    "iconGlyph": "\uEC50",
+    "kind": "Executable",
+    "command": "explorer.exe"
+  },
+  {
+    "id": "terminal",
+    "name": "Terminal",
+    "iconGlyph": "\uE756",
+    "kind": "Executable",
+    "command": "wt.exe"
+  },
+  {
+    "id": "screenshot",
+    "name": "Screenshot",
+    "iconGlyph": "\uF272",
+    "kind": "Builtin",
+    "command": "ms-screenclip:"
+  },
+  {
+    "id": "sound",
+    "name": "Sound",
+    "iconGlyph": "\uE767",
+    "kind": "Uri",
+    "command": "ms-settings:sound"
+  },
+  {
+    "id": "display",
+    "name": "Display",
+    "iconGlyph": "\uE7F4",
+    "kind": "Uri",
+    "command": "ms-settings:display"
+  },
+  {
+    "id": "nightlight",
+    "name": "Night light",
+    "iconGlyph": "\uE708",
+    "kind": "Uri",
+    "command": "ms-settings:nightlight"
+  },
+  {
+    "id": "windowsupdate",
+    "name": "Windows Update",
+    "iconGlyph": "\uE895",
+    "kind": "Uri",
+    "command": "ms-settings:windowsupdate"
+  },
+  {
+    "id": "bluetoothsettings",
+    "name": "Bluetooth",
+    "iconGlyph": "\uE702",
+    "kind": "Uri",
+    "command": "ms-settings:bluetooth"
+  },
+  {
+    "id": "devicemanager",
+    "name": "Device Manager",
+    "iconGlyph": "\uE7F8",
+    "kind": "Executable",
+    "command": "devmgmt.msc"
+  },
+  {
+    "id": "defaultapps",
+    "name": "Default apps",
+    "iconGlyph": "\uE71D",
+    "kind": "Uri",
+    "command": "ms-settings:defaultapps"
+  },
+  {
+    "id": "startupapps",
+    "name": "Startup apps",
+    "iconGlyph": "\uE7B5",
+    "kind": "Uri",
+    "command": "ms-settings:startupapps"
+  },
+  {
+    "id": "installedapps",
+    "name": "Installed apps",
+    "iconGlyph": "\uE71D",
+    "kind": "Uri",
+    "command": "ms-settings:appsfeatures"
+  },
+  {
+    "id": "network",
+    "name": "Network",
+    "iconGlyph": "\uE774",
+    "kind": "Uri",
+    "command": "ms-settings:network"
+  },
+  {
+    "id": "battery",
+    "name": "Battery settings",
+    "iconGlyph": "\uE83F",
+    "kind": "Uri",
+    "command": "ms-settings:batterysaver"
+  }
+]
