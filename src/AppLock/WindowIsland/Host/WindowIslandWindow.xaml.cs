@@ -2761,7 +2761,9 @@ public sealed partial class WindowIslandWindow : Window
         if (ShelfClearBtn != null)
         {
             ShelfClearBtn.Content = "Clear all";
-            ShelfClearBtn.Foreground = null;
+            // ClearValue, not null: an explicit null Foreground makes the template's text brush
+            // empty, so the label would vanish instead of falling back to the style's colour.
+            ShelfClearBtn.ClearValue(Microsoft.UI.Xaml.Controls.Control.ForegroundProperty);
         }
     }
 
