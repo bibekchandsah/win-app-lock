@@ -398,7 +398,8 @@
                             <ColumnDefinition Width="*"    />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Grid.Column="0"
+                        <FontIcon x:Name="CommandSearchIcon"
+                                  Grid.Column="0"
                                   Glyph="&#xE721;"
                                   FontSize="13"
                                   Foreground="#60CDFF"

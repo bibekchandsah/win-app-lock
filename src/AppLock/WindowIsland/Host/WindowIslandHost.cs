@@ -143,6 +143,25 @@ public sealed class WindowIslandHost
         }
     }
 
+    public void ToggleCommandBar()
+    {
+        if (_window == null)
+        {
+            Start();
+        }
+
+        void Do() => _window?.ToggleCommandBar();
+
+        if (_uiQueue != null)
+        {
+            _uiQueue.TryEnqueue(Do);
+        }
+        else
+        {
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
+        }
+    }
+
     public void OpenCommandBar()
     {
         if (_window == null)
@@ -195,7 +214,7 @@ public sealed class WindowIslandHost
         try
         {
             var (cmdMods, cmdKey) = HotkeyService.ParseHotkey("Alt+Space");
-            _cmdHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(cmdMods, cmdKey, OpenCommandBar);
+            _cmdHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(cmdMods, cmdKey, ToggleCommandBar);
             Log($"Registered Command Bar hotkey Alt+Space id={_cmdHotkeyId}");
         }
         catch (Exception ex)

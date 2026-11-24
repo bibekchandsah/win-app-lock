@@ -3312,9 +3312,18 @@ public sealed partial class WindowIslandWindow : Window
         FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
-        CommandInput.Text = string.Empty;
-        ExecuteCommandQuery(string.Empty);
+        if (CommandSearchIcon != null)
+        {
+            CommandSearchIcon.Foreground = new SolidColorBrush(GetSystemAccentColor());
+        }
+
+        ExecuteCommandQuery(CommandInput.Text);
         CommandInput.Focus(FocusState.Programmatic);
+        if (!string.IsNullOrEmpty(CommandInput.Text))
+        {
+            CommandInput.SelectAll();
+            DispatcherQueue.TryEnqueue(() => CommandInput.SelectAll());
+        }
     }
 
     public void CloseCommandBar()
@@ -3391,13 +3400,14 @@ public sealed partial class WindowIslandWindow : Window
 
     private Border BuildCommandResultRow(CommandBarItem item, bool isSelected, int index)
     {
+        var accent = GetSystemAccentColor();
         var border = new Border
         {
             Background = isSelected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 96, 205, 255))
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(45, accent.R, accent.G, accent.B))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
             BorderBrush = isSelected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 96, 205, 255))
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(140, accent.R, accent.G, accent.B))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
@@ -3464,17 +3474,19 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateCommandSelectionVisuals(bool scrollIntoView)
     {
+        var accent = GetSystemAccentColor();
+        var selBg = new SolidColorBrush(Windows.UI.Color.FromArgb(45, accent.R, accent.G, accent.B));
+        var selBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(140, accent.R, accent.G, accent.B));
+        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255));
+        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+
         for (int i = 0; i < CommandResultList.Children.Count; i++)
         {
             if (CommandResultList.Children[i] is not Border border) continue;
             bool isSel = (i == _selectedCommandIndex);
 
-            border.Background = isSel
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 96, 205, 255))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255));
-            border.BorderBrush = isSel
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 96, 205, 255))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+            border.Background = isSel ? selBg : normalBg;
+            border.BorderBrush = isSel ? selBorder : normalBorder;
 
             if (border.Tag is TextBlock title)
             {
