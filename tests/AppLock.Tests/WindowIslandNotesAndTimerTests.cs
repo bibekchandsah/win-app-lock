@@ -62,48 +62,72 @@ public class WindowIslandNotesAndTimerTests : IDisposable
     [Fact]
     public void NotesStore_CreateWithCustomTitle_PersistsTitle()
     {
-        var store = new WindowIslandNotesStore();
-        var customNote = store.CreateNote("Project Alpha");
+        string tempPath = Path.Combine(Path.GetTempPath(), $"applock_test_notes_{Guid.NewGuid():N}.dat");
+        try
+        {
+            var store = new WindowIslandNotesStore(tempPath);
+            var customNote = store.CreateNote("Project Alpha");
 
-        Assert.NotNull(customNote);
-        Assert.Equal("Project Alpha", customNote.Title);
-        Assert.Contains(store.Notes, n => n.Id == customNote.Id && n.Title == "Project Alpha");
+            Assert.NotNull(customNote);
+            Assert.Equal("Project Alpha", customNote.Title);
+            Assert.Contains(store.Notes, n => n.Id == customNote.Id && n.Title == "Project Alpha");
 
-        store.DeleteNote(customNote.Id);
+            store.DeleteNote(customNote.Id);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     [Fact]
     public void NotesStore_DeleteNote_RemovesNoteAndRecreatesDefaultIfEmpty()
     {
-        var store = new WindowIslandNotesStore();
-        var initialNotes = store.Notes.ToList();
-
-        // Delete all existing notes
-        foreach (var n in initialNotes)
+        string tempPath = Path.Combine(Path.GetTempPath(), $"applock_test_notes_{Guid.NewGuid():N}.dat");
+        try
         {
-            store.DeleteNote(n.Id);
-        }
+            var store = new WindowIslandNotesStore(tempPath);
+            var initialNotes = store.Notes.ToList();
 
-        // When all notes deleted, store must ensure at least 1 note exists
-        var notes = store.Notes;
-        Assert.NotEmpty(notes);
-        Assert.Equal("Note 1", notes[0].Title);
+            // Delete all existing notes
+            foreach (var n in initialNotes)
+            {
+                store.DeleteNote(n.Id);
+            }
+
+            // When all notes deleted, store must ensure at least 1 note exists
+            var notes = store.Notes;
+            Assert.NotEmpty(notes);
+            Assert.Equal("Note 1", notes[0].Title);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     [Fact]
     public void ReminderStore_Add_WithIndividualDuration()
     {
-        using var store = new WindowIslandReminderStore();
-        var rem = store.Add("Team Standup", TimeSpan.FromMinutes(7));
+        string tempPath = Path.Combine(Path.GetTempPath(), $"applock_test_rem_{Guid.NewGuid():N}.json");
+        try
+        {
+            using var store = new WindowIslandReminderStore(tempPath);
+            var rem = store.Add("Team Standup", TimeSpan.FromMinutes(7));
 
-        Assert.NotNull(rem);
-        Assert.Equal("Team Standup", rem.Title);
-        Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
+            Assert.NotNull(rem);
+            Assert.Equal("Team Standup", rem.Title);
+            Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
 
-        string relTime = WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc);
-        Assert.Equal("in 7m", relTime);
+            string relTime = WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc);
+            Assert.Equal("in 7m", relTime);
 
-        store.Delete(rem.Id);
+            store.Delete(rem.Id);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     [Theory]
@@ -123,15 +147,23 @@ public class WindowIslandNotesAndTimerTests : IDisposable
     [Fact]
     public void ReminderStore_Delete_RemovesReminder()
     {
-        using var store = new WindowIslandReminderStore();
-        var rem = store.AddFromPhrase("Check furnace in 20 minutes");
-        Assert.NotNull(rem);
+        string tempPath = Path.Combine(Path.GetTempPath(), $"applock_test_rem_{Guid.NewGuid():N}.json");
+        try
+        {
+            using var store = new WindowIslandReminderStore(tempPath);
+            var rem = store.AddFromPhrase("Check furnace in 20 minutes");
+            Assert.NotNull(rem);
 
-        Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
+            Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
 
-        store.Delete(rem.Id);
+            store.Delete(rem.Id);
 
-        Assert.DoesNotContain(store.ActiveReminders, r => r.Id == rem.Id);
+            Assert.DoesNotContain(store.ActiveReminders, r => r.Id == rem.Id);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     [Fact]
@@ -164,14 +196,22 @@ public class WindowIslandNotesAndTimerTests : IDisposable
     [Fact]
     public void ReminderStore_AddWithDateTime()
     {
-        using var store = new WindowIslandReminderStore();
-        DateTime target = DateTime.UtcNow.AddMinutes(25);
-        var rem = store.Add("Oven timer", target);
+        string tempPath = Path.Combine(Path.GetTempPath(), $"applock_test_rem_{Guid.NewGuid():N}.json");
+        try
+        {
+            using var store = new WindowIslandReminderStore(tempPath);
+            DateTime target = DateTime.UtcNow.AddMinutes(25);
+            var rem = store.Add("Oven timer", target);
 
-        Assert.NotNull(rem);
-        Assert.Equal("Oven timer", rem.Title);
-        Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
+            Assert.NotNull(rem);
+            Assert.Equal("Oven timer", rem.Title);
+            Assert.Contains(store.ActiveReminders, r => r.Id == rem.Id);
 
-        store.Delete(rem.Id);
+            store.Delete(rem.Id);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 }

@@ -29,11 +29,20 @@ public sealed class WindowIslandNotesStore
 
     public event Action? Changed;
 
-    public WindowIslandNotesStore()
+    public WindowIslandNotesStore(string? filePath = null)
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "notes.dat");
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
+            Directory.CreateDirectory(dir);
+            _filePath = Path.Combine(dir, "notes.dat");
+        }
+        else
+        {
+            string? dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+            _filePath = filePath;
+        }
 
         Load();
 

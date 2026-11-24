@@ -30,11 +30,20 @@ public sealed class WindowIslandReminderStore : IDisposable
     public event Action<IslandReminder>? ReminderTriggered;
     public event Action? Changed;
 
-    public WindowIslandReminderStore()
+    public WindowIslandReminderStore(string? filePath = null)
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "reminders.json");
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLock", "island");
+            Directory.CreateDirectory(dir);
+            _filePath = Path.Combine(dir, "reminders.json");
+        }
+        else
+        {
+            string? dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+            _filePath = filePath;
+        }
 
         Load();
 
