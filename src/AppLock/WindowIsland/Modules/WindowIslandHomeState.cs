@@ -13,12 +13,11 @@ public sealed record HomeSnapshot(
     double CpuPercent,
     double RamPercent,
     double DownBytesPerSec,
-    double UpBytesPerSec,
-    int    Volume);
+    double UpBytesPerSec);
 
 /// <summary>
 /// Runs entirely on a background Task while the Home tab is visible.
-/// Polls SMTC (1 Hz), volume (1 Hz), CPU/RAM (1 Hz), network (1 Hz)
+/// Polls SMTC (1 Hz), CPU/RAM (1 Hz), network (1 Hz)
 /// and batches the results back to the UI thread through the DispatcherQueue.
 /// Idle cost: zero when stopped (island.md 4.1).
 /// </summary>
@@ -28,7 +27,6 @@ public sealed class WindowIslandHomeState : IDisposable
     private readonly NetworkStatsProvider  _network = new();
     private readonly SystemStatsProvider   _system  = new() { TrackCpu = true, TrackRam = true };
     private readonly MediaSessionSource    _media   = new();
-    private readonly IslandVolumeController _volume;
 
     private CancellationTokenSource? _cts;
     private Task? _loop;
@@ -39,12 +37,9 @@ public sealed class WindowIslandHomeState : IDisposable
 
     public bool IsRunning => _loop != null;
 
-    public WindowIslandHomeState(
-        Microsoft.UI.Dispatching.DispatcherQueue dq,
-        IslandVolumeController volume)
+    public WindowIslandHomeState(Microsoft.UI.Dispatching.DispatcherQueue dq)
     {
-        _dq     = dq;
-        _volume = volume;
+        _dq = dq;
     }
 
     public void Start()
@@ -91,12 +86,11 @@ public sealed class WindowIslandHomeState : IDisposable
             // --- Stats (synchronous, cheap) ---
             var net = _network.Sample();
             var sys = _system.Sample();
-            int vol = _volume.Get();
 
             if (sys.CpuPercent is double cpu && !token.IsCancellationRequested)
             {
                 var snap = new HomeSnapshot(cpu, sys.RamPercent ?? 0,
-                    net.BytesDownPerSec, net.BytesUpPerSec, vol);
+                    net.BytesDownPerSec, net.BytesUpPerSec);
                 _dq.TryEnqueue(() => StatsUpdated?.Invoke(snap));
             }
 

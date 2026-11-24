@@ -848,39 +848,92 @@
                                         </Border>
                                     </Grid>
 
-                                    <!-- Volume bar, under the player -->
+                                    <!-- Volume bar, under the player: device / playing-app volume, mute and
+                                         the output-device picker (same pieces as the volume mixer). -->
                                     <Border Grid.Row="2"
                                             CornerRadius="14"
                                             Background="#10FFFFFF"
                                             BorderBrush="#1AFFFFFF"
                                             BorderThickness="1"
-                                            Padding="12,0,14,0">
-                                        <Grid>
+                                            Padding="8,0,8,0">
+                                        <Grid ColumnSpacing="6">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*"    />
                                                 <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <FontIcon x:Name="VolumeIcon"
-                                                      Grid.Column="0"
-                                                      Glyph="&#xE993;"
-                                                      FontSize="13"
-                                                      Foreground="#90FFFFFF"
-                                                      VerticalAlignment="Center"
-                                                      Margin="0,0,10,0" />
-                                            <Slider x:Name="VolumeSlider"
+
+                                            <!-- Device / playing-app switch, only while an app has audio -->
+                                            <StackPanel x:Name="VolumeTargets"
+                                                        Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        Spacing="2"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="Collapsed">
+                                                <Button x:Name="VolumeDeviceTarget"
+                                                        Click="VolumeDeviceTarget_Click"
+                                                        Width="26" Height="26" MinWidth="26" Padding="0"
+                                                        Style="{StaticResource TabButtonStyle}"
+                                                        ToolTipService.ToolTip="System volume">
+                                                    <FontIcon Glyph="&#xE7F4;" FontSize="12" />
+                                                </Button>
+                                                <Button x:Name="VolumeAppTarget"
+                                                        Click="VolumeAppTarget_Click"
+                                                        Width="26" Height="26" MinWidth="26" Padding="0"
+                                                        Style="{StaticResource TabButtonStyle}"
+                                                        ToolTipService.ToolTip="Volume of the playing app">
+                                                    <TextBlock Text="&#x266A;" FontSize="13" />
+                                                </Button>
+                                            </StackPanel>
+
+                                            <!-- Mute toggle for the selected target -->
+                                            <Button x:Name="VolumeMuteBtn"
                                                     Grid.Column="1"
+                                                    Click="VolumeMute_Click"
+                                                    Width="26" Height="26" MinWidth="26" Padding="0"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    ToolTipService.ToolTip="Mute / unmute">
+                                                <FontIcon x:Name="VolumeIcon"
+                                                          Glyph="&#xE993;"
+                                                          FontSize="13"
+                                                          Foreground="#B0FFFFFF" />
+                                            </Button>
+
+                                            <Slider x:Name="VolumeSlider"
+                                                    Grid.Column="2"
                                                     VerticalAlignment="Center"
                                                     ValueChanged="VolumeSlider_ValueChanged" />
+
                                             <TextBlock x:Name="VolumeText"
-                                                       Grid.Column="2"
+                                                       Grid.Column="3"
                                                        Text="&#8212;"
                                                        FontSize="10"
                                                        Foreground="#90FFFFFF"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Right"
-                                                       Margin="10,0,0,0"
-                                                       MinWidth="30" />
+                                                       MinWidth="28" />
+
+                                            <!-- Output device picker -->
+                                            <Button x:Name="VolumeDevicePicker"
+                                                    Grid.Column="4"
+                                                    Click="VolumeDevicePicker_Click"
+                                                    Height="26" Padding="6,0"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    ToolTipService.ToolTip="Output device">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                                    <FontIcon Glyph="&#xE7F4;" FontSize="11" Foreground="#B0FFFFFF" />
+                                                    <TextBlock x:Name="VolumeDeviceName"
+                                                               Text="Speakers"
+                                                               FontSize="10"
+                                                               Foreground="#D0FFFFFF"
+                                                               MaxWidth="74"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center" />
+                                                    <FontIcon Glyph="&#xE70D;" FontSize="7" Foreground="#80FFFFFF" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
                                         </Grid>
                                     </Border>
                                 </Grid>
@@ -996,6 +1049,24 @@
 
                                 </Grid>
                             </Grid>
+
+                            <!-- Output-device list, opened from the volume bar's device button. It lives
+                                 inside the panel instead of a popup window so the island's hover
+                                 tracking never sees the pointer leave the island. -->
+                            <Border x:Name="VolumeDeviceOverlay"
+                                    Grid.Row="0"
+                                    Width="240"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,0,6"
+                                    CornerRadius="12"
+                                    Background="#F21A1A1A"
+                                    BorderBrush="#2AFFFFFF"
+                                    BorderThickness="1"
+                                    Padding="6"
+                                    Visibility="Collapsed">
+                                <StackPanel x:Name="VolumeDeviceList" Spacing="2" />
+                            </Border>
 
                             <!-- Launcher: full width at the bottom -->
                             <Border Grid.Row="2"

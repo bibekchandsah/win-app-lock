@@ -139,6 +139,11 @@ public sealed partial class WindowIslandWindow : Window
     private IslandTileActions?      _tileActions;
     private bool                    _isMediaPlaying;
     private bool                    _volumeChanging;    // guard to avoid re-entrant slider updates
+    private WindowIslandAudio?      _audio;             // devices + app sessions for the volume bar
+    private DQTimer?                _volumeUiTimer;
+    private bool                    _appVolumeMode;     // slider drives the playing app instead of the device
+    private string?                 _appSessionId;
+    private bool                    _volumeTargetMuted;
     private DQTimer?                _eqTimer;
     private readonly Random         _eqRng = new();
 
@@ -540,6 +545,9 @@ public sealed partial class WindowIslandWindow : Window
         _screenshotSource = null;
         _volumeController?.Dispose();
         _volumeController = null;
+        StopVolumeUi();
+        _audio?.Dispose();
+        _audio = null;
 
         // Milestone 12
         WindowIslandNotificationService.Instance.VpnStateChanged     -= OnVpnStateChanged;
@@ -1487,10 +1495,11 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_homeState != null) return;
         if (_volumeController == null) return;
-        _homeState = new WindowIslandHomeState(DispatcherQueue, _volumeController);
+        _homeState = new WindowIslandHomeState(DispatcherQueue);
         _homeState.MediaUpdated += OnMediaUpdated;
         _homeState.StatsUpdated += OnStatsUpdated;
         _homeState.Start();
+        StartVolumeUi();
         StartEqTimer();
     }
 
@@ -1501,6 +1510,7 @@ public sealed partial class WindowIslandWindow : Window
         _homeState.StatsUpdated -= OnStatsUpdated;
         _homeState.Dispose();
         _homeState = null;
+        StopVolumeUi();
         StopEqTimer();
         // Hide folded media mini when home tab is not active
         FoldedMediaMini.Visibility = Visibility.Collapsed;
@@ -1815,12 +1825,8 @@ public sealed partial class WindowIslandWindow : Window
             TileNetDown.Text = $"↓ {FormatSpeed(snap.DownBytesPerSec)}";
             TileNetUp.Text   = $"↑ {FormatSpeed(snap.UpBytesPerSec)}";
 
-            // Volume row (avoid re-entrant ValueChanged)
-            _volumeChanging = true;
-            VolumeSlider.Value = snap.Volume;
-            _volumeChanging = false;
-            VolumeText.Text = $"{snap.Volume}%";
-            UpdateVolumeIcon(snap.Volume);
+            // The volume row is driven by RefreshVolumeUi, which knows whether the slider is
+            // showing the device or the playing app's volume.
         }
         catch (Exception ex) { WindowIslandHost.Log("OnStatsUpdated: " + ex.Message); }
     }
@@ -1832,12 +1838,212 @@ public sealed partial class WindowIslandWindow : Window
         return $"{bytesPerSec / (1024 * 1024):F1} MB/s";
     }
 
-    private void UpdateVolumeIcon(int vol)
+    private void UpdateVolumeIcon(int vol, bool muted)
     {
-        VolumeIcon.Glyph = vol == 0 ? "\uE74F"
+        _volumeTargetMuted = muted;
+        VolumeIcon.Glyph = muted || vol == 0 ? "\uE74F"
             : vol < 33   ? "\uE992"
             : vol < 66   ? "\uE993"
             : "\uE995";
+    }
+
+    // ── Volume bar: device or playing app, mute and output-device picker ──────
+
+    private void StartVolumeUi()
+    {
+        if (_volumeUiTimer != null) return;
+        _audio ??= new WindowIslandAudio();
+        _volumeUiTimer = DispatcherQueue.CreateTimer();
+        _volumeUiTimer.Interval = TimeSpan.FromMilliseconds(1000);
+        _volumeUiTimer.Tick += (_, _) => RefreshVolumeUi();
+        _volumeUiTimer.Start();
+        RefreshVolumeUi();
+    }
+
+    private void StopVolumeUi()
+    {
+        _volumeUiTimer?.Stop();
+        _volumeUiTimer = null;
+        if (VolumeDeviceOverlay != null) VolumeDeviceOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Reads the playback devices and the app sessions and paints the volume row. While an app has
+    /// audio, the two-part switch appears so the slider can drive that app's volume; otherwise the
+    /// row drives the output device like a plain speaker slider.
+    /// </summary>
+    private void RefreshVolumeUi()
+    {
+        try
+        {
+            if (_audio == null) return;
+            _audio.Refresh();
+
+            var app = _audio.FindPlayingSession();
+            bool audible = app != null && app.Peak > 0.0005f;
+            bool hasApp = app != null && (audible || _isMediaPlaying);
+
+            if (!hasApp) _appVolumeMode = false;
+            _appSessionId = app?.SessionId;
+
+            VolumeTargets.Visibility = hasApp ? Visibility.Visible : Visibility.Collapsed;
+            if (hasApp)
+            {
+                SetVolumeTargetVisual(VolumeDeviceTarget, !_appVolumeMode);
+                SetVolumeTargetVisual(VolumeAppTarget, _appVolumeMode);
+            }
+
+            int volume;
+            bool muted;
+            if (_appVolumeMode && app != null)
+            {
+                volume = app.Volume;
+                muted = app.Muted;
+            }
+            else
+            {
+                volume = _audio.GetDeviceVolume();
+                muted = _audio.IsDeviceMuted();
+            }
+
+            _volumeChanging = true;
+            if (volume >= 0) VolumeSlider.Value = volume;
+            _volumeChanging = false;
+
+            VolumeSlider.IsEnabled = _appVolumeMode ? hasApp : _audio.HasDevices;
+            VolumeText.Text = volume < 0 ? "—" : $"{volume}%";
+            UpdateVolumeIcon(volume, muted);
+
+            VolumeDeviceName.Text = ShortDeviceName(_audio.DefaultDeviceName);
+            ToolTipService.SetToolTip(VolumeDevicePicker, _audio.DefaultDeviceName);
+
+            if (VolumeDeviceOverlay.Visibility == Visibility.Visible) BuildVolumeDeviceList();
+        }
+        catch (Exception ex) { WindowIslandHost.Log("RefreshVolumeUi: " + ex.Message); }
+    }
+
+    /// <summary>Drops the "(Realtek(R) Audio)" style suffix so the picker label stays short.</summary>
+    private static string ShortDeviceName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "No output";
+        int paren = name.IndexOf('(');
+        string shortName = paren > 1 ? name[..paren].Trim() : name.Trim();
+        return shortName.Length > 18 ? shortName[..18] : shortName;
+    }
+
+    private static void SetVolumeTargetVisual(Button button, bool selected)
+    {
+        button.Background = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(selected ? (byte)38 : (byte)0, 255, 255, 255));
+        button.Opacity = selected ? 1.0 : 0.55;
+    }
+
+    private void VolumeMute_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
+        {
+            var session = _audio?.FindSession(_appSessionId);
+            if (session != null) _audio?.SetSessionMute(_appSessionId, !session.Muted);
+        }
+        else
+        {
+            _audio?.ToggleDeviceMute();
+        }
+        RefreshVolumeUi();
+    }
+
+    private void VolumeDeviceTarget_Click(object sender, RoutedEventArgs e)
+    {
+        _appVolumeMode = false;
+        RefreshVolumeUi();
+    }
+
+    private void VolumeAppTarget_Click(object sender, RoutedEventArgs e)
+    {
+        _appVolumeMode = true;
+        RefreshVolumeUi();
+    }
+
+    private void VolumeDevicePicker_Click(object sender, RoutedEventArgs e)
+    {
+        if (VolumeDeviceOverlay.Visibility == Visibility.Visible)
+        {
+            VolumeDeviceOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Opening the list is the moment a fresh device list matters (a headset may have been
+        // plugged in), so pay for the full scan here instead of on every tick.
+        _audio?.Refresh(forceDeviceScan: true);
+        BuildVolumeDeviceList();
+        VolumeDeviceOverlay.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Builds the in-panel device list; clicking a device makes it the Windows default.</summary>
+    private void BuildVolumeDeviceList()
+    {
+        if (_audio == null) return;
+        VolumeDeviceList.Children.Clear();
+
+        var devices = _audio.Devices;
+        if (devices.Count == 0)
+        {
+            VolumeDeviceList.Children.Add(new TextBlock
+            {
+                Text = "No playback devices",
+                FontSize = 10.5,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(130, 255, 255, 255)),
+                Margin = new Thickness(8, 6, 8, 6)
+            });
+            return;
+        }
+
+        foreach (var device in devices)
+        {
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 7,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            content.Children.Add(new FontIcon
+            {
+                Glyph = device.IsDefault ? "\uE73E" : "\uE7F4",
+                FontSize = device.IsDefault ? 11 : 12,
+                Width = 14,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(
+                    device.IsDefault ? (byte)255 : (byte)150, 255, 255, 255))
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = device.Name,
+                FontSize = 10.5,
+                MaxWidth = 170,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(
+                    device.IsDefault ? (byte)240 : (byte)190, 255, 255, 255))
+            });
+
+            var item = new Button
+            {
+                Content = content,
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 255, 255, 255)),
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 6, 8, 6),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left
+            };
+            string id = device.Id;
+            item.Click += (_, _) =>
+            {
+                _audio?.SetDefaultDevice(id);
+                VolumeDeviceOverlay.Visibility = Visibility.Collapsed;
+                RefreshVolumeUi();
+            };
+            VolumeDeviceList.Children.Add(item);
+        }
     }
 
     // ── Equalizer bars (30 Hz while playing) ──────────────────────────────────
@@ -1890,9 +2096,19 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_volumeChanging) return;
         int vol = (int)e.NewValue;
-        _volumeController?.Set(vol);
+
+        if (_appVolumeMode && !string.IsNullOrEmpty(_appSessionId))
+        {
+            _audio?.SetSessionVolume(_appSessionId, vol);
+        }
+        else
+        {
+            _audio?.SetDeviceVolume(vol);
+            _volumeController?.Set(vol);
+        }
+
         VolumeText.Text = $"{vol}%";
-        UpdateVolumeIcon(vol);
+        UpdateVolumeIcon(vol, _volumeTargetMuted);
         // Push a volume card when the user adjusts the slider
         if (_settings.CardVolumeEnabled)
         {
