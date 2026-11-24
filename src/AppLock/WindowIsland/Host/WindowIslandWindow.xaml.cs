@@ -4878,28 +4878,34 @@ public sealed partial class WindowIslandWindow : Window
             isDaytime = false;
         }
 
-        // Dynamic Day/Night Theme for Hero Card
+        // Dynamic Weather & Time-of-Day Theme for Hero Card (no Windows accent color)
+        var palette = WeatherCardTheme.Resolve(
+            weather.SymbolCode,
+            weather.ConditionText,
+            weather.WindSpeedMps,
+            cur,
+            sr,
+            ss,
+            isDaytime);
+
+        static Windows.UI.Color Argb(uint c) => ColorHelper.FromArgb(
+            (byte)((c >> 24) & 0xFF),
+            (byte)((c >> 16) & 0xFF),
+            (byte)((c >> 8) & 0xFF),
+            (byte)(c & 0xFF));
+
         var heroBg = new LinearGradientBrush
         {
             StartPoint = new Windows.Foundation.Point(0, 0),
             EndPoint = new Windows.Foundation.Point(0, 1)
         };
-        if (isDaytime)
-        {
-            var accent = GetSystemAccentColor();
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, accent.R, accent.G, accent.B), Offset = 0.0 });
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, (byte)(accent.R * 0.55), (byte)(accent.G * 0.55), (byte)(accent.B * 0.55)), Offset = 1.0 });
-            WeatherHeroCard.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x35, 0xFF, 0xFF, 0xFF));
-            WeatherConditionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xEB, 0x3B));
-        }
-        else
-        {
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x14, 0x1E, 0x30), Offset = 0.0 });
-            heroBg.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(0xFF, 0x0A, 0x0F, 0x1A), Offset = 1.0 });
-            WeatherHeroCard.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
-            WeatherConditionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xE2, 0xEA, 0xF8));
-        }
+        heroBg.GradientStops.Add(new GradientStop { Color = Argb(palette.TopColor), Offset = 0.0 });
+        heroBg.GradientStops.Add(new GradientStop { Color = Argb(palette.MiddleColor), Offset = 0.55 });
+        heroBg.GradientStops.Add(new GradientStop { Color = Argb(palette.BottomColor), Offset = 1.0 });
+
         WeatherHeroCard.Background = heroBg;
+        WeatherHeroCard.BorderBrush = new SolidColorBrush(Argb(palette.BorderColor));
+        WeatherConditionIcon.Foreground = new SolidColorBrush(Argb(palette.IconColor));
 
         // 5. Precipitation: Value, mini-bar fill, subtext
         WeatherPrecipValText.Text = $"{weather.PrecipitationTodayMm:0.0} mm today";

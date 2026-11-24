@@ -169,6 +169,7 @@
     <!-- Window Island Weather & Events (Milestone 10) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Events\WindowIslandCard.cs" Link="WindowIsland\Events\WindowIslandCard.cs" />
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\WeatherModels.cs" Link="WindowIsland\Modules\Weather\WeatherModels.cs" />
+    <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\WeatherCardTheme.cs" Link="WindowIsland\Modules\Weather\WeatherCardTheme.cs" />
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\IWeatherProvider.cs" Link="WindowIsland\Modules\Weather\IWeatherProvider.cs" />
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\NoaaSolarCalculator.cs" Link="WindowIsland\Modules\Weather\NoaaSolarCalculator.cs" />
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\Weather\MetNorwayWeatherProvider.cs" Link="WindowIsland\Modules\Weather\MetNorwayWeatherProvider.cs" />
