@@ -147,6 +147,9 @@ public sealed partial class WindowIslandWindow : Window
     private long                    _volumeLastWriteMs;   // last user-driven slider change
     private bool                    _volumePointerDown;
     private string                  _mediaAppName = string.Empty;   // app the player is showing
+    private double                  _mediaDuration;                // seconds, for seeking
+    private bool                    _seekPointerDown;
+    private long                    _lastSeekMs;
     private long                    _lastVolumeCardMs;
     private int                     _pendingVolumeCard = -1;
     private DQTimer?                _volumeCardTimer;
@@ -1584,6 +1587,8 @@ public sealed partial class WindowIslandWindow : Window
             MediaPlayPauseIcon.Glyph = snap.Playing ? "\uE769" : "\uE768"; // Pause : Play
 
             // Progress line with elapsed / remaining times, like a phone-style player card
+            _mediaDuration = snap.DurationSeconds;
+
             MediaElapsed.Text   = FormatTime(snap.PositionSeconds);
             MediaRemaining.Text = snap.DurationSeconds > 0
                 ? "-" + FormatTime(Math.Max(0, snap.DurationSeconds - snap.PositionSeconds))
@@ -2148,6 +2153,55 @@ public sealed partial class WindowIslandWindow : Window
     /// <summary>Shows the next app that has media; the panel stays on it, so Play/Pause hit it.</summary>
     private void MediaNextApp_Click(object sender, RoutedEventArgs e)
         => _homeState?.CycleMediaSession();
+
+    // ── Seek bar: click or drag anywhere on the line to jump there ───────────
+
+    private void MediaSeek_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        _seekPointerDown = true;
+        MediaSeekArea.CapturePointer(e.Pointer);
+        _ = SeekToPointerAsync(e.GetCurrentPoint(MediaSeekArea).Position.X, throttle: false);
+    }
+
+    private void MediaSeek_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_seekPointerDown) return;
+        _ = SeekToPointerAsync(e.GetCurrentPoint(MediaSeekArea).Position.X, throttle: true);
+    }
+
+    private void MediaSeek_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_seekPointerDown)
+        {
+            _ = SeekToPointerAsync(e.GetCurrentPoint(MediaSeekArea).Position.X, throttle: false);
+        }
+
+        _seekPointerDown = false;
+        MediaSeekArea.ReleasePointerCapture(e.Pointer);
+    }
+
+    private async Task SeekToPointerAsync(double x, bool throttle)
+    {
+        if (_homeState == null || _mediaDuration <= 0) return;
+
+        double width = MediaSeekArea.ActualWidth;
+        if (width <= 0) return;
+
+        // Dragging raises this every few pixels; the player only needs a few seeks per second.
+        long now = Environment.TickCount64;
+        if (throttle && now - _lastSeekMs < 120) return;
+        _lastSeekMs = now;
+
+        double ratio = Math.Clamp(x / width, 0, 1);
+        double target = ratio * _mediaDuration;
+
+        // Paint the result straight away; the 1 Hz poll then confirms the player's position.
+        MediaProgress.Value = ratio;
+        MediaElapsed.Text = FormatTime(target);
+        MediaRemaining.Text = "-" + FormatTime(Math.Max(0, _mediaDuration - target));
+
+        await _homeState.SeekMediaAsync(target);
+    }
 
     private void MediaPrev_Click(object sender, RoutedEventArgs e)
         => _ = _homeState?.MediaCommandAsync("previous");

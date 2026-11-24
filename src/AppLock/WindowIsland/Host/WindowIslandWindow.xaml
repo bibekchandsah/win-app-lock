@@ -704,14 +704,26 @@
                                                         </StackPanel>
                                                     </Grid>
 
-                                                    <StackPanel Grid.Row="1" Spacing="4">
-                                                        <ProgressBar x:Name="MediaProgress"
-                                                                     Minimum="0" Maximum="1" Value="0"
-                                                                     Height="3"
-                                                                     CornerRadius="1.5"
-                                                                     Foreground="#D9A0E8"
-                                                                     Background="#26FFFFFF"
-                                                                     HorizontalAlignment="Stretch" />
+                                                    <StackPanel Grid.Row="1" Spacing="2">
+                                                        <!-- Seek surface: taller than the 3 px line so a click or drag lands -->
+                                                        <Grid x:Name="MediaSeekArea"
+                                                              Height="14"
+                                                              Background="Transparent"
+                                                              ToolTipService.ToolTip="Seek"
+                                                              PointerPressed="MediaSeek_PointerPressed"
+                                                              PointerMoved="MediaSeek_PointerMoved"
+                                                              PointerReleased="MediaSeek_PointerReleased"
+                                                              PointerCaptureLost="MediaSeek_PointerReleased">
+                                                            <ProgressBar x:Name="MediaProgress"
+                                                                         Minimum="0" Maximum="1" Value="0"
+                                                                         Height="3"
+                                                                         CornerRadius="1.5"
+                                                                         Foreground="#D9A0E8"
+                                                                         Background="#26FFFFFF"
+                                                                         VerticalAlignment="Center"
+                                                                         IsHitTestVisible="False"
+                                                                         HorizontalAlignment="Stretch" />
+                                                        </Grid>
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*"    />

@@ -245,6 +245,25 @@ public sealed class MediaSessionSource : IDisposable
         }
     }
 
+    /// <summary>Moves the shown session's playhead, in seconds from the start.</summary>
+    public async Task SeekAsync(double seconds)
+    {
+        try
+        {
+            _manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var session = _session ?? PickSession() ?? _manager.GetCurrentSession();
+            if (session == null) return;
+            _session = session;
+
+            long ticks = (long)Math.Max(0, seconds * TimeSpan.TicksPerSecond);
+            await session.TryChangePlaybackPositionAsync(ticks);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] media seek failed: {ex.Message}");
+        }
+    }
+
     private async Task SaveArtAsync(IRandomAccessStreamReference thumbnail)
     {
         try

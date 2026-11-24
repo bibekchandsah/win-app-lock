@@ -112,6 +112,9 @@ public sealed class WindowIslandHomeState : IDisposable
     /// <summary>Moves the player to the next app that has media (called on the UI thread).</summary>
     public void CycleMediaSession() => _media.CycleSession();
 
+    /// <summary>Seeks the shown track to <paramref name="seconds"/> from the start.</summary>
+    public Task SeekMediaAsync(double seconds) => _media.SeekAsync(seconds);
+
     public void Dispose()
     {
         Stop();
