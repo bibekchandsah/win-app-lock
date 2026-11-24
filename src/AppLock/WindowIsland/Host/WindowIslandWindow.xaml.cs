@@ -1643,33 +1643,164 @@ public sealed partial class WindowIslandWindow : Window
 
     private void RecentChevron_Click(object sender, RoutedEventArgs e) => SwitchTab(1);
 
-    /// <summary>Fills the Home tab's RECENTLY COPIED rows from the same clipboard history list.</summary>
+    private const int HomeRecentCount = 4;
+
+    /// <summary>
+    /// Fills the Home tab's RECENTLY COPIED rows from the same clipboard history list. Each row is a
+    /// hoverable card; clicking it copies that item back onto the clipboard.
+    /// </summary>
     private void UpdateHomeRecents(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
     {
-        var grids = new[] { RecentItem0, RecentItem1, RecentItem2 };
-        var texts = new[] { RecentText0, RecentText1, RecentText2 };
-        var ages  = new[] { RecentAge0,  RecentAge1,  RecentAge2  };
-        var icons = new[] { RecentIcon0, RecentIcon1, RecentIcon2 };
-
-        for (int i = 0; i < grids.Length; i++)
+        try
         {
-            bool has = i < rows.Count;
-            grids[i].Visibility = has ? Visibility.Visible : Visibility.Collapsed;
-            if (!has) continue;
+            RecentList.Children.Clear();
 
-            var row = rows[i];
-            texts[i].Text = row.Preview;
-            ages[i].Text  = row.Age;
-            icons[i].Glyph = row.Type switch
+            int count = Math.Min(rows.Count, HomeRecentCount);
+            for (int i = 0; i < count; i++)
             {
-                "image" => "\uEB9F",
-                "files" => "\uE7C3",
-                "text"  => "\uE8C3",
-                _       => "\uE77F"
-            };
-        }
+                RecentList.Children.Add(BuildRecentRow(rows[i]));
+            }
 
-        RecentEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RecentEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception ex) { WindowIslandHost.Log("UpdateHomeRecents: " + ex.Message); }
+    }
+
+    private FrameworkElement BuildRecentRow(AppLock.Island.Modules.ClipboardRow row)
+    {
+        // A Button gives the row a native pointer-over/pressed state, so the hover highlight is
+        // driven by the control template instead of hand-rolled PointerEntered/PointerExited.
+        var host = new Button
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 255, 255, 255)),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(4, 3, 7, 3),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+
+        var grid = new Grid { ColumnSpacing = 10 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Leading badge: "T" for text, the real thumbnail for an image, a glyph otherwise.
+        var badge = new Border
+        {
+            Width = 26,
+            Height = 26,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(22, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(26, 255, 255, 255)),
+            BorderThickness = new Thickness(1)
+        };
+
+        switch (row.Type)
+        {
+            case "text":
+                badge.Child = new TextBlock
+                {
+                    Text = "T",
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(190, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                break;
+
+            case "image":
+                string? thumbPath = ResolveRecentThumb(row.Thumb);
+                if (thumbPath != null)
+                {
+                    // A wider badge gives the thumbnail enough room to be recognisable.
+                    badge.Width = 40;
+                    badge.Background = new ImageBrush
+                    {
+                        ImageSource = new BitmapImage(new Uri(thumbPath)),
+                        Stretch = Stretch.UniformToFill
+                    };
+                }
+                else
+                {
+                    badge.Child = RecentGlyph("\uEB9F");
+                }
+                break;
+
+            case "files":
+                badge.Child = RecentGlyph("\uE8B7");
+                break;
+
+            default:
+                badge.Child = RecentGlyph("\uE77F");
+                break;
+        }
+        Grid.SetColumn(badge, 0);
+
+        var preview = new TextBlock
+        {
+            Text = row.Preview,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            MaxLines = 1,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(preview, 1);
+
+        var age = new TextBlock
+        {
+            Text = row.Age,
+            FontSize = 9.5,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(112, 255, 255, 255)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(age, 2);
+
+        grid.Children.Add(badge);
+        grid.Children.Add(preview);
+        grid.Children.Add(age);
+        host.Content = grid;
+
+        host.Click += async (_, _) => await CopyRecentItemAsync(row);
+        ToolTipService.SetToolTip(host, "Click to copy");
+
+        return host;
+    }
+
+    private static FontIcon RecentGlyph(string glyph) => new()
+    {
+        Glyph = glyph,
+        FontSize = 11,
+        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255))
+    };
+
+    private static string? ResolveRecentThumb(string thumb)
+    {
+        if (string.IsNullOrEmpty(thumb)) return null;
+        try
+        {
+            if (File.Exists(thumb)) return thumb;
+            string candidate = Path.Combine(ServiceContainer.ClipboardStore.StoragePath, thumb);
+            if (File.Exists(candidate)) return candidate;
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Copies a recently-copied item back onto the clipboard.</summary>
+    private async Task CopyRecentItemAsync(AppLock.Island.Modules.ClipboardRow row)
+    {
+        try
+        {
+            if (_clipboardState != null)
+            {
+                await _clipboardState.PasteAsync(row.Id, copyOnly: true);
+            }
+        }
+        catch (Exception ex) { WindowIslandHost.Log("CopyRecentItem: " + ex.Message); }
     }
 
     private void OnStatsUpdated(HomeSnapshot snap)

@@ -761,11 +761,8 @@
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <Grid x:Name="RecentPanel" RowSpacing="9" Visibility="Visible">
+                                                <Grid x:Name="RecentPanel" Visibility="Visible">
                                                     <Grid.RowDefinitions>
-                                                        <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="*"    />
                                                     </Grid.RowDefinitions>
@@ -794,87 +791,21 @@
                                                         </Button>
                                                     </Grid>
 
-                        <Grid x:Name="RecentItem0" Grid.Row="1"
-                              ColumnSpacing="10" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*"    />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Width="26" Height="26" CornerRadius="7" Background="#16FFFFFF">
-                                <FontIcon x:Name="RecentIcon0" Glyph="&#xE8C3;" FontSize="11" Foreground="#B3FFFFFF" />
-                            </Border>
-                            <TextBlock x:Name="RecentText0"
-                                       Grid.Column="1"
-                                       FontSize="11"
-                                       Foreground="#E6FFFFFF"
-                                       MaxLines="1"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" />
-                            <TextBlock x:Name="RecentAge0"
-                                       Grid.Column="2"
-                                       FontSize="9.5"
-                                       Foreground="#70FFFFFF"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-
-                        <Grid x:Name="RecentItem1" Grid.Row="2"
-                              ColumnSpacing="10" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*"    />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Width="26" Height="26" CornerRadius="7" Background="#16FFFFFF">
-                                <FontIcon x:Name="RecentIcon1" Glyph="&#xE8C3;" FontSize="11" Foreground="#B3FFFFFF" />
-                            </Border>
-                            <TextBlock x:Name="RecentText1"
-                                       Grid.Column="1"
-                                       FontSize="11"
-                                       Foreground="#E6FFFFFF"
-                                       MaxLines="1"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" />
-                            <TextBlock x:Name="RecentAge1"
-                                       Grid.Column="2"
-                                       FontSize="9.5"
-                                       Foreground="#70FFFFFF"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-
-                        <Grid x:Name="RecentItem2" Grid.Row="3"
-                              ColumnSpacing="10" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*"    />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Width="26" Height="26" CornerRadius="7" Background="#16FFFFFF">
-                                <FontIcon x:Name="RecentIcon2" Glyph="&#xE8C3;" FontSize="11" Foreground="#B3FFFFFF" />
-                            </Border>
-                            <TextBlock x:Name="RecentText2"
-                                       Grid.Column="1"
-                                       FontSize="11"
-                                       Foreground="#E6FFFFFF"
-                                       MaxLines="1"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" />
-                            <TextBlock x:Name="RecentAge2"
-                                       Grid.Column="2"
-                                       FontSize="9.5"
-                                       Foreground="#70FFFFFF"
-                                       VerticalAlignment="Center" />
-                        </Grid>
+                                                    <StackPanel x:Name="RecentList"
+                                                                Grid.Row="1"
+                                                                Spacing="2"
+                                                                Margin="0,9,0,0"
+                                                                VerticalAlignment="Top" />
 
                                                     <TextBlock x:Name="RecentEmptyText"
-                                                               Grid.Row="4"
+                                                               Grid.Row="1"
                                                                Text="Copy something and your latest items show up here; the player appears above once music is playing"
                                                                FontSize="10"
                                                                LineHeight="15"
                                                                Foreground="#5CFFFFFF"
                                                                TextWrapping="Wrap"
                                                                VerticalAlignment="Top"
-                                                               Margin="1,4,0,0" />
+                                                               Margin="1,13,0,0" />
                                                 </Grid>
                                             </Grid>
                                         </Border>
