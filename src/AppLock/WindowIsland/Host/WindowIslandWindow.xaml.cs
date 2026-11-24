@@ -1541,11 +1541,14 @@ public sealed partial class WindowIslandWindow : Window
         float winW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
         float winH = isCmd ? (IslandMotion.CommandBarSize.H + 60f) : (IslandMotion.TabSize(_activeTab).H + 60f);
 
-        // The open and command layers fill the window so the shell never shows an empty strip
-        OpenLayer.Width    = winW;
-        OpenLayer.Height   = winH;
-        CommandLayer.Width = winW;
-        CommandLayer.Height= winH;
+        // The open layer fills the window; CommandLayer matches the exact visible CommandBar bounds
+        OpenLayer.Width     = winW;
+        OpenLayer.Height    = winH;
+
+        float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
+        CommandLayer.Width  = IslandMotion.CommandBarSize.W;
+        CommandLayer.Height = IslandMotion.CommandBarSize.H;
+        CommandLayer.Margin = new Thickness(0, topDip, 0, 0);
 
         var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
         _windowX        = rect.X;
@@ -3355,9 +3358,10 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "Type a file name, app name, math (e.g. 2*(3+4)), or @command (e.g. @youtube, @google, @github, @incognito, lock, note, weather)…",
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 24, 0, 0),
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(12, 36, 12, 0),
                 TextWrapping = TextWrapping.Wrap
             };
             CommandResultList.Children.Add(hint);

@@ -373,11 +373,11 @@
         <Grid x:Name="CommandLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
-              Width="700"
+              Width="660"
               Height="380"
               Opacity="0"
               IsHitTestVisible="False">
-            <Grid Margin="16,10,16,12">
+            <Grid Margin="24,14,24,14">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- Search Box -->
                     <RowDefinition Height="*"    /> <!-- Results list -->
@@ -385,60 +385,67 @@
                 </Grid.RowDefinitions>
 
                 <!-- Search Input Box -->
-                <Grid Grid.Row="0" Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*"    />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <FontIcon Grid.Column="0"
-                              Glyph="&#xE721;"
-                              FontSize="13"
-                              Foreground="#60CDFF"
-                              VerticalAlignment="Center"
-                              Margin="4,0,8,0" />
-                    <TextBox x:Name="CommandInput"
-                             Grid.Column="1"
-                             PlaceholderText="Search files, apps, math, or @command (e.g. @youtube, @google, @github)…"
-                             FontSize="12"
-                             Background="Transparent"
-                             BorderBrush="Transparent"
-                             Foreground="#F0FFFFFF"
-                             Padding="2,4"
-                             TextChanged="CommandInput_TextChanged"
-                             KeyDown="CommandInput_KeyDown" />
-                    <Button x:Name="CommandCloseBtn"
-                            Grid.Column="2"
-                            Style="{StaticResource TabButtonStyle}"
-                            Width="26" Height="26"
-                            Click="CommandClose_Click"
-                            ToolTipService.ToolTip="Close (Esc)">
-                        <FontIcon Glyph="&#xE711;" FontSize="11" />
-                    </Button>
-                </Grid>
-
-                <!-- Divider -->
                 <Border Grid.Row="0"
-                        Height="1"
-                        Background="#20FFFFFF"
-                        VerticalAlignment="Bottom"
-                        Margin="0,0,0,-2" />
+                        Background="#14FFFFFF"
+                        BorderBrush="#25FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="8,2,6,2"
+                        Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*"    />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0"
+                                  Glyph="&#xE721;"
+                                  FontSize="13"
+                                  Foreground="#60CDFF"
+                                  VerticalAlignment="Center"
+                                  Margin="4,0,8,0" />
+                        <TextBox x:Name="CommandInput"
+                                 Grid.Column="1"
+                                 PlaceholderText="Search files, apps, math, or @command (e.g. @youtube, @google, @github)…"
+                                 FontSize="12"
+                                 Background="Transparent"
+                                 BorderBrush="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="#F0FFFFFF"
+                                 Padding="2,5"
+                                 TextChanged="CommandInput_TextChanged"
+                                 KeyDown="CommandInput_KeyDown" />
+                        <Button x:Name="CommandCloseBtn"
+                                Grid.Column="2"
+                                Style="{StaticResource TabButtonStyle}"
+                                Width="26" Height="26"
+                                Click="CommandClose_Click"
+                                ToolTipService.ToolTip="Close (Esc)">
+                            <FontIcon Glyph="&#xE711;" FontSize="11" />
+                        </Button>
+                    </Grid>
+                </Border>
 
                 <!-- Results List -->
                 <ScrollViewer Grid.Row="1"
-                              Margin="0,6,0,6"
+                              Margin="0,0,0,8"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel x:Name="CommandResultList" Spacing="2" />
+                    <StackPanel x:Name="CommandResultList" Spacing="3" />
                 </ScrollViewer>
 
                 <!-- Footer Hints -->
-                <Grid Grid.Row="2" Margin="0,4,0,0">
+                <Border Grid.Row="2"
+                        Margin="0,2,0,0"
+                        Padding="0,6,0,0"
+                        BorderBrush="#18FFFFFF"
+                        BorderThickness="0,1,0,0">
                     <TextBlock Text="↵ Open  ·  Tab Auto-fill  ·  Ctrl+↵ In folder  ·  Alt+↵ Copy  ·  Type @ for web searches  ·  Esc Close"
-                               FontSize="9"
-                               Foreground="#50FFFFFF"
-                               HorizontalAlignment="Center" />
-                </Grid>
+                               FontSize="9.5"
+                               Foreground="#85FFFFFF"
+                               HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
             </Grid>
         </Grid>
 

@@ -452,6 +452,12 @@ fixed - move "lock, sleep, restart, shut down" to the bottom
 fixed - notes are getting cleared on new build
 fixed - adjust shelf clear color 
 fixed - add height adjust in right end side of AI Chat so that user can increase or decrease dynamically
+fixed - add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
+fixed - user can add multiple search like @command and url for example 
+@youtube - command 
+https://www.youtube.com/results?search_query= - query 
+
+fixed- @incognito, @youtube, @maps, @images, @amazon, @flipkart, @wiki, @wikihow, @github, @translate, @stackoverflow, @reddit, @quora, @medium, @linkedin, @twitter/@x, @news, @scholar, @weather, @duckduckgo, @spotify, @coursera, @udemy, @discord, @pinterest, @unsplash, @google 
 
 show the circle dots in left card on the right side center vertically so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
 don't show accent color effect in weather left side card instead of it add multiple card theme for sunshine, raining, cloudy, thunderstrom, wind, morining, evening, sunrise, sunset, snow, fog and according to weather.
@@ -459,12 +465,6 @@ show ring in island too during timer
 improve check list it's not toggled now 
 when the app is locked and user click setting icon from dynamic island then it bypasses the lock and opens directly prevent it
 use accent color in all tabs 
-fixed - add mutliple and custom search in command option and adjust the height and length like other tab @youtube nepali music,
-user can add multiple search like @command and url for example 
-@youtube - command 
-https://www.youtube.com/results?search_query= - query 
-
-@incognito, @youtube, @maps, @images, @amazon, @flipkart, @wiki, @wikihow, @github, @translate, @stackoverflow, @reddit, @quora, @medium, @linkedin, @twitter/@x, @news, @scholar, @weather, @duckduckgo, @spotify, @coursera, @udemy, @discord, @pinterest, @unsplash, @google 
 
 
 
