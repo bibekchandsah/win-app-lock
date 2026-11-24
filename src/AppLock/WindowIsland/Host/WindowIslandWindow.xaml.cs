@@ -2518,8 +2518,8 @@ public sealed partial class WindowIslandWindow : Window
             Background = isSelected ? selectedBg : normalBg,
             BorderBrush = isSelected ? accentBrush : normalBorder,
             BorderThickness = new Thickness(isSelected ? 1.5 : 1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 8, 10, 8),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 5, 8, 5),
             Tag = index
         };
         border.PointerEntered  += (s, _) =>
@@ -2564,10 +2564,10 @@ public sealed partial class WindowIslandWindow : Window
 
             var thumbBorder = new Border
             {
-                Width = 64,
-                Height = 48,
+                Width = 52,
+                Height = 38,
                 CornerRadius = new CornerRadius(6),
-                Margin = new Thickness(0, 0, 10, 0),
+                Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255)),
                 BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)),
                 BorderThickness = new Thickness(1),
@@ -2620,17 +2620,17 @@ public sealed partial class WindowIslandWindow : Window
         {
             var textBadge = new Border
             {
-                Width = 36,
-                Height = 36,
+                Width = 30,
+                Height = 30,
                 CornerRadius = new CornerRadius(6),
                 Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
-                Margin = new Thickness(0, 0, 10, 0),
+                Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = "T",
                     FontWeight = FontWeights.SemiBold,
-                    FontSize = 16,
+                    FontSize = 13,
                     FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI, sans-serif"),
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255)),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -2649,16 +2649,16 @@ public sealed partial class WindowIslandWindow : Window
             };
             var fileBadge = new Border
             {
-                Width = 36,
-                Height = 36,
+                Width = 30,
+                Height = 30,
                 CornerRadius = new CornerRadius(6),
                 Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
-                Margin = new Thickness(0, 0, 10, 0),
+                Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new FontIcon
                 {
                     Glyph = glyph,
-                    FontSize = 16,
+                    FontSize = 13,
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
@@ -2670,21 +2670,20 @@ public sealed partial class WindowIslandWindow : Window
         Grid.SetColumn(leadingVisual, 0);
         inner.Children.Add(leadingVisual);
 
-        // Preview + source (larger, readable fonts)
-        var textStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        // Preview + source
+        var textStack = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         var preview = new TextBlock
         {
             Text = row.Preview,
-            FontSize = 13,
-            MaxLines = 2,
-            TextWrapping = TextWrapping.Wrap,
+            FontSize = 11.5,
+            MaxLines = 1,
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var source = new TextBlock
         {
             Text = string.IsNullOrEmpty(row.Source) ? row.Age : $"{row.Source} · {row.Age}",
-            FontSize = 10,
+            FontSize = 9.5,
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
@@ -2698,8 +2697,8 @@ public sealed partial class WindowIslandWindow : Window
         {
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
             Padding = new Thickness(4),
-            MinWidth = 28,
-            Height = 28,
+            MinWidth = 24,
+            Height = 24,
             Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };

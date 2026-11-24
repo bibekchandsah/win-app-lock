@@ -1280,7 +1280,7 @@
                         <ScrollViewer Grid.Row="1"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel x:Name="ClipboardList" Spacing="4" />
+                            <StackPanel x:Name="ClipboardList" Spacing="3" />
                         </ScrollViewer>
 
                         <!-- Footer hint -->

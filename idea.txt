@@ -460,14 +460,14 @@ fixed- @incognito, @youtube, @maps, @images, @amazon, @flipkart, @wiki, @wikihow
 fixed - don't show accent color effect in weather left side card instead of it add multiple card theme for sunshine, raining, cloudy, thunderstrom, wind, morining, evening, sunrise, sunset, snow, fog and according to weather.
 fixed - show the circle dots in left card on the right side center vertically so that user can know how much saved address are there and can know form tooltip too of hovered circle it shows address, show 3 circtl dot and if more show up arrow 3 circle dots and down arrow and uesr can loop it to select saved address.
 fixed - in note tab improve check list it's not toggled now just shows white circle with number list
+fixed - in home tab for adding shortcuts, "add link for the launcher" dialog box "add" button window accent, in text tab use window accent color for icons and blue texts, in chat use window accent color while adding new custom AI (add custom AI site) dialog box and in height adjusting icon, in control tab for upper cards "wifi,  bluetooth, theme, battery, VPN" and in bluetooth battery card for bluetooth icon with enabled and disabled state recognition, clipboard list is looking bigger make it little bit small
+fixed - use accent color in all tabs 
+fixed - when the app is locked and user click setting icon and network meter tile of home tab from dynamic island then it bypasses the lock and opens directly prevent it
 
 
 show ring in island too during timer 
 after new build of app saved note aren't shown that is when new features are added then previous saved notes get lost and user can't find their previous notes 
-when the app is locked and user click setting icon and network meter tile of home tab from dynamic island then it bypasses the lock and opens directly prevent it
-use accent color in all tabs 
 
-in home tab for adding shortcuts, "add link for the launcher" dialog box "add" button window accent, in text tab use window accent color for icons and blue texts, in chat use window accent color while adding new custom AI (add custom AI site) dialog box and in height adjusting icon, in control tab for upper cards "wifi,  bluetooth, theme, battery, VPN" and in bluetooth battery card for bluetooth icon with enabled and disabled state recognition, clipboard list is looking bigger make it little bit small
 
 
 
