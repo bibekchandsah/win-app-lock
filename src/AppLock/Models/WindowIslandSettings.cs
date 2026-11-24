@@ -119,6 +119,9 @@ public sealed class WindowIslandSettings
     /// <summary>Index of currently active chat sub-tab.</summary>
     public int ActiveChatIndex { get; set; } = 0;
 
+    /// <summary>Dynamic height in DIPs for the AI Chat tab (default: 440, min: 320, max: 720).</summary>
+    public float ChatHeightDip { get; set; } = 440f;
+
     public static System.Collections.Generic.List<ChatSite> DefaultChatSites() => new()
     {
         new ChatSite("Gemini", "https://gemini.google.com", "\uE8BD"),

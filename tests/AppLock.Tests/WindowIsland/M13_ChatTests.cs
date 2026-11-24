@@ -268,4 +268,41 @@ public sealed class M13_ChatTests
         Assert.NotEmpty(path);
         Assert.EndsWith(Path.Combine("AppLock", "island", "webview"), path, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ── Dynamic Height Adjustment ─────────────────────────────────────────────
+
+    [Fact]
+    public void WindowIslandSettings_ChatHeightDip_DefaultIs440()
+    {
+        var s = new WindowIslandSettings();
+        Assert.Equal(440f, s.ChatHeightDip);
+    }
+
+    [Fact]
+    public void WindowIslandSettings_Clone_PreservesChatHeightDip()
+    {
+        var s = new WindowIslandSettings { ChatHeightDip = 560f };
+        var clone = s.Clone();
+        Assert.Equal(560f, clone.ChatHeightDip);
+    }
+
+    [Fact]
+    public void IslandMotion_TabSizeChat_DynamicHeightMatchesProperty()
+    {
+        float prev = AppLock.WindowIsland.Host.IslandMotion.ChatHeightDip;
+        try
+        {
+            AppLock.WindowIsland.Host.IslandMotion.ChatHeightDip = 520f;
+            var (w, h) = AppLock.WindowIsland.Host.IslandMotion.TabSize(4);
+            Assert.Equal(660f, w);
+            Assert.Equal(520f, h);
+
+            AppLock.WindowIsland.Host.IslandMotion.ChatHeightDip = 340f;
+            Assert.Equal(340f, AppLock.WindowIsland.Host.IslandMotion.TabSize(4).H);
+        }
+        finally
+        {
+            AppLock.WindowIsland.Host.IslandMotion.ChatHeightDip = prev;
+        }
+    }
 }

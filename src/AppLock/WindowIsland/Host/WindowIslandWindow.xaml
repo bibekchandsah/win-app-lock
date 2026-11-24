@@ -1672,11 +1672,12 @@
                                             Spacing="4" />
                             </ScrollViewer>
 
-                            <!-- Tools: Add custom assistant, Popout to browser, Refresh -->
+                            <!-- Tools: Add custom assistant, Popout to browser, Refresh, and Height adjust -->
                             <StackPanel Grid.Column="1"
                                         Orientation="Horizontal"
                                         Spacing="4"
-                                        Margin="8,0,0,0">
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center">
                                 <Button x:Name="ChatAddBtn"
                                         Click="ChatAddBtn_Click"
                                         ToolTipService.ToolTip="Add custom AI assistant"
@@ -1707,6 +1708,88 @@
                                         CornerRadius="14">
                                     <FontIcon Glyph="&#xE8A7;" FontSize="12" Foreground="#C0FFFFFF" />
                                 </Button>
+
+                                <!-- Separately styled Height Adjust Pill -->
+                                <Border x:Name="ChatHeightAdjustPill"
+                                        Margin="6,0,0,0"
+                                        Background="#18FFFFFF"
+                                        BorderBrush="#25FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="14"
+                                        Padding="2,0"
+                                        VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="0">
+                                        <!-- Decrease Height (-) -->
+                                        <Button x:Name="ChatHeightDecreaseBtn"
+                                                Click="ChatHeightDecreaseBtn_Click"
+                                                ToolTipService.ToolTip="Decrease chat height (-40px)"
+                                                Width="24" Height="24"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                CornerRadius="12">
+                                            <FontIcon Glyph="&#xE108;" FontSize="10" Foreground="#C0FFFFFF" />
+                                        </Button>
+
+                                        <!-- Preset / Current Height Selector -->
+                                        <Button x:Name="ChatHeightPresetBtn"
+                                                ToolTipService.ToolTip="Height presets (Compact, Standard, Tall, Full)"
+                                                Height="24"
+                                                Padding="6,0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                CornerRadius="12">
+                                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                <FontIcon Glyph="&#xE740;" FontSize="10" Foreground="#60CDFF" />
+                                                <TextBlock x:Name="ChatHeightLabel" Text="Standard" FontSize="10" Foreground="#D0FFFFFF" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem x:Name="ChatPresetCompactItem"
+                                                                    Text="Compact (340px)"
+                                                                    Click="ChatPresetCompact_Click">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE740;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem x:Name="ChatPresetStandardItem"
+                                                                    Text="Standard (440px)"
+                                                                    Click="ChatPresetStandard_Click">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE740;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem x:Name="ChatPresetTallItem"
+                                                                    Text="Tall (560px)"
+                                                                    Click="ChatPresetTall_Click">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE740;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem x:Name="ChatPresetFullItem"
+                                                                    Text="Full (680px)"
+                                                                    Click="ChatPresetFull_Click">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE740;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+
+                                        <!-- Increase Height (+) -->
+                                        <Button x:Name="ChatHeightIncreaseBtn"
+                                                Click="ChatHeightIncreaseBtn_Click"
+                                                ToolTipService.ToolTip="Increase chat height (+40px)"
+                                                Width="24" Height="24"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                CornerRadius="12">
+                                            <FontIcon Glyph="&#xE109;" FontSize="10" Foreground="#C0FFFFFF" />
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Grid>
 

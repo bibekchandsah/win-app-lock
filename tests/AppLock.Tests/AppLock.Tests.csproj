@@ -185,6 +185,7 @@
     <!-- Window Island Visibility Rules (Milestone 15) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Services\WindowIslandVisibilityService.cs" Link="WindowIsland\Services\WindowIslandVisibilityService.cs" />
     <!-- Window Island Polish & Color (Milestone 16) -->
+    <Compile Include="..\..\src\AppLock\WindowIsland\Host\IslandMotion.cs" Link="WindowIsland\Host\IslandMotion.cs" />
     <Compile Include="..\..\src\AppLock\WindowIsland\Host\WindowIslandColorHelper.cs" Link="WindowIsland\Host\WindowIslandColorHelper.cs" />
     <!-- Window Island Notes, Timers, Reminders (Milestone 9 & Enhancements) -->
     <Compile Include="..\..\src\AppLock\WindowIsland\Modules\WindowIslandDurationParser.cs" Link="WindowIsland\Modules\WindowIslandDurationParser.cs" />

@@ -419,6 +419,8 @@ public sealed partial class WindowIslandWindow : Window
     public void Show(WindowIslandSettings settings)
     {
         _settings = settings;
+        IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
+        UpdateChatHeightLabel();
 
         _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
         _foldedVisual  = ElementCompositionPreview.GetElementVisual(FoldedLayer);
@@ -467,6 +469,8 @@ public sealed partial class WindowIslandWindow : Window
     public void ApplySettings(WindowIslandSettings settings)
     {
         _settings = settings;
+        IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
+        UpdateChatHeightLabel();
         PositionAndSize();
         _compositor?.UpdateWindowWidth(WindowWidthDip, settings);
         _compositor?.ApplySettings(settings);
@@ -6991,6 +6995,7 @@ public sealed partial class WindowIslandWindow : Window
     private void RefreshChatUI()
     {
         RenderChatSubTabs();
+        UpdateChatHeightLabel();
         _ = EnsureChatWebViewAsync();
     }
 
@@ -7375,6 +7380,56 @@ public sealed partial class WindowIslandWindow : Window
     private void ChatDownloadWebView2_Click(object sender, RoutedEventArgs e)
     {
         _ = Windows.System.Launcher.LaunchUriAsync(new Uri("https://go.microsoft.com/fwlink/p/?LinkId=2124703"));
+    }
+
+    // ── Milestone 13: Chat Height Adjustment ─────────────────────────────────
+
+    private const float MinChatHeightDip = 320f;
+    private const float MaxChatHeightDip = 720f;
+    private const float ChatHeightStepDip = 40f;
+
+    private void ChatHeightDecreaseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        float current = _settings.ChatHeightDip > 0 ? _settings.ChatHeightDip : 440f;
+        SetChatHeight(current - ChatHeightStepDip);
+    }
+
+    private void ChatHeightIncreaseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        float current = _settings.ChatHeightDip > 0 ? _settings.ChatHeightDip : 440f;
+        SetChatHeight(current + ChatHeightStepDip);
+    }
+
+    private void ChatPresetCompact_Click(object sender, RoutedEventArgs e) => SetChatHeight(340f);
+    private void ChatPresetStandard_Click(object sender, RoutedEventArgs e) => SetChatHeight(440f);
+    private void ChatPresetTall_Click(object sender, RoutedEventArgs e) => SetChatHeight(560f);
+    private void ChatPresetFull_Click(object sender, RoutedEventArgs e) => SetChatHeight(680f);
+
+    private void SetChatHeight(float newHeight)
+    {
+        float clamped = Math.Clamp(newHeight, MinChatHeightDip, MaxChatHeightDip);
+        _settings.ChatHeightDip = clamped;
+        IslandMotion.ChatHeightDip = clamped;
+        ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+
+        UpdateChatHeightLabel();
+
+        if (_activeTab == 4 && _compositor != null && _compositor.IsOpen)
+        {
+            PositionAndSize();
+            _compositor.AnimateToTab(4);
+        }
+    }
+
+    private void UpdateChatHeightLabel()
+    {
+        if (ChatHeightLabel == null) return;
+        float h = _settings.ChatHeightDip > 0 ? _settings.ChatHeightDip : 440f;
+        if (Math.Abs(h - 340f) < 2f) ChatHeightLabel.Text = "Compact";
+        else if (Math.Abs(h - 440f) < 2f) ChatHeightLabel.Text = "Standard";
+        else if (Math.Abs(h - 560f) < 2f) ChatHeightLabel.Text = "Tall";
+        else if (Math.Abs(h - 680f) < 2f) ChatHeightLabel.Text = "Full";
+        else ChatHeightLabel.Text = $"{Math.Round(h)}px";
     }
 
     // ── Milestone 14: Text tab (Text Tools & Transforms) ─────────────────────
