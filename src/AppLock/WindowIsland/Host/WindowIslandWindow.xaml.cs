@@ -1521,8 +1521,17 @@ public sealed partial class WindowIslandWindow : Window
         DispatcherQueue.TryEnqueue(OnSystemPowerChanged);
     }
 
-    private void OnSystemPowerChanged()
+    private async void OnSystemPowerChanged()
     {
+        UpdateBattery();
+        WindowIslandNotificationService.Instance.NotifyPowerStatusChanged();
+        if (_activeTab == 7)
+        {
+            RefreshControlsUI();
+        }
+
+        // Some ACPI/EC drivers update ACLineStatus/BatteryFlag ~100ms after the power broadcast
+        await Task.Delay(150);
         UpdateBattery();
         WindowIslandNotificationService.Instance.NotifyPowerStatusChanged();
         if (_activeTab == 7)
@@ -5208,9 +5217,9 @@ public sealed partial class WindowIslandWindow : Window
             int stayMs = _settings.GetCardStayMs();
             var (icon, title, detail, accent) = e.Kind switch
             {
-                BatteryCardKind.ChargingStarted  => ("\uEBB5", "Charging Started",   $"{e.Percent}%", "#22CC44"),
-                BatteryCardKind.ChargingComplete => ("\uE83F", "Fully Charged",      "100% — unplug to save battery health", "#22CC44"),
-                BatteryCardKind.Unplugged        => ("\uE850", "Charger Unplugged",  $"{e.Percent}% remaining", "#FF8C00"),
+                BatteryCardKind.ChargingStarted  => ("\uEBB5", "Charging",          string.Empty, "#22CC44"),
+                BatteryCardKind.ChargingComplete => ("\uE83F", "Fully Charged",     string.Empty, "#22CC44"),
+                BatteryCardKind.Unplugged        => ("\uE850", "Unplugged",         string.Empty, "#FF8C00"),
                 _                                => ("\uE83F", "Battery", $"{e.Percent}%", "#808080")
             };
             _eventQueue?.Push(new WindowIslandCard(

@@ -480,7 +480,7 @@ music preview is overlapped with weather
 music background blur effect
 command navigation
 full screen screenshot [open] preview
-copied image live preview 
+fixed - copied image live preview 
 remainder check option with +10min check icon 
 show ring in island too during timer with again and check icon to confirm it's ended  
 caps/num lock 

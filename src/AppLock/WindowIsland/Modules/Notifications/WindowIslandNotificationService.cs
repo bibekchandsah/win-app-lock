@@ -166,6 +166,8 @@ public sealed class WindowIslandNotificationService : IDisposable
         return (true, pct, charging, pluggedIn);
     }
 
+    private readonly object _batteryLock = new();
+
     public void NotifyPowerStatusChanged()
     {
         try { CheckBatteryState(); } catch { }
@@ -173,55 +175,59 @@ public sealed class WindowIslandNotificationService : IDisposable
 
     private void CheckBatteryState()
     {
-        var (hasBattery, pct, isCharging, isPluggedIn) = GetBatteryState();
-        if (!hasBattery) return;
-
-        // ── Threshold crossing (only while discharging) ────────────────────
-        bool discharging = !isPluggedIn && !isCharging;
-        if (discharging)
+        lock (_batteryLock)
         {
-            foreach (int threshold in LowThresholds)
+            var (hasBattery, pct, isCharging, isPluggedIn) = GetBatteryState();
+            if (!hasBattery) return;
+
+            // ── Threshold crossing (only while discharging) ────────────────────
+            bool discharging = !isPluggedIn && !isCharging;
+            if (discharging)
             {
-                if (pct <= threshold && !_crossedThresholds.Contains(threshold))
+                foreach (int threshold in LowThresholds)
                 {
-                    _crossedThresholds.Add(threshold);
-                    BatteryLowCard?.Invoke(this, new BatteryCardArgs(
-                        BatteryCardKind.Low, pct, isCharging: false));
+                    if (pct <= threshold && !_crossedThresholds.Contains(threshold))
+                    {
+                        _crossedThresholds.Add(threshold);
+                        BatteryLowCard?.Invoke(this, new BatteryCardArgs(
+                            BatteryCardKind.Low, pct, isCharging: false));
+                    }
                 }
             }
-        }
-        else
-        {
-            // Reset thresholds when charging so they can fire again next time
-            foreach (int t in LowThresholds)
-                if (pct > t + 5) _crossedThresholds.Remove(t);
-        }
+            else
+            {
+                // Reset thresholds when charging so they can fire again next time
+                foreach (int t in LowThresholds)
+                    if (pct > t + 5) _crossedThresholds.Remove(t);
+            }
 
-        // ── Charging state change ─────────────────────────────────────────
-        if (!_batteryInitialized)
-        {
+            // ── Charging / Plugged-in state change ────────────────────────────
+            if (!_batteryInitialized)
+            {
+                _wasCharging  = isCharging;
+                _wasPluggedIn = isPluggedIn;
+                _batteryInitialized = true;
+                return;
+            }
+
+            bool pluggedInNow     = isPluggedIn && !_wasPluggedIn;
+            bool unpluggedNow     = !isPluggedIn && _wasPluggedIn;
+            bool startedCharging  = pluggedInNow || (isCharging && !_wasCharging && isPluggedIn);
+            bool chargingComplete = isPluggedIn && !isCharging && pct >= 100 && (_wasCharging || pluggedInNow);
+
+            if (chargingComplete)
+                BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
+                    BatteryCardKind.ChargingComplete, pct, isCharging: false));
+            else if (pluggedInNow || (startedCharging && !_wasPluggedIn))
+                BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
+                    BatteryCardKind.ChargingStarted, pct, isCharging: true));
+            else if (unpluggedNow)
+                BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
+                    BatteryCardKind.Unplugged, pct, isCharging: false));
+
             _wasCharging  = isCharging;
             _wasPluggedIn = isPluggedIn;
-            _batteryInitialized = true;
-            return;
         }
-
-        bool startedCharging  = isCharging  && !_wasCharging  && !_wasPluggedIn;
-        bool stoppedCharging  = !isCharging && _wasCharging;
-        bool chargingComplete = isPluggedIn && !isCharging && pct >= 98 && _wasCharging;
-
-        if (chargingComplete)
-            BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
-                BatteryCardKind.ChargingComplete, pct, isCharging: false));
-        else if (startedCharging)
-            BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
-                BatteryCardKind.ChargingStarted, pct, isCharging: true));
-        else if (stoppedCharging && !chargingComplete)
-            BatteryChargingCard?.Invoke(this, new BatteryCardArgs(
-                BatteryCardKind.Unplugged, pct, isCharging: false));
-
-        _wasCharging  = isCharging;
-        _wasPluggedIn = isPluggedIn;
     }
 
     // ── Mic / Camera Detection ────────────────────────────────────────────────
