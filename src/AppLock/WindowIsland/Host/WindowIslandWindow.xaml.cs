@@ -5719,8 +5719,12 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 11: Controls Tab ─────────────────────────────────────────────
 
+    private bool _isRefreshingControlsUi;
+
     private async void RefreshControlsUI()
     {
+        if (_isRefreshingControlsUi) return;
+        _isRefreshingControlsUi = true;
         try
         {
             var accentBrush = new SolidColorBrush(GetSystemAccentColor());
@@ -5735,7 +5739,18 @@ public sealed partial class WindowIslandWindow : Window
             // 2. Bluetooth
             var (hasBt, btOn) = await WindowIslandControlsService.Instance.GetBluetoothStateAsync();
             ControlsBtBtn.IsEnabled = hasBt;
-            ControlsBtStatus.Text = hasBt ? (btOn ? "On" : "Off") : "No adapter";
+            if (!hasBt)
+            {
+                ControlsBtStatus.Text = "No adapter";
+            }
+            else if (!btOn)
+            {
+                ControlsBtStatus.Text = "Off";
+            }
+            else if (string.IsNullOrEmpty(ControlsBtStatus.Text) || ControlsBtStatus.Text == "Off" || ControlsBtStatus.Text == "No adapter")
+            {
+                ControlsBtStatus.Text = "On";
+            }
             ControlsBtIcon.Foreground = btOn ? accentBrush : disabledBrush;
 
             // 3. Dark Theme
@@ -5798,6 +5813,20 @@ public sealed partial class WindowIslandWindow : Window
 
             // 8. Bluetooth Battery Cards (supports multiple connected devices in a dynamic grid)
             var btDevices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+            if (hasBt && btOn)
+            {
+                var connectedNames = btDevices.Where(d => d.IsConnected).Select(d => d.Name).ToList();
+                string btStatusText = connectedNames.Count switch
+                {
+                    0 => "On",
+                    1 => connectedNames[0],
+                    _ => $"{connectedNames[0]} +{connectedNames.Count - 1}"
+                };
+                if (ControlsBtStatus.Text != btStatusText)
+                {
+                    ControlsBtStatus.Text = btStatusText;
+                }
+            }
             RenderFoldedBtBatteries(btOn, btDevices);
 
             if (ControlsBtBatteryContainer != null && _settings.Controls.ShowBluetoothBatteryCard)
@@ -5873,6 +5902,10 @@ public sealed partial class WindowIslandWindow : Window
             RenderQuickCardsGrid();
         }
         catch { }
+        finally
+        {
+            _isRefreshingControlsUi = false;
+        }
     }
 
     private async Task UpdateFoldedBtBatteriesAsync()
