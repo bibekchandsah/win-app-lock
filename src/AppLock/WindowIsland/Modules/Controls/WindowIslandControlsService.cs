@@ -719,41 +719,274 @@ public sealed class WindowIslandControlsService
         });
     }
 
-    public static async Task<bool> ConnectBluetoothDeviceAsync(string mac)
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern nint BluetoothFindFirstRadio(ref BLUETOOTH_FIND_RADIO_PARAMS pbtfrp, out nint phRadio);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern bool BluetoothFindNextRadio(nint hFind, out nint phRadio);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern bool BluetoothFindRadioClose(nint hFind);
+
+    [DllImport("bthprops.cpl", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint BluetoothFindFirstDevice(ref BLUETOOTH_DEVICE_SEARCH_PARAMS pbtsp, ref BLUETOOTH_DEVICE_INFO pbtdi);
+
+    [DllImport("bthprops.cpl", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool BluetoothFindNextDevice(nint hFind, ref BLUETOOTH_DEVICE_INFO pbtdi);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern bool BluetoothFindDeviceClose(nint hFind);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern uint BluetoothSetServiceState(
+        nint hRadio,
+        ref BLUETOOTH_DEVICE_INFO pbtdi,
+        ref Guid pGuidService,
+        uint dwServiceFlags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(
+        nint hDevice,
+        uint dwIoControlCode,
+        ref ulong lpInBuffer,
+        int nInBufferSize,
+        nint lpOutBuffer,
+        int nOutBufferSize,
+        out int lpBytesReturned,
+        nint lpOverlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(nint hObject);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BLUETOOTH_FIND_RADIO_PARAMS
+    {
+        public int dwSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BLUETOOTH_DEVICE_SEARCH_PARAMS
+    {
+        public uint dwSize;
+        [MarshalAs(UnmanagedType.Bool)] public bool fReturnAuthenticated;
+        [MarshalAs(UnmanagedType.Bool)] public bool fReturnRemembered;
+        [MarshalAs(UnmanagedType.Bool)] public bool fReturnUnknown;
+        [MarshalAs(UnmanagedType.Bool)] public bool fReturnConnected;
+        [MarshalAs(UnmanagedType.Bool)] public bool fIssueInquiry;
+        public byte cTimeoutMultiplier;
+        public nint hRadio;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEMTIME
+    {
+        public ushort wYear, wMonth, wDayOfWeek, wDay, wHour, wMinute, wSecond, wMilliseconds;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct BLUETOOTH_DEVICE_INFO
+    {
+        public uint dwSize;
+        public ulong Address;
+        public uint ulClassofDevice;
+        [MarshalAs(UnmanagedType.Bool)] public bool fConnected;
+        [MarshalAs(UnmanagedType.Bool)] public bool fRemembered;
+        [MarshalAs(UnmanagedType.Bool)] public bool fAuthenticated;
+        public SYSTEMTIME stLastSeen;
+        public SYSTEMTIME stLastUsed;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 248)]
+        public string szName;
+    }
+
+    private const uint IOCTL_BTH_DISCONNECT_DEVICE = 0x0041000C;
+    private static readonly Guid AudioSinkServiceGuid = Guid.Parse("0000110b-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid HandsfreeServiceGuid = Guid.Parse("0000111e-0000-1000-8000-00805f9b34fb");
+    private static readonly Guid HidServiceGuid       = Guid.Parse("00001124-0000-1000-8000-00805f9b34fb");
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, IDisposable> _activeAudioConnections = new(StringComparer.OrdinalIgnoreCase);
+
+    private static bool TryFindBluetoothDeviceInfo(ulong addr, out BLUETOOTH_DEVICE_INFO info)
+    {
+        info = new BLUETOOTH_DEVICE_INFO { dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>(), szName = string.Empty };
+        var search = new BLUETOOTH_DEVICE_SEARCH_PARAMS
+        {
+            dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_SEARCH_PARAMS>(),
+            fReturnAuthenticated = true,
+            fReturnRemembered = true,
+            fReturnUnknown = false,
+            fReturnConnected = true,
+            fIssueInquiry = false,
+            cTimeoutMultiplier = 0,
+            hRadio = nint.Zero
+        };
+
+        nint hFind = BluetoothFindFirstDevice(ref search, ref info);
+        if (hFind == nint.Zero) return false;
+        try
+        {
+            do
+            {
+                if (info.Address == addr)
+                {
+                    return true;
+                }
+                info.dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>();
+            } while (BluetoothFindNextDevice(hFind, ref info));
+        }
+        finally
+        {
+            BluetoothFindDeviceClose(hFind);
+        }
+        return false;
+    }
+
+    private static bool TrySetBluetoothServicesState(ulong addr, bool enable)
+    {
+        if (!TryFindBluetoothDeviceInfo(addr, out var devInfo))
+        {
+            devInfo = new BLUETOOTH_DEVICE_INFO
+            {
+                dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>(),
+                Address = addr,
+                szName = string.Empty
+            };
+        }
+
+        uint flag = enable ? 1u : 0u;
+        bool anyOk = false;
+        Guid[] guids = { AudioSinkServiceGuid, HandsfreeServiceGuid, HidServiceGuid };
+
+        foreach (var g in guids)
+        {
+            Guid svc = g;
+            uint res = BluetoothSetServiceState(nint.Zero, ref devInfo, ref svc, flag);
+            if (res != 0 && enable)
+            {
+                // Toggle trick: disable first then enable if the service was in a stale state
+                svc = g;
+                BluetoothSetServiceState(nint.Zero, ref devInfo, ref svc, 0u);
+                svc = g;
+                res = BluetoothSetServiceState(nint.Zero, ref devInfo, ref svc, 1u);
+            }
+            if (res == 0) anyOk = true;
+        }
+        return anyOk;
+    }
+
+    public static async Task<bool> ConnectBluetoothDeviceAsync(string mac, string? deviceName = null)
     {
         return await Task.Run(async () =>
         {
             try
             {
-                if (ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+                if (!ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+                    return false;
+
+                // 1. Enable native Windows Bluetooth services (A2DP Audio Sink / HFP / HID) so Windows persists the connection
+                if (TrySetBluetoothServicesState(addr, enable: true))
                 {
-                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(2.5));
+                    return true;
+                }
+
+                // 2. Fallback: Classic Bluetooth RFCOMM / BLE GATT (keep instance alive so it doesn't immediately disconnect)
+                try
+                {
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
                     var dev = await Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(addr).AsTask(cts.Token);
                     if (dev != null)
                     {
-                        var _ = await dev.GetRfcommServicesAsync().AsTask(cts.Token);
-                        return dev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected;
+                        var rfcomm = await dev.GetRfcommServicesAsync(Windows.Devices.Bluetooth.BluetoothCacheMode.Uncached).AsTask(cts.Token);
+                        if (dev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected)
+                        {
+                            if (_activeAudioConnections.TryRemove(mac, out var prev)) prev.Dispose();
+                            _activeAudioConnections[mac] = dev;
+                            return true;
+                        }
+                        dev.Dispose();
                     }
                 }
+                catch { }
+
+                try
+                {
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                    var leDev = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromBluetoothAddressAsync(addr).AsTask(cts.Token);
+                    if (leDev != null)
+                    {
+                        var gatt = await leDev.GetGattServicesAsync(Windows.Devices.Bluetooth.BluetoothCacheMode.Uncached).AsTask(cts.Token);
+                        if (leDev.ConnectionStatus == Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected)
+                        {
+                            if (_activeAudioConnections.TryRemove(mac, out var prev)) prev.Dispose();
+                            _activeAudioConnections[mac] = leDev;
+                            return true;
+                        }
+                        leDev.Dispose();
+                    }
+                }
+                catch { }
             }
             catch { }
             return false;
         });
     }
 
-    public static async Task DisconnectBluetoothDeviceAsync(string mac)
+    public static async Task<bool> DisconnectBluetoothDeviceAsync(string mac)
     {
-        await Task.Run(() =>
+        return await Task.Run(() =>
         {
+            bool disconnected = false;
             try
             {
-                Process.Start(new ProcessStartInfo
+                if (_activeAudioConnections.TryRemove(mac, out var conn))
                 {
-                    FileName = "ms-settings:bluetooth",
-                    UseShellExecute = true
-                });
+                    try
+                    {
+                        conn.Dispose();
+                        disconnected = true;
+                    }
+                    catch { }
+                }
+
+                if (ulong.TryParse(mac, System.Globalization.NumberStyles.HexNumber, null, out ulong addr))
+                {
+                    if (TrySetBluetoothServicesState(addr, enable: false))
+                    {
+                        disconnected = true;
+                    }
+
+                    var findParams = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
+                    nint hFind = BluetoothFindFirstRadio(ref findParams, out nint hRadio);
+                    if (hFind != nint.Zero)
+                    {
+                        try
+                        {
+                            do
+                            {
+                                if (hRadio != nint.Zero)
+                                {
+                                    try
+                                    {
+                                        if (DeviceIoControl(hRadio, IOCTL_BTH_DISCONNECT_DEVICE, ref addr, sizeof(ulong), nint.Zero, 0, out _, nint.Zero))
+                                        {
+                                            disconnected = true;
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        CloseHandle(hRadio);
+                                    }
+                                }
+                            } while (BluetoothFindNextRadio(hFind, out hRadio));
+                        }
+                        finally
+                        {
+                            BluetoothFindRadioClose(hFind);
+                        }
+                    }
+                }
             }
             catch { }
+            return disconnected;
         });
     }
 

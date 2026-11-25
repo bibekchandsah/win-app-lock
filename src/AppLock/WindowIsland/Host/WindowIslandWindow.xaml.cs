@@ -6538,27 +6538,33 @@ public sealed partial class WindowIslandWindow : Window
         };
         actionBtn.Click += async (_, _) =>
         {
-            if (dev.IsConnected)
+            actionBtn.IsEnabled = false;
+            try
             {
-                actionBtn.Content = "Disconnecting...";
-                await WindowIslandControlsService.DisconnectBluetoothDeviceAsync(dev.MacAddress);
-            }
-            else
-            {
-                actionBtn.Content = "Connecting...";
-                bool ok = await WindowIslandControlsService.ConnectBluetoothDeviceAsync(dev.MacAddress);
-                if (!ok)
+                if (dev.IsConnected)
                 {
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo { FileName = "ms-settings:bluetooth", UseShellExecute = true });
-                    }
-                    catch { }
+                    actionBtn.Content = "Disconnecting...";
+                    await WindowIslandControlsService.DisconnectBluetoothDeviceAsync(dev.MacAddress);
                 }
+                else
+                {
+                    actionBtn.Content = "Connecting...";
+                    bool ok = await WindowIslandControlsService.ConnectBluetoothDeviceAsync(dev.MacAddress, dev.Name);
+                    if (!ok)
+                    {
+                        actionBtn.Content = "Unavailable";
+                        await Task.Delay(900);
+                    }
+                }
+                await Task.Delay(600);
+                _lastDeviceListSignature = string.Empty;
+                await PopulateDeviceListAsync(showLoading: false);
+                RefreshControlsUI();
             }
-            await Task.Delay(1000);
-            await PopulateDeviceListAsync();
-            RefreshControlsUI();
+            finally
+            {
+                actionBtn.IsEnabled = true;
+            }
         };
         Grid.SetColumn(actionBtn, 2);
         grid.Children.Add(actionBtn);
