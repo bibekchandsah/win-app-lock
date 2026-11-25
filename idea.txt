@@ -487,8 +487,8 @@ fixed - add the toggle to show/hide lyrics if available
 fixed - live beat isn't working for all type of media played 
 fixed - full screen screenshot [open] preview
 fixed - music background blur effect
+fixed - speaker/microphone changed notification
 command navigation
-speaker changed notification
 
 
 

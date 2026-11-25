@@ -692,6 +692,8 @@ public sealed partial class WindowIslandWindow : Window
         if (_audio != null)
         {
             _audio.SystemVolumeChanged -= OnSystemVolumeChanged;
+            _audio.DefaultRenderDeviceChanged -= OnDefaultRenderDeviceChanged;
+            _audio.DefaultCaptureDeviceChanged -= OnDefaultCaptureDeviceChanged;
             _audio.Dispose();
             _audio = null;
         }
@@ -1947,7 +1949,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
                 CardIconBadge.CornerRadius = new CornerRadius(17);
-                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use")
+                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use" || card.Kind == "audio-output-changed" || card.Kind == "audio-input-changed")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
                 CardIcon.FontSize = 15;
@@ -2402,16 +2404,26 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private DQTimer? _lyricsDragTimer;
+    private double   _lyricsDragDelta;
+
+    private void StopLyricsDragScroll()
+    {
+        _lyricsDragDelta = 0;
+        _lyricsDragTimer?.Stop();
+    }
+
     private void ShowLyrics(LyricsResult? lyrics)
     {
         try
         {
+            StopLyricsDragScroll();
             LyricsStack.Children.Clear();
 
             var lines = lyrics?.Lines ?? Array.Empty<string>();
             if (lines.Count > 0)
             {
-                LyricsStack.Children.Add(new TextBlock
+                var tb = new TextBlock
                 {
                     Text = string.Join(Environment.NewLine, lines),
                     FontSize = 11,
@@ -2419,7 +2431,60 @@ public sealed partial class WindowIslandWindow : Window
                     TextWrapping = TextWrapping.Wrap,
                     IsTextSelectionEnabled = true,
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(210, 255, 255, 255))
-                });
+                };
+
+                bool dragging = false;
+                tb.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) =>
+                {
+                    if (e.GetCurrentPoint(tb).Properties.IsLeftButtonPressed)
+                        dragging = true;
+                }), true);
+                tb.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler((_, e) =>
+                {
+                    if (!dragging || LyricsScrollViewer == null) return;
+                    if (!e.GetCurrentPoint(tb).Properties.IsLeftButtonPressed)
+                    {
+                        dragging = false;
+                        StopLyricsDragScroll();
+                        return;
+                    }
+                    double y = e.GetCurrentPoint(LyricsScrollViewer).Position.Y;
+                    double h = LyricsScrollViewer.ActualHeight;
+                    const double edgeZone = 20.0;
+                    if (y > h - edgeZone)
+                        _lyricsDragDelta = Math.Clamp((y - (h - edgeZone)) * 0.65, 4, 24);
+                    else if (y < edgeZone)
+                        _lyricsDragDelta = -Math.Clamp((edgeZone - y) * 0.65, 4, 24);
+                    else
+                        _lyricsDragDelta = 0;
+
+                    if (Math.Abs(_lyricsDragDelta) > 0.1)
+                    {
+                        if (_lyricsDragTimer == null)
+                        {
+                            _lyricsDragTimer = DispatcherQueue.CreateTimer();
+                            _lyricsDragTimer.Interval = TimeSpan.FromMilliseconds(35);
+                            _lyricsDragTimer.Tick += (_, _) =>
+                            {
+                                if (LyricsScrollViewer == null || Math.Abs(_lyricsDragDelta) <= 0.1) return;
+                                double next = Math.Clamp(
+                                    LyricsScrollViewer.VerticalOffset + _lyricsDragDelta,
+                                    0,
+                                    LyricsScrollViewer.ScrollableHeight);
+                                LyricsScrollViewer.ChangeView(null, next, null, true);
+                            };
+                        }
+                        if (!_lyricsDragTimer.IsRunning) _lyricsDragTimer.Start();
+                    }
+                    else
+                    {
+                        _lyricsDragTimer?.Stop();
+                    }
+                }), true);
+                tb.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler((_, _) => { dragging = false; StopLyricsDragScroll(); }), true);
+                tb.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler((_, _) => { dragging = false; StopLyricsDragScroll(); }), true);
+
+                LyricsStack.Children.Add(tb);
             }
 
             bool show = _settings.LyricsEnabled && lines.Count > 0;
@@ -2635,7 +2700,61 @@ public sealed partial class WindowIslandWindow : Window
         if (_audio != null) return;
         _audio = new WindowIslandAudio();
         _audio.SystemVolumeChanged += OnSystemVolumeChanged;
+        _audio.DefaultRenderDeviceChanged += OnDefaultRenderDeviceChanged;
+        _audio.DefaultCaptureDeviceChanged += OnDefaultCaptureDeviceChanged;
         _ = Task.Run(() => _audio?.Refresh());
+    }
+
+    private void OnDefaultRenderDeviceChanged(string deviceName)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_compositor?.IsOpen == true && _activeTab == 0)
+            {
+                RefreshVolumeUi();
+            }
+
+            string lower = deviceName.ToLowerInvariant();
+            string icon = (lower.Contains("headphone") || lower.Contains("headset") ||
+                           lower.Contains("buds") || lower.Contains("airpod") || lower.Contains("ear"))
+                ? "\uE7F6"
+                : "\uE767";
+
+            var accent = GetSystemAccentColor();
+            string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+            _eventQueue?.Push(new WindowIslandCard(
+                Kind: "audio-output-changed",
+                Icon: icon,
+                Title: "Sound now plays here",
+                Detail: deviceName,
+                AccentHex: accentHex,
+                Priority: WindowIslandCardPriority.Notification,
+                StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 4000) : 4000,
+                IsStacked: true));
+        });
+    }
+
+    private void OnDefaultCaptureDeviceChanged(string deviceName)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_compositor?.IsOpen == true && _activeTab == 7 && _settings.Controls.ShowMicrophone)
+            {
+                RefreshControlsMicrophoneUi();
+            }
+
+            var accent = GetSystemAccentColor();
+            string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+            _eventQueue?.Push(new WindowIslandCard(
+                Kind: "audio-input-changed",
+                Icon: "\uE720",
+                Title: "Microphone now active",
+                Detail: deviceName,
+                AccentHex: accentHex,
+                Priority: WindowIslandCardPriority.Notification,
+                StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 4000) : 4000,
+                IsStacked: true));
+        });
     }
 
     private void OnSystemVolumeChanged(int vol, bool muted)

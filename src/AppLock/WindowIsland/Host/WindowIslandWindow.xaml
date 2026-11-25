@@ -989,7 +989,8 @@
                                                            CharacterSpacing="90"
                                                            Foreground="#66FFFFFF"
                                                            Margin="0,0,0,7" />
-                                                <ScrollViewer Grid.Row="1"
+                                                <ScrollViewer x:Name="LyricsScrollViewer"
+                                                              Grid.Row="1"
                                                               VerticalScrollBarVisibility="Auto"
                                                               HorizontalScrollBarVisibility="Disabled">
                                                     <StackPanel x:Name="LyricsStack" Spacing="4" />

@@ -36,14 +36,19 @@ public sealed class WindowIslandAudio : IDisposable
     private const float AudiblePeak = 0.0005f;
 
     private MMDeviceEnumerator? _enumerator;
+    private EndpointNotificationClient? _endpointClient;
     private MMDevice? _defaultDevice;
     private AudioSessionManager? _sessionManager;
     private List<IslandAudioDevice> _devices = new();
     private string? _defaultId;
+    private string? _lastNotifiedRenderId;
+    private string? _lastNotifiedCaptureId;
     private int _lastScanTick;
     private bool _scanned;
 
     public event Action<int, bool>? SystemVolumeChanged;
+    public event Action<string>? DefaultRenderDeviceChanged;
+    public event Action<string>? DefaultCaptureDeviceChanged;
 
     public IReadOnlyList<IslandAudioDevice> Devices => _devices;
     public bool HasDevices => _devices.Count > 0;
@@ -54,7 +59,23 @@ public sealed class WindowIslandAudio : IDisposable
         ?? _devices.FirstOrDefault()?.Name
         ?? "No output device";
 
-    private MMDeviceEnumerator Enumerator => _enumerator ??= new MMDeviceEnumerator();
+    private MMDeviceEnumerator Enumerator
+    {
+        get
+        {
+            if (_enumerator == null)
+            {
+                _enumerator = new MMDeviceEnumerator();
+                try
+                {
+                    _endpointClient = new EndpointNotificationClient(this);
+                    _enumerator.RegisterEndpointNotificationCallback(_endpointClient);
+                }
+                catch { }
+            }
+            return _enumerator;
+        }
+    }
 
     /// <summary>
     /// Brings the cached default endpoint up to date. The device list (names, default flag) is
@@ -411,6 +432,65 @@ public sealed class WindowIslandAudio : IDisposable
         }
     }
 
+    private void HandleDefaultEndpointChanged(DataFlow flow, Role role, string defaultDeviceId)
+    {
+        if (string.IsNullOrEmpty(defaultDeviceId)) return;
+
+        try
+        {
+            if (flow == DataFlow.Render && role == Role.Multimedia)
+            {
+                if (string.Equals(_lastNotifiedRenderId, defaultDeviceId, StringComparison.Ordinal)) return;
+                _lastNotifiedRenderId = defaultDeviceId;
+
+                string? name = null;
+                try
+                {
+                    using var dev = _enumerator?.GetDevice(defaultDeviceId);
+                    name = dev?.FriendlyName;
+                }
+                catch { }
+
+                _defaultId = defaultDeviceId;
+                _ = System.Threading.Tasks.Task.Run(() =>
+                {
+                    try { ScanDevices(); } catch { }
+                });
+
+                if (!string.IsNullOrWhiteSpace(name))
+                    DefaultRenderDeviceChanged?.Invoke(name);
+            }
+            else if (flow == DataFlow.Capture && role == Role.Communications)
+            {
+                if (string.Equals(_lastNotifiedCaptureId, defaultDeviceId, StringComparison.Ordinal)) return;
+                _lastNotifiedCaptureId = defaultDeviceId;
+
+                string? name = null;
+                try
+                {
+                    using var dev = _enumerator?.GetDevice(defaultDeviceId);
+                    name = dev?.FriendlyName;
+                }
+                catch { }
+
+                if (!string.IsNullOrWhiteSpace(name))
+                    DefaultCaptureDeviceChanged?.Invoke(name);
+            }
+        }
+        catch { }
+    }
+
+    private sealed class EndpointNotificationClient(WindowIslandAudio owner)
+        : NAudio.CoreAudioApi.Interfaces.IMMNotificationClient
+    {
+        public void OnDeviceStateChanged(string deviceId, DeviceState newState) { }
+        public void OnDeviceAdded(string pwstrDeviceId) { }
+        public void OnDeviceRemoved(string deviceId) { }
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+            => owner.HandleDefaultEndpointChanged(flow, role, defaultDeviceId);
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+    }
+
     public void Dispose()
     {
         try { _sessionManager?.Dispose(); } catch { }
@@ -423,6 +503,11 @@ public sealed class WindowIslandAudio : IDisposable
             _defaultDevice = null;
         }
 
+        if (_enumerator != null && _endpointClient != null)
+        {
+            try { _enumerator.UnregisterEndpointNotificationCallback(_endpointClient); } catch { }
+        }
+        _endpointClient = null;
         try { _enumerator?.Dispose(); } catch { }
         _enumerator = null;
     }
