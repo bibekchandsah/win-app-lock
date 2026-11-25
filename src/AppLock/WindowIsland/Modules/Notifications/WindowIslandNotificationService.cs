@@ -241,6 +241,9 @@ public sealed class WindowIslandNotificationService : IDisposable
     /// <summary>Optional WASAPI capture-session fallback wired by the host window.</summary>
     public static Func<(bool Active, string AppName)>? CaptureSessionFallback { get; set; }
 
+    /// <summary>Optional layered camera-usage fallback (Ring Light monitor) wired by the host window.</summary>
+    public static Func<(bool Active, string AppName)>? CameraFallback { get; set; }
+
     /// <summary>Checks if mic or webcam are currently in use via CapabilityAccessManager registry.</summary>
     public static (bool MicActive, string MicApp, bool CamActive, string CamApp) GetMicCamState()
     {
@@ -253,6 +256,10 @@ public sealed class WindowIslandNotificationService : IDisposable
             try { (micActive, micApp) = CaptureSessionFallback(); } catch { }
         }
         try { (camActive, camApp) = IsDeviceInUse(CamConsentKey); } catch { }
+        if (!camActive && CameraFallback != null)
+        {
+            try { (camActive, camApp) = CameraFallback(); } catch { }
+        }
 
         return (micActive, micApp, camActive, camApp);
     }

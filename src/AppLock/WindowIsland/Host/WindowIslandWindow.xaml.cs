@@ -244,10 +244,15 @@ public sealed partial class WindowIslandWindow : Window
     private bool _micDotActive;
     private bool _camDotActive;
     private string? _activeMicAppName;
+    private string? _activeCamAppName;
     private string? _lastWarnedMicApp;
     private string? _lastWarnedCamApp;
     private string? _micDotLastTooltip;
+    private string? _camDotLastTooltip;
     private string? _headerMicLastTooltip;
+    private AppLock.Services.RingLight.CameraUsageMonitor? _cameraMonitor;
+    private volatile bool _cameraMonitorInUse;
+    private volatile string? _cameraMonitorApp;
 
     // Milestone 13: Chat (WebView2)
     private WebView2?                         _chatWebView;
@@ -513,6 +518,13 @@ public sealed partial class WindowIslandWindow : Window
         ShowWindow(_hwnd, 4 /* SW_SHOWNOACTIVATE */);
 
         WindowIslandNotificationService.CaptureSessionFallback = IsCaptureAudioSessionActive;
+        WindowIslandNotificationService.CameraFallback = () => (_cameraMonitorInUse, _cameraMonitorApp ?? string.Empty);
+        if (_cameraMonitor == null)
+        {
+            _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor();
+            _cameraMonitor.CameraUsageChanged += OnRingLightCameraUsageChanged;
+            _cameraMonitor.Start();
+        }
         // Start Home tab background sampler immediately (tab 0 is active on first open)
         StartHomeState();
         _clipboardState?.Refresh();
@@ -653,6 +665,12 @@ public sealed partial class WindowIslandWindow : Window
         DisposeBrightnessListener();
         _controlsMicService?.Dispose();
         _controlsMicService = null;
+        if (_cameraMonitor != null)
+        {
+            _cameraMonitor.CameraUsageChanged -= OnRingLightCameraUsageChanged;
+            _cameraMonitor.Dispose();
+            _cameraMonitor = null;
+        }
         if (_audio != null)
         {
             _audio.SystemVolumeChanged -= OnSystemVolumeChanged;
@@ -5594,6 +5612,44 @@ public sealed partial class WindowIslandWindow : Window
         });
     }
 
+    private void OnRingLightCameraUsageChanged(object? sender, (bool InUse, IReadOnlyList<string> ActiveApps) e)
+    {
+        string appName = e.ActiveApps.Count > 0 ? e.ActiveApps[0] : string.Empty;
+        _cameraMonitorInUse = e.InUse;
+        _cameraMonitorApp = appName;
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            bool wasCamActive = _camDotActive;
+            _camDotActive = e.InUse;
+            _activeCamAppName = appName;
+
+            if (e.InUse && _settings.MicCamDotsEnabled &&
+                (!wasCamActive || !string.Equals(_lastWarnedCamApp, appName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _lastWarnedCamApp = appName;
+                string camTitle = string.IsNullOrEmpty(appName)
+                    ? "Camera in use"
+                    : $"Camera: {appName}";
+                _eventQueue?.Push(new WindowIslandCard(
+                    Kind: "cam-in-use",
+                    Icon: "\uE714",
+                    Title: camTitle,
+                    Detail: "It is recording right now",
+                    AccentHex: "#22CC44",
+                    Priority: WindowIslandCardPriority.Notification,
+                    StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 5000) : 5000,
+                    IsStacked: true));
+            }
+            else if (!e.InUse)
+            {
+                _lastWarnedCamApp = null;
+            }
+
+            UpdateMicCamDots();
+        });
+    }
+
     private void OnMicCamStateChanged(object? sender, MicCamStateArgs e)
     {
         DispatcherQueue.TryEnqueue(() =>
@@ -5601,8 +5657,10 @@ public sealed partial class WindowIslandWindow : Window
             bool wasMicActive = _micDotActive;
             bool wasCamActive = _camDotActive;
             _micDotActive = e.MicActive;
-            _camDotActive = e.CamActive;
+            _camDotActive = e.CamActive || _cameraMonitorInUse;
             _activeMicAppName = e.MicApp;
+            if (!string.IsNullOrEmpty(e.CamApp)) _activeCamAppName = e.CamApp;
+            else if (_cameraMonitorInUse && !string.IsNullOrEmpty(_cameraMonitorApp)) _activeCamAppName = _cameraMonitorApp;
 
             if (e.MicActive && _settings.MicCamDotsEnabled &&
                 (!wasMicActive || !string.Equals(_lastWarnedMicApp, e.MicApp, StringComparison.OrdinalIgnoreCase)))
@@ -5772,9 +5830,18 @@ public sealed partial class WindowIslandWindow : Window
         }
         if (_camDotActive)
         {
-            var (_, _, _, camApp) = WindowIslandNotificationService.GetMicCamState();
-            ToolTipService.SetToolTip(CamDot,
-                string.IsNullOrEmpty(camApp) ? "Camera in use" : $"Camera: {camApp}");
+            string? camApp = _activeCamAppName;
+            if (string.IsNullOrEmpty(camApp))
+            {
+                (_, _, _, camApp) = WindowIslandNotificationService.GetMicCamState();
+                _activeCamAppName = camApp;
+            }
+            string camTip = string.IsNullOrEmpty(camApp) ? "Camera in use" : $"Camera: {camApp}";
+            if (!string.Equals(_camDotLastTooltip, camTip, StringComparison.Ordinal))
+            {
+                _camDotLastTooltip = camTip;
+                ToolTipService.SetToolTip(CamDot, camTip);
+            }
         }
 
         if (HeaderMicMuteBtn != null)
