@@ -3340,6 +3340,17 @@
                                                Foreground="#FFFFFFFF"
                                                VerticalAlignment="Center"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                                        <Button x:Name="ControlsDeviceRefreshBtn"
+                                                Click="ControlsDeviceRefreshBtn_Click"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                Padding="8,3"
+                                                CornerRadius="4"
+                                                ToolTipService.ToolTip="Refresh list">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon x:Name="ControlsDeviceRefreshIcon" Glyph="&#xE72C;" FontSize="10.5" Foreground="#C0FFFFFF"/>
+                                                <TextBlock Text="Refresh" FontSize="10" Foreground="#E0FFFFFF"/>
+                                            </StackPanel>
+                                        </Button>
                                         <Button x:Name="ControlsDeviceSettingsBtn"
                                                 Click="ControlsDeviceSettingsBtn_Click"
                                                 Style="{StaticResource TabButtonStyle}"

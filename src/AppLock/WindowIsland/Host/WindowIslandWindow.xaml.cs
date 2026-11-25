@@ -6099,27 +6099,49 @@ public sealed partial class WindowIslandWindow : Window
     // ── Wi-Fi & Bluetooth Device Lists Overlay ───────────────────────────────
 
     private string _controlsDeviceMode = "none";
+    private bool _isPopulatingDeviceList;
+    private string _lastDeviceListSignature = string.Empty;
 
     private void ControlsWifiListBtn_Click(object sender, RoutedEventArgs e)
     {
         _controlsDeviceMode = "wifi";
+        _lastDeviceListSignature = string.Empty;
+        ControlsDeviceList.Children.Clear();
         ControlsDeviceOverlayTitle.Text = "Wi-Fi networks";
         ControlsDeviceOverlay.Visibility = Visibility.Visible;
-        _ = PopulateDeviceListAsync();
+        _ = PopulateDeviceListAsync(showLoading: true);
     }
 
     private void ControlsBtListBtn_Click(object sender, RoutedEventArgs e)
     {
         _controlsDeviceMode = "bluetooth";
+        _lastDeviceListSignature = string.Empty;
+        ControlsDeviceList.Children.Clear();
         ControlsDeviceOverlayTitle.Text = "Bluetooth devices";
         ControlsDeviceOverlay.Visibility = Visibility.Visible;
-        _ = PopulateDeviceListAsync();
+        _ = PopulateDeviceListAsync(showLoading: true);
     }
 
     private void ControlsDeviceCloseBtn_Click(object sender, RoutedEventArgs e)
     {
         ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
         _controlsDeviceMode = "none";
+        _lastDeviceListSignature = string.Empty;
+    }
+
+    private async void ControlsDeviceRefreshBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (ControlsDeviceRefreshBtn != null) ControlsDeviceRefreshBtn.IsEnabled = false;
+        try
+        {
+            _lastDeviceListSignature = string.Empty;
+            await PopulateDeviceListAsync(showLoading: false);
+            RefreshControlsUI();
+        }
+        finally
+        {
+            if (ControlsDeviceRefreshBtn != null) ControlsDeviceRefreshBtn.IsEnabled = true;
+        }
     }
 
     private void ControlsDeviceSettingsBtn_Click(object sender, RoutedEventArgs e)
@@ -6132,29 +6154,40 @@ public sealed partial class WindowIslandWindow : Window
         catch { }
     }
 
-    private async Task PopulateDeviceListAsync()
+    private async Task PopulateDeviceListAsync(bool showLoading = false)
     {
+        if (_isPopulatingDeviceList) return;
+        _isPopulatingDeviceList = true;
         try
         {
-            ControlsDeviceList.Children.Clear();
-
-            var loading = new TextBlock
+            string mode = _controlsDeviceMode;
+            if (showLoading && ControlsDeviceList.Children.Count == 0)
             {
-                Text = "Loading...",
-                FontSize = 11,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 25, 0, 0)
-            };
-            ControlsDeviceList.Children.Add(loading);
+                ControlsDeviceList.Children.Add(new TextBlock
+                {
+                    Text = "Loading...",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 25, 0, 0)
+                });
+            }
 
-            if (_controlsDeviceMode == "wifi")
+            if (mode == "wifi")
             {
                 var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
-                ControlsDeviceList.Children.Clear();
+                if (_controlsDeviceMode != "wifi") return;
+
+                string signature = "wifi:" + string.Join("|", networks.Select(n => $"{n.Ssid}:{(n.IsConnected ? 1 : 0)}:{n.SignalBars}:{(n.IsSecured ? 1 : 0)}"));
+                if (signature == _lastDeviceListSignature && ControlsDeviceList.Children.Count > 0 && ControlsDeviceList.Children[0] is Grid)
+                {
+                    return;
+                }
+                _lastDeviceListSignature = signature;
 
                 if (networks.Count == 0)
                 {
+                    ControlsDeviceList.Children.Clear();
                     ControlsDeviceList.Children.Add(new TextBlock
                     {
                         Text = "No Wi-Fi networks found",
@@ -6166,19 +6199,31 @@ public sealed partial class WindowIslandWindow : Window
                     return;
                 }
 
+                var newRows = new System.Collections.Generic.List<(string Key, Grid Row)>(networks.Count);
                 foreach (var net in networks)
                 {
                     var row = BuildWiFiDeviceRow(net);
-                    ControlsDeviceList.Children.Add(row);
+                    string rowSig = $"{net.Ssid}:{(nOrZero(net.IsConnected))}:{net.SignalBars}:{(nOrZero(net.IsSecured))}";
+                    row.Tag = rowSig;
+                    newRows.Add((rowSig, row));
                 }
+                ApplySmoothDeviceRows(newRows);
             }
-            else if (_controlsDeviceMode == "bluetooth")
+            else if (mode == "bluetooth")
             {
                 var devices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
-                ControlsDeviceList.Children.Clear();
+                if (_controlsDeviceMode != "bluetooth") return;
+
+                string signature = "bt:" + string.Join("|", devices.Select(d => $"{d.MacAddress}:{d.Name}:{(d.IsConnected ? 1 : 0)}:{d.BatteryPercent?.ToString() ?? ""}:{d.DeviceType}"));
+                if (signature == _lastDeviceListSignature && ControlsDeviceList.Children.Count > 0 && ControlsDeviceList.Children[0] is Grid)
+                {
+                    return;
+                }
+                _lastDeviceListSignature = signature;
 
                 if (devices.Count == 0)
                 {
+                    ControlsDeviceList.Children.Clear();
                     ControlsDeviceList.Children.Add(new TextBlock
                     {
                         Text = "No paired Bluetooth devices found",
@@ -6190,16 +6235,21 @@ public sealed partial class WindowIslandWindow : Window
                     return;
                 }
 
+                var newRows = new System.Collections.Generic.List<(string Key, Grid Row)>(devices.Count);
                 foreach (var dev in devices)
                 {
                     var row = BuildBluetoothDeviceRow(dev);
-                    ControlsDeviceList.Children.Add(row);
+                    string rowSig = $"{dev.MacAddress}:{dev.Name}:{(nOrZero(dev.IsConnected))}:{dev.BatteryPercent?.ToString() ?? ""}:{dev.DeviceType}";
+                    row.Tag = rowSig;
+                    newRows.Add((rowSig, row));
                 }
+                ApplySmoothDeviceRows(newRows);
             }
         }
         catch (Exception ex)
         {
             ControlsDeviceList.Children.Clear();
+            _lastDeviceListSignature = string.Empty;
             ControlsDeviceList.Children.Add(new TextBlock
             {
                 Text = "Error: " + ex.Message,
@@ -6208,6 +6258,35 @@ public sealed partial class WindowIslandWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 20, 0, 0)
             });
+        }
+        finally
+        {
+            _isPopulatingDeviceList = false;
+        }
+
+        static int nOrZero(bool v) => v ? 1 : 0;
+    }
+
+    private void ApplySmoothDeviceRows(System.Collections.Generic.List<(string Key, Grid Row)> newRows)
+    {
+        if (ControlsDeviceList.Children.Count == newRows.Count &&
+            ControlsDeviceList.Children.All(c => c is Grid))
+        {
+            for (int i = 0; i < newRows.Count; i++)
+            {
+                if (ControlsDeviceList.Children[i] is Grid existing && existing.Tag as string == newRows[i].Key)
+                {
+                    continue;
+                }
+                ControlsDeviceList.Children[i] = newRows[i].Row;
+            }
+            return;
+        }
+
+        ControlsDeviceList.Children.Clear();
+        foreach (var (_, row) in newRows)
+        {
+            ControlsDeviceList.Children.Add(row);
         }
     }
 
