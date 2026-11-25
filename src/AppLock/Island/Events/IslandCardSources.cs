@@ -23,7 +23,7 @@ public sealed class LockKeyCardSource : IDisposable
     private static extern short GetAsyncKeyState(int vKey);
 
     private readonly DispatcherQueueTimer _timer;
-    private readonly List<(int Vk, string Label)> _watchedKeys = new();
+    private volatile (int Vk, string Label)[] _watchedSnapshot = Array.Empty<(int, string)>();
     private readonly Dictionary<int, bool> _wasKeyDown = new();
     private readonly Dictionary<int, long> _lastKeyFiredMs = new();
     private readonly object _watchLock = new();
@@ -45,19 +45,20 @@ public sealed class LockKeyCardSource : IDisposable
 
     public void SetWatchedKeys(IEnumerable<(int VirtualKey, string Label)> keys)
     {
+        var list = new List<(int Vk, string Label)>();
         lock (_watchLock)
         {
-            _watchedKeys.Clear();
             _wasKeyDown.Clear();
             foreach (var k in keys)
             {
                 if (k.VirtualKey > 0 && !string.IsNullOrWhiteSpace(k.Label))
                 {
-                    _watchedKeys.Add(k);
+                    list.Add(k);
                     // Clear any stale "pressed since last call" bit on registration
                     _ = GetAsyncKeyState(k.VirtualKey);
                 }
             }
+            _watchedSnapshot = list.Count == 0 ? Array.Empty<(int, string)>() : list.ToArray();
         }
     }
 
@@ -91,12 +92,8 @@ public sealed class LockKeyCardSource : IDisposable
             NumLockChanged?.Invoke(num);
         }
 
-        List<(int Vk, string Label)> snapshot;
-        lock (_watchLock)
-        {
-            if (_watchedKeys.Count == 0) return;
-            snapshot = new List<(int, string)>(_watchedKeys);
-        }
+        var snapshot = _watchedSnapshot;
+        if (snapshot.Length == 0) return;
 
         long nowMs = Environment.TickCount64;
         foreach (var (vk, label) in snapshot)

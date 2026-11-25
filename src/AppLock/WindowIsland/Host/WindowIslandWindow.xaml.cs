@@ -469,6 +469,7 @@ public sealed partial class WindowIslandWindow : Window
     public void Show(WindowIslandSettings settings)
     {
         _settings = settings;
+        SyncWatchedKeys();
         IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
         UpdateChatHeightLabel();
 
