@@ -25,8 +25,6 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly ShapeVisual _shapeVisual;
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
     private readonly CompositionSpriteShape _bodyShape;
-    private readonly CompositionRectangleGeometry _notchTopFillGeometry;
-    private readonly CompositionSpriteShape _notchTopFillShape;
     private readonly CompositionSpriteShape _notchLeftEarShape;
     private readonly CompositionSpriteShape _notchRightEarShape;
     private WindowIslandSettings _settings;
@@ -120,12 +118,7 @@ public sealed class WindowIslandCompositor : IDisposable
         var bodyBrush = GetBodyBrush(settings);
         _bodyShape.FillBrush = bodyBrush;
 
-        // Notch top-fill rectangle (flattens top-left/top-right corners when Shape == "Notch")
-        _notchTopFillGeometry = _compositor.CreateRectangleGeometry();
-        _notchTopFillShape = _compositor.CreateSpriteShape(_notchTopFillGeometry);
-        _notchTopFillShape.FillBrush = bodyBrush;
-
-        // Apple-style concave top ears (left & right)
+        // Apple-style concave top ears + corner fillers (non-overlapping with _bodyGeometry)
         _notchLeftEarShape = _compositor.CreateSpriteShape(CreateNotchEarGeometry(isRight: false));
         _notchLeftEarShape.FillBrush = bodyBrush;
 
@@ -138,7 +131,6 @@ public sealed class WindowIslandCompositor : IDisposable
         _shapeVisual = _compositor.CreateShapeVisual();
         _shapeVisual.RelativeSizeAdjustment = Vector2.One;
         _shapeVisual.Shapes.Add(_bodyShape);
-        _shapeVisual.Shapes.Add(_notchTopFillShape);
         _shapeVisual.Shapes.Add(_notchLeftEarShape);
         _shapeVisual.Shapes.Add(_notchRightEarShape);
 
@@ -284,7 +276,6 @@ public sealed class WindowIslandCompositor : IDisposable
 
         var bodyBrush = GetBodyBrush(settings);
         _bodyShape.FillBrush = bodyBrush;
-        _notchTopFillShape.FillBrush = bodyBrush;
         _notchLeftEarShape.FillBrush = bodyBrush;
         _notchRightEarShape.FillBrush = bodyBrush;
 
@@ -303,8 +294,6 @@ public sealed class WindowIslandCompositor : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _notchTopFillGeometry.Dispose();
-        _notchTopFillShape.Dispose();
         _notchLeftEarShape.Dispose();
         _notchRightEarShape.Dispose();
         _bodyGeometry.Dispose();
@@ -399,24 +388,13 @@ public sealed class WindowIslandCompositor : IDisposable
 
         if (isCapsule)
         {
-            _notchTopFillShape.Scale = Vector2.Zero;
             _notchLeftEarShape.Scale = Vector2.Zero;
             _notchRightEarShape.Scale = Vector2.Zero;
             return;
         }
 
-        _notchTopFillShape.Scale = Vector2.One;
         _notchLeftEarShape.Scale = Vector2.One;
         _notchRightEarShape.Scale = Vector2.One;
-
-        var topFillSizeAnim = _compositor.CreateExpressionAnimation("Vector2(geom.Size.X, geom.Size.Y * 0.5)");
-        topFillSizeAnim.SetReferenceParameter("geom", _bodyGeometry);
-        _notchTopFillGeometry.StartAnimation("Size", topFillSizeAnim);
-
-        var topFillOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0, 0.0)");
-        topFillOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
-        topFillOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
-        _notchTopFillShape.StartAnimation("Offset", topFillOffsetAnim);
 
         var leftEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0 - earR, 0.0)");
         leftEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
@@ -424,9 +402,10 @@ public sealed class WindowIslandCompositor : IDisposable
         leftEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);
         _notchLeftEarShape.StartAnimation("Offset", leftEarOffsetAnim);
 
-        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0, 0.0)");
+        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0 - earR, 0.0)");
         rightEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
         rightEarOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
+        rightEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);
         _notchRightEarShape.StartAnimation("Offset", rightEarOffsetAnim);
     }
 
@@ -437,17 +416,17 @@ public sealed class WindowIslandCompositor : IDisposable
         if (!isRight)
         {
             builder.BeginFigure(0f, 0f);
-            builder.AddLine(r, 0f);
-            builder.AddLine(r, r);
+            builder.AddLine(2f * r, 0f);
+            builder.AddArc(new Vector2(r, r), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
             builder.AddArc(new Vector2(0f, 0f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
             builder.EndFigure(CanvasFigureLoop.Closed);
         }
         else
         {
             builder.BeginFigure(0f, 0f);
-            builder.AddLine(r, 0f);
-            builder.AddArc(new Vector2(0f, r), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
-            builder.AddLine(0f, 0f);
+            builder.AddLine(2f * r, 0f);
+            builder.AddArc(new Vector2(r, r), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
+            builder.AddArc(new Vector2(0f, 0f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
             builder.EndFigure(CanvasFigureLoop.Closed);
         }
         using var canvasGeom = CanvasGeometry.CreatePath(builder);

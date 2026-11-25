@@ -475,6 +475,7 @@ public sealed partial class WindowIslandWindow : Window
         // Position & hit region after Activate() ensures window geometry is respected
         PositionAndSize();
         UpdateHitRegion(open: false);
+        UpdateShapeContentOffset();
 
         _isVisible = true;
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
@@ -513,6 +514,7 @@ public sealed partial class WindowIslandWindow : Window
         _compositor?.UpdateWindowWidth(WindowWidthDip, settings);
         _compositor?.ApplySettings(settings);
         UpdateHitRegion(_compositor?.IsOpen ?? false);
+        UpdateShapeContentOffset();
         ApplyContentVisibility();
         UpdateClock();
         UpdateBattery();
@@ -1244,6 +1246,16 @@ public sealed partial class WindowIslandWindow : Window
     }
 
     // ── Hit Region & Click-Through ─────────────────────────────────────────────
+
+    private void UpdateShapeContentOffset()
+    {
+        double topOffset = _settings.Shape == "Capsule" ? 6.0 : 0.0;
+        var margin = new Thickness(0, topOffset, 0, 0);
+        if (FoldedLayer != null) FoldedLayer.Margin = margin;
+        if (CardLayer != null) CardLayer.Margin = margin;
+        if (OpenLayer != null) OpenLayer.Margin = margin;
+        if (CommandLayer != null) CommandLayer.Margin = margin;
+    }
 
     private void UpdateHitRegion(bool open, bool isCard = false, bool isCommand = false)
     {
