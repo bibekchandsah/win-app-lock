@@ -294,22 +294,24 @@
                             VerticalAlignment="Center"
                             Visibility="Collapsed" />
 
-                <!-- Milestone 12: Mic / Camera indicator dots -->
-                <!-- Orange dot = microphone active, Green dot = camera active -->
+                <!-- Milestone 12: Mic / Camera indicators -->
                 <StackPanel x:Name="MicCamDotsContainer"
                             Orientation="Horizontal"
                             Spacing="4"
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
-                    <Ellipse x:Name="MicDot"
-                             Width="6" Height="6"
-                             Fill="#FFAA00"
-                             Visibility="Collapsed"
-                             ToolTipService.ToolTip="Microphone in use" />
+                    <FontIcon x:Name="MicDot"
+                              Glyph="&#xE720;"
+                              FontSize="11.5"
+                              Foreground="#FFAA00"
+                              Visibility="Collapsed"
+                              VerticalAlignment="Center"
+                              ToolTipService.ToolTip="Microphone in use" />
                     <Ellipse x:Name="CamDot"
                              Width="6" Height="6"
                              Fill="#22CC44"
                              Visibility="Collapsed"
+                             VerticalAlignment="Center"
                              ToolTipService.ToolTip="Camera in use" />
                 </StackPanel>
 
@@ -463,7 +465,7 @@
                             BorderThickness="0"
                             Background="#FFFFFFFF"
                             ToolTipService.ToolTip="Dismiss">
-                        <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FF000000" />
+                        <FontIcon x:Name="CardDismissActionIcon" Glyph="&#xE73E;" FontSize="12" Foreground="#FF000000" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -676,11 +678,20 @@
                         </Button>
                     </StackPanel>
 
-                    <!-- Right: Quiet chip + Pin + Settings -->
+                    <!-- Right: Mic mute/unmute + Quiet chip + Pin + Settings -->
                     <StackPanel Orientation="Horizontal"
                                 Spacing="4"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Right">
+
+                        <!-- Microphone mute/unmute toggle (shown when mic is in use or muted) -->
+                        <Button x:Name="HeaderMicMuteBtn"
+                                Style="{StaticResource TabButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="HeaderMicMuteBtn_Click"
+                                ToolTipService.ToolTip="Microphone in use — Click to mute">
+                            <FontIcon x:Name="HeaderMicMuteIcon" Glyph="&#xE720;" FontSize="13" />
+                        </Button>
 
                         <!-- Quiet chip (hide cards temporarily) -->
                         <ToggleButton x:Name="QuietButton"

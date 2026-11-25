@@ -475,20 +475,20 @@ fixed - we have volume  slider in home tab and mouse and touch pad guesture is e
 fixed - realtime battery status with plugged/unpluggedarate 
 fixed - live music beat in the right side end and music icon in the left side end
 fixed - music preview is overlapped with weather
-music background blur effect
-command navigation
-full screen screenshot [open] preview
 fixed - copied image live preview 
 fixed - remainder check option with +10min check icon 
 fixed - show ring in island too during timer with again and check icon to confirm it's ended  
 fixed - caps/num lock 
 fixed - live brightness 
-microphone controller
-camera & microphone preview 
+fixed - microphone controller
+fixed - camera & microphone preview 
+fixed - microphone used notification with mute button 
+music background blur effect
+command navigation
+full screen screenshot [open] preview
 speaker changed notification
-microphone used notification with mute button 
 live beat isn't working for all type of media played 
-
+add the toggle to show/hide lyrics if available
 
 
 

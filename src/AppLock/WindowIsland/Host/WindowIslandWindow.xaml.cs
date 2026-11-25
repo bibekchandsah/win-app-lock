@@ -243,6 +243,11 @@ public sealed partial class WindowIslandWindow : Window
     // Milestone 12: Notifications, VPN, battery alert cards, mic/cam dots
     private bool _micDotActive;
     private bool _camDotActive;
+    private string? _activeMicAppName;
+    private string? _lastWarnedMicApp;
+    private string? _lastWarnedCamApp;
+    private string? _micDotLastTooltip;
+    private string? _headerMicLastTooltip;
 
     // Milestone 13: Chat (WebView2)
     private WebView2?                         _chatWebView;
@@ -507,10 +512,22 @@ public sealed partial class WindowIslandWindow : Window
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
         ShowWindow(_hwnd, 4 /* SW_SHOWNOACTIVATE */);
 
+        WindowIslandNotificationService.CaptureSessionFallback = IsCaptureAudioSessionActive;
         // Start Home tab background sampler immediately (tab 0 is active on first open)
         StartHomeState();
         _clipboardState?.Refresh();
         _ = UpdateFoldedBtBatteriesAsync();
+        _ = Task.Run(() =>
+        {
+            var (micActive, micApp, camActive, _) = WindowIslandNotificationService.GetMicCamState();
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _micDotActive = micActive;
+                _camDotActive = camActive;
+                _activeMicAppName = micApp;
+                UpdateMicCamDots();
+            });
+        });
 
         // Milestone 15: start visibility service
         _visibilityService?.Dispose();
@@ -1794,14 +1811,32 @@ public sealed partial class WindowIslandWindow : Window
             CardStackedTitle.Text = card.Title;
             CardStackedDetail.Text = card.Detail;
             CardStackedDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
-            double maxTextW = hasActions ? 200.0 : 250.0;
+            bool isMicWarnCard = card.Kind == "mic-in-use";
+            double maxTextW = hasActions ? (isMicWarnCard ? 245.0 : 200.0) : 250.0;
             CardStackedTitle.MaxWidth = maxTextW;
             CardStackedDetail.MaxWidth = maxTextW;
             CardStackedTextPanel.Visibility = Visibility.Visible;
             CardActionPanel.Visibility = hasActions ? Visibility.Visible : Visibility.Collapsed;
             if (hasActions)
             {
-                CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
+                if (isMicWarnCard)
+                {
+                    bool micMuted = IsSystemDefaultMicMuted();
+                    CardPrimaryActionBtn.Visibility = Visibility.Collapsed;
+                    CardDismissActionBtn.Background = cardAccentBrush;
+                    CardDismissActionIcon.Glyph = micMuted ? "\uE720" : "\uEC54";
+                    CardDismissActionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x11, 0x11, 0x11));
+                    ToolTipService.SetToolTip(CardDismissActionBtn, micMuted ? "Unmute microphone" : "Mute microphone system-wide");
+                }
+                else
+                {
+                    CardPrimaryActionBtn.Visibility = Visibility.Visible;
+                    CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
+                    CardDismissActionBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+                    CardDismissActionIcon.Glyph = "\uE73E";
+                    CardDismissActionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x00, 0x00, 0x00));
+                    ToolTipService.SetToolTip(CardDismissActionBtn, "Dismiss");
+                }
             }
 
             bool showThumb = card.Kind == "clipboard" && card.Icon == "\uEB9F" && _lastCopiedThumb != null;
@@ -1822,7 +1857,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
                 CardIconBadge.CornerRadius = new CornerRadius(17);
-                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain")
+                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
                 CardIcon.FontSize = 15;
@@ -1901,6 +1936,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             _reminderStore?.Complete(_activeCardTagId);
             RefreshRemindersUI();
+        }
+        else if (_activeCardKind == "mic-in-use")
+        {
+            ToggleSystemDefaultMicMute();
         }
         _eventQueue?.Clear();
     }
@@ -5559,27 +5598,177 @@ public sealed partial class WindowIslandWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            bool wasMicActive = _micDotActive;
+            bool wasCamActive = _camDotActive;
             _micDotActive = e.MicActive;
             _camDotActive = e.CamActive;
+            _activeMicAppName = e.MicApp;
+
+            if (e.MicActive && _settings.MicCamDotsEnabled &&
+                (!wasMicActive || !string.Equals(_lastWarnedMicApp, e.MicApp, StringComparison.OrdinalIgnoreCase)))
+            {
+                _lastWarnedMicApp = e.MicApp;
+                var accent = GetSystemAccentColor();
+                string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+                string title = string.IsNullOrEmpty(e.MicApp)
+                    ? "Microphone in use"
+                    : $"Microphone: {e.MicApp}";
+                _eventQueue?.Push(new WindowIslandCard(
+                    Kind: "mic-in-use",
+                    Icon: "\uE720",
+                    Title: title,
+                    Detail: "The button on the right mutes it system-wide",
+                    AccentHex: accentHex,
+                    Priority: WindowIslandCardPriority.Notification,
+                    StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 5000) : 5000,
+                    IsStacked: true,
+                    PrimaryActionLabel: "__mic_mute__"));
+            }
+            else if (!e.MicActive)
+            {
+                _lastWarnedMicApp = null;
+            }
+
+            if (e.CamActive && _settings.MicCamDotsEnabled &&
+                (!wasCamActive || !string.Equals(_lastWarnedCamApp, e.CamApp, StringComparison.OrdinalIgnoreCase)))
+            {
+                _lastWarnedCamApp = e.CamApp;
+                string camTitle = string.IsNullOrEmpty(e.CamApp)
+                    ? "Camera in use"
+                    : $"Camera: {e.CamApp}";
+                _eventQueue?.Push(new WindowIslandCard(
+                    Kind: "cam-in-use",
+                    Icon: "\uE714",
+                    Title: camTitle,
+                    Detail: "It is recording right now",
+                    AccentHex: "#22CC44",
+                    Priority: WindowIslandCardPriority.Notification,
+                    StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 5000) : 5000,
+                    IsStacked: true));
+            }
+            else if (!e.CamActive)
+            {
+                _lastWarnedCamApp = null;
+            }
+
             UpdateMicCamDots();
         });
     }
+
+    private static (bool Active, string AppName) IsCaptureAudioSessionActive()
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var device = enumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Capture,
+                NAudio.CoreAudioApi.Role.Communications);
+            if (device == null) return (false, string.Empty);
+
+            var sessions = device.AudioSessionManager?.Sessions;
+            if (sessions == null) return (false, string.Empty);
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                var session = sessions[i];
+                if (session.State == NAudio.CoreAudioApi.Interfaces.AudioSessionState.AudioSessionStateActive)
+                {
+                    string name = session.DisplayName ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        try
+                        {
+                            uint pid = session.GetProcessID;
+                            if (pid > 0)
+                            {
+                                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                                name = proc.ProcessName;
+                            }
+                        }
+                        catch { }
+                    }
+                    return (true, name);
+                }
+            }
+        }
+        catch { }
+        return (false, string.Empty);
+    }
+
+    private static bool IsSystemDefaultMicMuted()
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var dev = enumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Capture,
+                NAudio.CoreAudioApi.Role.Communications);
+            return dev?.AudioEndpointVolume.Mute ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void ToggleSystemDefaultMicMute()
+    {
+        try
+        {
+            using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+            using var dev = enumerator.GetDefaultAudioEndpoint(
+                NAudio.CoreAudioApi.DataFlow.Capture,
+                NAudio.CoreAudioApi.Role.Communications);
+            if (dev != null)
+            {
+                dev.AudioEndpointVolume.Mute = !dev.AudioEndpointVolume.Mute;
+            }
+        }
+        catch { }
+
+        UpdateMicCamDots();
+        if (_compositor?.IsOpen == true && _activeTab == 7 && _settings.Controls.ShowMicrophone)
+        {
+            RefreshControlsMicrophoneUi();
+        }
+    }
+
+    private void HeaderMicMuteBtn_Click(object sender, RoutedEventArgs e)
+        => ToggleSystemDefaultMicMute();
 
     private void UpdateMicCamDots()
     {
         bool enabled = _settings.MicCamDotsEnabled;
         bool anyActive = enabled && (_micDotActive || _camDotActive);
+        bool micMuted = IsSystemDefaultMicMuted();
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
 
         MicCamDotsContainer.Visibility = anyActive ? Visibility.Visible : Visibility.Collapsed;
         MicDot.Visibility = (enabled && _micDotActive) ? Visibility.Visible : Visibility.Collapsed;
         CamDot.Visibility = (enabled && _camDotActive) ? Visibility.Visible : Visibility.Collapsed;
 
-        // Update tooltips with app names (fetched synchronously from the service)
+        string? micApp = _activeMicAppName;
+        if (_micDotActive && string.IsNullOrEmpty(micApp))
+        {
+            (_, micApp, _, _) = WindowIslandNotificationService.GetMicCamState();
+            _activeMicAppName = micApp;
+        }
+
         if (_micDotActive)
         {
-            var (_, micApp, _, _) = WindowIslandNotificationService.GetMicCamState();
-            ToolTipService.SetToolTip(MicDot,
-                string.IsNullOrEmpty(micApp) ? "Microphone in use" : $"Microphone: {micApp}");
+            MicDot.Glyph = micMuted ? "\uEC54" : "\uE720";
+            MicDot.Foreground = micMuted
+                ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
+                : accentBrush;
+
+            string micTip = string.IsNullOrEmpty(micApp)
+                ? (micMuted ? "Microphone in use (Muted)" : "Microphone in use")
+                : (micMuted ? $"Microphone: {micApp} (Muted)" : $"Microphone: {micApp}");
+            if (!string.Equals(_micDotLastTooltip, micTip, StringComparison.Ordinal))
+            {
+                _micDotLastTooltip = micTip;
+                ToolTipService.SetToolTip(MicDot, micTip);
+            }
         }
         if (_camDotActive)
         {
@@ -5587,6 +5776,31 @@ public sealed partial class WindowIslandWindow : Window
             ToolTipService.SetToolTip(CamDot,
                 string.IsNullOrEmpty(camApp) ? "Camera in use" : $"Camera: {camApp}");
         }
+
+        if (HeaderMicMuteBtn != null)
+        {
+            bool showHeaderMic = _micDotActive || micMuted;
+            HeaderMicMuteBtn.Visibility = showHeaderMic ? Visibility.Visible : Visibility.Collapsed;
+            if (showHeaderMic)
+            {
+                HeaderMicMuteIcon.Glyph = micMuted ? "\uEC54" : "\uE720";
+                HeaderMicMuteIcon.Foreground = micMuted
+                    ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
+                    : (_micDotActive ? accentBrush : new SolidColorBrush(ColorHelper.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)));
+
+                string appLabel = string.IsNullOrEmpty(micApp) ? "an app" : micApp;
+                string headerTip = _micDotActive
+                    ? (micMuted ? $"Microphone muted (in use by {appLabel}) — Click to unmute" : $"Microphone in use by {appLabel} — Click to mute")
+                    : "Microphone muted — Click to unmute";
+                if (!string.Equals(_headerMicLastTooltip, headerTip, StringComparison.Ordinal))
+                {
+                    _headerMicLastTooltip = headerTip;
+                    ToolTipService.SetToolTip(HeaderMicMuteBtn, headerTip);
+                }
+            }
+        }
+
+        UpdateDynamicFoldedWidth();
     }
 
     private void RefreshWeatherUI()
@@ -8024,6 +8238,7 @@ public sealed partial class WindowIslandWindow : Window
 
         mic.SetMute(!mic.IsMuted());
         UpdateControlsMicDeviceState(mic);
+        UpdateMicCamDots();
     }
 
     private void ControlsMicMuteBtn_RightTapped(object sender, RightTappedRoutedEventArgs e)

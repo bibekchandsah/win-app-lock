@@ -66,6 +66,7 @@ public sealed class WindowIslandNotificationService : IDisposable
     private string _micAppName = string.Empty;
     private string _camAppName = string.Empty;
     private Timer? _pollTimer;
+    private int _pollTick;
     private bool _disposed;
 
     // ── P/Invoke ──────────────────────────────────────────────────────────────
@@ -90,10 +91,10 @@ public sealed class WindowIslandNotificationService : IDisposable
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
 
-        // Poll battery + mic/cam every 10 s; initial poll after 1 s
+        // Poll mic/cam every 2 s (battery every 10 s); initial poll after 1 s
         _pollTimer = new Timer(OnPollTimer, null,
             dueTime: TimeSpan.FromSeconds(1),
-            period:  TimeSpan.FromSeconds(10));
+            period:  TimeSpan.FromSeconds(2));
     }
 
     // ── VPN Detection ─────────────────────────────────────────────────────────
@@ -237,6 +238,9 @@ public sealed class WindowIslandNotificationService : IDisposable
     private const string MicConsentKey  = @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
     private const string CamConsentKey  = @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
 
+    /// <summary>Optional WASAPI capture-session fallback wired by the host window.</summary>
+    public static Func<(bool Active, string AppName)>? CaptureSessionFallback { get; set; }
+
     /// <summary>Checks if mic or webcam are currently in use via CapabilityAccessManager registry.</summary>
     public static (bool MicActive, string MicApp, bool CamActive, string CamApp) GetMicCamState()
     {
@@ -244,6 +248,10 @@ public sealed class WindowIslandNotificationService : IDisposable
         string micApp = string.Empty, camApp = string.Empty;
 
         try { (micActive, micApp) = IsDeviceInUse(MicConsentKey); } catch { }
+        if (!micActive && CaptureSessionFallback != null)
+        {
+            try { (micActive, micApp) = CaptureSessionFallback(); } catch { }
+        }
         try { (camActive, camApp) = IsDeviceInUse(CamConsentKey); } catch { }
 
         return (micActive, micApp, camActive, camApp);
@@ -251,29 +259,42 @@ public sealed class WindowIslandNotificationService : IDisposable
 
     private static (bool Active, string AppName) IsDeviceInUse(string registrySubKey)
     {
-        using var hkcu = Microsoft.Win32.Registry.CurrentUser;
-        using var key = hkcu.OpenSubKey(registrySubKey, writable: false);
-        if (key == null) return (false, string.Empty);
+        if (IsRootDeviceInUse(Microsoft.Win32.Registry.CurrentUser, registrySubKey, out string cuApp))
+            return (true, cuApp);
+        if (IsRootDeviceInUse(Microsoft.Win32.Registry.LocalMachine, registrySubKey, out string lmApp))
+            return (true, lmApp);
+        return (false, string.Empty);
+    }
 
-        // Check direct app entries
-        foreach (string subName in key.GetSubKeyNames())
+    private static bool IsRootDeviceInUse(Microsoft.Win32.RegistryKey root, string registrySubKey, out string appName)
+    {
+        appName = string.Empty;
+        try
         {
-            if (IsSubKeyActive(key, subName, out string appName))
-                return (true, appName);
-        }
+            using var key = root.OpenSubKey(registrySubKey, writable: false);
+            if (key == null) return false;
 
-        // Check NonPackaged sub-key
-        using var nonPkg = key.OpenSubKey("NonPackaged", writable: false);
-        if (nonPkg != null)
-        {
-            foreach (string subName in nonPkg.GetSubKeyNames())
+            // Check direct packaged app entries
+            foreach (string subName in key.GetSubKeyNames())
             {
-                if (IsSubKeyActive(nonPkg, subName, out string appName))
-                    return (true, appName);
+                if (string.Equals(subName, "NonPackaged", StringComparison.OrdinalIgnoreCase)) continue;
+                if (IsSubKeyActive(key, subName, out appName))
+                    return true;
+            }
+
+            // Check NonPackaged desktop app entries
+            using var nonPkg = key.OpenSubKey("NonPackaged", writable: false);
+            if (nonPkg != null)
+            {
+                foreach (string subName in nonPkg.GetSubKeyNames())
+                {
+                    if (IsSubKeyActive(nonPkg, subName, out appName))
+                        return true;
+                }
             }
         }
-
-        return (false, string.Empty);
+        catch { }
+        return false;
     }
 
     private static bool IsSubKeyActive(Microsoft.Win32.RegistryKey parent, string subName, out string appName)
@@ -284,17 +305,36 @@ public sealed class WindowIslandNotificationService : IDisposable
             using var sub = parent.OpenSubKey(subName, writable: false);
             if (sub == null) return false;
 
-            var stopObj = sub.GetValue("LastUsedTimeStop");
-            if (stopObj is long stop && stop == 0)
+            var startVal = sub.GetValue("LastUsedTimeStart");
+            if (startVal == null) return false;
+
+            var stopVal = sub.GetValue("LastUsedTimeStop");
+            long start = ToInt64Safe(startVal);
+            long stop  = stopVal != null ? ToInt64Safe(stopVal) : 0;
+
+            if (start > stop)
             {
-                // Session is active (stop time not set yet)
-                // Extract a readable app name from the sub-key name
                 appName = FriendlyAppName(subName);
                 return true;
             }
         }
         catch { /* registry access may fail for some entries */ }
         return false;
+    }
+
+    private static long ToInt64Safe(object value)
+    {
+        return value switch
+        {
+            long l => l,
+            int i => i,
+            ulong ul => (long)ul,
+            uint ui => ui,
+            byte[] bytes when bytes.Length >= 8 => BitConverter.ToInt64(bytes, 0),
+            byte[] bytes when bytes.Length >= 4 => BitConverter.ToInt32(bytes, 0),
+            string s when long.TryParse(s, out var parsed) => parsed,
+            _ => Convert.ToInt64(value)
+        };
     }
 
     private static string FriendlyAppName(string registryKeyName)
@@ -336,7 +376,11 @@ public sealed class WindowIslandNotificationService : IDisposable
     private void OnPollTimer(object? state)
     {
         if (_disposed) return;
-        try { CheckBatteryState(); } catch { }
+        int tick = Interlocked.Increment(ref _pollTick);
+        if (tick == 1 || tick % 5 == 0)
+        {
+            try { CheckBatteryState(); } catch { }
+        }
         try { CheckMicCamState();  } catch { }
         // VPN is event-driven; do an initial check on first poll
         if (!_vpnInitialized) Task.Run(CheckVpnState);
