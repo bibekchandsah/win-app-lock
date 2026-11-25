@@ -479,6 +479,8 @@ realtime battery status with plugged/unplugged
 volume slider is shown in every live preview make it separate 
 each live preview has individual preview
 music preview is overlapped with weather
+full screen screenshot [open] preview
+command navigation
 
 
 

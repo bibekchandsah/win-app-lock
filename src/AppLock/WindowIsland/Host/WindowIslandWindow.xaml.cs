@@ -1502,15 +1502,19 @@ public sealed partial class WindowIslandWindow : Window
     {
         CardIcon.Glyph = card.Icon;
         CardTitle.Text = card.Title;
+        CardTitle.Visibility = string.IsNullOrEmpty(card.Title) ? Visibility.Collapsed : Visibility.Visible;
         CardDetail.Text = card.Detail;
         CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
-        CardIcon.Foreground = new SolidColorBrush(HexToColor(card.AccentHex));
+        var cardAccentBrush = new SolidColorBrush(HexToColor(card.AccentHex));
+        CardIcon.Foreground = cardAccentBrush;
 
         // Milestone 15: bring island into view for card duration
         _visibilityService?.RequestTemporaryReveal(card.StayMs + 1000);
 
         if (card.Value >= 0)
         {
+            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+            CardProgressBar.Foreground = cardAccentBrush;
             CardProgressBar.Value = card.Value;
             CardProgressBar.Visibility = Visibility.Visible;
             CardValueText.Text = $"{card.Value}%";
@@ -1518,6 +1522,7 @@ public sealed partial class WindowIslandWindow : Window
         }
         else
         {
+            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Center;
             CardProgressBar.Visibility = Visibility.Collapsed;
             CardValueText.Visibility = Visibility.Collapsed;
         }
@@ -2368,13 +2373,15 @@ public sealed partial class WindowIslandWindow : Window
         _lastVolumeCardMs = Environment.TickCount64;
         _pendingVolumeCard = -1;
 
+        var accent = GetSystemAccentColor();
+        string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
         string icon = (muted || vol == 0) ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "volume",
             Icon: icon,
-            Title: muted ? "Muted" : "Volume",
+            Title: muted ? "Muted" : string.Empty,
             Detail: string.Empty,
-            AccentHex: "#60CDFF",
+            AccentHex: accentHex,
             Priority: WindowIslandCardPriority.Volume,
             StayMs: _settings.GetCardStayMs(),
             Value: vol));

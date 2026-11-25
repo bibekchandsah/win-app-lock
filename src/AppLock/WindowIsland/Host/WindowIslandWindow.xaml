@@ -327,20 +327,30 @@
         <Grid x:Name="CardLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
+              Width="270"
               Height="38"
               Opacity="0"
               IsHitTestVisible="False">
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="8"
-                        Padding="14,0,14,0">
+            <Grid x:Name="CardContentGrid"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  ColumnSpacing="8"
+                  Padding="14,0,14,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 <FontIcon x:Name="CardIcon"
+                          Grid.Column="0"
                           Glyph="&#xE7BA;"
-                          FontSize="13"
+                          FontSize="14"
                           Foreground="#60CDFF"
                           VerticalAlignment="Center" />
                 <TextBlock x:Name="CardTitle"
+                           Grid.Column="1"
                            Text="Caps Lock"
                            FontFamily="Segoe UI Variable Display"
                            FontWeight="SemiBold"
@@ -348,6 +358,7 @@
                            Foreground="#F0FFFFFF"
                            VerticalAlignment="Center" />
                 <TextBlock x:Name="CardDetail"
+                           Grid.Column="2"
                            Text="On"
                            FontFamily="Segoe UI Variable Small"
                            FontSize="11"
@@ -357,8 +368,10 @@
                            VerticalAlignment="Center" />
                 <!-- Optional Volume Progress Bar -->
                 <ProgressBar x:Name="CardProgressBar"
-                             Width="56"
-                             Height="4"
+                             Grid.Column="3"
+                             HorizontalAlignment="Stretch"
+                             Height="5"
+                             CornerRadius="2.5"
                              Minimum="0"
                              Maximum="100"
                              Value="50"
@@ -366,13 +379,17 @@
                              VerticalAlignment="Center"
                              Visibility="Collapsed" />
                 <TextBlock x:Name="CardValueText"
+                           Grid.Column="4"
                            Text="50%"
                            FontFamily="Segoe UI Variable Small"
-                           FontSize="11"
-                           Foreground="#90FFFFFF"
+                           FontWeight="SemiBold"
+                           FontSize="11.5"
+                           Foreground="#E8FFFFFF"
+                           MinWidth="34"
+                           TextAlignment="Right"
                            VerticalAlignment="Center"
                            Visibility="Collapsed" />
-            </StackPanel>
+            </Grid>
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════════
