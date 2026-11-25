@@ -2186,6 +2186,8 @@ public sealed partial class WindowIslandWindow : Window
                     UpdateFoldedWeatherMini();
                     UpdateDynamicFoldedWidth();
                 }
+                MediaArtFallback.Visibility = Visibility.Collapsed;
+                MediaCard.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(16, 255, 255, 255));
                 return;
             }
 
@@ -2251,15 +2253,20 @@ public sealed partial class WindowIslandWindow : Window
                         };
                         bmp.UriSource = new Uri(artPath);
                         MediaArt.Source = bmp;
+                        MediaArtFallback.Visibility = Visibility.Collapsed;
                         FoldedArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
                         FoldedArtFallback.Visibility = Visibility.Collapsed;
                         hasArt = true;
+                        _ = ApplyMediaAlbumGlowAsync(artPath, artKey);
                     }
                     catch { }
                 }
                 if (!hasArt)
                 {
                     MediaArt.Source = null;
+                    MediaArtFallback.Visibility = Visibility.Visible;
+                    MediaArtFallback.Foreground = new SolidColorBrush(GetSystemAccentColor());
+                    MediaCard.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(16, 255, 255, 255));
                     FoldedArtBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
                     FoldedArtFallback.Visibility = Visibility.Visible;
                 }
@@ -2339,6 +2346,62 @@ public sealed partial class WindowIslandWindow : Window
     /// Renders the lyric sheet beside the player. While lyrics are on screen the tile grid steps
     /// aside so the text has room; without lyrics the tiles come back.
     /// </summary>
+    private async Task ApplyMediaAlbumGlowAsync(string artPath, string? artKey)
+    {
+        try
+        {
+            var avg = await Task.Run(() => SampleAverageColor(artPath));
+            if (avg == null || !string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal)) return;
+
+            var c = avg.Value;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal)) return;
+                var radial = new Microsoft.UI.Xaml.Media.RadialGradientBrush
+                {
+                    Center = new Windows.Foundation.Point(0.16, 0.28),
+                    GradientOrigin = new Windows.Foundation.Point(0.16, 0.28),
+                    RadiusX = 0.95,
+                    RadiusY = 1.15
+                };
+                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(115, c.R, c.G, c.B), Offset = 0.0 });
+                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(52, c.R, c.G, c.B), Offset = 0.48 });
+                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(16, 255, 255, 255), Offset = 1.0 });
+                MediaCard.Background = radial;
+            });
+        }
+        catch { }
+    }
+
+    private static Windows.UI.Color? SampleAverageColor(string path)
+    {
+        try
+        {
+            using var src = new System.Drawing.Bitmap(path);
+            using var thumb = new System.Drawing.Bitmap(src, new System.Drawing.Size(12, 12));
+            long rSum = 0, gSum = 0, bSum = 0, count = 0;
+            for (int y = 0; y < thumb.Height; y++)
+            {
+                for (int x = 0; x < thumb.Width; x++)
+                {
+                    var p = thumb.GetPixel(x, y);
+                    // Skip near-black pixels so dark borders don't wash out the album tint
+                    if (p.R + p.G + p.B < 40) continue;
+                    rSum += p.R;
+                    gSum += p.G;
+                    bSum += p.B;
+                    count++;
+                }
+            }
+            if (count == 0) return Windows.UI.Color.FromArgb(255, 96, 205, 255);
+            return Windows.UI.Color.FromArgb(255, (byte)(rSum / count), (byte)(gSum / count), (byte)(bSum / count));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private void ShowLyrics(LyricsResult? lyrics)
     {
         try
@@ -2346,14 +2409,15 @@ public sealed partial class WindowIslandWindow : Window
             LyricsStack.Children.Clear();
 
             var lines = lyrics?.Lines ?? Array.Empty<string>();
-            foreach (var line in lines)
+            if (lines.Count > 0)
             {
                 LyricsStack.Children.Add(new TextBlock
                 {
-                    Text = line,
+                    Text = string.Join(Environment.NewLine, lines),
                     FontSize = 11,
-                    LineHeight = 15,
+                    LineHeight = 17,
                     TextWrapping = TextWrapping.Wrap,
+                    IsTextSelectionEnabled = true,
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(210, 255, 255, 255))
                 });
             }

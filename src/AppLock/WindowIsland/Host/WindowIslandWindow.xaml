@@ -800,7 +800,16 @@
                                                                 Width="58" Height="58"
                                                                 CornerRadius="9"
                                                                 Background="#1AFFFFFF">
-                                                            <Image x:Name="MediaArt" Stretch="UniformToFill" />
+                                                            <Grid>
+                                                                <Image x:Name="MediaArt" Stretch="UniformToFill" />
+                                                                <FontIcon x:Name="MediaArtFallback"
+                                                                          Glyph="&#xEC4F;"
+                                                                          FontSize="22"
+                                                                          Foreground="#90FFFFFF"
+                                                                          HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"
+                                                                          Visibility="Collapsed" />
+                                                            </Grid>
                                                         </Border>
                                                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                                             <TextBlock x:Name="MediaApp"
