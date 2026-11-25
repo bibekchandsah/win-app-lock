@@ -969,3 +969,58 @@ public sealed class WindowIslandControlsService
         catch { }
     }
 }
+
+/// <summary>
+/// Tracks per-device Bluetooth battery warning thresholds (e.g. below 80, 50, 20, 10%)
+/// so each threshold triggers once per discharge cycle without spamming.
+/// </summary>
+public sealed class BtBatteryWarningTracker
+{
+    private readonly Dictionary<string, HashSet<int>> _crossed = new(StringComparer.OrdinalIgnoreCase);
+    private string _lastSignature = string.Empty;
+
+    public int? CheckThreshold(string deviceKey, int batteryPercent, IReadOnlyList<int> thresholds)
+    {
+        if (string.IsNullOrWhiteSpace(deviceKey) || thresholds == null || thresholds.Count == 0)
+            return null;
+
+        var ordered = thresholds.Where(t => t >= 1 && t <= 99).Distinct().OrderByDescending(t => t).ToList();
+        if (ordered.Count == 0) return null;
+
+        string sig = string.Join(",", ordered);
+        if (!string.Equals(sig, _lastSignature, StringComparison.Ordinal))
+        {
+            _crossed.Clear();
+            _lastSignature = sig;
+        }
+
+        if (!_crossed.TryGetValue(deviceKey, out var seen))
+        {
+            seen = new HashSet<int>();
+            _crossed[deviceKey] = seen;
+        }
+
+        // Reset thresholds if device was recharged
+        foreach (int t in ordered)
+        {
+            if (batteryPercent >= t + 5)
+            {
+                seen.Remove(t);
+            }
+        }
+
+        int? lowestNew = null;
+        foreach (int t in ordered)
+        {
+            if (batteryPercent < t && !seen.Contains(t))
+            {
+                seen.Add(t);
+                lowestNew = lowestNew.HasValue ? Math.Min(lowestNew.Value, t) : t;
+            }
+        }
+
+        return lowestNew;
+    }
+
+    public void Reset() => _crossed.Clear();
+}

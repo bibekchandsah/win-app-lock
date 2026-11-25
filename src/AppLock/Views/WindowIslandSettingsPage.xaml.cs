@@ -91,6 +91,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         ControlsShowBtBatteryOnIslandToggle.IsOn = s.Controls.ShowBtBatteryOnIsland;
         ControlsShowMultipleBtOnIslandToggle.IsOn = s.Controls.ShowMultipleBtBatteriesOnIsland;
         SelectComboItem(ControlsBtBatteryIslandStyleBox, s.Controls.BtBatteryIslandStyle);
+        ControlsBtLowBatteryAlertToggle.IsOn    = s.Controls.BtLowBatteryAlert;
+        ControlsBtWarningLevelsBox.Text         = string.Join(", ", s.Controls.GetBtWarningThresholds());
         ControlsShowBrightnessToggle.IsOn       = s.Controls.ShowBrightness;
         ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
 
@@ -141,6 +143,8 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnHotkeyChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnChosenAppsChanged(object sender, TextChangedEventArgs e) => Save();
+
+    private void OnBtWarningLevelsChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnSliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
@@ -195,6 +199,13 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Controls.ShowBtBatteryOnIsland           = ControlsShowBtBatteryOnIslandToggle.IsOn;
         s.Controls.ShowMultipleBtBatteriesOnIsland = ControlsShowMultipleBtOnIslandToggle.IsOn;
         s.Controls.BtBatteryIslandStyle            = TagOf(ControlsBtBatteryIslandStyleBox) ?? s.Controls.BtBatteryIslandStyle;
+        s.Controls.BtLowBatteryAlert               = ControlsBtLowBatteryAlertToggle.IsOn;
+        var parsedLevels = ControlsSettings.ParseThresholds(ControlsBtWarningLevelsBox.Text);
+        if (parsedLevels.Count > 0)
+        {
+            s.Controls.BtWarningThresholds = parsedLevels;
+            s.Controls.BtLowBatteryPercent = parsedLevels[^1];
+        }
         s.Controls.ShowBrightness                  = ControlsShowBrightnessToggle.IsOn;
         s.Controls.ShowPowerRow                    = ControlsShowPowerRowToggle.IsOn;
 

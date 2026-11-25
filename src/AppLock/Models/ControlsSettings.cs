@@ -27,6 +27,36 @@ public class ControlsSettings
     public bool BtLowBatteryAlert { get; set; } = true;
     public int BtLowBatteryPercent { get; set; } = 20;
 
+    /// <summary>Battery warning thresholds (% below which a warning card is shown, e.g. 80, 50, 20, 10).</summary>
+    public List<int> BtWarningThresholds { get; set; } = new() { 80, 50, 20, 10 };
+
+    public List<int> GetBtWarningThresholds()
+    {
+        if (BtWarningThresholds == null || BtWarningThresholds.Count == 0)
+        {
+            BtWarningThresholds = new List<int> { 80, 50, 20, 10 };
+        }
+        return BtWarningThresholds;
+    }
+
+    public static List<int> ParseThresholds(string? text)
+    {
+        var result = new SortedSet<int>();
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            foreach (var part in text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (int.TryParse(part, out int val) && val >= 1 && val <= 99)
+                {
+                    result.Add(val);
+                }
+            }
+        }
+        var list = new List<int>(result);
+        list.Sort((a, b) => b.CompareTo(a)); // descending
+        return list;
+    }
+
     /// <summary>Show connected Bluetooth device battery in the folded island.</summary>
     public bool ShowBtBatteryOnIsland { get; set; } = true;
 

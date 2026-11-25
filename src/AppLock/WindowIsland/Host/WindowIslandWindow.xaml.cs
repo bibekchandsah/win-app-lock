@@ -193,6 +193,7 @@ public sealed partial class WindowIslandWindow : Window
     // Milestone 11: Controls
     private DQTimer?                          _restartConfirmTimer;
     private DQTimer?                          _shutdownConfirmTimer;
+    private readonly BtBatteryWarningTracker  _btWarningTracker = new();
     private bool                              _restartConfirming;
     private bool                              _shutdownConfirming;
     private bool                              _controlsBrightnessChanging;
@@ -5818,7 +5819,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            if (!_settings.Controls.ShowBtBatteryOnIsland)
+            if (!_settings.Controls.ShowBtBatteryOnIsland && !_settings.Controls.BtLowBatteryAlert)
             {
                 if (FoldedBtBatteryPanel != null) FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
                 UpdateDynamicFoldedWidth();
@@ -5836,6 +5837,8 @@ public sealed partial class WindowIslandWindow : Window
 
     private void RenderFoldedBtBatteries(bool btOn, System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> btDevices)
     {
+        CheckBtBatteryWarnings(btOn, btDevices);
+
         if (FoldedBtBatteryPanel == null) return;
         FoldedBtBatteryPanel.Children.Clear();
 
@@ -5922,6 +5925,51 @@ public sealed partial class WindowIslandWindow : Window
 
         FoldedBtBatteryPanel.Visibility = Visibility.Visible;
         UpdateDynamicFoldedWidth();
+    }
+
+    private void CheckBtBatteryWarnings(bool btOn, System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> btDevices)
+    {
+        if (!btOn || !_settings.Controls.BtLowBatteryAlert) return;
+
+        var thresholds = _settings.Controls.GetBtWarningThresholds();
+        if (thresholds.Count == 0) return;
+
+        foreach (var dev in btDevices)
+        {
+            if (!dev.IsConnected || !dev.BatteryPercent.HasValue) continue;
+            int pct = Math.Clamp(dev.BatteryPercent.Value, 0, 100);
+            string key = string.IsNullOrWhiteSpace(dev.MacAddress) ? dev.Name : dev.MacAddress;
+
+            int? crossed = _btWarningTracker.CheckThreshold(key, pct, thresholds);
+            if (!crossed.HasValue) continue;
+
+            string devGlyph = dev.DeviceType switch
+            {
+                "Headphones" => "\uE7F6",
+                "Speaker"    => "\uE7F5",
+                "Keyboard"   => "\uE765",
+                "Mouse"      => "\uE962",
+                "Phone"      => "\uE8EA",
+                _            => "\uE702"
+            };
+            string accentHex = pct <= 20 ? "#FF4D4D" : (pct <= 50 ? "#FFA726" : "#FFD54F");
+            int stayMs = _settings.GetCardStayMs();
+
+            _eventQueue?.Push(new WindowIslandCard(
+                $"bt-battery-{key}-{crossed.Value}",
+                devGlyph,
+                $"{dev.Name} Battery",
+                $"{pct}% remaining (below {crossed.Value}%)",
+                accentHex,
+                WindowIslandCardPriority.Battery,
+                stayMs,
+                pct));
+
+            if (pct <= 20)
+            {
+                try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+            }
+        }
     }
 
     private void UpdateDynamicFoldedWidth()
