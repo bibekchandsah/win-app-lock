@@ -258,6 +258,9 @@
                 <ToggleSwitch x:Name="ControlsShowBrightnessToggle"
                               Header="Show Brightness slider"
                               Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ControlsShowMicrophoneToggle"
+                              Header="Show Microphone control"
+                              Toggled="OnSettingChanged" />
                 <ToggleSwitch x:Name="ControlsShowPowerRowToggle"
                               Header="Show Power buttons row (Lock, Sleep, Restart, Shut down)"
                               Toggled="OnSettingChanged" />

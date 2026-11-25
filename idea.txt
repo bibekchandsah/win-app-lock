@@ -487,6 +487,7 @@ microphone controller
 camera & microphone preview 
 speaker changed notification
 microphone used notification with mute button 
+live beat isn't working for all type of media played 
 
 
 

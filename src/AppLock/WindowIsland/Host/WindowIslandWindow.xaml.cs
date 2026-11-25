@@ -230,6 +230,15 @@ public sealed partial class WindowIslandWindow : Window
     private int                               _pendingBrightnessCard = -1;
     private DQTimer?                          _brightnessCardTimer;
     private System.Management.ManagementEventWatcher? _brightnessWmiWatcher;
+    private AppLock.Services.Audio.MicrophoneVolumeService? _controlsMicService;
+    private string?                           _selectedMicDeviceId;
+    private string                            _controlsMicFingerprint = string.Empty;
+    private bool                              _controlsMicUpdating;
+    private bool                              _controlsMicPointerDown;
+    private bool                              _controlsMicUserSelected;
+    private string?                           _controlsMicLastTooltip;
+    private string?                           _pendingDefaultMicId;
+    private DateTime                          _pendingDefaultMicUntil = DateTime.MinValue;
 
     // Milestone 12: Notifications, VPN, battery alert cards, mic/cam dots
     private bool _micDotActive;
@@ -349,6 +358,8 @@ public sealed partial class WindowIslandWindow : Window
         MediaProgress.Maximum = 1;
         ControlsBrightnessSlider.Minimum = 0;
         ControlsBrightnessSlider.Maximum = 100;
+        ControlsMicSlider.Minimum = 0;
+        ControlsMicSlider.Maximum = 100;
 
         // Tile actions (hide/show helpers use SetIslandVisible)
         _tileActions = new IslandTileActions(
@@ -623,6 +634,8 @@ public sealed partial class WindowIslandWindow : Window
         _volumeController = null;
         StopVolumeUi();
         DisposeBrightnessListener();
+        _controlsMicService?.Dispose();
+        _controlsMicService = null;
         if (_audio != null)
         {
             _audio.SystemVolumeChanged -= OnSystemVolumeChanged;
@@ -6401,9 +6414,15 @@ public sealed partial class WindowIslandWindow : Window
                 _controlsBrightnessChanging = false;
             }
 
+            // 6b. Microphone
+            if (_settings.Controls.ShowMicrophone)
+                RefreshControlsMicrophoneUi();
+
             // 7. Dynamic row visibility and Quick Cards Grid
             if (ControlsBrightnessRow != null)
                 ControlsBrightnessRow.Visibility = _settings.Controls.ShowBrightness ? Visibility.Visible : Visibility.Collapsed;
+            if (ControlsMicrophoneRow != null)
+                ControlsMicrophoneRow.Visibility = _settings.Controls.ShowMicrophone ? Visibility.Visible : Visibility.Collapsed;
             if (ControlsPowerRow != null)
                 ControlsPowerRow.Visibility = _settings.Controls.ShowPowerRow ? Visibility.Visible : Visibility.Collapsed;
 
@@ -7791,6 +7810,241 @@ public sealed partial class WindowIslandWindow : Window
         {
             await ServiceContainer.BrightnessService.SetBrightnessAsync(val);
         }
+    }
+
+    private void RefreshControlsMicrophoneUi()
+    {
+        if (ControlsMicrophoneRow == null || ControlsMicCombo == null) return;
+
+        try
+        {
+            if (_controlsMicService == null)
+            {
+                _controlsMicService = new AppLock.Services.Audio.MicrophoneVolumeService();
+                _controlsMicService.Initialize();
+            }
+            else
+            {
+                _controlsMicService.RefreshDevices();
+                if (_pendingDefaultMicId == null || DateTime.UtcNow >= _pendingDefaultMicUntil)
+                {
+                    _controlsMicService.RefreshDefaultFlags();
+                }
+            }
+
+            var mics = _controlsMicService.GetMicrophones();
+            string fingerprint = string.Join(";", mics.Select(m => $"{m.DeviceId}|{m.FriendlyName}|{m.IsDefault}"));
+
+            if (!string.Equals(_controlsMicFingerprint, fingerprint, StringComparison.Ordinal))
+            {
+                _controlsMicFingerprint = fingerprint;
+                _controlsMicUpdating = true;
+                try
+                {
+                    ControlsMicCombo.Items.Clear();
+                    int selectedIdx = -1;
+                    for (int i = 0; i < mics.Count; i++)
+                    {
+                        var mic = mics[i];
+                        var item = new ComboBoxItem
+                        {
+                            Content = mic.IsDefault ? $"{mic.FriendlyName} (Default)" : mic.FriendlyName,
+                            Tag = mic.DeviceId,
+                            FontSize = 11
+                        };
+                        ToolTipService.SetToolTip(item, mic.IsDefault ? $"{mic.FriendlyName} (Default)" : mic.FriendlyName);
+                        ControlsMicCombo.Items.Add(item);
+
+                        if (_controlsMicUserSelected && !string.IsNullOrEmpty(_selectedMicDeviceId) &&
+                            string.Equals(mic.DeviceId, _selectedMicDeviceId, StringComparison.Ordinal))
+                        {
+                            selectedIdx = i;
+                        }
+                    }
+
+                    if (selectedIdx < 0 && mics.Count > 0)
+                    {
+                        _controlsMicUserSelected = false;
+                        int defaultIdx = mics.ToList().FindIndex(m => m.IsDefault);
+                        selectedIdx = defaultIdx >= 0 ? defaultIdx : 0;
+                        _selectedMicDeviceId = mics[selectedIdx].DeviceId;
+                    }
+                    ControlsMicCombo.SelectedIndex = selectedIdx;
+                }
+                finally
+                {
+                    _controlsMicUpdating = false;
+                }
+            }
+
+            if (mics.Count == 0)
+            {
+                _selectedMicDeviceId = null;
+                ControlsMicCombo.IsEnabled = false;
+                ControlsMicSlider.IsEnabled = false;
+                ControlsMicMuteBtn.IsEnabled = false;
+                ControlsMicText.Text = "--";
+                ControlsMicMuteIcon.Glyph = "\uEC54";
+                ControlsMicMuteIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
+                ControlsMicLockBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            ControlsMicCombo.IsEnabled = true;
+            ControlsMicSlider.IsEnabled = true;
+            ControlsMicMuteBtn.IsEnabled = true;
+
+            var activeMic = (!string.IsNullOrEmpty(_selectedMicDeviceId)
+                ? _controlsMicService.GetMicrophone(_selectedMicDeviceId)
+                : null) ?? mics[0];
+            _selectedMicDeviceId = activeMic.DeviceId;
+
+            UpdateControlsMicDeviceState(activeMic);
+        }
+        catch { }
+    }
+
+    private void UpdateControlsMicDeviceState(AppLock.Services.Audio.MicrophoneDevice mic)
+    {
+        int vol = Math.Clamp((int)Math.Round(mic.GetVolume()), 0, 100);
+        bool muted = mic.IsMuted();
+
+        if (!_controlsMicPointerDown)
+        {
+            _controlsMicUpdating = true;
+            ControlsMicSlider.Value = vol;
+            _controlsMicUpdating = false;
+            ControlsMicText.Text = $"{vol}%";
+        }
+
+        ControlsMicMuteIcon.Glyph = muted ? "\uEC54" : "\uE720";
+        ControlsMicMuteIcon.Foreground = muted
+            ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
+            : new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF));
+
+        var vmSettings = ServiceContainer.Settings.VolumeMixer;
+        bool locked = vmSettings.LockMicrophoneVolume;
+        ControlsMicLockBadge.Visibility = locked ? Visibility.Visible : Visibility.Collapsed;
+
+        string tooltip;
+        if (locked)
+        {
+            float target = vmSettings.LockedMicrophoneVolumes != null &&
+                           vmSettings.LockedMicrophoneVolumes.TryGetValue(mic.DeviceId, out var stored)
+                ? stored
+                : vol;
+            tooltip = $"Volume held at {(int)Math.Round(target)}% — changes made elsewhere are put back (Right-click mic icon to unlock)";
+        }
+        else
+        {
+            tooltip = $"{mic.FriendlyName} — Click to {(muted ? "unmute" : "mute")}, right-click to lock volume";
+        }
+
+        if (!string.Equals(_controlsMicLastTooltip, tooltip, StringComparison.Ordinal))
+        {
+            _controlsMicLastTooltip = tooltip;
+            ToolTipService.SetToolTip(ControlsMicMuteBtn, tooltip);
+            ToolTipService.SetToolTip(ControlsMicSlider, tooltip);
+        }
+    }
+
+    private void ControlsMicCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_controlsMicUpdating) return;
+        if (ControlsMicCombo.SelectedItem is ComboBoxItem item && item.Tag is string id)
+        {
+            _controlsMicUserSelected = true;
+            _selectedMicDeviceId = id;
+            var svc = _controlsMicService;
+            var mic = svc?.GetMicrophone(id);
+            if (mic != null) UpdateControlsMicDeviceState(mic);
+
+            if (svc != null)
+            {
+                foreach (var m in svc.GetMicrophones())
+                {
+                    m.IsDefault = string.Equals(m.DeviceId, id, StringComparison.Ordinal);
+                }
+                _pendingDefaultMicId = id;
+                _pendingDefaultMicUntil = DateTime.UtcNow.AddSeconds(3);
+                RefreshControlsMicrophoneUi();
+
+                _ = Task.Run(() =>
+                {
+                    svc.SetDefaultMicrophone(id);
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _pendingDefaultMicId = null;
+                        _controlsMicService?.RefreshDefaultFlags();
+                        RefreshControlsMicrophoneUi();
+                    });
+                });
+            }
+        }
+    }
+
+    private void ControlsMicSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
+        => _controlsMicPointerDown = true;
+
+    private void ControlsMicSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+        => _controlsMicPointerDown = false;
+
+    private void ControlsMicSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        int delta = e.GetCurrentPoint(ControlsMicSlider).Properties.MouseWheelDelta;
+        if (delta == 0) return;
+        int step = delta > 0 ? 5 : -5;
+        ControlsMicSlider.Value = Math.Clamp((int)Math.Round(ControlsMicSlider.Value) + step, 0, 100);
+        e.Handled = true;
+    }
+
+    private void ControlsMicSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_controlsMicUpdating) return;
+        int val = Math.Clamp((int)Math.Round(e.NewValue), 0, 100);
+        ControlsMicText.Text = $"{val}%";
+        if (string.IsNullOrEmpty(_selectedMicDeviceId)) return;
+
+        var mic = _controlsMicService?.GetMicrophone(_selectedMicDeviceId);
+        if (mic == null) return;
+
+        mic.SetVolume(val);
+        ServiceContainer.MicrophoneVolumeLockService?.NoteUserVolume(mic.DeviceId, val);
+        if (ServiceContainer.Settings.VolumeMixer.LockMicrophoneVolume)
+        {
+            UpdateControlsMicDeviceState(mic);
+        }
+    }
+
+    private void ControlsMicMuteBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_selectedMicDeviceId)) return;
+        var mic = _controlsMicService?.GetMicrophone(_selectedMicDeviceId);
+        if (mic == null) return;
+
+        mic.SetMute(!mic.IsMuted());
+        UpdateControlsMicDeviceState(mic);
+    }
+
+    private void ControlsMicMuteBtn_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var vmSettings = ServiceContainer.Settings.VolumeMixer;
+        vmSettings.LockMicrophoneVolume = !vmSettings.LockMicrophoneVolume;
+        if (vmSettings.LockMicrophoneVolume)
+        {
+            ServiceContainer.MicrophoneVolumeLockService?.CaptureCurrentVolumes();
+        }
+        else
+        {
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
+
+        if (!string.IsNullOrEmpty(_selectedMicDeviceId))
+        {
+            var mic = _controlsMicService?.GetMicrophone(_selectedMicDeviceId);
+            if (mic != null) UpdateControlsMicDeviceState(mic);
+        }
+        e.Handled = true;
     }
 
     private void ControlsLockBtn_Click(object sender, RoutedEventArgs e)

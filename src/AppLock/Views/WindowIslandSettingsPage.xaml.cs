@@ -98,6 +98,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         ControlsBtWarningLevelsBox.Text         = string.Join(", ", s.Controls.GetBtWarningThresholds());
         ControlsBtWarningWindowsNotificationToggle.IsOn = s.Controls.BtWarningWindowsNotification;
         ControlsShowBrightnessToggle.IsOn       = s.Controls.ShowBrightness;
+        ControlsShowMicrophoneToggle.IsOn       = s.Controls.ShowMicrophone;
         ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
 
         // Milestone 15: Visibility rules
@@ -217,6 +218,7 @@ public sealed partial class WindowIslandSettingsPage : Page
             s.Controls.BtLowBatteryPercent = parsedLevels[^1];
         }
         s.Controls.ShowBrightness                  = ControlsShowBrightnessToggle.IsOn;
+        s.Controls.ShowMicrophone                  = ControlsShowMicrophoneToggle.IsOn;
         s.Controls.ShowPowerRow                    = ControlsShowPowerRowToggle.IsOn;
 
         // Milestone 15: Visibility rules

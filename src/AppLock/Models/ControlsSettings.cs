@@ -10,6 +10,7 @@ public class ControlsSettings
     public bool HideBatteryCardWhenNone { get; set; } = false;
     public bool ShowQuickCards { get; set; } = true;
     public bool ShowBrightness { get; set; } = true;
+    public bool ShowMicrophone { get; set; } = true;
     public bool ShowPowerRow { get; set; } = true;
     public bool CloseIslandAfterCard { get; set; } = true;
     private List<QuickCard> _cards = QuickCard.Defaults();
