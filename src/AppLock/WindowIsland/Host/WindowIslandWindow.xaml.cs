@@ -1042,16 +1042,19 @@ public sealed partial class WindowIslandWindow : Window
                 FoldedBatteryText.Text = $"{percent}%";
 
                 bool isCharging = (status.BatteryFlag & 8) != 0 || status.ACLineStatus == 1;
+                bool isSaverOn = !isCharging && (status.SystemStatusFlag == 1 || WindowIslandControlsService.IsBatterySaverActive());
                 BatteryIcon.Glyph = isCharging
                     ? "\uEBB5"
-                    : percent switch
-                    {
-                        >= 90 => "\uE83F",
-                        >= 75 => "\uE859",
-                        >= 50 => "\uE856",
-                        >= 25 => "\uE853",
-                        _     => "\uE850"
-                    };
+                    : (isSaverOn
+                        ? "\uEBC0"
+                        : percent switch
+                        {
+                            >= 90 => "\uE859",
+                            >= 75 => "\uE856",
+                            >= 50 => "\uE854",
+                            >= 25 => "\uE852",
+                            _     => "\uE850"
+                        });
                 BatteryIcon.Foreground = isCharging
                     ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
                     : GetBtBatteryBrush(percent);
@@ -5748,16 +5751,29 @@ public sealed partial class WindowIslandWindow : Window
                     ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
                     : GetBtBatteryBrush(batPct))
                 : new SolidColorBrush(ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF));
-            ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : (isPluggedIn ? "\uEBB5" : "\uE83F");
+            ControlsBatteryIcon.Glyph = isCharging
+                ? "\uEA93"
+                : (isPluggedIn
+                    ? "\uEBB5"
+                    : (isSaverOn
+                        ? "\uEBC0"
+                        : batPct switch
+                        {
+                            >= 90 => "\uE859",
+                            >= 75 => "\uE856",
+                            >= 50 => "\uE854",
+                            >= 25 => "\uE852",
+                            _     => "\uE850"
+                        }));
             ControlsBatteryIcon.Foreground = batColor;
-            ControlsBatteryPlugIcon.Glyph = isPluggedIn ? "\uE83E" : "\uE850";
+            ControlsBatteryPlugIcon.Glyph = isPluggedIn ? "\uE945" : "\uE850";
             ControlsBatteryPlugIcon.Foreground = isPluggedIn
                 ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
                 : batColor;
             ControlsBatterySaverIcon.Foreground = isSaverOn
                 ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
                 : new SolidColorBrush(ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
-            ToolTipService.SetToolTip(ControlsBatterySaverBtn, isSaverOn ? "Battery Saver: On" : "Battery Saver: Off");
+            ToolTipService.SetToolTip(ControlsBatterySaverBtn, isSaverOn ? "Battery Saver: On (click to turn off)" : "Battery Saver: Off (click to turn on)");
 
             // 5. VPN
             var (vpnConnected, vpnName) = WindowIslandControlsService.GetVpnStatus();
@@ -6059,17 +6075,11 @@ public sealed partial class WindowIslandWindow : Window
         catch { }
     }
 
-    private void ControlsBatterySaverBtn_Click(object sender, RoutedEventArgs e)
+    private async void ControlsBatterySaverBtn_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "ms-settings:batterysaver",
-                UseShellExecute = true
-            });
-        }
-        catch { }
+        await WindowIslandControlsService.ToggleBatterySaverAsync();
+        UpdateBattery();
+        RefreshControlsUI();
     }
 
     private async void ControlsVpnBtn_Click(object sender, RoutedEventArgs e)

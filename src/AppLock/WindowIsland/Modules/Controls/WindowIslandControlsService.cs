@@ -844,7 +844,8 @@ public sealed class WindowIslandControlsService
         {
             var status = PowerManager.BatteryStatus;
             bool isPluggedIn = PowerManager.PowerSupplyStatus != PowerSupplyStatus.NotPresent;
-            bool isSaverOn = PowerManager.EnergySaverStatus == EnergySaverStatus.On;
+            bool isSaverOn = PowerManager.EnergySaverStatus == EnergySaverStatus.On
+                             || IsRegistryEnergySaverOn();
 
             if (status == BatteryStatus.NotPresent)
             {
@@ -856,7 +857,7 @@ public sealed class WindowIslandControlsService
 
             string text = isCharging
                 ? "Charging"
-                : (isPluggedIn ? (percent >= 99 ? "Fully charged" : "Plugged in") : "On battery");
+                : (isPluggedIn ? (percent >= 100 ? "Fully charged" : "Plugged in") : "On battery");
 
             if (!isPluggedIn && !isCharging && status == BatteryStatus.Discharging)
             {
@@ -873,6 +874,109 @@ public sealed class WindowIslandControlsService
         {
             return (false, 100, false, false, false, "Unavailable");
         }
+    }
+
+    public static bool IsBatterySaverActive()
+    {
+        try
+        {
+            return PowerManager.EnergySaverStatus == EnergySaverStatus.On
+                   || IsRegistryEnergySaverOn();
+        }
+        catch
+        {
+            return IsRegistryEnergySaverOn();
+        }
+    }
+
+    private static bool IsRegistryEnergySaverOn()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Power", writable: false);
+            return key?.GetValue("EnergySaverState") is int state && state == 1;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static async Task<bool> ToggleBatterySaverAsync()
+    {
+        try
+        {
+            bool currentlyOn = IsBatterySaverActive();
+            int newState = currentlyOn ? 0 : 1;
+            int percent = PowerManager.RemainingChargePercent;
+            int threshold = currentlyOn ? (percent <= 20 ? 0 : 20) : 100;
+
+            return await Task.Run(() =>
+            {
+                RunPowerCfg($"/setdcvalueindex SCHEME_CURRENT SUB_ENERGYSAVER ESBATTTHRESHOLD {threshold}");
+                RunPowerCfg($"/setacvalueindex SCHEME_CURRENT SUB_ENERGYSAVER ESBATTTHRESHOLD {threshold}");
+                RunPowerCfg("/setactive SCHEME_CURRENT");
+
+                try
+                {
+                    using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Power", writable: true);
+                    if (key != null)
+                    {
+                        key.SetValue("EnergySaverState", newState, RegistryValueKind.DWord);
+                        return true;
+                    }
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // App runs unelevated; elevate reg.exe to sync EnergySaverState with Windows Settings.
+                    return RunElevatedRegSetEnergySaver(newState);
+                }
+                catch (System.Security.SecurityException)
+                {
+                    return RunElevatedRegSetEnergySaver(newState);
+                }
+                catch { }
+
+                return true;
+            });
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool RunElevatedRegSetEnergySaver(int state)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo
+            {
+                FileName = "reg.exe",
+                Arguments = $@"add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergySaverState /t REG_DWORD /d {state} /f",
+                UseShellExecute = true,
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
+            });
+            proc?.WaitForExit(5000);
+            return proc?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void RunPowerCfg(string arguments)
+    {
+        using var proc = Process.Start(new ProcessStartInfo
+        {
+            FileName = "powercfg.exe",
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        proc?.WaitForExit(3000);
     }
 
     public static (bool HasBattery, int Percent, bool IsCharging, string StatusText) GetBatteryInfo()
