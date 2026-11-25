@@ -526,7 +526,9 @@ public sealed partial class WindowIslandWindow : Window
             _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(
                 inactiveDebounceSeconds: 1,
                 pollIntervalMs: 500,
-                useBrowserCaptureHeuristic: false,
+                // Needed for Chrome/Edge and WebView2 calls (WhatsApp, new Teams): their capture runs in
+                // a separate browser utility process that the running-app scan never sees.
+                useBrowserCaptureHeuristic: true,
                 // Light smoothing only: the monitor's own start/hold hysteresis keeps a confirmed app
                 // steady, so a heavy 0.85 made "camera in use" linger seconds after a call ended.
                 appActivitySmoothing: 0.5);

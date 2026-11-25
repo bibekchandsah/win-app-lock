@@ -192,13 +192,55 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     // threshold — a single busy moment can neither invent nor hide a running call.
     private const double AppStartThresholdMsPerSecond = 30.0;
     private const double AppHoldThresholdMsPerSecond = 10.0;
-    private const int AppStartSamples = 2;
+    private const int AppRateWindowSamples = 6;          // ~3 s at the 500 ms poll
+    private const int AppRateWindowMinimumSamples = 4;   // never judge on a shorter history
     private const double AppActivitySmoothing = 0.3;
     private readonly Dictionary<uint, PidCpuSample> _pidCpu = new();
     private readonly Dictionary<string, AppActivitySample> _appActivity = new();
-    private readonly Dictionary<string, int> _appAboveStart = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, RateWindow> _appWindows = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _appConfirmed = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _activityLock = new();
+
+    /// <summary>Last few CPU rates of one app, so a one-second burst is not mistaken for a stream.</summary>
+    private sealed class RateWindow
+    {
+        private readonly double[] _rates = new double[AppRateWindowSamples];
+        private int _next;
+
+        public int Count { get; private set; }
+
+        public double Average
+        {
+            get
+            {
+                if (Count == 0) return 0;
+                double sum = 0;
+                for (int i = 0; i < Count; i++) sum += _rates[i];
+                return sum / Count;
+            }
+        }
+
+        public void Add(double rate)
+        {
+            _rates[_next] = rate;
+            _next = (_next + 1) % _rates.Length;
+            if (Count < _rates.Length) Count++;
+        }
+
+        public int CountAtLeast(double value)
+        {
+            int n = 0;
+            for (int i = 0; i < Count; i++) if (_rates[i] >= value) n++;
+            return n;
+        }
+
+        public void Clear()
+        {
+            Array.Clear(_rates);
+            _next = 0;
+            Count = 0;
+        }
+    }
 
     private readonly record struct PidCpuSample(TimeSpan Cpu, DateTime At, double RateMsPerSecond);
     private readonly record struct AppActivitySample(DateTime At, double RateMsPerSecond, bool Measured);
@@ -626,32 +668,33 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Hysteresis per app: on after two consecutive samples above the start threshold, off only once
-    /// the rate falls below the much lower hold threshold. Prevents the name from flickering between
-    /// whatever happened to be busy for one sample.
+    /// Hysteresis over the app's recent CPU history. Turning on needs a sustained rate (the window
+    /// average above the start threshold, with almost every sample above the hold threshold), which
+    /// is what a real capture looks like; a background sync that burns CPU for a second or two no
+    /// longer counts. Once on, only the window average falling below the hold threshold turns it off.
     /// </summary>
     private bool UpdateAppState(string display, double? rate)
     {
         lock (_activityLock)
         {
-            bool aboveStart = rate is double measured && measured >= AppStartThresholdMsPerSecond;
-            int streak = aboveStart ? (_appAboveStart.TryGetValue(display, out var previous) ? previous : 0) + 1 : 0;
-            _appAboveStart[display] = streak;
+            if (!_appWindows.TryGetValue(display, out var window))
+                _appWindows[display] = window = new RateWindow();
 
-            if (_appConfirmed.Contains(display))
-            {
-                if (rate is double held && held >= AppHoldThresholdMsPerSecond) return true;
-                _appConfirmed.Remove(display);
-                return false;
-            }
+            // No baseline yet (first sighting of the process): keep whatever we already know.
+            if (rate is not double measured) return _appConfirmed.Contains(display);
 
-            if (streak >= AppStartSamples)
-            {
-                _appConfirmed.Add(display);
-                return true;
-            }
+            window.Add(measured);
 
-            return false;
+            bool active = _appConfirmed.Contains(display)
+                ? window.Average >= AppHoldThresholdMsPerSecond
+                : window.Count >= AppRateWindowMinimumSamples &&
+                  window.Average >= AppStartThresholdMsPerSecond &&
+                  window.CountAtLeast(AppHoldThresholdMsPerSecond) >= window.Count - 1;
+
+            if (active) _appConfirmed.Add(display);
+            else _appConfirmed.Remove(display);
+
+            return active;
         }
     }
 
@@ -755,7 +798,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             {
                 if ((now - _appActivity[app].At).TotalSeconds <= 30) continue;
                 _appActivity.Remove(app);
-                _appAboveStart.Remove(app);
+                _appWindows.Remove(app);
                 _appConfirmed.Remove(app);
             }
         }
@@ -864,7 +907,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             // WHERE CommandLine IS NOT NULL skips system/protected processes where WMI cannot
             // read CommandLine (avoids silent filter failures on null rows).
             var query = new System.Management.ObjectQuery(
-                "SELECT ProcessId, Name, CommandLine FROM Win32_Process " +
+                "SELECT ProcessId, ParentProcessId, Name, CommandLine FROM Win32_Process " +
                 "WHERE CommandLine IS NOT NULL AND CommandLine LIKE '%video_capture.mojom.VideoCaptureService%'");
 
             var options = new System.Management.EnumerationOptions { ReturnImmediately = false };
@@ -889,6 +932,13 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 };
 
                 if (display == null) continue;
+
+                // The service is hosted by the app that opened the camera — the browser itself, or the
+                // WebView2 process of an app like WhatsApp or new Teams. Naming the owner instead of
+                // the host type is what the user recognizes.
+                uint parent = 0;
+                try { parent = Convert.ToUInt32(obj["ParentProcessId"]); } catch { }
+                if (DescribeCaptureOwner(parent) is string owner) display = owner;
 
                 uint pid = 0;
                 try { pid = Convert.ToUInt32(obj["ProcessId"]); } catch { }
@@ -971,6 +1021,73 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         return active;
     }
 
+    /// <summary>
+    /// Product name of the app that owns a capture service process. WebView2 hosts the service in
+    /// <c>msedgewebview2.exe</c>, whose parent is the actual app, so the chain is walked a little.
+    /// </summary>
+    private static string? DescribeCaptureOwner(uint pid)
+    {
+        for (int depth = 0; depth < 3 && pid != 0; depth++)
+        {
+            string name;
+            try
+            {
+                using var process = Process.GetProcessById((int)pid);
+                name = process.ProcessName;
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (!name.Equals("msedgewebview2", StringComparison.OrdinalIgnoreCase))
+                return FriendlyRunningProcessName(name, pid);
+
+            pid = GetParentProcessId(pid);
+        }
+
+        return null;
+    }
+
+    private static string? FriendlyRunningProcessName(string processName, uint pid)
+    {
+        if (KnownCameraProcessLookup.TryGetValue(processName, out var known)) return known;
+        if (KnownDesktopExeLookup.TryGetValue(processName + ".exe", out var knownExe)) return knownExe;
+
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            var path = process.MainModule?.FileName;
+            if (!string.IsNullOrEmpty(path))
+            {
+                var description = FileVersionInfo.GetVersionInfo(path).FileDescription?.Trim();
+                if (!string.IsNullOrWhiteSpace(description)) return description;
+            }
+        }
+        catch
+        {
+            // Access denied or closed process: the caller falls back to the host type.
+        }
+
+        return null;
+    }
+
+    private static uint GetParentProcessId(uint pid)
+    {
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                $"SELECT ParentProcessId FROM Win32_Process WHERE ProcessId = {pid}");
+            foreach (var obj in searcher.Get())
+            {
+                return Convert.ToUInt32(obj["ParentProcessId"]);
+            }
+        }
+        catch { }
+
+        return 0;
+    }
+
     private void PruneCaptureSamples(HashSet<uint> stillRunning)
     {
         lock (_captureSamplesLock)
@@ -1025,21 +1142,22 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         var (desktopActive, desktopIdle) = ClassifyRunningApps(desktopCandidates);
         var browserApps = GetActiveBrowserCaptureApps();
 
-        // A process' first sighting only records a CPU baseline; sample again so the button reports the
-        // truth instead of "not capturing" for a call that is in progress right now.
-        bool needsSecondSample =
-            browserApps.Count == 0 ||
-            ((storeCandidates.Count > 0 || desktopCandidates.Count > 0) &&
-             storeActive.Count == 0 && desktopActive.Count == 0);
-
-        if (needsSecondSample)
+        // A process' first sighting is only a CPU baseline, and a sustained stream needs a few samples
+        // before it is accepted, so the check keeps sampling instead of reporting "not capturing" for a
+        // call that is running right now.
+        for (int round = 0; round < 4; round++)
         {
-            await Task.Delay(1200);
+            bool needBrowser = browserApps.Count == 0;
+            bool needApps = (storeCandidates.Count > 0 || desktopCandidates.Count > 0) &&
+                            storeActive.Count == 0 && desktopActive.Count == 0;
+            if (!needBrowser && !needApps) break;
 
-            if (browserApps.Count == 0)
+            await Task.Delay(600);
+
+            if (needBrowser)
             {
-                var second = GetActiveBrowserCaptureApps();
-                if (second.Count > 0) browserApps = second;
+                var again = GetActiveBrowserCaptureApps();
+                if (again.Count > 0) browserApps = again;
             }
 
             if (storeCandidates.Count > 0) (storeActive, storeIdle) = ClassifyRunningApps(storeCandidates);
