@@ -1803,6 +1803,8 @@ public sealed partial class WindowIslandWindow : Window
 
     private Microsoft.UI.Xaml.Media.Imaging.BitmapImage? _lastScreenshotThumb;
     private string? _lastScreenshotPath;
+    private string? _lastMediaArtKey;
+    private bool _lastFoldedMediaVisible;
 
     private async void OnScreenshotSaved(string path)
     {
@@ -2175,8 +2177,15 @@ public sealed partial class WindowIslandWindow : Window
                 FoldedMediaMini.Visibility  = Visibility.Collapsed;
                 FoldedEqMini.Visibility     = Visibility.Collapsed;
                 _hasMediaSession = false;
+                _lastMediaArtKey = null;
                 StopEqTimer();
                 ClearLyrics();
+                if (_lastFoldedMediaVisible)
+                {
+                    _lastFoldedMediaVisible = false;
+                    UpdateFoldedWeatherMini();
+                    UpdateDynamicFoldedWidth();
+                }
                 return;
             }
 
@@ -2210,48 +2219,80 @@ public sealed partial class WindowIslandWindow : Window
                 MediaProgress.Visibility = Visibility.Collapsed;
             }
 
-            // Album art
-            bool hasArt = false;
+            // Album art — only reload BitmapImage when the file or its write timestamp changes
+            // so 1-second position ticks never cause the art/fallback icon to flicker.
+            string? artKey = null;
+            string? artPath = null;
             if (!string.IsNullOrEmpty(snap.ArtFile))
             {
                 try
                 {
-                    string artPath = Path.Combine(AppLock.Island.Modules.MediaSessionSource.ArtFolder, snap.ArtFile);
-                    if (File.Exists(artPath))
+                    string candidate = Path.Combine(AppLock.Island.Modules.MediaSessionSource.ArtFolder, snap.ArtFile);
+                    if (File.Exists(candidate))
                     {
-                        var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artPath));
+                        artPath = candidate;
+                        artKey = $"{snap.ArtFile}|{File.GetLastWriteTimeUtc(candidate).Ticks}";
+                    }
+                }
+                catch { }
+            }
+
+            if (!string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal))
+            {
+                _lastMediaArtKey = artKey;
+                bool hasArt = false;
+                if (artPath != null)
+                {
+                    try
+                    {
+                        var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage
+                        {
+                            CreateOptions = Microsoft.UI.Xaml.Media.Imaging.BitmapCreateOptions.IgnoreImageCache
+                        };
+                        bmp.UriSource = new Uri(artPath);
                         MediaArt.Source = bmp;
                         FoldedArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
                         FoldedArtFallback.Visibility = Visibility.Collapsed;
                         hasArt = true;
                     }
+                    catch { }
                 }
-                catch { }
-            }
-            if (!hasArt)
-            {
-                MediaArt.Source = null;
-                FoldedArtBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
-                FoldedArtFallback.Visibility = Visibility.Visible;
+                if (!hasArt)
+                {
+                    MediaArt.Source = null;
+                    FoldedArtBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
+                    FoldedArtFallback.Visibility = Visibility.Visible;
+                }
             }
 
-            // Folded mini (music icon/art on left end, live music beat on right end). It stays while a
-            // media app exists rather than only while it reports "playing": players that never publish
-            // a playback status were left without a beat, and the bars are driven by the actual audio
-            // meter anyway, so silence simply rests them at the bottom.
+            // Folded mini (album art/icon on left, live beat on right): show only while playing;
+            // hide cleanly when paused so paused media doesn't keep the beat/icon on the island.
             _isMediaPlaying = snap.Playing;
             _hasMediaSession = true;
-            FoldedMediaMini.Visibility = Visibility.Visible;
-            FoldedEqMini.Visibility = Visibility.Visible;
-            var eqBrush = new SolidColorBrush(GetSystemAccentColor());
-            EqBar0.Background = eqBrush;
-            EqBar1.Background = eqBrush;
-            EqBar2.Background = eqBrush;
-            EqBar3.Background = eqBrush;
-            FoldedArtFallback.Foreground = eqBrush;
-            UpdateFoldedWeatherMini();
-            UpdateDynamicFoldedWidth();
-            StartEqTimer();
+            bool showFoldedMedia = snap.Playing;
+            FoldedMediaMini.Visibility = showFoldedMedia ? Visibility.Visible : Visibility.Collapsed;
+            FoldedEqMini.Visibility = showFoldedMedia ? Visibility.Visible : Visibility.Collapsed;
+            if (showFoldedMedia)
+            {
+                var eqBrush = new SolidColorBrush(GetSystemAccentColor());
+                EqBar0.Background = eqBrush;
+                EqBar1.Background = eqBrush;
+                EqBar2.Background = eqBrush;
+                EqBar3.Background = eqBrush;
+                FoldedArtFallback.Foreground = eqBrush;
+                StartEqTimer();
+            }
+            else
+            {
+                StopEqTimer();
+            }
+
+            if (_lastFoldedMediaVisible != showFoldedMedia)
+            {
+                _lastFoldedMediaVisible = showFoldedMedia;
+                UpdateFoldedWeatherMini();
+                UpdateDynamicFoldedWidth();
+            }
 
             // Lyrics follow the track: fetched once per title/artist pair.
             _ = UpdateLyricsAsync(snap);
