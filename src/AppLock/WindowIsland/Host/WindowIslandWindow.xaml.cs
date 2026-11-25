@@ -1801,11 +1801,26 @@ public sealed partial class WindowIslandWindow : Window
             IsStacked: true));
     }
 
-    private void OnScreenshotSaved(string path)
+    private Microsoft.UI.Xaml.Media.Imaging.BitmapImage? _lastScreenshotThumb;
+    private string? _lastScreenshotPath;
+
+    private async void OnScreenshotSaved(string path)
     {
         if (!_settings.CardScreenshotEnabled) return;
-        int stay = _settings.GetCardStayMs();
-        string name = Path.GetFileName(path);
+
+        // The watcher reports the file name only, so the preview and the Open action have to rebuild
+        // the path or they would look next to the executable.
+        string fullPath = Path.IsPathRooted(path)
+            ? path
+            : Path.Combine(ScreenshotCardSource.DefaultFolder, path);
+
+        // Show the capture itself, like a copied image: the card is useless if the user cannot tell
+        // which shot was saved, and it usually needs to be opened right away.
+        _lastScreenshotPath = fullPath;
+        _lastScreenshotThumb = await LoadFileThumbnailAsync(fullPath);
+
+        int stay = Math.Max(_settings.GetCardStayMs(), 6000);
+        string name = Path.GetFileName(fullPath);
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "screenshot",
             Icon: "\uE722",
@@ -1813,7 +1828,34 @@ public sealed partial class WindowIslandWindow : Window
             Detail: name,
             AccentHex: "#60CDFF",
             Priority: WindowIslandCardPriority.Screenshot,
-            StayMs: stay));
+            StayMs: stay,
+            IsStacked: true,
+            PrimaryActionLabel: "Open"));
+    }
+
+    /// <summary>
+    /// Thumbnail for a file on disk. The screenshot watcher can fire while the encoder is still
+    /// flushing, so a few short retries are worth it before giving up on the preview.
+    /// </summary>
+    private static async Task<Microsoft.UI.Xaml.Media.Imaging.BitmapImage?> LoadFileThumbnailAsync(string path)
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                using var stream = File.OpenRead(path);
+                using var ras = stream.AsRandomAccessStream();
+                var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelHeight = 68 };
+                await bitmap.SetSourceAsync(ras);
+                return bitmap;
+            }
+            catch
+            {
+                await Task.Delay(150);
+            }
+        }
+
+        return null;
     }
 
     private string? _activeCardKind;
@@ -1878,12 +1920,19 @@ public sealed partial class WindowIslandWindow : Window
                 }
             }
 
-            bool showThumb = card.Kind == "clipboard" && card.Icon == "\uEB9F" && _lastCopiedThumb != null;
+            var thumb = card.Kind switch
+            {
+                "clipboard" when card.Icon == "\uEB9F" => _lastCopiedThumb,
+                "screenshot" => _lastScreenshotThumb,
+                _ => null
+            };
+
+            bool showThumb = thumb != null;
             if (showThumb)
             {
                 CardThumbBorder.Background = new ImageBrush
                 {
-                    ImageSource = _lastCopiedThumb,
+                    ImageSource = thumb,
                     Stretch = Stretch.UniformToFill
                 };
                 CardThumbBorder.Visibility = Visibility.Visible;
@@ -1966,7 +2015,25 @@ public sealed partial class WindowIslandWindow : Window
             _timer.Start(_timer.TotalDuration);
             UpdateTimerButtonsState(IslandTimerState.Running);
         }
+        else if (_activeCardKind == "screenshot" && !string.IsNullOrEmpty(_lastScreenshotPath))
+        {
+            OpenScreenshot(_lastScreenshotPath);
+        }
         _eventQueue?.Clear();
+    }
+
+    /// <summary>Opens a saved capture in the user's default image viewer.</summary>
+    private static void OpenScreenshot(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) { WindowIslandHost.Log("OpenScreenshot: " + ex.Message); }
     }
 
     private void CardDismissActionBtn_Click(object sender, RoutedEventArgs e)
@@ -3073,9 +3140,24 @@ public sealed partial class WindowIslandWindow : Window
         try
         {
             if (_tileActions == null) return;
+            bool isScreenshotTile = id is "fullscreen" or "area";
+            if (isScreenshotTile && _compositor?.IsOpen == true)
+            {
+                // Collapse the Home tab before capturing so it doesn't stay open over the
+                // screenshot or block the folded screenshot preview card with the Open button.
+                _hoverInside = false;
+                Collapse();
+                await Task.Delay(IslandMotion.ClosePeriodMs + 40);
+            }
+
             var outcome = await _tileActions.RunAsync(id);
             if (outcome != null)
             {
+                // OnScreenshotSaved already pushes the rich thumbnail + Open card when enabled,
+                // so skip the duplicate compact "tile" card for saved screenshots.
+                if (isScreenshotTile && _settings.CardScreenshotEnabled && outcome.Title == "Screenshot saved")
+                    return;
+
                 // Show result as a card
                 _eventQueue?.Push(new WindowIslandCard(
                     Kind: "tile",

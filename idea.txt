@@ -483,12 +483,12 @@ fixed - live brightness
 fixed - microphone controller
 fixed - camera & microphone preview 
 fixed - microphone used notification with mute button 
+fixed - add the toggle to show/hide lyrics if available
+fixed - live beat isn't working for all type of media played 
+fixed - full screen screenshot [open] preview
 music background blur effect
 command navigation
-full screen screenshot [open] preview
 speaker changed notification
-live beat isn't working for all type of media played 
-add the toggle to show/hide lyrics if available
 
 
 
