@@ -472,9 +472,7 @@ fixed - in home tab mouse wheel volume is effected all over the island not just 
 fixed - we have volume  slider in home tab and mouse and touch pad guesture is effected all over the tab not just in home tab volume slider
 
 
-realtime battery status with plugged/unplugged
-each live preview has individual preview
-volume slider is shown in every live preview make it separate 
+fixed - realtime battery status with plugged/unpluggedarate 
 live music beat in the right side end and music icon in the left side end
 music preview is overlapped with weather
 music background blur effect
@@ -486,6 +484,7 @@ show ring in island too during timer with again and check icon to confirm it's e
 caps/num lock 
 live brightness 
 microphone controller
+camera & microphone preview 
 
 
 

@@ -1912,6 +1912,7 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             // Album art
+            bool hasArt = false;
             if (!string.IsNullOrEmpty(snap.ArtFile))
             {
                 try
@@ -1920,22 +1921,37 @@ public sealed partial class WindowIslandWindow : Window
                     if (File.Exists(artPath))
                     {
                         var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artPath));
-                        MediaArt.Source  = bmp;
-                        FoldedArt.Source = bmp;
+                        MediaArt.Source = bmp;
+                        FoldedArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
+                        FoldedArtFallback.Visibility = Visibility.Collapsed;
+                        hasArt = true;
                     }
                 }
                 catch { }
             }
-            else
+            if (!hasArt)
             {
-                MediaArt.Source  = null;
-                FoldedArt.Source = null;
+                MediaArt.Source = null;
+                FoldedArtBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
+                FoldedArtFallback.Visibility = Visibility.Visible;
             }
 
-            // Folded mini
+            // Folded mini (music icon/art on left end, live music beat on right end)
             _isMediaPlaying = snap.Playing;
-            FoldedMediaMini.Visibility = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
+            var vis = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
+            FoldedMediaMini.Visibility = vis;
+            FoldedEqMini.Visibility = vis;
+            if (snap.Playing)
+            {
+                var eqBrush = new SolidColorBrush(GetSystemAccentColor());
+                EqBar0.Background = eqBrush;
+                EqBar1.Background = eqBrush;
+                EqBar2.Background = eqBrush;
+                EqBar3.Background = eqBrush;
+                FoldedArtFallback.Foreground = eqBrush;
+            }
             UpdateFoldedWeatherMini();
+            UpdateDynamicFoldedWidth();
             if (snap.Playing) StartEqTimer(); else StopEqTimer();
 
             // Lyrics follow the track: fetched once per title/artist pair.
@@ -2455,8 +2471,8 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Equalizer bars (30 Hz while playing) ──────────────────────────────────
 
-    private static readonly int[] EqMaxH = { 14, 18, 10 }; // max heights per bar
-    private static readonly int[] EqMinH = { 4,  5,  3  }; // min heights per bar
+    private static readonly int[] EqMaxH = { 12, 16, 14, 10 }; // max heights per bar
+    private static readonly int[] EqMinH = { 4,  6,  5,  3  }; // min heights per bar
 
     private void StartEqTimer()
     {
@@ -2482,6 +2498,7 @@ public sealed partial class WindowIslandWindow : Window
             EqBar0.Height = _eqRng.Next(EqMinH[0], EqMaxH[0] + 1);
             EqBar1.Height = _eqRng.Next(EqMinH[1], EqMaxH[1] + 1);
             EqBar2.Height = _eqRng.Next(EqMinH[2], EqMaxH[2] + 1);
+            EqBar3.Height = _eqRng.Next(EqMinH[3], EqMaxH[3] + 1);
         }
         catch { }
     }
@@ -5217,14 +5234,14 @@ public sealed partial class WindowIslandWindow : Window
             int stayMs = _settings.GetCardStayMs();
             var (icon, title, detail, accent) = e.Kind switch
             {
-                BatteryCardKind.ChargingStarted  => ("\uEBB5", "Charging",          string.Empty, "#22CC44"),
-                BatteryCardKind.ChargingComplete => ("\uE83F", "Fully Charged",     string.Empty, "#22CC44"),
-                BatteryCardKind.Unplugged        => ("\uE850", "Unplugged",         string.Empty, "#FF8C00"),
-                _                                => ("\uE83F", "Battery", $"{e.Percent}%", "#808080")
+                BatteryCardKind.ChargingStarted  => ("\uEBB5", "Charging",          $"{e.Percent}%", "#22CC44"),
+                BatteryCardKind.ChargingComplete => ("\uE83F", "Fully Charged",     "100%", "#22CC44"),
+                BatteryCardKind.Unplugged        => ("\uE850", "Unplugged",         $"{e.Percent}%", "#FF8C00"),
+                _                                => ("\uE83F", "Battery",           $"{e.Percent}%", "#808080")
             };
             _eventQueue?.Push(new WindowIslandCard(
                 "battery-charging", icon, title, detail,
-                accent, WindowIslandCardPriority.Battery, stayMs, e.Percent));
+                accent, WindowIslandCardPriority.Battery, stayMs));
         });
     }
 

@@ -207,27 +207,15 @@
                         VerticalAlignment="Center"
                         Spacing="8">
 
-                <!-- Folded media mini (shown when media is playing) -->
+                <!-- Folded media mini (left end: album art or music icon when media is playing) -->
                 <StackPanel x:Name="FoldedMediaMini"
                             Orientation="Horizontal"
                             Spacing="5"
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
-                    <Border Width="22" Height="22" CornerRadius="3" Background="#28FFFFFF">
-                        <Image x:Name="FoldedArt" Stretch="UniformToFill" />
+                    <Border x:Name="FoldedArtBorder" Width="20" Height="20" CornerRadius="5" Background="#28FFFFFF">
+                        <FontIcon x:Name="FoldedArtFallback" Glyph="&#xEC4F;" FontSize="11" Foreground="#E0FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <!-- Equalizer bars animated via code-behind -->
-                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                        <Border x:Name="EqBar0" Width="3" Height="8"
-                                Background="#60CDFF" CornerRadius="1"
-                                VerticalAlignment="Bottom" />
-                        <Border x:Name="EqBar1" Width="3" Height="12"
-                                Background="#60CDFF" CornerRadius="1"
-                                VerticalAlignment="Bottom" />
-                        <Border x:Name="EqBar2" Width="3" Height="6"
-                                Background="#60CDFF" CornerRadius="1"
-                                VerticalAlignment="Bottom" />
-                    </StackPanel>
                 </StackPanel>
 
                 <!-- Folded timer mini (shows countdown when timer is running) -->
@@ -317,6 +305,26 @@
                              Fill="#22CC44"
                              Visibility="Collapsed"
                              ToolTipService.ToolTip="Camera in use" />
+                </StackPanel>
+
+                <!-- Folded live music beat (right end) -->
+                <StackPanel x:Name="FoldedEqMini"
+                            Orientation="Horizontal"
+                            Spacing="2"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Border x:Name="EqBar0" Width="2.5" Height="6"
+                            Background="#60CDFF" CornerRadius="1.25"
+                            VerticalAlignment="Center" />
+                    <Border x:Name="EqBar1" Width="2.5" Height="12"
+                            Background="#60CDFF" CornerRadius="1.25"
+                            VerticalAlignment="Center" />
+                    <Border x:Name="EqBar2" Width="2.5" Height="9"
+                            Background="#60CDFF" CornerRadius="1.25"
+                            VerticalAlignment="Center" />
+                    <Border x:Name="EqBar3" Width="2.5" Height="5"
+                            Background="#60CDFF" CornerRadius="1.25"
+                            VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
         </Grid>
