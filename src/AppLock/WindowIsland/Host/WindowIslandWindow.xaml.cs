@@ -165,6 +165,7 @@ public sealed partial class WindowIslandWindow : Window
     private WindowIslandHomeState?  _homeState;
     private IslandTileActions?      _tileActions;
     private bool                    _isMediaPlaying;
+    private bool                    _hasMediaSession;
     private bool                    _volumeChanging;    // guard to avoid re-entrant slider updates
     private WindowIslandAudio?      _audio;             // devices + app sessions for the volume bar
     private DQTimer?                _volumeUiTimer;
@@ -737,7 +738,10 @@ public sealed partial class WindowIslandWindow : Window
             RefreshLauncherUI();
             _clipboardState?.Refresh();
         }
-        else StopHomeState();
+        // The folded media mini and its live beat are part of the island chrome, not of the Home tab,
+        // so the media sampler keeps running while another tab is open. Stopping it here froze the
+        // beat (and the mini) until the user came back to Home.
+        else if (_homeState == null) StartHomeState();
 
         // Refresh clipboard / shelf / notes on switch
         if (_activeTab == 1)
@@ -2082,6 +2086,7 @@ public sealed partial class WindowIslandWindow : Window
         _homeState = null;
         StopVolumeUi();
         StopEqTimer();
+        _hasMediaSession = false;
         _mediaAppName = string.Empty;
         // Hide folded media mini when home tab is not active
         FoldedMediaMini.Visibility = Visibility.Collapsed;
@@ -2101,6 +2106,8 @@ public sealed partial class WindowIslandWindow : Window
                 MediaNextApp.Visibility     = Visibility.Collapsed;
                 RecentPanel.Visibility      = Visibility.Visible;
                 FoldedMediaMini.Visibility  = Visibility.Collapsed;
+                FoldedEqMini.Visibility     = Visibility.Collapsed;
+                _hasMediaSession = false;
                 StopEqTimer();
                 ClearLyrics();
                 return;
@@ -2161,23 +2168,23 @@ public sealed partial class WindowIslandWindow : Window
                 FoldedArtFallback.Visibility = Visibility.Visible;
             }
 
-            // Folded mini (music icon/art on left end, live music beat on right end)
+            // Folded mini (music icon/art on left end, live music beat on right end). It stays while a
+            // media app exists rather than only while it reports "playing": players that never publish
+            // a playback status were left without a beat, and the bars are driven by the actual audio
+            // meter anyway, so silence simply rests them at the bottom.
             _isMediaPlaying = snap.Playing;
-            var vis = snap.Playing ? Visibility.Visible : Visibility.Collapsed;
-            FoldedMediaMini.Visibility = vis;
-            FoldedEqMini.Visibility = vis;
-            if (snap.Playing)
-            {
-                var eqBrush = new SolidColorBrush(GetSystemAccentColor());
-                EqBar0.Background = eqBrush;
-                EqBar1.Background = eqBrush;
-                EqBar2.Background = eqBrush;
-                EqBar3.Background = eqBrush;
-                FoldedArtFallback.Foreground = eqBrush;
-            }
+            _hasMediaSession = true;
+            FoldedMediaMini.Visibility = Visibility.Visible;
+            FoldedEqMini.Visibility = Visibility.Visible;
+            var eqBrush = new SolidColorBrush(GetSystemAccentColor());
+            EqBar0.Background = eqBrush;
+            EqBar1.Background = eqBrush;
+            EqBar2.Background = eqBrush;
+            EqBar3.Background = eqBrush;
+            FoldedArtFallback.Foreground = eqBrush;
             UpdateFoldedWeatherMini();
             UpdateDynamicFoldedWidth();
-            if (snap.Playing) StartEqTimer(); else StopEqTimer();
+            StartEqTimer();
 
             // Lyrics follow the track: fetched once per title/artist pair.
             _ = UpdateLyricsAsync(snap);
@@ -2706,6 +2713,11 @@ public sealed partial class WindowIslandWindow : Window
     private static readonly float[] EqBarWeights = { 0.65f, 1.0f, 0.85f, 0.55f };
     private readonly double[] _eqHeights = { 3, 3, 3, 3 };
 
+    // Enumerating audio sessions is far too costly for a 30 Hz timer, so the peak is sampled at 10 Hz
+    // and the bars keep animating between samples.
+    private float _eqPeak;
+    private long  _eqPeakAtMs = long.MinValue / 2;
+
     private void StartEqTimer()
     {
         if (_eqTimer != null) return;
@@ -2732,11 +2744,28 @@ public sealed partial class WindowIslandWindow : Window
 
     private void TickEqualizer()
     {
-        if (!_isMediaPlaying) return;
+        if (!_hasMediaSession) return;
         try
         {
-            float peak = _audio?.GetOutputPeak() ?? 0f;
-            float level = peak < 0.004f ? 0f : MathF.Min(1f, MathF.Pow(peak, 0.65f) * 1.25f);
+            // Read the meter of the app the player is showing first: it keeps working when the sound
+            // goes to another device (the device meter stays at zero then) and for players that never
+            // publish a playback status. The output device is the fallback.
+            long nowMs = Environment.TickCount64;
+            if (nowMs - _eqPeakAtMs >= 100)
+            {
+                _eqPeakAtMs = nowMs;
+                _eqPeak = 0f;
+                if (_audio?.FindPlayingSession(_mediaAppName) is { } session) _eqPeak = session.Peak;
+                if (_eqPeak <= 0.0005f) _eqPeak = _audio?.GetOutputPeak() ?? 0f;
+            }
+
+            float peak = _eqPeak;
+
+            // Decibels instead of raw amplitude: music peaks sit well below 0.1 and the old curve left
+            // the bars almost flat, which read as "not working".
+            float level = peak <= 0.0005f
+                ? 0f
+                : Math.Clamp((float)((20.0 * Math.Log10(peak) + 60.0) / 50.0), 0f, 1f);
 
             var bars = new[] { EqBar0, EqBar1, EqBar2, EqBar3 };
             for (int i = 0; i < 4; i++)
