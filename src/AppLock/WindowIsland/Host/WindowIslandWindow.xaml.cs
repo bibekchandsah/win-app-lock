@@ -1113,12 +1113,12 @@ public sealed partial class WindowIslandWindow : Window
 
             float curWidthDip  = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).W
-                : (_compositor.IsCard ? 270f : _compositor.CurrentFoldedWidthDip)) * factor;
+                : (_compositor.IsCard ? _activeCardW : _compositor.CurrentFoldedWidthDip)) * factor;
             float curHeightDip = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).H
-                : (_compositor.IsCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
+                : (_compositor.IsCard ? _activeCardH : WindowIslandCompositor.FoldedHeightDip)) * factor;
 
-            float leftDip = (WindowWidthDip - curWidthDip) / 2f;
+            float leftDip = (WindowWidthDip * factor - curWidthDip) / 2f;
             float topDip  = _settings.Shape == "Capsule" ? 6f : 0f;
 
             int leftPx   = _windowX + (int)(leftDip * scale);
@@ -1139,7 +1139,8 @@ public sealed partial class WindowIslandWindow : Window
             var elapsed = (DateTime.UtcNow - _hoverStateChangedAt).TotalMilliseconds;
             int openDelay = _settings.OpenDelayMs > 0 ? _settings.OpenDelayMs : IslandMotion.HoverOpenDelayMs;
             int closeDelay = _settings.CloseDelayMs > 0 ? _settings.CloseDelayMs : IslandMotion.HoverCloseDelayMs;
-            if (_hoverInside && !_compositor.IsOpen && elapsed >= openDelay)
+            bool hasInteractiveCard = !string.IsNullOrEmpty(_eventQueue?.CurrentCard?.PrimaryActionLabel);
+            if (_hoverInside && !_compositor.IsOpen && !hasInteractiveCard && elapsed >= openDelay)
             {
                 if (_eventQueue?.HasVisibleCard == true)
                 {
