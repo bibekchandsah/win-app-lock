@@ -89,6 +89,32 @@ public sealed partial class WindowIslandWindow : Window
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, int cbAttribute);
     [DllImport("gdi32.dll")]
     private static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);
+    [DllImport("gdi32.dll")]
+    private static extern bool BeginPath(nint hdc);
+    [DllImport("gdi32.dll")]
+    private static extern bool EndPath(nint hdc);
+    [DllImport("gdi32.dll")]
+    private static extern bool CloseFigure(nint hdc);
+    [DllImport("gdi32.dll")]
+    private static extern bool MoveToEx(nint hdc, int x, int y, nint lppt);
+    [DllImport("gdi32.dll")]
+    private static extern bool LineTo(nint hdc, int x, int y);
+    [DllImport("gdi32.dll")]
+    private static extern bool PolyBezierTo(nint hdc, GDI_POINT[] lppt, uint cCount);
+    [DllImport("gdi32.dll")]
+    private static extern nint PathToRegion(nint hdc);
+    [DllImport("user32.dll")]
+    private static extern nint GetDC(nint hWnd);
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(nint hWnd, nint hDC);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GDI_POINT
+    {
+        public int X;
+        public int Y;
+        public GDI_POINT(int x, int y) { X = x; Y = y; }
+    }
     [DllImport("user32.dll")]
     private static extern bool SetWindowRgn(nint hWnd, nint hRgn, bool redraw);
     [DllImport("comctl32.dll", SetLastError = true)]
@@ -1225,9 +1251,10 @@ public sealed partial class WindowIslandWindow : Window
         float factor  = (float)(_settings.SizePercent / 100.0);
 
         float foldedW = _compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip;
+        float foldedR = _settings.Shape == "Capsule" ? WindowIslandCompositor.FoldedRadiusDip : WindowIslandCompositor.FoldedNotchRadiusDip;
         float widthDip  = isCommand ? IslandMotion.CommandBarSize.W : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : foldedW)) * factor;
         float heightDip = isCommand ? IslandMotion.CommandBarSize.H : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
-        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip) * factor;
+        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : foldedR) * factor;
         float leftDip   = (WindowWidthDip - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
 
@@ -1237,8 +1264,93 @@ public sealed partial class WindowIslandWindow : Window
         int bottomPx  = (int)Math.Round((topDip  + heightDip) * scale);
         int ellipsePx = (int)Math.Round(radiusDip * 2 * scale);
 
-        nint rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
+        nint rgn;
+        if (_settings.Shape != "Capsule")
+        {
+            int earPx = (int)Math.Round(WindowIslandCompositor.NotchEarRadius * scale);
+            int botR  = (int)Math.Round(radiusDip * scale);
+            rgn = CreateNotchRegion(leftPx, rightPx, bottomPx, earPx, botR);
+            if (rgn == nint.Zero)
+            {
+                rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
+            }
+        }
+        else
+        {
+            rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
+        }
         if (rgn != nint.Zero) SetWindowRgn(_hwnd, rgn, true);
+    }
+
+    private static nint CreateNotchRegion(int left, int right, int bottom, int ear, int botR)
+    {
+        nint hdc = GetDC(nint.Zero);
+        if (hdc == nint.Zero) return nint.Zero;
+        try
+        {
+            if (!BeginPath(hdc)) return nint.Zero;
+
+            int earC = (int)Math.Round(ear * 0.55);
+            int botC = (int)Math.Round(botR * 0.55);
+            int startX = Math.Max(0, left - ear);
+
+            MoveToEx(hdc, startX, 0, nint.Zero);
+
+            // Top-left concave ear
+            PolyBezierTo(hdc, new[]
+            {
+                new GDI_POINT(startX + earC, 0),
+                new GDI_POINT(left, ear - earC),
+                new GDI_POINT(left, ear)
+            }, 3);
+
+            // Left vertical wall
+            if (bottom - botR > ear)
+            {
+                LineTo(hdc, left, bottom - botR);
+            }
+
+            // Bottom-left convex corner
+            PolyBezierTo(hdc, new[]
+            {
+                new GDI_POINT(left, bottom - botR + botC),
+                new GDI_POINT(left + botR - botC, bottom),
+                new GDI_POINT(left + botR, bottom)
+            }, 3);
+
+            // Bottom edge
+            LineTo(hdc, right - botR, bottom);
+
+            // Bottom-right convex corner
+            PolyBezierTo(hdc, new[]
+            {
+                new GDI_POINT(right - botR + botC, bottom),
+                new GDI_POINT(right, bottom - botR + botC),
+                new GDI_POINT(right, bottom - botR)
+            }, 3);
+
+            // Right vertical wall
+            if (bottom - botR > ear)
+            {
+                LineTo(hdc, right, ear);
+            }
+
+            // Top-right concave ear
+            PolyBezierTo(hdc, new[]
+            {
+                new GDI_POINT(right, ear - earC),
+                new GDI_POINT(right + ear - earC, 0),
+                new GDI_POINT(right + ear, 0)
+            }, 3);
+
+            CloseFigure(hdc);
+            if (!EndPath(hdc)) return nint.Zero;
+            return PathToRegion(hdc);
+        }
+        finally
+        {
+            ReleaseDC(nint.Zero, hdc);
+        }
     }
 
     // ── Frame Timing & Benchmark ───────────────────────────────────────────────
