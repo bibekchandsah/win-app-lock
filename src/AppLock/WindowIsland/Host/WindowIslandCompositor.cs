@@ -396,13 +396,13 @@ public sealed class WindowIslandCompositor : IDisposable
         _notchLeftEarShape.Scale = Vector2.One;
         _notchRightEarShape.Scale = Vector2.One;
 
-        var leftEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0 - earR, 0.0)");
+        var leftEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0 - earR + 0.5, 0.0)");
         leftEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
         leftEarOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
         leftEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);
         _notchLeftEarShape.StartAnimation("Offset", leftEarOffsetAnim);
 
-        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0 - earR, 0.0)");
+        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0 - earR - 0.5, 0.0)");
         rightEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
         rightEarOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
         rightEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);

@@ -511,7 +511,6 @@ public sealed partial class WindowIslandWindow : Window
         IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
         UpdateChatHeightLabel();
         PositionAndSize();
-        _compositor?.UpdateWindowWidth(WindowWidthDip, settings);
         _compositor?.ApplySettings(settings);
         UpdateHitRegion(_compositor?.IsOpen ?? false);
         UpdateShapeContentOffset();
@@ -1250,11 +1249,24 @@ public sealed partial class WindowIslandWindow : Window
     private void UpdateShapeContentOffset()
     {
         double topOffset = _settings.Shape == "Capsule" ? 6.0 : 0.0;
+        double factor = _settings.SizePercent / 100.0;
         var margin = new Thickness(0, topOffset, 0, 0);
-        if (FoldedLayer != null) FoldedLayer.Margin = margin;
-        if (CardLayer != null) CardLayer.Margin = margin;
-        if (OpenLayer != null) OpenLayer.Margin = margin;
-        if (CommandLayer != null) CommandLayer.Margin = margin;
+        var origin = new Windows.Foundation.Point(0.5, 0.0);
+
+        void ApplyLayerScaleAndMargin(FrameworkElement? el)
+        {
+            if (el == null) return;
+            el.Margin = margin;
+            el.RenderTransformOrigin = origin;
+            el.RenderTransform = Math.Abs(factor - 1.0) < 0.001
+                ? null
+                : new Microsoft.UI.Xaml.Media.ScaleTransform { ScaleX = factor, ScaleY = factor };
+        }
+
+        ApplyLayerScaleAndMargin(FoldedLayer);
+        ApplyLayerScaleAndMargin(CardLayer);
+        ApplyLayerScaleAndMargin(OpenLayer);
+        ApplyLayerScaleAndMargin(CommandLayer);
     }
 
     private void UpdateHitRegion(bool open, bool isCard = false, bool isCommand = false)
@@ -1264,10 +1276,11 @@ public sealed partial class WindowIslandWindow : Window
 
         float foldedW = _compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip;
         float foldedR = _settings.Shape == "Capsule" ? WindowIslandCompositor.FoldedRadiusDip : WindowIslandCompositor.FoldedNotchRadiusDip;
-        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : foldedW)) * factor;
-        float heightDip = isCommand ? IslandMotion.CommandBarSize.H : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
-        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : foldedR) * factor;
-        float leftDip   = (WindowWidthDip - widthDip) / 2f;
+        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W * factor : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : foldedW)) * factor;
+        float heightDip = isCommand ? IslandMotion.CommandBarSize.H * factor : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip * factor : (isCard ? 19f : foldedR) * factor;
+        float scaledWindowW = (isCommand ? IslandMotion.WindowWidthForCommand : WindowWidthDip) * factor;
+        float leftDip   = (scaledWindowW - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
 
         int leftPx    = (int)Math.Round(leftDip * scale);
@@ -1707,17 +1720,23 @@ public sealed partial class WindowIslandWindow : Window
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
 
         bool isCmd = _compositor?.IsCommand == true;
-        float winW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
-        float winH = isCmd ? (IslandMotion.CommandBarSize.H + 60f) : (IslandMotion.TabSize(_activeTab).H + 60f);
+        float factor = (float)(_settings.SizePercent / 100.0);
+        var (tabW, tabH) = isCmd ? IslandMotion.CommandBarSize : IslandMotion.TabSize(_activeTab);
+        float baseWinW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
+        float baseWinH = tabH + 60f;
+        float winW = baseWinW * factor;
+        float winH = baseWinH * factor;
 
-        // The open layer fills the window; CommandLayer matches the exact visible CommandBar bounds
-        OpenLayer.Width     = winW;
-        OpenLayer.Height    = winH;
+        // OpenLayer & CommandLayer keep unscaled logical sizes and scale via RenderTransform
+        OpenLayer.Width     = tabW;
+        OpenLayer.Height    = tabH;
 
         float topDip = _settings.Shape == "Capsule" ? 6f : 0f;
         CommandLayer.Width  = IslandMotion.CommandBarSize.W;
         CommandLayer.Height = IslandMotion.CommandBarSize.H;
         CommandLayer.Margin = new Thickness(0, topDip, 0, 0);
+
+        _compositor?.UpdateWindowWidth(winW, _settings);
 
         var rect = WindowIslandPositioner.Compute(_appWindow, _settings, winW, winH, _scale);
         _windowX        = rect.X;
