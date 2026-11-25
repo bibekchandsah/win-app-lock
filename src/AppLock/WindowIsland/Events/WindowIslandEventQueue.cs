@@ -142,8 +142,8 @@ public sealed class WindowIslandEventQueue : IDisposable
             return;
         }
 
-        // Hover pauses the countdown
-        if (_isHovered()) return;
+        // Hover or persistent sticky card (StayMs < 0) pauses the countdown
+        if (_visible.StayMs < 0 || _isHovered()) return;
 
         _remainingMs -= TickMs;
         if (_remainingMs > 0) return;

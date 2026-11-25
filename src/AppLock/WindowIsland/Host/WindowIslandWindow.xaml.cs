@@ -1670,19 +1670,28 @@ public sealed partial class WindowIslandWindow : Window
             StayMs: stay));
     }
 
+    private string? _activeCardKind;
+    private string? _activeCardTagId;
+
     private void OnShowCard(WindowIslandCard card, bool animate)
     {
-        var cardAccentBrush = new SolidColorBrush(HexToColor(card.AccentHex));
+        _activeCardKind = card.Kind;
+        _activeCardTagId = card.TagId;
+        var accentColor = HexToColor(card.AccentHex);
+        var cardAccentBrush = new SolidColorBrush(accentColor);
         CardIcon.Glyph = card.Icon;
         CardIcon.Foreground = cardAccentBrush;
 
+        bool hasActions = !string.IsNullOrEmpty(card.PrimaryActionLabel);
+        CardLayer.IsHitTestVisible = hasActions;
+
         if (card.IsStacked)
         {
-            _activeCardW = 330f;
+            _activeCardW = hasActions ? 400f : 330f;
             _activeCardH = 58f;
             CardLayer.Width = _activeCardW;
             CardLayer.Height = _activeCardH;
-            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Left;
+            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
 
             CardTitle.Visibility = Visibility.Collapsed;
             CardDetail.Visibility = Visibility.Collapsed;
@@ -1693,6 +1702,11 @@ public sealed partial class WindowIslandWindow : Window
             CardStackedDetail.Text = card.Detail;
             CardStackedDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
             CardStackedTextPanel.Visibility = Visibility.Visible;
+            CardActionPanel.Visibility = hasActions ? Visibility.Visible : Visibility.Collapsed;
+            if (hasActions)
+            {
+                CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
+            }
 
             bool showThumb = card.Kind == "clipboard" && card.Icon == "\uEB9F" && _lastCopiedThumb != null;
             if (showThumb)
@@ -1711,7 +1725,9 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Visibility = Visibility.Visible;
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
-                CardIconBadge.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
+                CardIconBadge.Background = hasActions
+                    ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
                 CardIcon.FontSize = 15;
             }
         }
@@ -1723,6 +1739,7 @@ public sealed partial class WindowIslandWindow : Window
             CardLayer.Height = _activeCardH;
 
             CardStackedTextPanel.Visibility = Visibility.Collapsed;
+            CardActionPanel.Visibility = Visibility.Collapsed;
             CardThumbBorder.Visibility = Visibility.Collapsed;
             CardIconBadge.Visibility = Visibility.Visible;
             CardIconBadge.Width = double.NaN;
@@ -1753,7 +1770,7 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         // Milestone 15: bring island into view for card duration
-        _visibilityService?.RequestTemporaryReveal(card.StayMs + 1000);
+        _visibilityService?.RequestTemporaryReveal(card.StayMs < 0 ? 15000 : card.StayMs + 1000);
 
         if (animate)
         {
@@ -1764,8 +1781,36 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private void CardPrimaryActionBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
+        {
+            _reminderStore?.Snooze(_activeCardTagId, 10);
+            RefreshRemindersUI();
+        }
+        else if (_activeCardKind == "timer" && _timer != null)
+        {
+            _timer.Start(_timer.TotalDuration);
+            UpdateTimerButtonsState(IslandTimerState.Running);
+        }
+        _eventQueue?.Clear();
+    }
+
+    private void CardDismissActionBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
+        {
+            _reminderStore?.Complete(_activeCardTagId);
+            RefreshRemindersUI();
+        }
+        _eventQueue?.Clear();
+    }
+
     private void OnClearCard()
     {
+        CardLayer.IsHitTestVisible = false;
+        _activeCardKind = null;
+        _activeCardTagId = null;
         FadeVisual(_cardVisual, 0f, 100);
         FadeVisual(_foldedVisual, 1f, 160, delayMs: 40);
         _compositor?.AnimateToFolded(() =>
@@ -4745,6 +4790,13 @@ public sealed partial class WindowIslandWindow : Window
         {
             FoldedTimerMini.Visibility = Visibility.Visible;
             FoldedTimerText.Text = _timer.FormatRemaining();
+            var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+            FoldedTimerText.Foreground = accentBrush;
+            if (FoldedTimerRing != null)
+            {
+                FoldedTimerRing.Value = Math.Clamp(1.0 - progress, 0.0, 1.0) * 100.0;
+                FoldedTimerRing.Foreground = accentBrush;
+            }
             UpdateTimerButtonsState(IslandTimerState.Running);
         }
         else
@@ -4765,16 +4817,23 @@ public sealed partial class WindowIslandWindow : Window
             TimerCircleRing.Value = 0.0;
         }
 
+        var total = _timer?.TotalDuration ?? TimeSpan.FromMinutes(5);
+        string durText = total.TotalMinutes >= 1
+            ? $"{(int)Math.Round(total.TotalMinutes)} min"
+            : $"{(int)Math.Round(total.TotalSeconds)} s";
+
         var accent = GetSystemAccentColor();
         string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "timer",
             Icon: "\uE916",
-            Title: "Timer finished",
-            Detail: "Time's up!",
+            Title: "Time is up",
+            Detail: $"Timer · {durText}",
             AccentHex: accentHex,
             Priority: WindowIslandCardPriority.ReminderTimer,
-            StayMs: 6000));
+            StayMs: -1,
+            IsStacked: true,
+            PrimaryActionLabel: "Again"));
 
         try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
     }
@@ -5175,14 +5234,19 @@ public sealed partial class WindowIslandWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            var accent = GetSystemAccentColor();
+            string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
             _eventQueue?.Push(new WindowIslandCard(
                 Kind: "reminder",
                 Icon: "\uEA8F",
-                Title: "Reminder",
-                Detail: reminder.Title,
-                AccentHex: "#FF8C00",
+                Title: reminder.Title,
+                Detail: "Reminder",
+                AccentHex: accentHex,
                 Priority: WindowIslandCardPriority.ReminderTimer,
-                StayMs: 0));
+                StayMs: -1,
+                IsStacked: true,
+                PrimaryActionLabel: "+10 min",
+                TagId: reminder.Id));
 
             try { System.Media.SystemSounds.Asterisk.Play(); } catch { }
         });

@@ -479,8 +479,8 @@ music background blur effect
 command navigation
 full screen screenshot [open] preview
 fixed - copied image live preview 
-remainder check option with +10min check icon 
-show ring in island too during timer with again and check icon to confirm it's ended  
+fixed - remainder check option with +10min check icon 
+fixed - show ring in island too during timer with again and check icon to confirm it's ended  
 caps/num lock 
 live brightness 
 microphone controller

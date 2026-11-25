@@ -32,5 +32,7 @@ public sealed record WindowIslandCard(
     WindowIslandCardPriority Priority,
     int StayMs,
     int Value = -1,
-    bool IsStacked = false
+    bool IsStacked = false,
+    string? PrimaryActionLabel = null,
+    string? TagId = null
 );

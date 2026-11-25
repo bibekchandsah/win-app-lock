@@ -218,16 +218,22 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Folded timer mini (shows countdown when timer is running) -->
+                <!-- Folded timer mini (shows ring + countdown when timer is running) -->
                 <StackPanel x:Name="FoldedTimerMini"
                             Orientation="Horizontal"
-                            Spacing="3"
+                            Spacing="4"
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE916;" FontSize="10" Foreground="#60CDFF" />
+                    <ProgressRing x:Name="FoldedTimerRing"
+                                  Width="13" Height="13"
+                                  IsIndeterminate="False"
+                                  Minimum="0" Maximum="100" Value="100"
+                                  Background="#30FFFFFF"
+                                  VerticalAlignment="Center" />
                     <TextBlock x:Name="FoldedTimerText"
                                Text="05:00"
                                FontFamily="Segoe UI Variable Small"
+                               FontWeight="SemiBold"
                                FontSize="11"
                                Foreground="#60CDFF"
                                VerticalAlignment="Center" />
@@ -432,6 +438,35 @@
                            TextAlignment="Right"
                            VerticalAlignment="Center"
                            Visibility="Collapsed" />
+                <!-- Action buttons for interactive cards (Reminder / Timer) -->
+                <StackPanel x:Name="CardActionPanel"
+                            Grid.Column="4"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Button x:Name="CardPrimaryActionBtn"
+                            Content="+10 min"
+                            Click="CardPrimaryActionBtn_Click"
+                            Height="28"
+                            Padding="12,0,12,0"
+                            CornerRadius="14"
+                            BorderThickness="0"
+                            Background="#28FFFFFF"
+                            Foreground="#F0FFFFFF"
+                            FontSize="11"
+                            FontWeight="SemiBold" />
+                    <Button x:Name="CardDismissActionBtn"
+                            Click="CardDismissActionBtn_Click"
+                            Width="28" Height="28" MinWidth="28"
+                            Padding="0"
+                            CornerRadius="14"
+                            BorderThickness="0"
+                            Background="#FFFFFFFF"
+                            ToolTipService.ToolTip="Dismiss">
+                        <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FF000000" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Grid>
 

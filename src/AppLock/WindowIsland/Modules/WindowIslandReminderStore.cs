@@ -24,6 +24,7 @@ public sealed class WindowIslandReminderStore : IDisposable
 {
     private readonly string _filePath;
     private readonly List<IslandReminder> _reminders = new();
+    private readonly HashSet<string> _triggeredIds = new();
     private readonly Timer _checkTimer;
     private readonly object _lock = new();
 
@@ -130,6 +131,7 @@ public sealed class WindowIslandReminderStore : IDisposable
             {
                 item.IsCompleted = true;
             }
+            _triggeredIds.Remove(id);
         }
         Save();
         Changed?.Invoke();
@@ -145,6 +147,7 @@ public sealed class WindowIslandReminderStore : IDisposable
                 item.IsCompleted = false;
                 item.DueTimeUtc = DateTime.UtcNow.AddMinutes(minutes);
             }
+            _triggeredIds.Remove(id);
         }
         Save();
         Changed?.Invoke();
@@ -155,6 +158,7 @@ public sealed class WindowIslandReminderStore : IDisposable
         lock (_lock)
         {
             _reminders.RemoveAll(r => r.Id == id);
+            _triggeredIds.Remove(id);
         }
         Save();
         Changed?.Invoke();
@@ -179,7 +183,7 @@ public sealed class WindowIslandReminderStore : IDisposable
         {
             foreach (var r in _reminders)
             {
-                if (!r.IsCompleted && r.DueTimeUtc <= now)
+                if (!r.IsCompleted && r.DueTimeUtc <= now && _triggeredIds.Add(r.Id))
                 {
                     dueItems.Add(r);
                 }
@@ -202,7 +206,7 @@ public sealed class WindowIslandReminderStore : IDisposable
         {
             foreach (var r in _reminders)
             {
-                if (!r.IsCompleted && r.DueTimeUtc <= now && r.DueTimeUtc >= cutoff)
+                if (!r.IsCompleted && r.DueTimeUtc <= now && r.DueTimeUtc >= cutoff && _triggeredIds.Add(r.Id))
                 {
                     missed.Add(r);
                 }
