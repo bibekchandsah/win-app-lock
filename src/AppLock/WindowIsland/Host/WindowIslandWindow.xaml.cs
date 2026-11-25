@@ -289,6 +289,7 @@ public sealed partial class WindowIslandWindow : Window
             canShow: () => _compositor?.IsOpen != true);
 
         _volumeController = new IslandVolumeController();
+        InitAudioListener();
 
         _lockKeySource = new LockKeyCardSource(DispatcherQueue);
         _lockKeySource.CapsLockChanged += OnCapsLockChanged;
@@ -572,8 +573,12 @@ public sealed partial class WindowIslandWindow : Window
         _volumeController?.Dispose();
         _volumeController = null;
         StopVolumeUi();
-        _audio?.Dispose();
-        _audio = null;
+        if (_audio != null)
+        {
+            _audio.SystemVolumeChanged -= OnSystemVolumeChanged;
+            _audio.Dispose();
+            _audio = null;
+        }
 
         // Milestone 12
         WindowIslandNotificationService.Instance.VpnStateChanged     -= OnVpnStateChanged;
@@ -1498,6 +1503,7 @@ public sealed partial class WindowIslandWindow : Window
         CardIcon.Glyph = card.Icon;
         CardTitle.Text = card.Title;
         CardDetail.Text = card.Detail;
+        CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
         CardIcon.Foreground = new SolidColorBrush(HexToColor(card.AccentHex));
 
         // Milestone 15: bring island into view for card duration
@@ -1962,10 +1968,45 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Volume bar: device or playing app, mute and output-device picker ──────
 
+    private void InitAudioListener()
+    {
+        if (_audio != null) return;
+        _audio = new WindowIslandAudio();
+        _audio.SystemVolumeChanged += OnSystemVolumeChanged;
+        _ = Task.Run(() => _audio?.Refresh());
+    }
+
+    private void OnSystemVolumeChanged(int vol, bool muted)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            // Ignore echoes of our own writes from the Home tab slider
+            if (Environment.TickCount64 - _volumeLastWriteMs < 400 || _volumePointerDown) return;
+
+            if (_compositor?.IsOpen == true && _activeTab == 0)
+            {
+                if (!_appVolumeMode)
+                {
+                    _volumeChanging = true;
+                    VolumeSlider.Value = vol;
+                    _volumeChanging = false;
+                    VolumeText.Text = $"{vol}%";
+                    UpdateVolumeIcon(vol, muted);
+                }
+                return;
+            }
+
+            if (_settings.CardVolumeEnabled)
+            {
+                PushVolumeCard(muted ? 0 : vol, muted);
+            }
+        });
+    }
+
     private void StartVolumeUi()
     {
         if (_volumeUiTimer != null) return;
-        _audio ??= new WindowIslandAudio();
+        InitAudioListener();
         _volumeUiTimer = DispatcherQueue.CreateTimer();
         _volumeUiTimer.Interval = TimeSpan.FromMilliseconds(1000);
         _volumeUiTimer.Tick += (_, _) => RefreshVolumeUi();
@@ -2296,6 +2337,7 @@ public sealed partial class WindowIslandWindow : Window
     private void QueueVolumeCard(int vol)
     {
         if (!_settings.CardVolumeEnabled) return;
+        if (_compositor?.IsOpen == true && _activeTab == 0) return;
 
         if (Environment.TickCount64 - _lastVolumeCardMs >= 250)
         {
@@ -2321,17 +2363,17 @@ public sealed partial class WindowIslandWindow : Window
         _volumeCardTimer.Start();
     }
 
-    private void PushVolumeCard(int vol)
+    private void PushVolumeCard(int vol, bool muted = false)
     {
         _lastVolumeCardMs = Environment.TickCount64;
         _pendingVolumeCard = -1;
 
-        string icon = vol == 0 ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
+        string icon = (muted || vol == 0) ? "\uE74F" : (vol < 33 ? "\uE992" : (vol < 66 ? "\uE993" : "\uE995"));
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "volume",
             Icon: icon,
-            Title: "Volume",
-            Detail: $"{vol}%",
+            Title: muted ? "Muted" : "Volume",
+            Detail: string.Empty,
             AccentHex: "#60CDFF",
             Priority: WindowIslandCardPriority.Volume,
             StayMs: _settings.GetCardStayMs(),

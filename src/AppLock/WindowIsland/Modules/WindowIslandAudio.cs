@@ -43,6 +43,8 @@ public sealed class WindowIslandAudio : IDisposable
     private int _lastScanTick;
     private bool _scanned;
 
+    public event Action<int, bool>? SystemVolumeChanged;
+
     public IReadOnlyList<IslandAudioDevice> Devices => _devices;
     public bool HasDevices => _devices.Count > 0;
     public string? DefaultDeviceId => _defaultId;
@@ -152,20 +154,38 @@ public sealed class WindowIslandAudio : IDisposable
         try { _sessionManager?.Dispose(); } catch { }
         _sessionManager = null;
 
-        try { _defaultDevice?.Dispose(); } catch { }
-        _defaultDevice = null;
+        if (_defaultDevice != null)
+        {
+            try { _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnEndpointVolumeNotification; } catch { }
+            try { _defaultDevice.Dispose(); } catch { }
+            _defaultDevice = null;
+        }
 
         if (_defaultId == null) return;
 
         try
         {
             _defaultDevice = Enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            _sessionManager = _defaultDevice?.AudioSessionManager;
+            if (_defaultDevice != null)
+            {
+                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnEndpointVolumeNotification;
+                _sessionManager = _defaultDevice.AudioSessionManager;
+            }
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"[IslandVolume] Default device open failed: {ex.Message}");
         }
+    }
+
+    private void OnEndpointVolumeNotification(AudioVolumeNotificationData data)
+    {
+        try
+        {
+            int vol = Math.Clamp((int)Math.Round(data.MasterVolume * 100), 0, 100);
+            SystemVolumeChanged?.Invoke(vol, data.Muted);
+        }
+        catch { }
     }
 
     public int GetDeviceVolume()
@@ -390,8 +410,12 @@ public sealed class WindowIslandAudio : IDisposable
         try { _sessionManager?.Dispose(); } catch { }
         _sessionManager = null;
 
-        try { _defaultDevice?.Dispose(); } catch { }
-        _defaultDevice = null;
+        if (_defaultDevice != null)
+        {
+            try { _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnEndpointVolumeNotification; } catch { }
+            try { _defaultDevice.Dispose(); } catch { }
+            _defaultDevice = null;
+        }
 
         try { _enumerator?.Dispose(); } catch { }
         _enumerator = null;
