@@ -1212,6 +1212,7 @@ public sealed partial class WindowIslandWindow : Window
 
         _measuringFrames = true;
         OpenLayer.IsHitTestVisible = false;
+        _eventQueue?.HoldForMotion(IslandMotion.ClosePeriodMs);
 
         FadeVisual(_openVisual,   0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_foldedVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
@@ -1220,11 +1221,13 @@ public sealed partial class WindowIslandWindow : Window
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                UpdateHitRegion(open: false, isCard: false);
+                if (_compositor != null && !_compositor.IsOpen && !_compositor.IsCard && !_compositor.IsCommand)
+                {
+                    UpdateHitRegion(open: false, isCard: false);
+                    PositionAndSize();
+                }
                 _measuringFrames = false;
                 UpdateStatsDisplay();
-                // Shrink window back to folded size
-                PositionAndSize();
                 if (_previousForegroundWindow != nint.Zero)
                 {
                     SetForegroundWindow(_previousForegroundWindow);
@@ -1821,7 +1824,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                UpdateHitRegion(open: false, isCard: false);
+                if (_compositor != null && !_compositor.IsOpen && !_compositor.IsCard && !_compositor.IsCommand)
+                {
+                    UpdateHitRegion(open: false, isCard: false);
+                }
             });
         });
         UpdateHitRegion(open: false, isCard: false);
