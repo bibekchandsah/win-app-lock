@@ -236,14 +236,17 @@
                 <ToggleSwitch x:Name="ControlsBtLowBatteryAlertToggle"
                               Header="Bluetooth battery warning notifications"
                               Toggled="OnSettingChanged" />
-                <TextBox x:Name="ControlsBtWarningLevelsBox"
-                         Margin="28,0,0,0"
-                         Width="280"
-                         HorizontalAlignment="Left"
-                         Header="Warning levels (% below, comma-separated)"
-                         PlaceholderText="e.g. 80, 50, 20, 10"
-                         Visibility="{x:Bind ControlsBtLowBatteryAlertToggle.IsOn, Mode=OneWay}"
-                         TextChanged="OnBtWarningLevelsChanged" />
+                <StackPanel Margin="28,0,0,0" Spacing="10" Visibility="{x:Bind ControlsBtLowBatteryAlertToggle.IsOn, Mode=OneWay}">
+                    <TextBox x:Name="ControlsBtWarningLevelsBox"
+                             Width="280"
+                             HorizontalAlignment="Left"
+                             Header="Warning levels (% below, comma-separated)"
+                             PlaceholderText="e.g. 80, 50, 20, 10"
+                             TextChanged="OnBtWarningLevelsChanged" />
+                    <ToggleSwitch x:Name="ControlsBtWarningWindowsNotificationToggle"
+                                  Header="Also show in Windows notifications"
+                                  Toggled="OnSettingChanged" />
+                </StackPanel>
                 <ToggleSwitch x:Name="ControlsShowBrightnessToggle"
                               Header="Show Brightness slider"
                               Toggled="OnSettingChanged" />

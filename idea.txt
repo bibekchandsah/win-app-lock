@@ -463,16 +463,16 @@ fixed - in note tab improve check list it's not toggled now just shows white cir
 fixed - in home tab for adding shortcuts, "add link for the launcher" dialog box "add" button window accent, in text tab use window accent color for icons and blue texts, in chat use window accent color while adding new custom AI (add custom AI site) dialog box and in height adjusting icon, in control tab for upper cards "wifi,  bluetooth, theme, battery, VPN" and in bluetooth battery card for bluetooth icon with enabled and disabled state recognition, clipboard list is looking bigger make it little bit small
 fixed - use accent color in all tabs 
 fixed - when the app is locked and user click setting icon and network meter tile of home tab from dynamic island then it bypasses the lock and opens directly prevent it
+fixed - add battery saver icon in battery card in right top side
+fixed - show the battery plugged and on battery icon,
+fixed - battery charge status with plugged in/out icon
+fixed - in island it shows battery status after few seconds not in realtime
 
 
 show ring in island too during timer 
 after new build of app saved note aren't shown that is when new features are added then previous saved notes get lost and user can't find their previous notes 
 in home tab mouse wheel volume is effected all over the island not just in volume slider
 
-add battery saver icon in battery card in right top side
-show the battery plugged and on battery icon,
-battery charge status with plugged in/out icon
-in island it shows battery status after few seconds not in realtime
 
 
 

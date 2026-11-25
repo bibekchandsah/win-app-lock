@@ -65,6 +65,9 @@ public class ControlsSettings
 
     /// <summary>Display style on folded island: "IconAndPercent" | "IconAndBattery" | "IconBatteryAndPercent".</summary>
     public string BtBatteryIslandStyle { get; set; } = "IconAndPercent";
+
+    /// <summary>Also send Bluetooth battery warnings as Windows notifications.</summary>
+    public bool BtWarningWindowsNotification { get; set; } = true;
 }
 
 public class ControlsTileVisibility

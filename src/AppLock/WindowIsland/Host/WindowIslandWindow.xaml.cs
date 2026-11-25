@@ -6025,6 +6025,14 @@ public sealed partial class WindowIslandWindow : Window
                 stayMs,
                 pct));
 
+            if (_settings.Controls.BtWarningWindowsNotification)
+            {
+                ServiceContainer.TrayService.ShowBalloonNotification(
+                    $"{dev.Name} Battery ({pct}%)",
+                    $"{pct}% remaining (below {crossed.Value}%)",
+                    pct <= 20 ? AppLock.Services.NotificationSeverity.Warning : AppLock.Services.NotificationSeverity.Informational);
+            }
+
             if (pct <= 20)
             {
                 try { System.Media.SystemSounds.Exclamation.Play(); } catch { }

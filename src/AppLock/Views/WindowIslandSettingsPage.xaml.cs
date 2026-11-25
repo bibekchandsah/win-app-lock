@@ -93,6 +93,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(ControlsBtBatteryIslandStyleBox, s.Controls.BtBatteryIslandStyle);
         ControlsBtLowBatteryAlertToggle.IsOn    = s.Controls.BtLowBatteryAlert;
         ControlsBtWarningLevelsBox.Text         = string.Join(", ", s.Controls.GetBtWarningThresholds());
+        ControlsBtWarningWindowsNotificationToggle.IsOn = s.Controls.BtWarningWindowsNotification;
         ControlsShowBrightnessToggle.IsOn       = s.Controls.ShowBrightness;
         ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
 
@@ -200,6 +201,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Controls.ShowMultipleBtBatteriesOnIsland = ControlsShowMultipleBtOnIslandToggle.IsOn;
         s.Controls.BtBatteryIslandStyle            = TagOf(ControlsBtBatteryIslandStyleBox) ?? s.Controls.BtBatteryIslandStyle;
         s.Controls.BtLowBatteryAlert               = ControlsBtLowBatteryAlertToggle.IsOn;
+        s.Controls.BtWarningWindowsNotification    = ControlsBtWarningWindowsNotificationToggle.IsOn;
         var parsedLevels = ControlsSettings.ParseThresholds(ControlsBtWarningLevelsBox.Text);
         if (parsedLevels.Count > 0)
         {
