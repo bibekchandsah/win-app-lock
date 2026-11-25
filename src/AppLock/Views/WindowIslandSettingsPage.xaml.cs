@@ -57,6 +57,9 @@ public sealed partial class WindowIslandSettingsPage : Page
         ShowBatteryToggle.IsOn = s.ShowBattery;
 
         CardCapsLockToggle.IsOn   = s.CardCapsLockEnabled;
+        CardNumLockToggle.IsOn    = s.CardNumLockEnabled;
+        CardDeleteKeyWarningToggle.IsOn = s.CardDeleteKeyWarningEnabled;
+        CardCustomKeyWarningsBox.Text   = string.Join(", ", s.CustomKeyWarnings ?? new());
         CardVolumeToggle.IsOn     = s.CardVolumeEnabled;
         CardClipboardToggle.IsOn  = s.CardClipboardEnabled;
         CardScreenshotToggle.IsOn = s.CardScreenshotEnabled;
@@ -147,6 +150,8 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnBtWarningLevelsChanged(object sender, TextChangedEventArgs e) => Save();
 
+    private void OnCustomKeyWarningsChanged(object sender, TextChangedEventArgs e) => Save();
+
     private void OnSliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         UpdateSizeLabel();
@@ -177,6 +182,9 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.ShowSeconds   = ShowSecondsCheck.IsChecked ?? false;
         s.ShowBattery   = ShowBatteryToggle.IsOn;
         s.CardCapsLockEnabled   = CardCapsLockToggle.IsOn;
+        s.CardNumLockEnabled    = CardNumLockToggle.IsOn;
+        s.CardDeleteKeyWarningEnabled = CardDeleteKeyWarningToggle.IsOn;
+        s.CustomKeyWarnings     = WindowIslandSettings.ParseCustomKeyWarnings(CardCustomKeyWarningsBox.Text);
         s.CardVolumeEnabled     = CardVolumeToggle.IsOn;
         s.CardClipboardEnabled  = CardClipboardToggle.IsOn;
         s.CardScreenshotEnabled = CardScreenshotToggle.IsOn;

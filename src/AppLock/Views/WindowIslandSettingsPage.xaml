@@ -144,6 +144,14 @@
 
             <StackPanel Spacing="10">
                 <ToggleSwitch x:Name="CardCapsLockToggle" Header="Caps Lock on/off notification" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="CardNumLockToggle" Header="Num Lock on/off notification" Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="CardDeleteKeyWarningToggle" Header="Delete key press warning" Toggled="OnSettingChanged" />
+                <TextBox x:Name="CardCustomKeyWarningsBox"
+                         Width="360"
+                         HorizontalAlignment="Left"
+                         Header="Custom key warnings (comma-separated)"
+                         PlaceholderText="e.g. Insert, PrintScreen, F12"
+                         TextChanged="OnCustomKeyWarningsChanged" />
                 <ToggleSwitch x:Name="CardVolumeToggle" Header="Volume adjustments (+ mouse wheel)" Toggled="OnSettingChanged" />
                 <ToggleSwitch x:Name="CardClipboardToggle" Header="Clipboard copy (text and images)" Toggled="OnSettingChanged" />
                 <ToggleSwitch x:Name="CardScreenshotToggle" Header="Screenshot saved alert" Toggled="OnSettingChanged" />

@@ -19,10 +19,18 @@ namespace AppLock.Island.Events;
 /// </summary>
 public sealed class LockKeyCardSource : IDisposable
 {
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
     private readonly DispatcherQueueTimer _timer;
+    private readonly List<(int Vk, string Label)> _watchedKeys = new();
+    private readonly Dictionary<int, bool> _wasKeyDown = new();
+    private readonly Dictionary<int, long> _lastKeyFiredMs = new();
+    private readonly object _watchLock = new();
 
     public event Action<bool>? CapsLockChanged;
     public event Action<bool>? NumLockChanged;
+    public event Action<string>? WatchedKeyPressed;
 
     private bool? _caps;
     private bool? _num;
@@ -33,6 +41,24 @@ public sealed class LockKeyCardSource : IDisposable
         _timer.Interval = TimeSpan.FromMilliseconds(100);
         _timer.IsRepeating = true;
         _timer.Tick += (_, _) => Poll();
+    }
+
+    public void SetWatchedKeys(IEnumerable<(int VirtualKey, string Label)> keys)
+    {
+        lock (_watchLock)
+        {
+            _watchedKeys.Clear();
+            _wasKeyDown.Clear();
+            foreach (var k in keys)
+            {
+                if (k.VirtualKey > 0 && !string.IsNullOrWhiteSpace(k.Label))
+                {
+                    _watchedKeys.Add(k);
+                    // Clear any stale "pressed since last call" bit on registration
+                    _ = GetAsyncKeyState(k.VirtualKey);
+                }
+            }
+        }
     }
 
     public void Start()
@@ -63,6 +89,32 @@ public sealed class LockKeyCardSource : IDisposable
         {
             _num = num;
             NumLockChanged?.Invoke(num);
+        }
+
+        List<(int Vk, string Label)> snapshot;
+        lock (_watchLock)
+        {
+            if (_watchedKeys.Count == 0) return;
+            snapshot = new List<(int, string)>(_watchedKeys);
+        }
+
+        long nowMs = Environment.TickCount64;
+        foreach (var (vk, label) in snapshot)
+        {
+            short state = GetAsyncKeyState(vk);
+            bool isDown = (state & 0x8000) != 0;
+            bool tappedSinceLast = (state & 0x0001) != 0;
+            _wasKeyDown.TryGetValue(vk, out bool wasDown);
+            _wasKeyDown[vk] = isDown;
+
+            if ((isDown && !wasDown) || (!isDown && tappedSinceLast))
+            {
+                if (!_lastKeyFiredMs.TryGetValue(vk, out long lastMs) || nowMs - lastMs >= 350)
+                {
+                    _lastKeyFiredMs[vk] = nowMs;
+                    WatchedKeyPressed?.Invoke(label);
+                }
+            }
         }
     }
 

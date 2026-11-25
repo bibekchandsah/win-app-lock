@@ -318,7 +318,10 @@ public sealed partial class WindowIslandWindow : Window
         InitAudioListener();
 
         _lockKeySource = new LockKeyCardSource(DispatcherQueue);
-        _lockKeySource.CapsLockChanged += OnCapsLockChanged;
+        _lockKeySource.CapsLockChanged   += OnCapsLockChanged;
+        _lockKeySource.NumLockChanged    += OnNumLockChanged;
+        _lockKeySource.WatchedKeyPressed += OnWatchedKeyPressed;
+        SyncWatchedKeys();
         _lockKeySource.Start();
 
         _clipboardSource = new ClipboardCardSource(DispatcherQueue, _hwnd);
@@ -518,6 +521,7 @@ public sealed partial class WindowIslandWindow : Window
         _compositor?.ApplySettings(settings);
         UpdateHitRegion(_compositor?.IsOpen ?? false);
         UpdateShapeContentOffset();
+        SyncWatchedKeys();
         ApplyContentVisibility();
         UpdateClock();
         UpdateBattery();
@@ -595,8 +599,14 @@ public sealed partial class WindowIslandWindow : Window
 
         _eventQueue?.Dispose();
         _eventQueue = null;
-        _lockKeySource?.Dispose();
-        _lockKeySource = null;
+        if (_lockKeySource != null)
+        {
+            _lockKeySource.CapsLockChanged   -= OnCapsLockChanged;
+            _lockKeySource.NumLockChanged    -= OnNumLockChanged;
+            _lockKeySource.WatchedKeyPressed -= OnWatchedKeyPressed;
+            _lockKeySource.Dispose();
+            _lockKeySource = null;
+        }
         _clipboardSource?.Dispose();
         _clipboardSource = null;
         _screenshotSource?.Dispose();
@@ -1608,6 +1618,31 @@ public sealed partial class WindowIslandWindow : Window
         if (pushCard) QueueVolumeCard(vol);
     }
 
+    private void SyncWatchedKeys()
+    {
+        if (_lockKeySource == null) return;
+        var keys = new System.Collections.Generic.List<(int VirtualKey, string Label)>();
+        var seen = new System.Collections.Generic.HashSet<int>();
+
+        if (_settings.CardDeleteKeyWarningEnabled && seen.Add(0x2E))
+        {
+            keys.Add((0x2E, "Delete"));
+        }
+
+        if (_settings.CustomKeyWarnings != null)
+        {
+            foreach (var raw in _settings.CustomKeyWarnings)
+            {
+                if (WindowIslandSettings.TryResolveVirtualKey(raw, out int vk, out string label) && seen.Add(vk))
+                {
+                    keys.Add((vk, label));
+                }
+            }
+        }
+
+        _lockKeySource.SetWatchedKeys(keys);
+    }
+
     private void OnCapsLockChanged(bool isOn)
     {
         if (!_settings.CardCapsLockEnabled) return;
@@ -1618,6 +1653,35 @@ public sealed partial class WindowIslandWindow : Window
             Title: "Caps Lock",
             Detail: isOn ? "On" : "Off",
             AccentHex: isOn ? "#FFD700" : "#C0FFFFFF",
+            Priority: WindowIslandCardPriority.CapsLock,
+            StayMs: stay));
+    }
+
+    private void OnNumLockChanged(bool isOn)
+    {
+        if (!_settings.CardNumLockEnabled) return;
+        int stay = _settings.GetCardStayMs();
+        var accent = GetSystemAccentColor();
+        string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "numlock",
+            Icon: "\uE765",
+            Title: "Num Lock",
+            Detail: isOn ? "On" : "Off",
+            AccentHex: isOn ? accentHex : "#C0FFFFFF",
+            Priority: WindowIslandCardPriority.CapsLock,
+            StayMs: stay));
+    }
+
+    private void OnWatchedKeyPressed(string keyLabel)
+    {
+        int stay = _settings.GetCardStayMs();
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: $"keywarn-{keyLabel}",
+            Icon: "\uE7BA",
+            Title: $"{keyLabel} Key",
+            Detail: "Warning: pressed",
+            AccentHex: "#FFA726",
             Priority: WindowIslandCardPriority.CapsLock,
             StayMs: stay));
     }

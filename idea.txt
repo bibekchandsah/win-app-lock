@@ -481,7 +481,7 @@ full screen screenshot [open] preview
 fixed - copied image live preview 
 fixed - remainder check option with +10min check icon 
 fixed - show ring in island too during timer with again and check icon to confirm it's ended  
-caps/num lock 
+fixed - caps/num lock 
 live brightness 
 microphone controller
 camera & microphone preview 

@@ -54,9 +54,75 @@ public sealed class WindowIslandSettings
     };
 
     public bool CardCapsLockEnabled   { get; set; } = true;
+    public bool CardNumLockEnabled    { get; set; } = true;
+    public bool CardDeleteKeyWarningEnabled { get; set; } = false;
+    public System.Collections.Generic.List<string> CustomKeyWarnings { get; set; } = new();
     public bool CardVolumeEnabled     { get; set; } = true;
     public bool CardClipboardEnabled  { get; set; } = true;
     public bool CardScreenshotEnabled { get; set; } = true;
+
+    public static System.Collections.Generic.List<string> ParseCustomKeyWarnings(string? raw)
+    {
+        var result = new System.Collections.Generic.List<string>();
+        if (string.IsNullOrWhiteSpace(raw)) return result;
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in raw.Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (TryResolveVirtualKey(part, out _, out string canonical) && seen.Add(canonical))
+            {
+                result.Add(canonical);
+            }
+        }
+        return result;
+    }
+
+    public static bool TryResolveVirtualKey(string? name, out int vk, out string canonicalName)
+    {
+        vk = 0;
+        canonicalName = string.Empty;
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        string trimmed = name.Trim();
+
+        switch (trimmed.ToUpperInvariant())
+        {
+            case "DEL":
+            case "DELETE":
+                vk = 0x2E; canonicalName = "Delete"; return true;
+            case "INS":
+            case "INSERT":
+                vk = 0x2D; canonicalName = "Insert"; return true;
+            case "PRTSC":
+            case "PRINTSCREEN":
+            case "SNAPSHOT":
+                vk = 0x2C; canonicalName = "PrintScreen"; return true;
+            case "ESC":
+            case "ESCAPE":
+                vk = 0x1B; canonicalName = "Escape"; return true;
+            case "PGUP":
+            case "PAGEUP":
+                vk = 0x21; canonicalName = "PageUp"; return true;
+            case "PGDN":
+            case "PAGEDOWN":
+                vk = 0x22; canonicalName = "PageDown"; return true;
+            case "SCROLL":
+            case "SCROLLLOCK":
+                vk = 0x91; canonicalName = "ScrollLock"; return true;
+            case "PAUSE":
+            case "BREAK":
+                vk = 0x13; canonicalName = "Pause"; return true;
+            case "BACK":
+            case "BACKSPACE":
+                vk = 0x08; canonicalName = "Backspace"; return true;
+        }
+
+        if (Enum.TryParse<Windows.System.VirtualKey>(trimmed, ignoreCase: true, out var parsed) && (int)parsed > 0)
+        {
+            vk = (int)parsed;
+            canonicalName = parsed.ToString();
+            return true;
+        }
+        return false;
+    }
 
     // ── Milestone 8: Command Bar & Web Searches (@) ──────────────────────────
     /// <summary>Configurable list of search engine shortcuts in the Command Bar (e.g. "@youtube nepali music").</summary>
