@@ -254,6 +254,7 @@ public sealed partial class WindowIslandWindow : Window
     private AppLock.Services.RingLight.CameraUsageMonitor? _cameraMonitor;
     private volatile bool _cameraMonitorInUse;
     private volatile string? _cameraMonitorApp;
+    private bool _registryCamActive;
 
     // Milestone 13: Chat (WebView2)
     private WebView2?                         _chatWebView;
@@ -5622,16 +5623,21 @@ public sealed partial class WindowIslandWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             bool wasCamActive = _camDotActive;
-            _camDotActive = e.InUse;
-            _activeCamAppName = appName;
+            bool nowCamActive = e.InUse || _registryCamActive;
+            _camDotActive = nowCamActive;
+            if (e.InUse && !_registryCamActive)
+                _activeCamAppName = appName;
+            else if (!nowCamActive)
+                _activeCamAppName = string.Empty;
 
-            if (e.InUse && _settings.MicCamDotsEnabled &&
-                (!wasCamActive || !string.Equals(_lastWarnedCamApp, appName, StringComparison.OrdinalIgnoreCase)))
+            string displayApp = _activeCamAppName ?? appName;
+            if (nowCamActive && _settings.MicCamDotsEnabled &&
+                (!wasCamActive || !string.Equals(_lastWarnedCamApp, displayApp, StringComparison.OrdinalIgnoreCase)))
             {
-                _lastWarnedCamApp = appName;
-                string camTitle = string.IsNullOrEmpty(appName)
+                _lastWarnedCamApp = displayApp;
+                string camTitle = string.IsNullOrEmpty(displayApp)
                     ? "Camera in use"
-                    : $"Camera: {appName}";
+                    : $"Camera: {displayApp}";
                 _eventQueue?.Push(new WindowIslandCard(
                     Kind: "cam-in-use",
                     Icon: "\uE714",
@@ -5642,7 +5648,7 @@ public sealed partial class WindowIslandWindow : Window
                     StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 5000) : 5000,
                     IsStacked: true));
             }
-            else if (!e.InUse)
+            else if (!nowCamActive)
             {
                 _lastWarnedCamApp = null;
             }
@@ -5657,11 +5663,13 @@ public sealed partial class WindowIslandWindow : Window
         {
             bool wasMicActive = _micDotActive;
             bool wasCamActive = _camDotActive;
+            _registryCamActive = e.CamActive;
             _micDotActive = e.MicActive;
             _camDotActive = e.CamActive || _cameraMonitorInUse;
             _activeMicAppName = e.MicApp;
-            if (!string.IsNullOrEmpty(e.CamApp)) _activeCamAppName = e.CamApp;
-            else if (_cameraMonitorInUse && !string.IsNullOrEmpty(_cameraMonitorApp)) _activeCamAppName = _cameraMonitorApp;
+            _activeCamAppName = !string.IsNullOrEmpty(e.CamApp)
+                ? e.CamApp
+                : (_cameraMonitorInUse ? (_cameraMonitorApp ?? string.Empty) : string.Empty);
 
             if (e.MicActive && _settings.MicCamDotsEnabled &&
                 (!wasMicActive || !string.Equals(_lastWarnedMicApp, e.MicApp, StringComparison.OrdinalIgnoreCase)))

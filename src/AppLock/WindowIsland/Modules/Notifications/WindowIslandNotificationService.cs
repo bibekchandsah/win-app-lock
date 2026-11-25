@@ -91,10 +91,10 @@ public sealed class WindowIslandNotificationService : IDisposable
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
 
-        // Poll mic/cam every 2 s (battery every 10 s); initial poll after 1 s
+        // Poll mic/cam every 1 s (battery every 10 s); initial poll after 500 ms
         _pollTimer = new Timer(OnPollTimer, null,
-            dueTime: TimeSpan.FromSeconds(1),
-            period:  TimeSpan.FromSeconds(2));
+            dueTime: TimeSpan.FromMilliseconds(500),
+            period:  TimeSpan.FromSeconds(1));
     }
 
     // ── VPN Detection ─────────────────────────────────────────────────────────
@@ -266,27 +266,31 @@ public sealed class WindowIslandNotificationService : IDisposable
 
     private static (bool Active, string AppName) IsDeviceInUse(string registrySubKey)
     {
-        if (IsRootDeviceInUse(Microsoft.Win32.Registry.CurrentUser, registrySubKey, out string cuApp))
-            return (true, cuApp);
-        if (IsRootDeviceInUse(Microsoft.Win32.Registry.LocalMachine, registrySubKey, out string lmApp))
-            return (true, lmApp);
-        return (false, string.Empty);
+        long bestStart = 0;
+        string bestApp = string.Empty;
+
+        CheckRootDeviceInUse(Microsoft.Win32.Registry.CurrentUser, registrySubKey, ref bestStart, ref bestApp);
+        CheckRootDeviceInUse(Microsoft.Win32.Registry.LocalMachine, registrySubKey, ref bestStart, ref bestApp);
+
+        return (bestStart > 0, bestApp);
     }
 
-    private static bool IsRootDeviceInUse(Microsoft.Win32.RegistryKey root, string registrySubKey, out string appName)
+    private static void CheckRootDeviceInUse(Microsoft.Win32.RegistryKey root, string registrySubKey, ref long bestStart, ref string bestApp)
     {
-        appName = string.Empty;
         try
         {
             using var key = root.OpenSubKey(registrySubKey, writable: false);
-            if (key == null) return false;
+            if (key == null) return;
 
             // Check direct packaged app entries
             foreach (string subName in key.GetSubKeyNames())
             {
                 if (string.Equals(subName, "NonPackaged", StringComparison.OrdinalIgnoreCase)) continue;
-                if (IsSubKeyActive(key, subName, out appName))
-                    return true;
+                if (TryGetActiveSubKey(key, subName, out long start, out string appName) && start > bestStart)
+                {
+                    bestStart = start;
+                    bestApp = appName;
+                }
             }
 
             // Check NonPackaged desktop app entries
@@ -295,17 +299,20 @@ public sealed class WindowIslandNotificationService : IDisposable
             {
                 foreach (string subName in nonPkg.GetSubKeyNames())
                 {
-                    if (IsSubKeyActive(nonPkg, subName, out appName))
-                        return true;
+                    if (TryGetActiveSubKey(nonPkg, subName, out long start, out string appName) && start > bestStart)
+                    {
+                        bestStart = start;
+                        bestApp = appName;
+                    }
                 }
             }
         }
         catch { }
-        return false;
     }
 
-    private static bool IsSubKeyActive(Microsoft.Win32.RegistryKey parent, string subName, out string appName)
+    private static bool TryGetActiveSubKey(Microsoft.Win32.RegistryKey parent, string subName, out long startTime, out string appName)
     {
+        startTime = 0;
         appName = string.Empty;
         try
         {
@@ -321,6 +328,7 @@ public sealed class WindowIslandNotificationService : IDisposable
 
             if (start > stop)
             {
+                startTime = start;
                 appName = FriendlyAppName(subName);
                 return true;
             }
@@ -384,7 +392,7 @@ public sealed class WindowIslandNotificationService : IDisposable
     {
         if (_disposed) return;
         int tick = Interlocked.Increment(ref _pollTick);
-        if (tick == 1 || tick % 5 == 0)
+        if (tick == 1 || tick % 10 == 0)
         {
             try { CheckBatteryState(); } catch { }
         }
