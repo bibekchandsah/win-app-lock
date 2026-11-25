@@ -436,13 +436,17 @@ public sealed partial class WindowIslandWindow : Window
         _controlsTimer.IsRepeating = true;
         _controlsTimer.Tick += (_, _) =>
         {
-            if (_activeTab == 7)
+            if (_activeTab == 7 && _compositor?.IsOpen == true)
             {
                 RefreshControlsUI();
                 if (ControlsDeviceOverlay != null && ControlsDeviceOverlay.Visibility == Visibility.Visible)
                 {
                     _ = PopulateDeviceListAsync();
                 }
+            }
+            else
+            {
+                _ = UpdateFoldedBtBatteriesAsync();
             }
         };
         _controlsTimer.Start();
@@ -5614,9 +5618,10 @@ public sealed partial class WindowIslandWindow : Window
     private void UpdateFoldedWeatherMini()
     {
         var settings = _settings ?? ServiceContainer.Settings.WindowIsland;
-        if (!settings.WeatherTempOnIsland || _isMediaPlaying || _timer?.State == IslandTimerState.Running)
+        if (!settings.WeatherTempOnIsland || _timer?.State == IslandTimerState.Running)
         {
             FoldedWeatherMini.Visibility = Visibility.Collapsed;
+            UpdateDynamicFoldedWidth();
             return;
         }
 
@@ -5632,6 +5637,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             FoldedWeatherMini.Visibility = Visibility.Collapsed;
         }
+        UpdateDynamicFoldedWidth();
     }
 
     private void RenderWeatherCityDots(WindowIslandSettings settings)
@@ -6205,8 +6211,12 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private bool _isUpdatingFoldedBt;
+
     private async Task UpdateFoldedBtBatteriesAsync()
     {
+        if (_isUpdatingFoldedBt) return;
+        _isUpdatingFoldedBt = true;
         try
         {
             if (!_settings.Controls.ShowBtBatteryOnIsland && !_settings.Controls.BtLowBatteryAlert)
@@ -6223,6 +6233,10 @@ public sealed partial class WindowIslandWindow : Window
             RenderFoldedBtBatteries(btOn, btDevices);
         }
         catch { }
+        finally
+        {
+            _isUpdatingFoldedBt = false;
+        }
     }
 
     private void RenderFoldedBtBatteries(bool btOn, System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> btDevices)
@@ -6373,8 +6387,9 @@ public sealed partial class WindowIslandWindow : Window
     private void UpdateDynamicFoldedWidth()
     {
         if (_compositor == null || FoldedContentStack == null) return;
-        FoldedContentStack.Measure(new Windows.Foundation.Size(600, 32));
-        float desiredWidth = MathF.Max(WindowIslandCompositor.FoldedWidthDip, (float)FoldedContentStack.DesiredSize.Width + 28f);
+        FoldedContentStack.InvalidateMeasure();
+        FoldedContentStack.Measure(new Windows.Foundation.Size(double.PositiveInfinity, 32));
+        float desiredWidth = MathF.Max(WindowIslandCompositor.FoldedWidthDip, (float)FoldedContentStack.DesiredSize.Width + 32f);
         _compositor.SetFoldedWidth(desiredWidth, animate: true);
         if (!_compositor.IsOpen && !_compositor.IsCard && !_compositor.IsCommand)
         {
