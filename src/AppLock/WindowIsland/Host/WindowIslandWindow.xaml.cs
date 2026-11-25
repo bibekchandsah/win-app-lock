@@ -247,6 +247,8 @@ public sealed partial class WindowIslandWindow : Window
     private string? _activeCamAppName;
     private string? _lastWarnedMicApp;
     private string? _lastWarnedCamApp;
+    private string? _lastCamCardApp;
+    private DateTime _lastCamCardAt = DateTime.MinValue;
     private string? _micDotLastTooltip;
     private string? _camDotLastTooltip;
     private string? _headerMicLastTooltip;
@@ -524,7 +526,7 @@ public sealed partial class WindowIslandWindow : Window
         if (_cameraMonitor == null)
         {
             _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(
-                inactiveDebounceSeconds: 1,
+                inactiveDebounceSeconds: 4,
                 pollIntervalMs: 500,
                 // Needed for Chrome/Edge and WebView2 calls (WhatsApp, new Teams): their capture runs in
                 // a separate browser utility process that the running-app scan never sees.
@@ -5643,9 +5645,11 @@ public sealed partial class WindowIslandWindow : Window
 
             string displayApp = _activeCamAppName ?? appName;
             if (nowCamActive && _settings.MicCamDotsEnabled &&
-                (!wasCamActive || !string.Equals(_lastWarnedCamApp, displayApp, StringComparison.OrdinalIgnoreCase)))
+                (!wasCamActive || !string.Equals(_lastWarnedCamApp, displayApp, StringComparison.OrdinalIgnoreCase)) &&
+                ShouldAnnounceCam(displayApp))
             {
                 _lastWarnedCamApp = displayApp;
+                NoteCamAnnounced(displayApp);
                 string camTitle = string.IsNullOrEmpty(displayApp)
                     ? "Camera in use"
                     : $"Camera: {displayApp}";
@@ -5666,6 +5670,24 @@ public sealed partial class WindowIslandWindow : Window
 
             UpdateMicCamDots();
         });
+    }
+
+    /// <summary>
+    /// True when the same app may be announced again: always for a different app, but the same one at
+    /// most once a minute. Detection can drop out and come back (a browser re-opening its capture
+    /// service, a record written only when a session ends), and the user must not be told over and over
+    /// about a camera session that never actually stopped.
+    /// </summary>
+    private bool ShouldAnnounceCam(string app)
+    {
+        if (!string.Equals(_lastCamCardApp, app, StringComparison.OrdinalIgnoreCase)) return true;
+        return (DateTime.UtcNow - _lastCamCardAt).TotalSeconds >= 60;
+    }
+
+    private void NoteCamAnnounced(string app)
+    {
+        _lastCamCardApp = app;
+        _lastCamCardAt = DateTime.UtcNow;
     }
 
     private void OnMicCamStateChanged(object? sender, MicCamStateArgs e)
@@ -5708,9 +5730,11 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             if (e.CamActive && _settings.MicCamDotsEnabled &&
-                (!wasCamActive || !string.Equals(_lastWarnedCamApp, e.CamApp, StringComparison.OrdinalIgnoreCase)))
+                (!wasCamActive || !string.Equals(_lastWarnedCamApp, e.CamApp, StringComparison.OrdinalIgnoreCase)) &&
+                ShouldAnnounceCam(e.CamApp))
             {
                 _lastWarnedCamApp = e.CamApp;
+                NoteCamAnnounced(e.CamApp);
                 string camTitle = string.IsNullOrEmpty(e.CamApp)
                     ? "Camera in use"
                     : $"Camera: {e.CamApp}";

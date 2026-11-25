@@ -171,11 +171,16 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     // Browser capture-service sampling: a Chromium "VideoCaptureService" utility process lingers
     // after a call ends, so its CPU time is sampled to tell a streaming service from an idle one.
-    private const double BrowserCaptureCpuThresholdMs = 8.0;
+    private const double BrowserCaptureCpuThresholdMs = 20.0;
+
+    // A page that only opens the camera for a moment (a permission probe, a preview that closes) is
+    // not a call: the service has to stay busy for a few samples before it is reported.
+    private const int BrowserCaptureStreakSamples = 3;
+
     private readonly Dictionary<uint, CaptureSample> _captureSamples = new();
     private readonly object _captureSamplesLock = new();
 
-    private readonly record struct CaptureSample(TimeSpan Cpu, DateTime At, bool Active);
+    private readonly record struct CaptureSample(TimeSpan Cpu, DateTime At, bool Active, int Streak);
 
     // The capture-service WMI query costs a few milliseconds, and the poll runs every second while a
     // browser is open, so its result is reused briefly instead of being queried on every tick.
@@ -190,10 +195,18 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     // same apps idle at 0 ms/s. Turning on therefore needs a real stream (well clear of idle) held for
     // two consecutive samples, and turning off waits until the rate falls to a much lower hold
     // threshold — a single busy moment can neither invent nor hide a running call.
-    private const double AppStartThresholdMsPerSecond = 30.0;
+    private const double AppStartThresholdMsPerSecond = 45.0;
+    private const double AppStartHoldThresholdMsPerSecond = 25.0;
     private const double AppHoldThresholdMsPerSecond = 10.0;
-    private const int AppRateWindowSamples = 6;          // ~3 s at the 500 ms poll
-    private const int AppRateWindowMinimumSamples = 4;   // never judge on a shorter history
+    private const int AppRateWindowSamples = 10;         // ~5 s at the 500 ms poll
+    private const int AppRateWindowMinimumSamples = 7;   // never judge on less than ~3.5 s of history
+
+    /// <summary>
+    /// How long a record that Windows wrote when a session ended still counts as "just used". Some
+    /// apps (and the camera preview in Settings) are only recorded once they stop, and treating a
+    /// record written a moment ago as live is the only evidence they leave at all.
+    /// </summary>
+    private const int RecentSessionGraceSeconds = 4;
     private const double AppActivitySmoothing = 0.3;
     private readonly Dictionary<uint, PidCpuSample> _pidCpu = new();
     private readonly Dictionary<string, AppActivitySample> _appActivity = new();
@@ -413,7 +426,14 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             var stopValue = sub.GetValue("LastUsedTimeStop");
             long stop = stopValue != null ? ToInt64Safe(stopValue) : 0;
 
-            return start > stop;
+            // Session still open (some builds do publish this live).
+            if (start > stop) return true;
+            if (stop == 0) return false;
+
+            // Session recorded only when it ended: a record written a moment ago means the app was
+            // capturing until just now. Reporting it keeps the same app named instead of the indicator
+            // dropping out and back for every short session (Edge previews, the Settings camera page).
+            return (DateTime.UtcNow - DateTime.FromFileTimeUtc(stop)).TotalSeconds <= RecentSessionGraceSeconds;
         }
         catch
         {
@@ -689,7 +709,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 ? window.Average >= AppHoldThresholdMsPerSecond
                 : window.Count >= AppRateWindowMinimumSamples &&
                   window.Average >= AppStartThresholdMsPerSecond &&
-                  window.CountAtLeast(AppHoldThresholdMsPerSecond) >= window.Count - 1;
+                  window.CountAtLeast(AppStartHoldThresholdMsPerSecond) >= window.Count - 1;
 
             if (active) _appConfirmed.Add(display);
             else _appConfirmed.Remove(display);
@@ -732,17 +752,17 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
         lock (_activityLock)
         {
-            // The first real measurement is used as-is so a call that is already running is seen
-            // immediately; later samples are smoothed to keep a lone busy second from flipping it.
-            // The first real measurement is used as-is so a call that is already running is seen
-            // immediately; later samples are smoothed so one busy moment does not dominate.
+            // The smoothed rate is only used to rank apps in the notification. The state decision below
+            // takes the raw sample: smoothing would smear an app's short bursts into what looks like a
+            // continuous stream and get an idle WhatsApp reported as a camera user.
             var smoothed = _appActivity.TryGetValue(display, out var previous) && previous.Measured
                 ? previous.RateMsPerSecond * (1 - _appActivitySmoothing) + total.Value * _appActivitySmoothing
                 : total.Value;
 
             _appActivity[display] = new AppActivitySample(now, smoothed, true);
-            return smoothed;
         }
+
+        return total.Value;
     }
 
     /// <summary>CPU rate of one process in milliseconds per second, or null if not measured yet.</summary>
@@ -1000,18 +1020,24 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             {
                 if (_captureSamples.TryGetValue(proc.Pid, out var previous))
                 {
-                    isWorking = previous.Active;
                     if ((now - previous.At).TotalMilliseconds >= 400)
                     {
                         var usedMs = (cpu - previous.Cpu).TotalMilliseconds;
-                        isWorking = usedMs >= BrowserCaptureCpuThresholdMs;
-                        _captureSamples[proc.Pid] = new CaptureSample(cpu, now, isWorking);
+                        bool busy = usedMs >= BrowserCaptureCpuThresholdMs;
+                        int streak = busy ? previous.Streak + 1 : 0;
+                        isWorking = streak >= BrowserCaptureStreakSamples;
+                        _captureSamples[proc.Pid] = new CaptureSample(cpu, now, isWorking, streak);
+                    }
+                    else
+                    {
+                        // Asked again inside the sampling window: reuse the verdict just reached.
+                        isWorking = previous.Active;
                     }
                 }
                 else
                 {
                     // First sighting: remember a baseline, decide on the next sample.
-                    _captureSamples[proc.Pid] = new CaptureSample(cpu, now, false);
+                    _captureSamples[proc.Pid] = new CaptureSample(cpu, now, false, 0);
                 }
             }
 
@@ -1302,7 +1328,11 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                     _consecutiveActiveSeconds++;
                     _consecutiveInactiveSeconds = 0;
 
-                    string appsKey = string.Join(",", activeApps);
+                    // Order-insensitive: the ranked list is rebuilt every tick and the same apps in a
+                    // different order must not count as a change and re-announce the warning.
+                    var keyNames = new List<string>(activeApps);
+                    keyNames.Sort(StringComparer.OrdinalIgnoreCase);
+                    string appsKey = string.Join(",", keyNames);
                     // 1 tick of continuous use required to turn on, or update if the active app changed
                     if ((!_isDebouncedInUse && _consecutiveActiveSeconds >= 1) ||
                         (_isDebouncedInUse && !string.Equals(_lastNotifiedAppsKey, appsKey, StringComparison.Ordinal)))
