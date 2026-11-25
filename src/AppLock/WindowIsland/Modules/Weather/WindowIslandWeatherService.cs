@@ -283,7 +283,7 @@ public sealed class WindowIslandWeatherService
 
                     _lastRainWarningTime = now;
                     string eventType = isSnow ? "Snow" : "Rain";
-                    string icon = isSnow ? "\uE774" : "\uE754";
+                    string icon = isSnow ? "\u2744" : "\u2614";
                     string detail = pt.PrecipitationMm > 0
                         ? $"{eventType} expected in ~{(int)Math.Max(15, Math.Round(diff.TotalMinutes))} min ({pt.PrecipitationMm:0.0} mm)"
                         : $"{eventType} expected in ~{(int)Math.Max(15, Math.Round(diff.TotalMinutes))} min";
@@ -293,9 +293,10 @@ public sealed class WindowIslandWeatherService
                         Icon: icon,
                         Title: $"{eventType} Alert",
                         Detail: detail,
-                        AccentHex: isSnow ? "#60CDFF" : "#60CDFF",
+                        AccentHex: "#60CDFF",
                         Priority: WindowIslandCardPriority.Rain,
-                        StayMs: 5000));
+                        StayMs: 5000,
+                        IsStacked: true));
 
                     break;
                 }

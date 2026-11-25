@@ -494,9 +494,6 @@ microphone used notification with mute button
 
 
 
-
-
-
 overflow stack fix (powershell)
 taskkill /f /t /im AppLock.exe
 Get-Process AppLock -ErrorAction SilentlyContinue | Stop-Process -Force

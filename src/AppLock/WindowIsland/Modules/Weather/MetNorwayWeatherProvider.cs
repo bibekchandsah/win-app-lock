@@ -357,14 +357,14 @@ public sealed class MetNorwayWeatherProvider : IWeatherProvider
         if (string.IsNullOrEmpty(symbol)) return "\u2600";
         string s = symbol.ToLowerInvariant();
 
-        if (s.Contains("thunder")) return "\uE755";
-        if (s.Contains("heavyrain")) return "\uE754";
-        if (s.Contains("sleet")) return "\uE776";
+        if (s.Contains("thunder")) return "\u26C8";
+        if (s.Contains("heavyrain")) return "\u2614";
+        if (s.Contains("sleet")) return "\u2744";
         if (s.Contains("snow")) return "\u2744";
-        if (s.Contains("rain")) return "\uE754";
-        if (s.Contains("fog")) return "\uE752";
+        if (s.Contains("rain")) return "\u2614";
+        if (s.Contains("fog")) return "\u2601";
         if (s.Contains("partlycloudy") || s.Contains("fair")) return s.Contains("night") ? "\uE708" : "\u26C5";
-        if (s.Contains("cloudy")) return "\uE753";
+        if (s.Contains("cloudy")) return "\u2601";
         if (s.Contains("clear")) return s.Contains("night") ? "\uE708" : "\u2600";
 
         return "\u2600";

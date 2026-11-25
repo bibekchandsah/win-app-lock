@@ -86,11 +86,11 @@ public class WindowIslandWeatherTests
     [Theory]
     [InlineData("clearsky_day", "\u2600", "Clear Sky")]
     [InlineData("clearsky_night", "\uE708", "Clear Sky")]
-    [InlineData("rain", "\uE754", "Rain")]
-    [InlineData("heavyrain", "\uE754", "Heavy Rain")]
+    [InlineData("rain", "\u2614", "Rain")]
+    [InlineData("heavyrain", "\u2614", "Heavy Rain")]
     [InlineData("snow", "\u2744", "Snow")]
-    [InlineData("thunderstorm", "\uE755", "Thunderstorm")]
-    [InlineData("fog", "\uE752", "Foggy")]
+    [InlineData("thunderstorm", "\u26C8", "Thunderstorm")]
+    [InlineData("fog", "\u2601", "Foggy")]
     [InlineData("partlycloudy_day", "\u26C5", "Partly Cloudy")]
     public void SymbolMapping_MapsKnownSymbolsCorrectly(string symbol, string expectedGlyph, string expectedCondition)
     {

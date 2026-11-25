@@ -1747,6 +1747,9 @@ public sealed partial class WindowIslandWindow : Window
         _activeCardTagId = card.TagId;
         var accentColor = HexToColor(card.AccentHex);
         var cardAccentBrush = new SolidColorBrush(accentColor);
+        CardIcon.FontFamily = card.Kind == "weather-rain"
+            ? new FontFamily("Segoe UI Symbol, Segoe Fluent Icons")
+            : new FontFamily("Segoe Fluent Icons");
         CardIcon.Glyph = card.Icon;
         CardIcon.Foreground = cardAccentBrush;
 
@@ -1796,7 +1799,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Visibility = Visibility.Visible;
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
-                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery")
+                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
                 CardIcon.FontSize = 15;
@@ -1820,6 +1823,7 @@ public sealed partial class WindowIslandWindow : Window
 
             CardTitle.Text = card.Title;
             CardTitle.Visibility = string.IsNullOrEmpty(card.Title) ? Visibility.Collapsed : Visibility.Visible;
+            CardDetail.MaxWidth = 145;
             CardDetail.Text = card.Detail;
             CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
 
