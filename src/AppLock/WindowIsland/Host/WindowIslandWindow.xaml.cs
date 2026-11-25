@@ -449,6 +449,7 @@ public sealed partial class WindowIslandWindow : Window
         // Start Home tab background sampler immediately (tab 0 is active on first open)
         StartHomeState();
         _clipboardState?.Refresh();
+        _ = UpdateFoldedBtBatteriesAsync();
 
         // Milestone 15: start visibility service
         _visibilityService?.Dispose();
@@ -483,6 +484,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
+        _ = UpdateFoldedBtBatteriesAsync();
 
         // Milestone 15: re-create visibility service with new settings
         if (_visibilityService != null)
@@ -1057,7 +1059,7 @@ public sealed partial class WindowIslandWindow : Window
 
             float curWidthDip  = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).W
-                : (_compositor.IsCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
+                : (_compositor.IsCard ? 270f : _compositor.CurrentFoldedWidthDip)) * factor;
             float curHeightDip = (_compositor.IsOpen
                 ? IslandMotion.TabSize(_activeTab).H
                 : (_compositor.IsCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
@@ -1199,7 +1201,8 @@ public sealed partial class WindowIslandWindow : Window
         double scale  = _scale > 0 ? _scale : 1.0;
         float factor  = (float)(_settings.SizePercent / 100.0);
 
-        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : WindowIslandCompositor.FoldedWidthDip)) * factor;
+        float foldedW = _compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip;
+        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : foldedW)) * factor;
         float heightDip = isCommand ? IslandMotion.CommandBarSize.H : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
         float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip : (isCard ? 19f : WindowIslandCompositor.FoldedRadiusDip) * factor;
         float leftDip   = (WindowWidthDip - widthDip) / 2f;
@@ -5733,9 +5736,11 @@ public sealed partial class WindowIslandWindow : Window
                 ControlsPowerRow.Visibility = _settings.Controls.ShowPowerRow ? Visibility.Visible : Visibility.Collapsed;
 
             // 8. Bluetooth Battery Cards (supports multiple connected devices in a dynamic grid)
+            var btDevices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
+            RenderFoldedBtBatteries(btOn, btDevices);
+
             if (ControlsBtBatteryContainer != null && _settings.Controls.ShowBluetoothBatteryCard)
             {
-                var btDevices = await WindowIslandControlsService.GetBluetoothDevicesAsync();
                 var connectedDevices = btOn
                     ? btDevices.Where(d => d.IsConnected).OrderByDescending(d => d.BatteryPercent.HasValue).ThenBy(d => d.Name).ToList()
                     : new System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice>();
@@ -5807,6 +5812,128 @@ public sealed partial class WindowIslandWindow : Window
             RenderQuickCardsGrid();
         }
         catch { }
+    }
+
+    private async Task UpdateFoldedBtBatteriesAsync()
+    {
+        try
+        {
+            if (!_settings.Controls.ShowBtBatteryOnIsland)
+            {
+                if (FoldedBtBatteryPanel != null) FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
+                UpdateDynamicFoldedWidth();
+                return;
+            }
+
+            var (_, btOn) = await WindowIslandControlsService.Instance.GetBluetoothStateAsync();
+            var btDevices = btOn
+                ? await WindowIslandControlsService.GetBluetoothDevicesAsync()
+                : new System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice>();
+            RenderFoldedBtBatteries(btOn, btDevices);
+        }
+        catch { }
+    }
+
+    private void RenderFoldedBtBatteries(bool btOn, System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> btDevices)
+    {
+        if (FoldedBtBatteryPanel == null) return;
+        FoldedBtBatteryPanel.Children.Clear();
+
+        if (!_settings.Controls.ShowBtBatteryOnIsland || !btOn)
+        {
+            FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
+            UpdateDynamicFoldedWidth();
+            return;
+        }
+
+        var connected = btDevices
+            .Where(d => d.IsConnected && d.BatteryPercent.HasValue)
+            .OrderByDescending(d => d.BatteryPercent.HasValue)
+            .ThenBy(d => d.Name)
+            .ToList();
+
+        if (connected.Count == 0)
+        {
+            FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
+            UpdateDynamicFoldedWidth();
+            return;
+        }
+
+        var toShow = _settings.Controls.ShowMultipleBtBatteriesOnIsland
+            ? connected.Take(4).ToList()
+            : connected.Take(1).ToList();
+
+        string style = _settings.Controls.BtBatteryIslandStyle ?? "IconAndPercent";
+
+        foreach (var dev in toShow)
+        {
+            int pct = Math.Clamp(dev.BatteryPercent!.Value, 0, 100);
+            string devGlyph = dev.DeviceType switch
+            {
+                "Headphones" => "\uE7F6",
+                "Speaker"    => "\uE7F5",
+                "Keyboard"   => "\uE765",
+                "Mouse"      => "\uE962",
+                "Phone"      => "\uE8EA",
+                _            => "\uE702"
+            };
+
+            var chip = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 3,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            chip.Children.Add(new FontIcon
+            {
+                Glyph = devGlyph,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var batBrush = GetBtBatteryBrush(pct);
+            if (style == "IconAndBattery" || style == "IconBatteryAndPercent")
+            {
+                chip.Children.Add(new FontIcon
+                {
+                    Glyph = GetBtBatteryGlyph(pct),
+                    FontSize = 11,
+                    Foreground = batBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+
+            if (style == "IconAndPercent" || style == "IconBatteryAndPercent")
+            {
+                chip.Children.Add(new TextBlock
+                {
+                    Text = $"{pct}%",
+                    FontFamily = new FontFamily("Segoe UI Variable Small"),
+                    FontSize = 11,
+                    Foreground = batBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+
+            FoldedBtBatteryPanel.Children.Add(chip);
+        }
+
+        FoldedBtBatteryPanel.Visibility = Visibility.Visible;
+        UpdateDynamicFoldedWidth();
+    }
+
+    private void UpdateDynamicFoldedWidth()
+    {
+        if (_compositor == null || FoldedContentStack == null) return;
+        FoldedContentStack.Measure(new Windows.Foundation.Size(600, 32));
+        float desiredWidth = MathF.Max(WindowIslandCompositor.FoldedWidthDip, (float)FoldedContentStack.DesiredSize.Width + 28f);
+        _compositor.SetFoldedWidth(desiredWidth, animate: true);
+        if (!_compositor.IsOpen && !_compositor.IsCard && !_compositor.IsCommand)
+        {
+            UpdateHitRegion(open: false, isCard: false, isCommand: false);
+        }
     }
 
     private async void ControlsWifiBtn_Click(object sender, RoutedEventArgs e)

@@ -201,7 +201,8 @@
               VerticalAlignment="Top"
               Height="32"
               IsHitTestVisible="False">
-            <StackPanel Orientation="Horizontal"
+            <StackPanel x:Name="FoldedContentStack"
+                        Orientation="Horizontal"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="8">
@@ -291,6 +292,13 @@
                                Foreground="#C0FFFFFF"
                                VerticalAlignment="Center" />
                 </StackPanel>
+
+                <!-- Connected Bluetooth device battery pill(s) -->
+                <StackPanel x:Name="FoldedBtBatteryPanel"
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed" />
 
                 <!-- Milestone 12: Mic / Camera indicator dots -->
                 <!-- Orange dot = microphone active, Green dot = camera active -->

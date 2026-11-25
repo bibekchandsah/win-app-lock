@@ -86,10 +86,13 @@ public sealed partial class WindowIslandSettingsPage : Page
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
 
         // Controls Tab Add-on
-        ControlsCloseAfterCardToggle.IsOn    = s.Controls.CloseIslandAfterCard;
-        ControlsShowBtBatteryCardToggle.IsOn = s.Controls.ShowBluetoothBatteryCard;
-        ControlsShowBrightnessToggle.IsOn    = s.Controls.ShowBrightness;
-        ControlsShowPowerRowToggle.IsOn      = s.Controls.ShowPowerRow;
+        ControlsCloseAfterCardToggle.IsOn       = s.Controls.CloseIslandAfterCard;
+        ControlsShowBtBatteryCardToggle.IsOn    = s.Controls.ShowBluetoothBatteryCard;
+        ControlsShowBtBatteryOnIslandToggle.IsOn = s.Controls.ShowBtBatteryOnIsland;
+        ControlsShowMultipleBtOnIslandToggle.IsOn = s.Controls.ShowMultipleBtBatteriesOnIsland;
+        SelectComboItem(ControlsBtBatteryIslandStyleBox, s.Controls.BtBatteryIslandStyle);
+        ControlsShowBrightnessToggle.IsOn       = s.Controls.ShowBrightness;
+        ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
 
         // Milestone 15: Visibility rules
         HideInFullScreenToggle.IsOn             = s.HideInFullScreen;
@@ -187,10 +190,13 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Hotkey        = HotkeyBox.Text.Trim();
 
         // Controls Tab Add-on
-        s.Controls.CloseIslandAfterCard     = ControlsCloseAfterCardToggle.IsOn;
-        s.Controls.ShowBluetoothBatteryCard = ControlsShowBtBatteryCardToggle.IsOn;
-        s.Controls.ShowBrightness           = ControlsShowBrightnessToggle.IsOn;
-        s.Controls.ShowPowerRow             = ControlsShowPowerRowToggle.IsOn;
+        s.Controls.CloseIslandAfterCard            = ControlsCloseAfterCardToggle.IsOn;
+        s.Controls.ShowBluetoothBatteryCard        = ControlsShowBtBatteryCardToggle.IsOn;
+        s.Controls.ShowBtBatteryOnIsland           = ControlsShowBtBatteryOnIslandToggle.IsOn;
+        s.Controls.ShowMultipleBtBatteriesOnIsland = ControlsShowMultipleBtOnIslandToggle.IsOn;
+        s.Controls.BtBatteryIslandStyle            = TagOf(ControlsBtBatteryIslandStyleBox) ?? s.Controls.BtBatteryIslandStyle;
+        s.Controls.ShowBrightness                  = ControlsShowBrightnessToggle.IsOn;
+        s.Controls.ShowPowerRow                    = ControlsShowPowerRowToggle.IsOn;
 
         // Milestone 15: Visibility rules
         s.HideInFullScreen           = HideInFullScreenToggle.IsOn;

@@ -217,6 +217,22 @@
                 <ToggleSwitch x:Name="ControlsShowBtBatteryCardToggle"
                               Header="Show Bluetooth battery card"
                               Toggled="OnSettingChanged" />
+                <ToggleSwitch x:Name="ControlsShowBtBatteryOnIslandToggle"
+                              Header="Show connected Bluetooth battery on folded island"
+                              Toggled="OnSettingChanged" />
+                <StackPanel Margin="28,0,0,0" Spacing="10" Visibility="{x:Bind ControlsShowBtBatteryOnIslandToggle.IsOn, Mode=OneWay}">
+                    <ToggleSwitch x:Name="ControlsShowMultipleBtOnIslandToggle"
+                                  Header="Show multiple connected devices on folded island (expands width)"
+                                  Toggled="OnSettingChanged" />
+                    <ComboBox x:Name="ControlsBtBatteryIslandStyleBox"
+                              Header="Folded Bluetooth battery display"
+                              SelectionChanged="OnSelectionChanged"
+                              Width="280">
+                        <ComboBoxItem Content="Device icon + percentage (e.g. 🎧 100%)" Tag="IconAndPercent" />
+                        <ComboBoxItem Content="Device icon + battery icon (e.g. 🎧 🔋)" Tag="IconAndBattery" />
+                        <ComboBoxItem Content="Device icon + battery + percentage" Tag="IconBatteryAndPercent" />
+                    </ComboBox>
+                </StackPanel>
                 <ToggleSwitch x:Name="ControlsShowBrightnessToggle"
                               Header="Show Brightness slider"
                               Toggled="OnSettingChanged" />

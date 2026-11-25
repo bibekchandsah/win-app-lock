@@ -57,6 +57,36 @@ public sealed class WindowIslandCompositor : IDisposable
     public bool IsOpen => _isOpen;
     public bool IsCard => _isCard;
     public bool IsCommand => _isCommand;
+    public float CurrentFoldedWidthDip { get; private set; } = FoldedWidthDip;
+
+    public void SetFoldedWidth(float widthDip, bool animate = true)
+    {
+        if (_disposed) return;
+        float clamped = Math.Clamp(widthDip, FoldedWidthDip, 560f);
+        if (Math.Abs(clamped - CurrentFoldedWidthDip) < 1f) return;
+        CurrentFoldedWidthDip = clamped;
+
+        if (!_isOpen && !_isCard && !_isCommand)
+        {
+            float targetWidth = CurrentFoldedWidthDip * _sizeFactor;
+            float targetHeight = FoldedHeightDip * _sizeFactor;
+            float targetRadius = FoldedRadiusDip * _sizeFactor;
+            if (animate)
+            {
+                AnimateShape(
+                    new Vector2(targetWidth, targetHeight),
+                    new Vector2(targetRadius, targetRadius),
+                    dampingRatio: IslandMotion.CloseDampingRatio,
+                    periodMs:     IslandMotion.ClosePeriodMs,
+                    onCompleted:  null);
+            }
+            else
+            {
+                _bodyGeometry.Size = new Vector2(targetWidth, targetHeight);
+                _bodyGeometry.CornerRadius = new Vector2(targetRadius, targetRadius);
+            }
+        }
+    }
 
     public WindowIslandCompositor(UIElement hostElement, WindowIslandSettings settings, float windowWidthDip)
     {
@@ -168,7 +198,7 @@ public sealed class WindowIslandCompositor : IDisposable
         _isCard = false;
         _isCommand = false;
 
-        float targetWidth  = FoldedWidthDip  * _sizeFactor;
+        float targetWidth  = CurrentFoldedWidthDip * _sizeFactor;
         float targetHeight = FoldedHeightDip * _sizeFactor;
         float targetRadius = FoldedRadiusDip * _sizeFactor;
 
@@ -231,7 +261,7 @@ public sealed class WindowIslandCompositor : IDisposable
         RefreshCenterAnimation(settings.Shape);
 
         // Snap to current logical state (no animation for settings change)
-        float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : FoldedWidthDip))  * _sizeFactor;
+        float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : CurrentFoldedWidthDip))  * _sizeFactor;
         float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : FoldedHeightDip)) * _sizeFactor;
         float radius = (_isOpen ? OpenRadiusDip : (_isCard ? MathF.Min(CardDefaultRadiusDip, _cardTargetH / 2f) : FoldedRadiusDip)) * _sizeFactor;
         _bodyGeometry.Size         = new Vector2(width, height);

@@ -26,6 +26,15 @@ public class ControlsSettings
     public bool BtShowUnnamed { get; set; } = false;
     public bool BtLowBatteryAlert { get; set; } = true;
     public int BtLowBatteryPercent { get; set; } = 20;
+
+    /// <summary>Show connected Bluetooth device battery in the folded island.</summary>
+    public bool ShowBtBatteryOnIsland { get; set; } = true;
+
+    /// <summary>User consent to show multiple connected Bluetooth devices in the folded island.</summary>
+    public bool ShowMultipleBtBatteriesOnIsland { get; set; } = false;
+
+    /// <summary>Display style on folded island: "IconAndPercent" | "IconAndBattery" | "IconBatteryAndPercent".</summary>
+    public string BtBatteryIslandStyle { get; set; } = "IconAndPercent";
 }
 
 public class ControlsTileVisibility
