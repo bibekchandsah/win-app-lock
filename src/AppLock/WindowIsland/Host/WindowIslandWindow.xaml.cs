@@ -523,7 +523,11 @@ public sealed partial class WindowIslandWindow : Window
         WindowIslandNotificationService.CameraFallback = () => (_cameraMonitorInUse, _cameraMonitorApp ?? string.Empty);
         if (_cameraMonitor == null)
         {
-            _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(inactiveDebounceSeconds: 1);
+            _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(
+                inactiveDebounceSeconds: 1,
+                pollIntervalMs: 500,
+                useBrowserCaptureHeuristic: false,
+                appActivitySmoothing: 0.85);
             _cameraMonitor.CameraUsageChanged += OnRingLightCameraUsageChanged;
             _cameraMonitor.Start();
         }

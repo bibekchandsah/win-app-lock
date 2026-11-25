@@ -108,17 +108,28 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
     private readonly object _lock = new();
     private readonly int _inactiveDebounceSeconds;
+    private readonly int _pollIntervalMs;
+    private readonly bool _useBrowserCaptureHeuristic;
+    private readonly double _appActivitySmoothing;
     private Timer? _pollTimer;
     private int _isPolling;
     private bool _isMonitoring;
     private bool _isDebouncedInUse;
+    private string _lastNotifiedAppsKey = string.Empty;
     private int _consecutiveActiveSeconds;
     private int _consecutiveInactiveSeconds;
     private bool _disposed;
 
-    public CameraUsageMonitor(int inactiveDebounceSeconds = 5)
+    public CameraUsageMonitor(
+        int inactiveDebounceSeconds = 5,
+        int pollIntervalMs = 1000,
+        bool useBrowserCaptureHeuristic = true,
+        double appActivitySmoothing = AppActivitySmoothing)
     {
         _inactiveDebounceSeconds = Math.Max(1, inactiveDebounceSeconds);
+        _pollIntervalMs = Math.Clamp(pollIntervalMs, 250, 5000);
+        _useBrowserCaptureHeuristic = useBrowserCaptureHeuristic;
+        _appActivitySmoothing = Math.Clamp(appActivitySmoothing, 0.1, 1.0);
     }
 
     // Browser capture-service sampling: a Chromium "VideoCaptureService" utility process lingers
@@ -193,8 +204,8 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             _consecutiveInactiveSeconds = 0;
             _isDebouncedInUse = false;
 
-            // Poll every 1 second (1000ms) on a background thread
-            _pollTimer = new Timer(OnPollTick, null, 1000, 1000);
+            // Poll on a background thread
+            _pollTimer = new Timer(OnPollTick, null, _pollIntervalMs, _pollIntervalMs);
         }
     }
 
@@ -426,7 +437,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             // The first real measurement is used as-is so a call that is already running is seen
             // immediately; later samples are smoothed to keep a lone busy second from flipping it.
             var smoothed = _appActivity.TryGetValue(display, out var previous) && previous.Measured
-                ? previous.RateMsPerSecond * (1 - AppActivitySmoothing) + total.Value * AppActivitySmoothing
+                ? previous.RateMsPerSecond * (1 - _appActivitySmoothing) + total.Value * _appActivitySmoothing
                 : total.Value;
 
             _appActivity[display] = new AppActivitySample(now, smoothed, true);
@@ -927,7 +938,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 if (!activeApps.Contains(app)) activeApps.Add(app);
             }
 
-            if (activeApps.Count == 0)
+            if (activeApps.Count == 0 && _useBrowserCaptureHeuristic)
             {
                 foreach (var app in GetActiveBrowserCaptureApps())
                 {
@@ -962,10 +973,13 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                     _consecutiveActiveSeconds++;
                     _consecutiveInactiveSeconds = 0;
 
-                    // 1 second of continuous use required to turn on
-                    if (!_isDebouncedInUse && _consecutiveActiveSeconds >= 1)
+                    string appsKey = string.Join(",", activeApps);
+                    // 1 tick of continuous use required to turn on, or update if the active app changed
+                    if ((!_isDebouncedInUse && _consecutiveActiveSeconds >= 1) ||
+                        (_isDebouncedInUse && !string.Equals(_lastNotifiedAppsKey, appsKey, StringComparison.Ordinal)))
                     {
                         _isDebouncedInUse = true;
+                        _lastNotifiedAppsKey = appsKey;
                         NotifyUsageChanged(true, activeApps);
                     }
                 }
@@ -978,6 +992,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                     if (_isDebouncedInUse && _consecutiveInactiveSeconds >= _inactiveDebounceSeconds)
                     {
                         _isDebouncedInUse = false;
+                        _lastNotifiedAppsKey = string.Empty;
                         NotifyUsageChanged(false, Array.Empty<string>());
                     }
                 }
