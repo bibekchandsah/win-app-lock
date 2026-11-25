@@ -6238,14 +6238,15 @@ public sealed partial class WindowIslandWindow : Window
                 var networks = await WindowIslandControlsService.GetWiFiNetworksAsync();
                 if (_controlsDeviceMode != "wifi") return;
 
-                string signature = "wifi:" + string.Join("|", networks.Select(n => $"{n.Ssid}:{(n.IsConnected ? 1 : 0)}:{n.SignalBars}:{(n.IsSecured ? 1 : 0)}"));
+                bool locBlocked = WindowIslandControlsService.LastWifiLocationBlocked;
+                string signature = $"wifi:{(locBlocked ? 1 : 0)}:" + string.Join("|", networks.Select(n => $"{n.Ssid}:{(n.IsConnected ? 1 : 0)}:{n.SignalBars}:{(n.IsSecured ? 1 : 0)}"));
                 if (signature == _lastDeviceListSignature && ControlsDeviceList.Children.Count > 0 && ControlsDeviceList.Children[0] is Grid)
                 {
                     return;
                 }
                 _lastDeviceListSignature = signature;
 
-                if (networks.Count == 0)
+                if (networks.Count == 0 && !locBlocked)
                 {
                     ControlsDeviceList.Children.Clear();
                     ControlsDeviceList.Children.Add(new TextBlock
@@ -6259,7 +6260,13 @@ public sealed partial class WindowIslandWindow : Window
                     return;
                 }
 
-                var newRows = new System.Collections.Generic.List<(string Key, Grid Row)>(networks.Count);
+                var newRows = new System.Collections.Generic.List<(string Key, Grid Row)>(networks.Count + (locBlocked ? 1 : 0));
+                if (locBlocked)
+                {
+                    var warnRow = BuildWifiLocationWarningRow();
+                    warnRow.Tag = "wifi-location-warning";
+                    newRows.Add(("wifi-location-warning", warnRow));
+                }
                 foreach (var net in networks)
                 {
                     var row = BuildWiFiDeviceRow(net);
@@ -6348,6 +6355,65 @@ public sealed partial class WindowIslandWindow : Window
         {
             ControlsDeviceList.Children.Add(row);
         }
+    }
+
+    private Grid BuildWifiLocationWarningRow()
+    {
+        var grid = new Grid
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 167, 38)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 167, 38)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 7, 10, 7)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new FontIcon
+        {
+            Glyph = "\uE7BA",
+            FontSize = 14,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 183, 77)),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(icon, 0);
+        grid.Children.Add(icon);
+
+        var msg = new TextBlock
+        {
+            Text = "Location is off — turn on Location to scan nearby Wi-Fi networks.",
+            FontSize = 10.5,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(235, 255, 255, 255)),
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        Grid.SetColumn(msg, 1);
+        grid.Children.Add(msg);
+
+        var btn = new Button
+        {
+            Content = "Location Settings",
+            FontSize = 10,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Height = 24,
+            Padding = new Thickness(10, 0, 10, 0),
+            CornerRadius = new CornerRadius(12),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(65, 255, 167, 38)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+        };
+        btn.Click += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = "ms-settings:privacy-location", UseShellExecute = true }); } catch { }
+        };
+        Grid.SetColumn(btn, 2);
+        grid.Children.Add(btn);
+
+        return grid;
     }
 
     private Grid BuildWiFiDeviceRow(WindowIslandControlsService.IslandWiFiNetwork net)

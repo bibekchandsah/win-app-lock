@@ -139,10 +139,13 @@ public sealed class WindowIslandControlsService
         bool IsSaved = false,
         bool IsSecured = true);
 
+    public static bool LastWifiLocationBlocked { get; private set; }
+
     public static async Task<System.Collections.Generic.List<IslandWiFiNetwork>> GetWiFiNetworksAsync()
     {
         return await Task.Run(async () =>
         {
+            LastWifiLocationBlocked = false;
             var list = new System.Collections.Generic.List<IslandWiFiNetwork>();
             string currentSsid = GetConnectedSsid();
             var savedProfiles = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -184,10 +187,15 @@ public sealed class WindowIslandControlsService
 
             // 2. Query visible/nearby networks via WinRT WiFiAdapter
             var visibleMap = new System.Collections.Generic.Dictionary<string, (int signal, string band, bool secured)>(StringComparer.OrdinalIgnoreCase);
+            bool winRtLocationDenied = false;
             try
             {
                 var access = await Windows.Devices.WiFi.WiFiAdapter.RequestAccessAsync();
-                if (access == Windows.Devices.WiFi.WiFiAccessStatus.Allowed)
+                if (access != Windows.Devices.WiFi.WiFiAccessStatus.Allowed)
+                {
+                    winRtLocationDenied = true;
+                }
+                else
                 {
                     var adapters = await Windows.Devices.WiFi.WiFiAdapter.FindAllAdaptersAsync();
                     if (adapters.Count > 0)
@@ -247,6 +255,12 @@ public sealed class WindowIslandControlsService
                         string output = await proc.StandardOutput.ReadToEndAsync();
                         await proc.WaitForExitAsync();
 
+                        if (output.Contains("location permission", StringComparison.OrdinalIgnoreCase) ||
+                            output.Contains("ms-settings:privacy-location", StringComparison.OrdinalIgnoreCase))
+                        {
+                            LastWifiLocationBlocked = true;
+                        }
+
                         string? curSsid = null;
                         int curSignal = 3;
                         string curBand = "2.4 GHz";
@@ -300,6 +314,11 @@ public sealed class WindowIslandControlsService
                     }
                 }
                 catch { }
+            }
+
+            if (visibleMap.Count == 0 && winRtLocationDenied)
+            {
+                LastWifiLocationBlocked = true;
             }
 
             // 4. Merge all networks
