@@ -587,6 +587,11 @@ public sealed partial class WindowIslandWindow : Window
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
+
+        // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
+        // switching it back on refetches for the song that is playing).
+        if (!settings.LyricsEnabled) ClearLyrics();
+
         _ = UpdateFoldedBtBatteriesAsync();
 
         // Milestone 15: re-create visibility service with new settings
@@ -2192,6 +2197,13 @@ public sealed partial class WindowIslandWindow : Window
 
     private async Task UpdateLyricsAsync(MediaSnapshot snap)
     {
+        // Lyrics are optional: with the setting off nothing is fetched and the sheet stays hidden.
+        if (!_settings.LyricsEnabled)
+        {
+            ClearLyrics();
+            return;
+        }
+
         string key = snap.Artist + "\u0001" + snap.Title;
         if (key == _lyricsKey) return;
         _lyricsKey = key;
@@ -2231,7 +2243,7 @@ public sealed partial class WindowIslandWindow : Window
                 });
             }
 
-            bool show = lines.Count > 0;
+            bool show = _settings.LyricsEnabled && lines.Count > 0;
             LyricsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
 
             // With lyrics the player card shares the row with the lyrics card; without them it

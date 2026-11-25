@@ -98,6 +98,9 @@
                             <ListViewItem Tag="indicators">
                                 <TextBlock Text="Notch Indicators" FontSize="13" TextTrimming="CharacterEllipsis"/>
                             </ListViewItem>
+                            <ListViewItem Tag="media">
+                                <TextBlock Text="Media &amp; Lyrics" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                            </ListViewItem>
                             <ListViewItem Tag="cards">
                                 <TextBlock Text="Event Cards" FontSize="13" TextTrimming="CharacterEllipsis"/>
                             </ListViewItem>
@@ -268,6 +271,15 @@
                         <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery percentage &amp; status" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Header="Show temperature on folded island" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="MicCamDotsToggle" Header="Mic / camera indicator dots on folded island" Toggled="OnSettingChanged" />
+                    </StackPanel>
+
+                    <!-- ░░ Media & Lyrics ░░ -->
+                    <StackPanel x:Name="SectionMedia" Spacing="10" Visibility="Collapsed">
+                        <ToggleSwitch x:Name="LyricsToggle"
+                                      Header="Show lyrics beside the player"
+                                      Toggled="OnSettingChanged" />
+                        <TextBlock Text="When the playing track has lyrics they appear next to the player card on the Home tab. Turn this off to keep the player at full width and skip the lyrics lookup."
+                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" MaxWidth="560"/>
                     </StackPanel>
 
                     <!-- ░░ Event Cards ░░ -->

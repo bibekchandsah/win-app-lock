@@ -221,6 +221,10 @@ public sealed class WindowIslandSettings
     /// <summary>Show orange/green mic/camera indicator dots on the folded island.</summary>
     public bool MicCamDotsEnabled     { get; set; } = true;
 
+    // ── Home tab media ────────────────────────────────────────────────────────
+    /// <summary>Show the lyrics sheet beside the player when the current track has lyrics.</summary>
+    public bool LyricsEnabled         { get; set; } = true;
+
     // ── Milestone 13: Chat Tab (WebView2) ────────────────────────────────────
     /// <summary>List of AI chat sites available as sub-tabs (defaults: Gemini, DeepSeek, ChatGPT; max 6).</summary>
     public System.Collections.Generic.List<ChatSite> ChatSites { get; set; } = DefaultChatSites();

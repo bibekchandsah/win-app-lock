@@ -30,6 +30,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         SectionAppearance.Visibility = ShowSection(category, "appearance");
         SectionVisibility.Visibility = ShowSection(category, "visibility");
         SectionIndicators.Visibility = ShowSection(category, "indicators");
+        SectionMedia.Visibility = ShowSection(category, "media");
         SectionCards.Visibility = ShowSection(category, "cards");
         SectionControls.Visibility = ShowSection(category, "controls");
         SectionWeather.Visibility = ShowSection(category, "weather");
@@ -95,6 +96,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardBatteryLowToggle.IsOn = s.CardBatteryLowEnabled;
         CardChargingToggle.IsOn   = s.CardChargingEnabled;
         MicCamDotsToggle.IsOn     = s.MicCamDotsEnabled;
+        LyricsToggle.IsOn         = s.LyricsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
         WeatherCityBox.Text = s.WeatherCity;
@@ -222,6 +224,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardBatteryLowEnabled = CardBatteryLowToggle.IsOn;
         s.CardChargingEnabled   = CardChargingToggle.IsOn;
         s.MicCamDotsEnabled     = MicCamDotsToggle.IsOn;
+        s.LyricsEnabled         = LyricsToggle.IsOn;
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;
         s.WeatherRainWarning    = WeatherRainWarningToggle.IsOn;
