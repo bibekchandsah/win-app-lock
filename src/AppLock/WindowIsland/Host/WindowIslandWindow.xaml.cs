@@ -1292,8 +1292,8 @@ public sealed partial class WindowIslandWindow : Window
         nint rgn;
         if (_settings.Shape != "Capsule")
         {
-            int earPx = (int)Math.Round(WindowIslandCompositor.NotchEarRadius * scale);
             int botR  = (int)Math.Round(radiusDip * scale);
+            int earPx = botR;
             rgn = CreateNotchRegion(leftPx, rightPx, bottomPx, earPx, botR);
             if (rgn == nint.Zero)
             {

@@ -388,24 +388,27 @@ public sealed class WindowIslandCompositor : IDisposable
 
         if (isCapsule)
         {
+            _notchLeftEarShape.StopAnimation("Scale");
+            _notchRightEarShape.StopAnimation("Scale");
             _notchLeftEarShape.Scale = Vector2.Zero;
             _notchRightEarShape.Scale = Vector2.Zero;
             return;
         }
 
-        _notchLeftEarShape.Scale = Vector2.One;
-        _notchRightEarShape.Scale = Vector2.One;
+        var earScaleAnim = _compositor.CreateExpressionAnimation("Vector2(geom.CornerRadius.X / earR, geom.CornerRadius.Y / earR)");
+        earScaleAnim.SetReferenceParameter("geom", _bodyGeometry);
+        earScaleAnim.SetScalarParameter("earR", NotchEarRadius);
+        _notchLeftEarShape.StartAnimation("Scale", earScaleAnim);
+        _notchRightEarShape.StartAnimation("Scale", earScaleAnim);
 
-        var leftEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0 - earR + 0.5, 0.0)");
+        var leftEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth - geom.Size.X) / 2.0 - geom.CornerRadius.X, 0.0)");
         leftEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
         leftEarOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
-        leftEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);
         _notchLeftEarShape.StartAnimation("Offset", leftEarOffsetAnim);
 
-        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0 - earR - 0.5, 0.0)");
+        var rightEarOffsetAnim = _compositor.CreateExpressionAnimation("Vector2((windowWidth + geom.Size.X) / 2.0 - geom.CornerRadius.X, 0.0)");
         rightEarOffsetAnim.SetReferenceParameter("geom", _bodyGeometry);
         rightEarOffsetAnim.SetScalarParameter("windowWidth", _windowWidthDip);
-        rightEarOffsetAnim.SetScalarParameter("earR", NotchEarRadius);
         _notchRightEarShape.StartAnimation("Offset", rightEarOffsetAnim);
     }
 
@@ -413,20 +416,24 @@ public sealed class WindowIslandCompositor : IDisposable
     {
         float r = NotchEarRadius;
         using var builder = new CanvasPathBuilder(null);
+        // 1px inner overlap along the shared body-corner boundary eliminates the anti-aliasing hairline
         if (!isRight)
         {
             builder.BeginFigure(0f, 0f);
-            builder.AddLine(2f * r, 0f);
-            builder.AddArc(new Vector2(r, r), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
+            builder.AddLine(2f * r + 1f, 0f);
+            builder.AddLine(2f * r + 1f, 0.5f);
+            builder.AddArc(new Vector2(r + 1f, r + 0.5f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
+            builder.AddLine(r, r);
             builder.AddArc(new Vector2(0f, 0f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
             builder.EndFigure(CanvasFigureLoop.Closed);
         }
         else
         {
-            builder.BeginFigure(0f, 0f);
+            builder.BeginFigure(-1f, 0f);
             builder.AddLine(2f * r, 0f);
             builder.AddArc(new Vector2(r, r), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
-            builder.AddArc(new Vector2(0f, 0f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
+            builder.AddLine(r - 1f, r + 0.5f);
+            builder.AddArc(new Vector2(-1f, 0.5f), r, r, 0f, CanvasSweepDirection.CounterClockwise, CanvasArcSize.Small);
             builder.EndFigure(CanvasFigureLoop.Closed);
         }
         using var canvasGeom = CanvasGeometry.CreatePath(builder);

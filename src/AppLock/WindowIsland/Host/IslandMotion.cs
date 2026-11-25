@@ -42,9 +42,9 @@ public static class IslandMotion
     // ── Open shell dimensions per tab ─────────────────────────────────────────
     // (width, height) in DIPs
     public static readonly (float W, float H) TabSizeHome      = (660f, 344f);
-    public static readonly (float W, float H) TabSizeClipboard = (660f, 320f);
-    public static readonly (float W, float H) TabSizeShelf     = (660f, 320f);
-    public static readonly (float W, float H) TabSizeText      = (660f, 320f);
+    public static readonly (float W, float H) TabSizeClipboard = (660f, 344f);
+    public static readonly (float W, float H) TabSizeShelf     = (660f, 344f);
+    public static readonly (float W, float H) TabSizeText      = (660f, 344f);
     public static float ChatHeightDip { get; set; } = 440f;
     public static (float W, float H) TabSizeChat => (660f, ChatHeightDip);
     public static readonly (float W, float H) TabSizeNote      = (660f, 320f);
