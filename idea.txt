@@ -472,17 +472,20 @@ fixed - in home tab mouse wheel volume is effected all over the island not just 
 fixed - we have volume  slider in home tab and mouse and touch pad guesture is effected all over the tab not just in home tab volume slider
 
 
-show ring in island too during timer with again and check icon to confirm it's ended  
-remainder check option with +10min check icon 
-copied image live preview 
 realtime battery status with plugged/unplugged
-volume slider is shown in every live preview make it separate 
 each live preview has individual preview
-music preview is overlapped with weather
-full screen screenshot [open] preview
-command navigation
+volume slider is shown in every live preview make it separate 
 live music beat in the right side end and music icon in the left side end
+music preview is overlapped with weather
+music background blur effect
+command navigation
+full screen screenshot [open] preview
+copied image live preview 
+remainder check option with +10min check icon 
+show ring in island too during timer with again and check icon to confirm it's ended  
 caps/num lock 
+live brightness 
+microphone controller
 
 
 

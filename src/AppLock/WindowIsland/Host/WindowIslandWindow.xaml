@@ -334,7 +334,7 @@
             <Grid x:Name="CardContentGrid"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
-                  ColumnSpacing="8"
+                  ColumnSpacing="10"
                   Padding="14,0,14,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -343,12 +343,50 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <FontIcon x:Name="CardIcon"
-                          Grid.Column="0"
-                          Glyph="&#xE7BA;"
-                          FontSize="14"
-                          Foreground="#60CDFF"
-                          VerticalAlignment="Center" />
+                <Grid Grid.Column="0" VerticalAlignment="Center">
+                    <Border x:Name="CardIconBadge"
+                            CornerRadius="17"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <FontIcon x:Name="CardIcon"
+                                  Glyph="&#xE7BA;"
+                                  FontSize="14"
+                                  Foreground="#60CDFF"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                    </Border>
+                    <Border x:Name="CardThumbBorder"
+                            Width="44"
+                            Height="34"
+                            CornerRadius="6"
+                            Visibility="Collapsed"
+                            VerticalAlignment="Center">
+                        <Image x:Name="CardThumbImage"
+                               Stretch="UniformToFill" />
+                    </Border>
+                </Grid>
+                <StackPanel x:Name="CardStackedTextPanel"
+                            Grid.Column="1"
+                            Grid.ColumnSpan="4"
+                            Spacing="1"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <TextBlock x:Name="CardStackedTitle"
+                               Text="Copied"
+                               FontFamily="Segoe UI Variable Display"
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               Foreground="#F5FFFFFF"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="240" />
+                    <TextBlock x:Name="CardStackedDetail"
+                               Text=""
+                               FontFamily="Segoe UI Variable Small"
+                               FontSize="10.5"
+                               Foreground="#B0FFFFFF"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="240" />
+                </StackPanel>
                 <TextBlock x:Name="CardTitle"
                            Grid.Column="1"
                            Text="Caps Lock"

@@ -1276,9 +1276,9 @@ public sealed partial class WindowIslandWindow : Window
 
         float foldedW = _compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip;
         float foldedR = _settings.Shape == "Capsule" ? WindowIslandCompositor.FoldedRadiusDip : WindowIslandCompositor.FoldedNotchRadiusDip;
-        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W * factor : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? 270f : foldedW)) * factor;
-        float heightDip = isCommand ? IslandMotion.CommandBarSize.H * factor : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? 38f : WindowIslandCompositor.FoldedHeightDip)) * factor;
-        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip * factor : (isCard ? 19f : foldedR) * factor;
+        float widthDip  = isCommand ? IslandMotion.CommandBarSize.W * factor : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? _activeCardW : foldedW)) * factor;
+        float heightDip = isCommand ? IslandMotion.CommandBarSize.H * factor : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? _activeCardH : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip * factor : (isCard ? MathF.Min(19f, _activeCardH / 2f) : foldedR) * factor;
         float scaledWindowW = (isCommand ? IslandMotion.WindowWidthForCommand : WindowWidthDip) * factor;
         float leftDip   = (scaledWindowW - widthDip) / 2f;
         float topDip    = _settings.Shape == "Capsule" ? 6f : 0f;
@@ -1605,19 +1605,45 @@ public sealed partial class WindowIslandWindow : Window
             StayMs: stay));
     }
 
-    private void OnClipboardCaptured(ClipboardCardInfo info)
+    private float _activeCardW = 270f;
+    private float _activeCardH = 38f;
+    private Microsoft.UI.Xaml.Media.Imaging.BitmapImage? _lastCopiedThumb;
+
+    private async void OnClipboardCaptured(ClipboardCardInfo info)
     {
         if (!_settings.CardClipboardEnabled) return;
         int stay = _settings.GetCardStayMs();
         bool isImage = info.Kind == "clipboard.image";
+
+        _lastCopiedThumb = null;
+        if (isImage)
+        {
+            try
+            {
+                var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Bitmap))
+                {
+                    var streamRef = await pkg.GetBitmapAsync();
+                    using var stream = await streamRef.OpenReadAsync();
+                    var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelHeight = 68 };
+                    await bmp.SetSourceAsync(stream);
+                    _lastCopiedThumb = bmp;
+                }
+            }
+            catch { }
+        }
+
+        var accent = GetSystemAccentColor();
+        string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "clipboard",
             Icon: isImage ? "\uEB9F" : "\uE77F",
             Title: info.Title,
             Detail: info.Detail,
-            AccentHex: "#60CDFF",
+            AccentHex: accentHex,
             Priority: WindowIslandCardPriority.Clipboard,
-            StayMs: stay));
+            StayMs: stay,
+            IsStacked: true));
     }
 
     private void OnScreenshotSaved(string path)
@@ -1637,36 +1663,88 @@ public sealed partial class WindowIslandWindow : Window
 
     private void OnShowCard(WindowIslandCard card, bool animate)
     {
-        CardIcon.Glyph = card.Icon;
-        CardTitle.Text = card.Title;
-        CardTitle.Visibility = string.IsNullOrEmpty(card.Title) ? Visibility.Collapsed : Visibility.Visible;
-        CardDetail.Text = card.Detail;
-        CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
         var cardAccentBrush = new SolidColorBrush(HexToColor(card.AccentHex));
+        CardIcon.Glyph = card.Icon;
         CardIcon.Foreground = cardAccentBrush;
+
+        if (card.IsStacked)
+        {
+            _activeCardW = 330f;
+            _activeCardH = 58f;
+            CardLayer.Width = _activeCardW;
+            CardLayer.Height = _activeCardH;
+            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Left;
+
+            CardTitle.Visibility = Visibility.Collapsed;
+            CardDetail.Visibility = Visibility.Collapsed;
+            CardProgressBar.Visibility = Visibility.Collapsed;
+            CardValueText.Visibility = Visibility.Collapsed;
+
+            CardStackedTitle.Text = card.Title;
+            CardStackedDetail.Text = card.Detail;
+            CardStackedDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
+            CardStackedTextPanel.Visibility = Visibility.Visible;
+
+            bool showThumb = card.Kind == "clipboard" && card.Icon == "\uEB9F" && _lastCopiedThumb != null;
+            if (showThumb)
+            {
+                CardThumbImage.Source = _lastCopiedThumb;
+                CardThumbBorder.Visibility = Visibility.Visible;
+                CardIconBadge.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                CardThumbBorder.Visibility = Visibility.Collapsed;
+                CardIconBadge.Visibility = Visibility.Visible;
+                CardIconBadge.Width = 34;
+                CardIconBadge.Height = 34;
+                CardIconBadge.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
+                CardIcon.FontSize = 15;
+            }
+        }
+        else
+        {
+            _activeCardW = 270f;
+            _activeCardH = 38f;
+            CardLayer.Width = _activeCardW;
+            CardLayer.Height = _activeCardH;
+
+            CardStackedTextPanel.Visibility = Visibility.Collapsed;
+            CardThumbBorder.Visibility = Visibility.Collapsed;
+            CardIconBadge.Visibility = Visibility.Visible;
+            CardIconBadge.Width = double.NaN;
+            CardIconBadge.Height = double.NaN;
+            CardIconBadge.Background = null;
+            CardIcon.FontSize = 14;
+
+            CardTitle.Text = card.Title;
+            CardTitle.Visibility = string.IsNullOrEmpty(card.Title) ? Visibility.Collapsed : Visibility.Visible;
+            CardDetail.Text = card.Detail;
+            CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
+
+            if (card.Value >= 0)
+            {
+                CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+                CardProgressBar.Foreground = cardAccentBrush;
+                CardProgressBar.Value = card.Value;
+                CardProgressBar.Visibility = Visibility.Visible;
+                CardValueText.Text = $"{card.Value}%";
+                CardValueText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CardContentGrid.HorizontalAlignment = HorizontalAlignment.Center;
+                CardProgressBar.Visibility = Visibility.Collapsed;
+                CardValueText.Visibility = Visibility.Collapsed;
+            }
+        }
 
         // Milestone 15: bring island into view for card duration
         _visibilityService?.RequestTemporaryReveal(card.StayMs + 1000);
 
-        if (card.Value >= 0)
-        {
-            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
-            CardProgressBar.Foreground = cardAccentBrush;
-            CardProgressBar.Value = card.Value;
-            CardProgressBar.Visibility = Visibility.Visible;
-            CardValueText.Text = $"{card.Value}%";
-            CardValueText.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            CardContentGrid.HorizontalAlignment = HorizontalAlignment.Center;
-            CardProgressBar.Visibility = Visibility.Collapsed;
-            CardValueText.Visibility = Visibility.Collapsed;
-        }
-
         if (animate)
         {
-            _compositor?.AnimateToCard(270f, 38f);
+            _compositor?.AnimateToCard(_activeCardW, _activeCardH);
             FadeVisual(_foldedVisual, 0f, 100);
             FadeVisual(_cardVisual, 1f, 160, delayMs: 40);
             UpdateHitRegion(open: false, isCard: true);

@@ -31,5 +31,6 @@ public sealed record WindowIslandCard(
     string AccentHex,
     WindowIslandCardPriority Priority,
     int StayMs,
-    int Value = -1
+    int Value = -1,
+    bool IsStacked = false
 );

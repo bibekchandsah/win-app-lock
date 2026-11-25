@@ -41,7 +41,7 @@ public static class IslandMotion
 
     // ── Open shell dimensions per tab ─────────────────────────────────────────
     // (width, height) in DIPs
-    public static readonly (float W, float H) TabSizeHome      = (660f, 344f);
+    public static readonly (float W, float H) TabSizeHome      = (660f, 370f);
     public static readonly (float W, float H) TabSizeClipboard = (660f, 344f);
     public static readonly (float W, float H) TabSizeShelf     = (660f, 344f);
     public static readonly (float W, float H) TabSizeText      = (660f, 344f);
@@ -50,7 +50,7 @@ public static class IslandMotion
     public static readonly (float W, float H) TabSizeNote      = (660f, 360f);
     public static readonly (float W, float H) TabSizeWeather   = (660f, 360f);
     public static readonly (float W, float H) TabSizeControls  = (660f, 400f);
-    public static readonly (float W, float H) CommandBarSize    = (660f, 380f);
+    public static readonly (float W, float H) CommandBarSize   = (660f, 380f);
     public static float WindowWidthForCommand => MathF.Max(CommandBarSize.W + 40f, 560f);
 
     public static (float W, float H) TabSize(int tabIndex) => tabIndex switch
