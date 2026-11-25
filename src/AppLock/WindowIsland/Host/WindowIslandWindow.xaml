@@ -378,8 +378,9 @@
                 </Grid>
                 <StackPanel x:Name="CardStackedTextPanel"
                             Grid.Column="1"
-                            Grid.ColumnSpan="4"
+                            Grid.ColumnSpan="3"
                             Spacing="1"
+                            HorizontalAlignment="Left"
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
                     <TextBlock x:Name="CardStackedTitle"
@@ -388,15 +389,13 @@
                                FontWeight="SemiBold"
                                FontSize="12"
                                Foreground="#F5FFFFFF"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="240" />
+                               TextTrimming="CharacterEllipsis" />
                     <TextBlock x:Name="CardStackedDetail"
                                Text=""
                                FontFamily="Segoe UI Variable Small"
                                FontSize="10.5"
                                Foreground="#B0FFFFFF"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="240" />
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <TextBlock x:Name="CardTitle"
                            Grid.Column="1"

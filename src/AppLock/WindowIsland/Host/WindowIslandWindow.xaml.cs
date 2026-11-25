@@ -1702,6 +1702,9 @@ public sealed partial class WindowIslandWindow : Window
             CardStackedTitle.Text = card.Title;
             CardStackedDetail.Text = card.Detail;
             CardStackedDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
+            double maxTextW = hasActions ? 200.0 : 250.0;
+            CardStackedTitle.MaxWidth = maxTextW;
+            CardStackedDetail.MaxWidth = maxTextW;
             CardStackedTextPanel.Visibility = Visibility.Visible;
             CardActionPanel.Visibility = hasActions ? Visibility.Visible : Visibility.Collapsed;
             if (hasActions)
@@ -1726,7 +1729,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Visibility = Visibility.Visible;
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
-                CardIconBadge.Background = hasActions
+                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
                 CardIcon.FontSize = 15;
@@ -5240,8 +5243,8 @@ public sealed partial class WindowIslandWindow : Window
             _eventQueue?.Push(new WindowIslandCard(
                 Kind: "reminder",
                 Icon: "\uEA8F",
-                Title: reminder.Title,
-                Detail: "Reminder",
+                Title: "Reminder",
+                Detail: reminder.Title,
                 AccentHex: accentHex,
                 Priority: WindowIslandCardPriority.ReminderTimer,
                 StayMs: -1,
@@ -6444,12 +6447,12 @@ public sealed partial class WindowIslandWindow : Window
             _eventQueue?.Push(new WindowIslandCard(
                 $"bt-battery-{key}-{crossed.Value}",
                 devGlyph,
-                $"{dev.Name} Battery",
+                dev.Name,
                 $"{pct}% remaining (below {crossed.Value}%)",
                 accentHex,
                 WindowIslandCardPriority.Battery,
                 stayMs,
-                pct));
+                IsStacked: true));
 
             if (_settings.Controls.BtWarningWindowsNotification)
             {
