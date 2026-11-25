@@ -23,6 +23,10 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly Compositor _compositor;
     private readonly ContainerVisual _rootVisual;
     private readonly ShapeVisual _shapeVisual;
+    private readonly CompositionVisualSurface _maskSurface;
+    private readonly CompositionSurfaceBrush _maskSurfaceBrush;
+    private readonly CompositionMaskBrush _outputMaskBrush;
+    private readonly SpriteVisual _outputVisual;
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
     private readonly CompositionSpriteShape _bodyShape;
     private readonly CompositionSpriteShape _notchLeftEarShape;
@@ -113,28 +117,48 @@ public sealed class WindowIslandCompositor : IDisposable
         _bodyGeometry.Size         = new Vector2(initialWidth, initialHeight);
         _bodyGeometry.CornerRadius = new Vector2(initialRadius, initialRadius);
 
+        // All mask shapes are solid opaque white so overlapping edges never double-composite alpha
+        var whiteMaskBrush = _compositor.CreateColorBrush(Colors.White);
+
         // Body shape
         _bodyShape = _compositor.CreateSpriteShape(_bodyGeometry);
-        var bodyBrush = GetBodyBrush(settings);
-        _bodyShape.FillBrush = bodyBrush;
+        _bodyShape.FillBrush = whiteMaskBrush;
 
-        // Apple-style concave top ears + corner fillers (non-overlapping with _bodyGeometry)
+        // Apple-style concave top ears + corner fillers
         _notchLeftEarShape = _compositor.CreateSpriteShape(CreateNotchEarGeometry(isRight: false));
-        _notchLeftEarShape.FillBrush = bodyBrush;
+        _notchLeftEarShape.FillBrush = whiteMaskBrush;
 
         _notchRightEarShape = _compositor.CreateSpriteShape(CreateNotchEarGeometry(isRight: true));
-        _notchRightEarShape.FillBrush = bodyBrush;
+        _notchRightEarShape.FillBrush = whiteMaskBrush;
 
         // Expression animation: keep the notch centered horizontally
         RefreshCenterAnimation(settings.Shape);
 
         _shapeVisual = _compositor.CreateShapeVisual();
-        _shapeVisual.RelativeSizeAdjustment = Vector2.One;
+        float maskH = 800f * _sizeFactor;
+        _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
         _shapeVisual.Shapes.Add(_bodyShape);
         _shapeVisual.Shapes.Add(_notchLeftEarShape);
         _shapeVisual.Shapes.Add(_notchRightEarShape);
 
-        _rootVisual.Children.InsertAtTop(_shapeVisual);
+        _maskSurface = _compositor.CreateVisualSurface();
+        _maskSurface.SourceVisual = _shapeVisual;
+        _maskSurface.SourceSize = new Vector2(_windowWidthDip, maskH);
+
+        _maskSurfaceBrush = _compositor.CreateSurfaceBrush(_maskSurface);
+        _maskSurfaceBrush.Stretch = CompositionStretch.None;
+        _maskSurfaceBrush.HorizontalAlignmentRatio = 0f;
+        _maskSurfaceBrush.VerticalAlignmentRatio = 0f;
+
+        _outputMaskBrush = _compositor.CreateMaskBrush();
+        _outputMaskBrush.Source = GetBodyBrush(settings);
+        _outputMaskBrush.Mask = _maskSurfaceBrush;
+
+        _outputVisual = _compositor.CreateSpriteVisual();
+        _outputVisual.RelativeSizeAdjustment = Vector2.One;
+        _outputVisual.Brush = _outputMaskBrush;
+
+        _rootVisual.Children.InsertAtTop(_outputVisual);
         ElementCompositionPreview.SetElementChildVisual(hostElement, _rootVisual);
 
         ApplySettings(settings);
@@ -258,6 +282,9 @@ public sealed class WindowIslandCompositor : IDisposable
         if (_disposed) return;
         _windowWidthDip = windowWidthDip;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
+        float maskH = MathF.Max(800f, (IslandMotion.ChatHeightDip + 120f) * _sizeFactor);
+        _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
+        _maskSurface.SourceSize = new Vector2(_windowWidthDip, maskH);
         RefreshCenterAnimation(settings.Shape);
     }
 
@@ -272,12 +299,9 @@ public sealed class WindowIslandCompositor : IDisposable
         var opacityAnim = _compositor.CreateScalarKeyFrameAnimation();
         opacityAnim.InsertKeyFrame(1f, opacity);
         opacityAnim.Duration = TimeSpan.FromMilliseconds(200);
-        _shapeVisual.StartAnimation("Opacity", opacityAnim);
+        _outputVisual.StartAnimation("Opacity", opacityAnim);
 
-        var bodyBrush = GetBodyBrush(settings);
-        _bodyShape.FillBrush = bodyBrush;
-        _notchLeftEarShape.FillBrush = bodyBrush;
-        _notchRightEarShape.FillBrush = bodyBrush;
+        _outputMaskBrush.Source = GetBodyBrush(settings);
 
         RefreshCenterAnimation(settings.Shape);
 
@@ -294,6 +318,10 @@ public sealed class WindowIslandCompositor : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _outputVisual.Dispose();
+        _outputMaskBrush.Dispose();
+        _maskSurfaceBrush.Dispose();
+        _maskSurface.Dispose();
         _notchLeftEarShape.Dispose();
         _notchRightEarShape.Dispose();
         _bodyGeometry.Dispose();
