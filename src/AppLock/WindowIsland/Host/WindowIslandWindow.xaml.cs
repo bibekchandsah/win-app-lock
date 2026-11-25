@@ -1391,9 +1391,10 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 4: Live Cards & Event Engine ─────────────────────────────────
 
-    private void OnRootGridPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    private void VolumeSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        var props = e.GetCurrentPoint(RootGrid).Properties;
+        if (_activeTab != 0) return;
+        var props = e.GetCurrentPoint(VolumeSlider).Properties;
         int delta = props.MouseWheelDelta;
         if (delta == 0) return;
         e.Handled = true;
