@@ -2473,16 +2473,16 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
-    // ── Equalizer bars (30 Hz while playing) ──────────────────────────────────
+    // ── Equalizer bars (real-time audio peak meter while playing) ─────────────
 
-    private static readonly int[] EqMaxH = { 12, 16, 14, 10 }; // max heights per bar
-    private static readonly int[] EqMinH = { 4,  6,  5,  3  }; // min heights per bar
+    private static readonly float[] EqBarWeights = { 0.65f, 1.0f, 0.85f, 0.55f };
+    private readonly double[] _eqHeights = { 3, 3, 3, 3 };
 
     private void StartEqTimer()
     {
         if (_eqTimer != null) return;
         _eqTimer = DispatcherQueue.CreateTimer();
-        _eqTimer.Interval = TimeSpan.FromMilliseconds(100); // ~10 Hz (smooth enough, low CPU)
+        _eqTimer.Interval = TimeSpan.FromMilliseconds(33); // ~30 Hz real-time beat response
         _eqTimer.IsRepeating = true;
         _eqTimer.Tick += (_, _) => TickEqualizer();
         _eqTimer.Start();
@@ -2492,6 +2492,14 @@ public sealed partial class WindowIslandWindow : Window
     {
         _eqTimer?.Stop();
         _eqTimer = null;
+        try
+        {
+            EqBar0.Height = 3;
+            EqBar1.Height = 3;
+            EqBar2.Height = 3;
+            EqBar3.Height = 3;
+        }
+        catch { }
     }
 
     private void TickEqualizer()
@@ -2499,10 +2507,19 @@ public sealed partial class WindowIslandWindow : Window
         if (!_isMediaPlaying) return;
         try
         {
-            EqBar0.Height = _eqRng.Next(EqMinH[0], EqMaxH[0] + 1);
-            EqBar1.Height = _eqRng.Next(EqMinH[1], EqMaxH[1] + 1);
-            EqBar2.Height = _eqRng.Next(EqMinH[2], EqMaxH[2] + 1);
-            EqBar3.Height = _eqRng.Next(EqMinH[3], EqMaxH[3] + 1);
+            float peak = _audio?.GetOutputPeak() ?? 0f;
+            float level = peak < 0.004f ? 0f : MathF.Min(1f, MathF.Pow(peak, 0.65f) * 1.25f);
+
+            var bars = new[] { EqBar0, EqBar1, EqBar2, EqBar3 };
+            for (int i = 0; i < 4; i++)
+            {
+                double target = level <= 0f
+                    ? 3.0
+                    : 3.0 + level * 14.0 * EqBarWeights[i] * (0.82 + _eqRng.NextDouble() * 0.36);
+                target = Math.Clamp(target, 3.0, 17.0);
+                _eqHeights[i] += (target - _eqHeights[i]) * 0.65;
+                bars[i].Height = _eqHeights[i];
+            }
         }
         catch { }
     }

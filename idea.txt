@@ -474,7 +474,7 @@ fixed - we have volume  slider in home tab and mouse and touch pad guesture is e
 
 fixed - realtime battery status with plugged/unpluggedarate 
 fixed - live music beat in the right side end and music icon in the left side end
-music preview is overlapped with weather
+fixed - music preview is overlapped with weather
 music background blur effect
 command navigation
 full screen screenshot [open] preview
@@ -485,6 +485,9 @@ caps/num lock
 live brightness 
 microphone controller
 camera & microphone preview 
+speaker changed notification
+microphone used notification with mute button 
+
 
 
 

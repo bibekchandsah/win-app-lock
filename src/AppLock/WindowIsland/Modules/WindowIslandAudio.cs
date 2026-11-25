@@ -199,6 +199,12 @@ public sealed class WindowIslandAudio : IDisposable
         catch { return -1; }
     }
 
+    public float GetOutputPeak()
+    {
+        try { return _defaultDevice?.AudioMeterInformation.MasterPeakValue ?? 0f; }
+        catch { return 0f; }
+    }
+
     public bool IsDeviceMuted()
     {
         try { return _defaultDevice?.AudioEndpointVolume.Mute ?? false; }
