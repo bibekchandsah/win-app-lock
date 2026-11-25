@@ -1616,19 +1616,15 @@ public sealed partial class WindowIslandWindow : Window
         bool isImage = info.Kind == "clipboard.image";
 
         _lastCopiedThumb = null;
-        if (isImage)
+        if (isImage && info.ImageBytes != null && info.ImageBytes.Length > 0)
         {
             try
             {
-                var pkg = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
-                if (pkg.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Bitmap))
-                {
-                    var streamRef = await pkg.GetBitmapAsync();
-                    using var stream = await streamRef.OpenReadAsync();
-                    var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelHeight = 68 };
-                    await bmp.SetSourceAsync(stream);
-                    _lastCopiedThumb = bmp;
-                }
+                using var ms = new MemoryStream(info.ImageBytes);
+                using var ras = ms.AsRandomAccessStream();
+                var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelHeight = 68 };
+                await bmp.SetSourceAsync(ras);
+                _lastCopiedThumb = bmp;
             }
             catch { }
         }
@@ -1688,7 +1684,11 @@ public sealed partial class WindowIslandWindow : Window
             bool showThumb = card.Kind == "clipboard" && card.Icon == "\uEB9F" && _lastCopiedThumb != null;
             if (showThumb)
             {
-                CardThumbImage.Source = _lastCopiedThumb;
+                CardThumbBorder.Background = new ImageBrush
+                {
+                    ImageSource = _lastCopiedThumb,
+                    Stretch = Stretch.UniformToFill
+                };
                 CardThumbBorder.Visibility = Visibility.Visible;
                 CardIconBadge.Visibility = Visibility.Collapsed;
             }

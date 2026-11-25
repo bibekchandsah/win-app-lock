@@ -77,7 +77,8 @@ public readonly record struct ClipboardCardInfo(
     string App,
     string Text,
     int Width,
-    int Height);
+    int Height,
+    byte[]? ImageBytes = null);
 
 /// <summary>One entry of the Home tab's "Recently copied" list (last three items, never persisted).</summary>
 public readonly record struct RecentClip(string Kind, string Preview, string App, DateTime CapturedAt);
@@ -125,6 +126,9 @@ public sealed class ClipboardCardSource : IDisposable
 
     [DllImport("kernel32.dll")]
     private static extern bool GlobalUnlock(IntPtr handle);
+
+    [DllImport("kernel32.dll")]
+    private static extern nuint GlobalSize(IntPtr handle);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetClipboardOwner();
@@ -230,10 +234,11 @@ public sealed class ClipboardCardSource : IDisposable
                 || (_cfPng != 0 && IsClipboardFormatAvailable(_cfPng)))
             {
                 TryGetImageSize(out int width, out int height);
+                byte[]? imageBytes = TryReadImageBytes(_cfPng);
                 string size = width > 0 ? $"{width}\u00D7{height}" : "Image";
                 string detail = app.Length > 0 ? $"{size} \u00B7 {app}" : size;
                 AddRecent(new RecentClip("clipboard.image", size, app, DateTime.Now));
-                Captured?.Invoke(new ClipboardCardInfo("clipboard.image", "Image copied", detail, app, string.Empty, width, height));
+                Captured?.Invoke(new ClipboardCardInfo("clipboard.image", "Image copied", detail, app, string.Empty, width, height, imageBytes));
             }
         }
         catch (Exception ex)
@@ -319,6 +324,68 @@ public sealed class ClipboardCardSource : IDisposable
         finally
         {
             GlobalUnlock(handle);
+        }
+    }
+
+    private static byte[]? TryReadImageBytes(uint cfPng)
+    {
+        try
+        {
+            if (cfPng != 0 && IsClipboardFormatAvailable(cfPng))
+            {
+                IntPtr pngHandle = GetClipboardData(cfPng);
+                if (pngHandle != IntPtr.Zero)
+                {
+                    int size = (int)GlobalSize(pngHandle);
+                    IntPtr ptr = GlobalLock(pngHandle);
+                    if (ptr != IntPtr.Zero && size > 0 && size <= 16 * 1024 * 1024)
+                    {
+                        try
+                        {
+                            var png = new byte[size];
+                            Marshal.Copy(ptr, png, 0, size);
+                            return png;
+                        }
+                        finally { GlobalUnlock(pngHandle); }
+                    }
+                }
+            }
+
+            uint fmt = IsClipboardFormatAvailable(CF_DIB) ? CF_DIB : (IsClipboardFormatAvailable(CF_DIBV5) ? CF_DIBV5 : 0);
+            if (fmt == 0) return null;
+
+            IntPtr dibHandle = GetClipboardData(fmt);
+            if (dibHandle == IntPtr.Zero) return null;
+            int dibSize = (int)GlobalSize(dibHandle);
+            if (dibSize < 40 || dibSize > 16 * 1024 * 1024) return null;
+
+            IntPtr dibPtr = GlobalLock(dibHandle);
+            if (dibPtr == IntPtr.Zero) return null;
+            try
+            {
+                var header = Marshal.PtrToStructure<BITMAPINFOHEADER>(dibPtr);
+                uint colorsUsed = (uint)Math.Max(0, header.biClrUsed);
+                if (colorsUsed == 0 && header.biBitCount <= 8)
+                {
+                    colorsUsed = 1u << header.biBitCount;
+                }
+                uint extraMasks = (header.biSize == 40 && header.biCompression == 3) ? 12u : 0u;
+                int offset = 14 + (int)header.biSize + (int)extraMasks + (int)(colorsUsed * 4);
+                int totalSize = 14 + dibSize;
+
+                var bmp = new byte[totalSize];
+                bmp[0] = (byte)'B';
+                bmp[1] = (byte)'M';
+                BitConverter.GetBytes(totalSize).CopyTo(bmp, 2);
+                BitConverter.GetBytes(offset).CopyTo(bmp, 10);
+                Marshal.Copy(dibPtr, bmp, 14, dibSize);
+                return bmp;
+            }
+            finally { GlobalUnlock(dibHandle); }
+        }
+        catch
+        {
+            return null;
         }
     }
 

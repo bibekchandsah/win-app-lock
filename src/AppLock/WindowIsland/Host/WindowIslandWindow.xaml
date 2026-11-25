@@ -360,10 +360,7 @@
                             Height="34"
                             CornerRadius="6"
                             Visibility="Collapsed"
-                            VerticalAlignment="Center">
-                        <Image x:Name="CardThumbImage"
-                               Stretch="UniformToFill" />
-                    </Border>
+                            VerticalAlignment="Center" />
                 </Grid>
                 <StackPanel x:Name="CardStackedTextPanel"
                             Grid.Column="1"
