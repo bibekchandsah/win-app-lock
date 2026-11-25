@@ -333,7 +333,12 @@ public sealed class WindowIslandControlsService
                 list.Add(new IslandWiFiNetwork(saved, false, "Saved (out of range)", 0, "", true, true));
             }
 
-            return list;
+            return list
+                .OrderByDescending(n => n.IsConnected)
+                .ThenByDescending(n => n.SignalBars)
+                .ThenByDescending(n => n.IsSaved)
+                .ThenBy(n => n.Ssid, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         });
     }
 

@@ -6321,17 +6321,33 @@ public sealed partial class WindowIslandWindow : Window
             3 => "\uE874",
             _ => "\uE701"
         };
-        var icon = new FontIcon
+        var iconGrid = new Grid
         {
-            Glyph = wifiGlyph,
-            FontSize = 14,
-            Foreground = net.IsConnected
-                ? accentBrush
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        iconBorder.Child = icon;
+        iconGrid.Children.Add(new FontIcon
+        {
+            Glyph = "\uE701",
+            FontSize = 15,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(net.SignalBars == 0 ? (byte)45 : (byte)65, 255, 255, 255)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        if (net.SignalBars > 0)
+        {
+            iconGrid.Children.Add(new FontIcon
+            {
+                Glyph = wifiGlyph,
+                FontSize = 15,
+                Foreground = net.IsConnected
+                    ? accentBrush
+                    : new SolidColorBrush(Windows.UI.Color.FromArgb(235, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+        iconBorder.Child = iconGrid;
         Grid.SetColumn(iconBorder, 0);
         grid.Children.Add(iconBorder);
 
