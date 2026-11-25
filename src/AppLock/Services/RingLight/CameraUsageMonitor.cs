@@ -89,6 +89,43 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         ("Microsoft.YourPhone", "Phone Link"),
         ("TelegramMessengerLLP.TelegramDesktop", "Telegram"),
         ("ReincubateLtd.CamoStudio", "Camo Studio"),
+        ("Microsoft.Zoom", "Zoom"),
+        ("Zoom.Zoom", "Zoom"),
+        ("TheBrowserCompany.Dia", "Dia"),
+        ("windows.immersivecontrolpanel", "Settings"),
+    };
+
+    /// <summary>
+    /// Desktop executables, as they appear in the webcam consent store's NonPackaged keys
+    /// (<c>C:#Program Files#Google#Chrome#Application#chrome.exe</c>). Windows records the exe name,
+    /// which is not what the app is called, so known apps are mapped to their product name.
+    /// </summary>
+    private static readonly Dictionary<string, string> KnownDesktopExeLookup =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["msedge.exe"] = "Microsoft Edge",
+        ["chrome.exe"] = "Google Chrome",
+        ["firefox.exe"] = "Mozilla Firefox",
+        ["brave.exe"] = "Brave",
+        ["opera.exe"] = "Opera",
+        ["vivaldi.exe"] = "Vivaldi",
+        ["dia.exe"] = "Dia",
+        ["zoom.exe"] = "Zoom",
+        ["teams.exe"] = "Microsoft Teams",
+        ["ms-teams.exe"] = "Microsoft Teams",
+        ["msteams.exe"] = "Microsoft Teams",
+        ["whatsapp.exe"] = "WhatsApp",
+        ["telegram.exe"] = "Telegram",
+        ["discord.exe"] = "Discord",
+        ["slack.exe"] = "Slack",
+        ["signal.exe"] = "Signal",
+        ["skype.exe"] = "Skype",
+        ["obs64.exe"] = "OBS Studio",
+        ["obs32.exe"] = "OBS Studio",
+        ["obs.exe"] = "OBS Studio",
+        ["webexmta.exe"] = "Webex",
+        ["viber.exe"] = "Viber",
+        ["windowscamera.exe"] = "Windows Camera",
     };
 
     private static readonly Dictionary<string, string> KnownCameraProcessLookup =
@@ -147,23 +184,29 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     private static List<(uint Pid, string Display)> _captureQueryCache = new();
     private static DateTime _captureQueryAt = DateTime.MinValue;
 
-    // Running-app sampling: Windows writes the camera consent record only when a session ends, so a
-    // Store app that is merely open (WhatsApp, Phone Link, Telegram) looked like an active camera user.
-    // A stream keeps the app busy — measured on this machine: Windows Camera streaming used 26-31 ms of
-    // CPU per second, while idle WhatsApp/Phone Link used 0-5 ms/s — so the app's own CPU time is sampled.
-    private const double AppActivityThresholdMsPerSecond = 15.0;
+    // Running-app sampling: on builds that only write the camera consent record when a session ends,
+    // an open-but-idle app looked like an active camera user, so the app's own CPU time is sampled.
+    // Measured on this machine: Windows Camera streaming used 109-234 ms of CPU per second, while the
+    // same apps idle at 0 ms/s. Turning on therefore needs a real stream (well clear of idle) held for
+    // two consecutive samples, and turning off waits until the rate falls to a much lower hold
+    // threshold — a single busy moment can neither invent nor hide a running call.
+    private const double AppStartThresholdMsPerSecond = 30.0;
+    private const double AppHoldThresholdMsPerSecond = 10.0;
+    private const int AppStartSamples = 2;
     private const double AppActivitySmoothing = 0.3;
     private readonly Dictionary<uint, PidCpuSample> _pidCpu = new();
     private readonly Dictionary<string, AppActivitySample> _appActivity = new();
+    private readonly Dictionary<string, int> _appAboveStart = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _appConfirmed = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _activityLock = new();
 
-    private readonly record struct PidCpuSample(TimeSpan Cpu, DateTime At);
+    private readonly record struct PidCpuSample(TimeSpan Cpu, DateTime At, double RateMsPerSecond);
     private readonly record struct AppActivitySample(DateTime At, double RateMsPerSecond, bool Measured);
 
     // Process scans are the expensive part of detection (one image-path query per process), so one scan
     // is shared by the poll and the test button, and each process' package identity is resolved once and
     // cached until that pid disappears (the name is re-checked in case Windows reused the pid).
-    private const int ScanCacheMilliseconds = 500;
+    private const int ScanCacheMilliseconds = 1000;
     private readonly object _scanLock = new();
     private readonly Dictionary<uint, (string Name, string? Identity)> _packageIdentity = new();
     private List<(uint Pid, string Display)> _storeCandidates = new();
@@ -224,25 +267,197 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     }
 
     /// <summary>
-    /// Checks the registry consent store directly and returns all currently active camera apps.
+    /// Apps Windows says are using the camera right now, as friendly names, most recent first.
     /// </summary>
-    public IReadOnlyList<string> GetActiveCameraApps()
+    public IReadOnlyList<string> GetActiveCameraApps() => GetActiveCameraAppNames();
+
+    // ── Windows' own per-app camera records ───────────────────────────────────
+    // HKCU/HKLM ...\CapabilityAccessManager\ConsentStore\webcam holds one key per app that has ever
+    // opened the camera. While a session is open LastUsedTimeStop stays behind LastUsedTimeStart
+    // (usually 0), which is the only per-app, real-time source Windows publishes — so this is the
+    // authority on *who* is using the camera, and the heuristics below only cover the case where a
+    // build records nothing at all.
+
+    private const int ConsentReadCacheMilliseconds = 400;
+    private static readonly object _consentCacheLock = new();
+    private static readonly List<ActiveCameraEntry> _consentCache = new();
+    private static DateTime _consentCacheAt = DateTime.MinValue;
+
+    private readonly record struct ActiveCameraEntry(string RawKey, bool NonPackaged, long Start);
+
+    /// <summary>
+    /// Apps with an open camera session, newest session first, deduplicated by friendly name.
+    /// The consent store is read at most once every 400 ms, so the monitor, the test button and the
+    /// notification service all share a single enumeration.
+    /// </summary>
+    public static IReadOnlyList<string> GetActiveCameraAppNames()
     {
-        var result = new List<string>();
+        var names = new List<string>();
+        foreach (var entry in ReadActiveCameraEntries())
+        {
+            var name = FriendlyAppName(entry.RawKey, entry.NonPackaged);
+            if (string.IsNullOrWhiteSpace(name) || IsAppLock(name)) continue;
+            AddAppName(names, name);
+        }
+        return names;
+    }
+
+    private static List<ActiveCameraEntry> ReadActiveCameraEntries()
+    {
+        lock (_consentCacheLock)
+        {
+            if ((DateTime.UtcNow - _consentCacheAt).TotalMilliseconds < ConsentReadCacheMilliseconds)
+                return new List<ActiveCameraEntry>(_consentCache);
+        }
+
+        var entries = new List<ActiveCameraEntry>();
+        CollectActiveEntries(Registry.CurrentUser, entries);
+        if (entries.Count == 0) CollectActiveEntries(Registry.LocalMachine, entries);
+
+        // The latest session wins, so the app the user just started is the one shown.
+        entries.Sort((a, b) => b.Start.CompareTo(a.Start));
+
+        lock (_consentCacheLock)
+        {
+            _consentCache.Clear();
+            _consentCache.AddRange(entries);
+            _consentCacheAt = DateTime.UtcNow;
+            return new List<ActiveCameraEntry>(_consentCache);
+        }
+    }
+
+    private static void CollectActiveEntries(RegistryKey root, List<ActiveCameraEntry> into)
+    {
         try
         {
-            ScanRegistryRoot(Registry.CurrentUser, result);
-            if (result.Count == 0)
+            using var baseKey = root.OpenSubKey(WebcamConsentSubKey);
+            if (baseKey == null) return;
+
+            // Packaged (Store/MSIX) apps: the key is the package family name.
+            foreach (var subKeyName in baseKey.GetSubKeyNames())
             {
-                ScanRegistryRoot(Registry.LocalMachine, result);
+                if (subKeyName.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase)) continue;
+                if (TryReadActiveEntry(baseKey, subKeyName, out long start))
+                    into.Add(new ActiveCameraEntry(subKeyName, false, start));
+            }
+
+            // Desktop apps: the key is the exe path with '#' instead of '\'.
+            using var nonPackaged = baseKey.OpenSubKey("NonPackaged");
+            if (nonPackaged == null) return;
+            foreach (var subKeyName in nonPackaged.GetSubKeyNames())
+            {
+                if (TryReadActiveEntry(nonPackaged, subKeyName, out long start))
+                    into.Add(new ActiveCameraEntry(subKeyName, true, start));
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[CameraUsageMonitor] Check error: {ex.Message}");
+            Debug.WriteLine($"[CameraUsageMonitor] Consent store read failed: {ex.Message}");
+        }
+    }
+
+    private static bool TryReadActiveEntry(RegistryKey parent, string subKeyName, out long start)
+    {
+        start = 0;
+        try
+        {
+            using var sub = parent.OpenSubKey(subKeyName);
+            if (sub == null) return false;
+
+            var startValue = sub.GetValue("LastUsedTimeStart");
+            if (startValue == null) return false;
+
+            start = ToInt64Safe(startValue);
+            var stopValue = sub.GetValue("LastUsedTimeStop");
+            long stop = stopValue != null ? ToInt64Safe(stopValue) : 0;
+
+            return start > stop;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static readonly Dictionary<string, string> _friendlyNameCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object _friendlyNameLock = new();
+
+    /// <summary>Product name of a consent-store key, e.g. <c>msedge.exe</c> or
+    /// <c>5319275A.WhatsAppDesktop_cv1g1gvanyjgm</c>.</summary>
+    public static string FriendlyAppName(string rawKey, bool nonPackaged)
+    {
+        if (string.IsNullOrWhiteSpace(rawKey)) return string.Empty;
+
+        string cacheKey = (nonPackaged ? "np:" : "pk:") + rawKey;
+        lock (_friendlyNameLock)
+        {
+            if (_friendlyNameCache.TryGetValue(cacheKey, out var cached)) return cached;
         }
 
-        return result;
+        string name = nonPackaged ? DescribeDesktopApp(rawKey) : DescribePackagedApp(rawKey);
+
+        lock (_friendlyNameLock) _friendlyNameCache[cacheKey] = name;
+        return name;
+    }
+
+    private static string DescribeDesktopApp(string rawKey)
+    {
+        string path = rawKey.Replace('#', '\\');
+        string exe = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(exe)) return path;
+
+        if (KnownDesktopExeLookup.TryGetValue(exe, out var knownExe)) return knownExe;
+        if (KnownCameraProcessLookup.TryGetValue(Path.GetFileNameWithoutExtension(exe), out var knownApp)) return knownApp;
+
+        // Unknown desktop app: its own version resource is the best name available.
+        try
+        {
+            if (File.Exists(path))
+            {
+                var description = FileVersionInfo.GetVersionInfo(path).FileDescription?.Trim();
+                if (!string.IsNullOrWhiteSpace(description) && !description.Equals(exe, StringComparison.OrdinalIgnoreCase))
+                    return description;
+            }
+        }
+        catch
+        {
+            // Unreadable image (permissions, deleted file): fall back to the executable name.
+        }
+
+        return Path.GetFileNameWithoutExtension(exe);
+    }
+
+    private static string DescribePackagedApp(string rawKey)
+    {
+        // Package family name: <Identity>_<PublisherId>.
+        string identity = rawKey;
+        int underscore = identity.IndexOf('_');
+        if (underscore > 0) identity = identity[..underscore];
+
+        if (FindStoreCameraApp(identity) is string known) return known;
+
+        // "Microsoft.WindowsCamera" -> "WindowsCamera", "TheBrowserCompany.Dia" -> "Dia".
+        string tail = identity;
+        int dot = tail.LastIndexOf('.');
+        if (dot >= 0 && dot + 1 < tail.Length) tail = tail[(dot + 1)..];
+
+        var spaced = AddWordSpaces(tail);
+        return string.IsNullOrWhiteSpace(spaced) ? identity : spaced;
+    }
+
+    private static string AddWordSpaces(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        var sb = new System.Text.StringBuilder(value.Length + 8);
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (i > 0 && char.IsUpper(c) && !char.IsUpper(value[i - 1]) && sb.Length > 0 && sb[^1] != ' ')
+                sb.Append(' ');
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     /// <summary>
@@ -401,19 +616,59 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         foreach (var (display, pids) in byApp)
         {
             var rate = SampleAppActivity(display, pids, now);
-            bool isWorking = rate is double msPerSecond && msPerSecond >= AppActivityThresholdMsPerSecond;
-
-            if (isWorking)
-            {
-                if (!active.Contains(display)) active.Add(display);
-            }
-            else if (!idle.Contains(display))
-            {
-                idle.Add(display);
-            }
+            if (UpdateAppState(display, rate)) active.Add(display);
+            else idle.Add(display);
         }
 
+        // The busiest app is the one actually capturing, so it should be named first.
+        active.Sort((a, b) => RateOf(b).CompareTo(RateOf(a)));
         return (active, idle);
+    }
+
+    /// <summary>
+    /// Hysteresis per app: on after two consecutive samples above the start threshold, off only once
+    /// the rate falls below the much lower hold threshold. Prevents the name from flickering between
+    /// whatever happened to be busy for one sample.
+    /// </summary>
+    private bool UpdateAppState(string display, double? rate)
+    {
+        lock (_activityLock)
+        {
+            bool aboveStart = rate is double measured && measured >= AppStartThresholdMsPerSecond;
+            int streak = aboveStart ? (_appAboveStart.TryGetValue(display, out var previous) ? previous : 0) + 1 : 0;
+            _appAboveStart[display] = streak;
+
+            if (_appConfirmed.Contains(display))
+            {
+                if (rate is double held && held >= AppHoldThresholdMsPerSecond) return true;
+                _appConfirmed.Remove(display);
+                return false;
+            }
+
+            if (streak >= AppStartSamples)
+            {
+                _appConfirmed.Add(display);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>Adds a name once, ignoring case ("WhatsApp" and "whatsapp" are one app).</summary>
+    private static void AddAppName(List<string> apps, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        if (!apps.Exists(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
+            apps.Add(name);
+    }
+
+    private double RateOf(string display)
+    {
+        lock (_activityLock)
+        {
+            return _appActivity.TryGetValue(display, out var sample) ? sample.RateMsPerSecond : 0;
+        }
     }
 
     /// <summary>
@@ -436,6 +691,8 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         {
             // The first real measurement is used as-is so a call that is already running is seen
             // immediately; later samples are smoothed to keep a lone busy second from flipping it.
+            // The first real measurement is used as-is so a call that is already running is seen
+            // immediately; later samples are smoothed so one busy moment does not dominate.
             var smoothed = _appActivity.TryGetValue(display, out var previous) && previous.Measured
                 ? previous.RateMsPerSecond * (1 - _appActivitySmoothing) + total.Value * _appActivitySmoothing
                 : total.Value;
@@ -467,13 +724,18 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 if (elapsedMs >= 250)
                 {
                     var usedMs = Math.Max(0, (cpu - previous.Cpu).TotalMilliseconds);
-                    _pidCpu[pid] = new PidCpuSample(cpu, now);
-                    return usedMs / elapsedMs * 1000.0;
+                    var rate = usedMs / elapsedMs * 1000.0;
+                    _pidCpu[pid] = new PidCpuSample(cpu, now, rate);
+                    return rate;
                 }
-                return null;
+
+                // Asked again inside the sampling window (the Store and desktop lists are both
+                // classified in one tick): reuse the rate just measured instead of answering
+                // "unknown", which used to make the state flap between ticks.
+                return previous.RateMsPerSecond;
             }
 
-            _pidCpu[pid] = new PidCpuSample(cpu, now);
+            _pidCpu[pid] = new PidCpuSample(cpu, now, 0);
             return null;
         }
     }
@@ -491,7 +753,10 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
 
             foreach (var app in new List<string>(_appActivity.Keys))
             {
-                if ((now - _appActivity[app].At).TotalSeconds > 30) _appActivity.Remove(app);
+                if ((now - _appActivity[app].At).TotalSeconds <= 30) continue;
+                _appActivity.Remove(app);
+                _appAboveStart.Remove(app);
+                _appConfirmed.Remove(app);
             }
         }
     }
@@ -613,13 +878,13 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                 // example a shell running a command that mentions the marker).
                 string? display = name.ToLowerInvariant() switch
                 {
-                    "chrome.exe"  => "Google Chrome (Web video call)",
-                    "msedge.exe"  => "Microsoft Edge (Web video call)",
-                    "brave.exe"   => "Brave (Web video call)",
-                    "opera.exe"   => "Opera (Web video call)",
-                    "vivaldi.exe" => "Vivaldi (Web video call)",
+                    "chrome.exe"  => "Google Chrome",
+                    "msedge.exe"  => "Microsoft Edge",
+                    "brave.exe"   => "Brave",
+                    "opera.exe"   => "Opera",
+                    "vivaldi.exe" => "Vivaldi",
                     // WebView2 hosts (new Teams, WhatsApp/Store apps with embedded web calls).
-                    "msedgewebview2.exe" => "App web view (Web video call)",
+                    "msedgewebview2.exe" => "Web view app",
                     _ => null
                 };
 
@@ -800,10 +1065,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         var activeApps = new List<string>();
         foreach (var group in new[] { recordApps, storeActive, desktopActive, browserApps })
         {
-            foreach (var app in group)
-            {
-                if (!activeApps.Contains(app)) activeApps.Add(app);
-            }
+            foreach (var app in group) AddAppName(activeApps, app);
         }
 
         bool isStreaming = activeApps.Count > 0;
@@ -837,47 +1099,6 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         if (active.Count > 0) parts.Add(string.Join(", ", active) + " (active)");
         if (idle.Count > 0) parts.Add(string.Join(", ", idle) + " (open, no camera activity)");
         return string.Join("; ", parts);
-    }
-
-    private static void ScanRegistryRoot(RegistryKey root, List<string> result)
-    {
-        using var baseKey = root.OpenSubKey(WebcamConsentSubKey);
-        if (baseKey == null) return;
-
-        // 1. Packaged apps (directly under webcam subkey, excluding 'NonPackaged')
-        foreach (var subKeyName in baseKey.GetSubKeyNames())
-        {
-            if (subKeyName.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            using var appKey = baseKey.OpenSubKey(subKeyName);
-            if (appKey == null) continue;
-
-            if (IsAppUsingCamera(appKey))
-            {
-                var name = CleanPackagedName(subKeyName);
-                if (!IsAppLock(name) && !result.Contains(name))
-                    result.Add(name);
-            }
-        }
-
-        // 2. Desktop apps (under NonPackaged)
-        using var nonPackagedKey = baseKey.OpenSubKey("NonPackaged");
-        if (nonPackagedKey != null)
-        {
-            foreach (var subKeyName in nonPackagedKey.GetSubKeyNames())
-            {
-                using var appKey = nonPackagedKey.OpenSubKey(subKeyName);
-                if (appKey == null) continue;
-
-                if (IsAppUsingCamera(appKey))
-                {
-                    var name = CleanDesktopName(subKeyName);
-                    if (!IsAppLock(name) && !result.Contains(name))
-                        result.Add(name);
-                }
-            }
-        }
     }
 
     /// <summary>
@@ -933,35 +1154,25 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             // camera apps that are actually working (an idle app is not using the camera).
             // The later (more expensive) checks only run while the earlier ones found nothing.
             var activeApps = new List<string>();
-            foreach (var app in GetActiveCameraApps())
-            {
-                if (!activeApps.Contains(app)) activeApps.Add(app);
-            }
+            foreach (var app in GetActiveCameraApps()) AddAppName(activeApps, app);
 
             if (activeApps.Count == 0 && _useBrowserCaptureHeuristic)
             {
-                foreach (var app in GetActiveBrowserCaptureApps())
-                {
-                    if (!activeApps.Contains(app)) activeApps.Add(app);
-                }
+                foreach (var app in GetActiveBrowserCaptureApps()) AddAppName(activeApps, app);
             }
 
             if (activeApps.Count == 0)
             {
+                // Both lists are classified every tick so every candidate keeps a warm CPU baseline;
+                // previously a free Store app hid the desktop app actually streaming.
                 var (storeCandidates, desktopCandidates) = ScanRunningCameraApps();
 
-                foreach (var app in ClassifyRunningApps(storeCandidates).Active)
-                {
-                    if (!activeApps.Contains(app)) activeApps.Add(app);
-                }
+                var ranked = new List<(string Display, double Rate)>();
+                foreach (var app in ClassifyRunningApps(storeCandidates).Active) ranked.Add((app, RateOf(app)));
+                foreach (var app in ClassifyRunningApps(desktopCandidates).Active) ranked.Add((app, RateOf(app)));
+                ranked.Sort((a, b) => b.Rate.CompareTo(a.Rate));
 
-                if (activeApps.Count == 0)
-                {
-                    foreach (var app in ClassifyRunningApps(desktopCandidates).Active)
-                    {
-                        if (!activeApps.Contains(app)) activeApps.Add(app);
-                    }
-                }
+                foreach (var (display, _) in ranked) AddAppName(activeApps, display);
             }
 
             lock (_lock)
@@ -1020,27 +1231,6 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         }
     }
 
-    private static bool IsAppUsingCamera(RegistryKey key)
-    {
-        try
-        {
-            var startVal = key.GetValue("LastUsedTimeStart");
-            if (startVal == null) return false;
-
-            var stopVal = key.GetValue("LastUsedTimeStop");
-
-            long start = ToInt64Safe(startVal);
-            long stop  = stopVal != null ? ToInt64Safe(stopVal) : 0;
-
-            // Using camera if start time is greater than stop time (stop == 0 during initial/active use)
-            return start > stop;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private static long ToInt64Safe(object value)
     {
         return value switch
@@ -1054,39 +1244,6 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
             string s when long.TryParse(s, out var parsed) => parsed,
             _ => Convert.ToInt64(value)
         };
-    }
-
-    private static string CleanDesktopName(string keyName)
-    {
-        // Desktop keys replace '\' with '#'
-        var unescaped = keyName.Replace('#', '\\');
-        try
-        {
-            var fileName = Path.GetFileName(unescaped);
-            return string.IsNullOrEmpty(fileName) ? unescaped : fileName;
-        }
-        catch
-        {
-            return unescaped;
-        }
-    }
-
-    private static string CleanPackagedName(string keyName)
-    {
-        // For packaged apps, e.g. "Microsoft.WindowsCamera_8wekyb3d8bbwe" -> "Windows Camera" or prefix
-        if (keyName.Contains('_'))
-        {
-            var prefix = keyName.Split('_')[0];
-
-            // Known Store apps (e.g. "5319275A.WhatsAppDesktop_cv1g1gvanyjgm") read as their product name.
-            var known = FindStoreCameraApp(prefix);
-            if (known != null) return known;
-
-            if (prefix.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase))
-                return prefix["Microsoft.".Length..];
-            return prefix;
-        }
-        return keyName;
     }
 
     private static bool IsAppLock(string name)

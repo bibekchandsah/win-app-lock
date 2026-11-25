@@ -527,7 +527,9 @@ public sealed partial class WindowIslandWindow : Window
                 inactiveDebounceSeconds: 1,
                 pollIntervalMs: 500,
                 useBrowserCaptureHeuristic: false,
-                appActivitySmoothing: 0.85);
+                // Light smoothing only: the monitor's own start/hold hysteresis keeps a confirmed app
+                // steady, so a heavy 0.85 made "camera in use" linger seconds after a call ended.
+                appActivitySmoothing: 0.5);
             _cameraMonitor.CameraUsageChanged += OnRingLightCameraUsageChanged;
             _cameraMonitor.Start();
         }
@@ -5623,6 +5625,9 @@ public sealed partial class WindowIslandWindow : Window
         string appName = e.ActiveApps.Count > 0 ? e.ActiveApps[0] : string.Empty;
         _cameraMonitorInUse = e.InUse;
         _cameraMonitorApp = appName;
+        WindowIslandHost.Log(e.InUse
+            ? $"camera: in use by {(appName.Length == 0 ? "unknown app" : appName)}"
+            : "camera: released");
 
         DispatcherQueue.TryEnqueue(() =>
         {

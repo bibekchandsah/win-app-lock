@@ -255,7 +255,19 @@ public sealed class WindowIslandNotificationService : IDisposable
         {
             try { (micActive, micApp) = CaptureSessionFallback(); } catch { }
         }
-        try { (camActive, camApp) = IsDeviceInUse(CamConsentKey); } catch { }
+        // Windows' own per-app camera records decide *who* is capturing; the shared reader also turns
+        // raw keys (msedge.exe, package family names) into product names and lists the newest session
+        // first, so the app shown is the one that just started.
+        try
+        {
+            var camApps = AppLock.Services.RingLight.CameraUsageMonitor.GetActiveCameraAppNames();
+            if (camApps.Count > 0)
+            {
+                camActive = true;
+                camApp = camApps[0];
+            }
+        }
+        catch { }
         if (!camActive && CameraFallback != null)
         {
             try { (camActive, camApp) = CameraFallback(); } catch { }
