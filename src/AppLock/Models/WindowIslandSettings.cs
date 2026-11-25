@@ -58,6 +58,7 @@ public sealed class WindowIslandSettings
     public bool CardDeleteKeyWarningEnabled { get; set; } = false;
     public System.Collections.Generic.List<string> CustomKeyWarnings { get; set; } = new();
     public bool CardVolumeEnabled     { get; set; } = true;
+    public bool CardBrightnessEnabled { get; set; } = true;
     public bool CardClipboardEnabled  { get; set; } = true;
     public bool CardScreenshotEnabled { get; set; } = true;
 

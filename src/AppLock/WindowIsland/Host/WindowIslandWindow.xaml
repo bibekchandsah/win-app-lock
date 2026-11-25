@@ -3330,6 +3330,9 @@
                                 <Slider Grid.Column="1"
                                         x:Name="ControlsBrightnessSlider"
                                         ValueChanged="ControlsBrightnessSlider_ValueChanged"
+                                        PointerPressed="ControlsBrightnessSlider_PointerPressed"
+                                        PointerReleased="ControlsBrightnessSlider_PointerReleased"
+                                        PointerWheelChanged="ControlsBrightnessSlider_PointerWheelChanged"
                                         VerticalAlignment="Center"
                                         Margin="0,-6,0,-6"/>
                                 <TextBlock Grid.Column="2"

@@ -10,6 +10,7 @@ namespace AppLock.WindowIsland.Events;
 public enum WindowIslandCardPriority
 {
     Volume = 10,
+    Brightness = 10,
     CapsLock = 20,
     Clipboard = 30,
     Screenshot = 30,

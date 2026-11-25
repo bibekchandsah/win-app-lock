@@ -224,6 +224,12 @@ public sealed partial class WindowIslandWindow : Window
     private bool                              _restartConfirming;
     private bool                              _shutdownConfirming;
     private bool                              _controlsBrightnessChanging;
+    private bool                              _controlsBrightnessPointerDown;
+    private long                              _brightnessLastWriteMs;
+    private long                              _lastBrightnessCardMs;
+    private int                               _pendingBrightnessCard = -1;
+    private DQTimer?                          _brightnessCardTimer;
+    private System.Management.ManagementEventWatcher? _brightnessWmiWatcher;
 
     // Milestone 12: Notifications, VPN, battery alert cards, mic/cam dots
     private bool _micDotActive;
@@ -316,6 +322,7 @@ public sealed partial class WindowIslandWindow : Window
 
         _volumeController = new IslandVolumeController();
         InitAudioListener();
+        InitBrightnessListener();
 
         _lockKeySource = new LockKeyCardSource(DispatcherQueue);
         _lockKeySource.CapsLockChanged   += OnCapsLockChanged;
@@ -614,6 +621,7 @@ public sealed partial class WindowIslandWindow : Window
         _volumeController?.Dispose();
         _volumeController = null;
         StopVolumeUi();
+        DisposeBrightnessListener();
         if (_audio != null)
         {
             _audio.SystemVolumeChanged -= OnSystemVolumeChanged;
@@ -1799,6 +1807,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Visibility = Visibility.Visible;
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
+                CardIconBadge.CornerRadius = new CornerRadius(17);
                 CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
@@ -1818,6 +1827,7 @@ public sealed partial class WindowIslandWindow : Window
             CardIconBadge.Visibility = Visibility.Visible;
             CardIconBadge.Width = double.NaN;
             CardIconBadge.Height = double.NaN;
+            CardIconBadge.CornerRadius = new CornerRadius(0);
             CardIconBadge.Background = null;
             CardIcon.FontSize = 14;
 
@@ -2776,6 +2786,129 @@ public sealed partial class WindowIslandWindow : Window
             Priority: WindowIslandCardPriority.Volume,
             StayMs: _settings.GetCardStayMs(),
             Value: vol));
+    }
+
+    // ── Brightness live preview & external sync ───────────────────────────────
+
+    private void InitBrightnessListener()
+    {
+        try
+        {
+            ServiceContainer.BrightnessService.BrightnessChanged -= OnSystemBrightnessChanged;
+            ServiceContainer.BrightnessService.BrightnessChanged += OnSystemBrightnessChanged;
+        }
+        catch { }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var watcher = new System.Management.ManagementEventWatcher(
+                    "root\\WMI",
+                    "SELECT * FROM WmiMonitorBrightnessEvent");
+                watcher.EventArrived += (_, e) =>
+                {
+                    try
+                    {
+                        if (e.NewEvent?["Brightness"] is byte level)
+                            HandleExternalBrightnessChanged(level);
+                        else if (e.NewEvent?["Brightness"] != null && int.TryParse(e.NewEvent["Brightness"].ToString(), out int parsed))
+                            HandleExternalBrightnessChanged(parsed);
+                    }
+                    catch { }
+                };
+                watcher.Start();
+                _brightnessWmiWatcher = watcher;
+            }
+            catch { }
+        });
+    }
+
+    private void DisposeBrightnessListener()
+    {
+        try { ServiceContainer.BrightnessService.BrightnessChanged -= OnSystemBrightnessChanged; } catch { }
+        try { _brightnessWmiWatcher?.Stop(); } catch { }
+        try { _brightnessWmiWatcher?.Dispose(); } catch { }
+        _brightnessWmiWatcher = null;
+        _brightnessCardTimer?.Stop();
+        _brightnessCardTimer = null;
+        _pendingBrightnessCard = -1;
+    }
+
+    private void OnSystemBrightnessChanged(object? sender, AppLock.Services.Brightness.BrightnessChangedEventArgs e)
+    {
+        HandleExternalBrightnessChanged(e.Brightness);
+    }
+
+    private void HandleExternalBrightnessChanged(int level)
+    {
+        int clamped = Math.Clamp(level, 0, 100);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (Environment.TickCount64 - _brightnessLastWriteMs < 400 || _controlsBrightnessPointerDown)
+                return;
+
+            if (_compositor?.IsOpen == true && _activeTab == 7)
+            {
+                _controlsBrightnessChanging = true;
+                ControlsBrightnessSlider.Value = clamped;
+                _controlsBrightnessChanging = false;
+                ControlsBrightnessText.Text = $"{clamped}%";
+                return;
+            }
+
+            if (_settings.CardBrightnessEnabled)
+            {
+                QueueBrightnessCard(clamped);
+            }
+        });
+    }
+
+    private void QueueBrightnessCard(int level)
+    {
+        if (!_settings.CardBrightnessEnabled) return;
+        if (_compositor?.IsOpen == true && _activeTab == 7) return;
+
+        if (Environment.TickCount64 - _lastBrightnessCardMs >= 250)
+        {
+            PushBrightnessCard(level);
+            return;
+        }
+
+        _pendingBrightnessCard = level;
+        if (_brightnessCardTimer == null)
+        {
+            _brightnessCardTimer = DispatcherQueue.CreateTimer();
+            _brightnessCardTimer.Interval = TimeSpan.FromMilliseconds(250);
+            _brightnessCardTimer.IsRepeating = false;
+            _brightnessCardTimer.Tick += (_, _) =>
+            {
+                int pending = _pendingBrightnessCard;
+                _pendingBrightnessCard = -1;
+                if (pending >= 0) PushBrightnessCard(pending);
+            };
+        }
+
+        _brightnessCardTimer.Stop();
+        _brightnessCardTimer.Start();
+    }
+
+    private void PushBrightnessCard(int level)
+    {
+        _lastBrightnessCardMs = Environment.TickCount64;
+        _pendingBrightnessCard = -1;
+
+        var accent = GetSystemAccentColor();
+        string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "brightness",
+            Icon: "\uE706",
+            Title: string.Empty,
+            Detail: string.Empty,
+            AccentHex: accentHex,
+            Priority: WindowIslandCardPriority.Brightness,
+            StayMs: _settings.GetCardStayMs(),
+            Value: Math.Clamp(level, 0, 100)));
     }
 
     // ── Tile button handlers ──────────────────────────────────────────────────
@@ -7631,10 +7764,27 @@ public sealed partial class WindowIslandWindow : Window
         return border;
     }
 
+    private void ControlsBrightnessSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
+        => _controlsBrightnessPointerDown = true;
+
+    private void ControlsBrightnessSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
+        => _controlsBrightnessPointerDown = false;
+
+    private void ControlsBrightnessSlider_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        int delta = e.GetCurrentPoint(ControlsBrightnessSlider).Properties.MouseWheelDelta;
+        if (delta == 0) return;
+        int step = delta > 0 ? 5 : -5;
+        int next = Math.Clamp((int)ControlsBrightnessSlider.Value + step, 0, 100);
+        ControlsBrightnessSlider.Value = next;
+        e.Handled = true;
+    }
+
     private async void ControlsBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (_controlsBrightnessChanging) return;
         int val = (int)e.NewValue;
+        _brightnessLastWriteMs = Environment.TickCount64;
         ControlsBrightnessText.Text = $"{val}%";
         if (ServiceContainer.BrightnessService.IsAvailable)
         {
