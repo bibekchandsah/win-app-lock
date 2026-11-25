@@ -15,8 +15,36 @@ public sealed partial class WindowIslandSettingsPage : Page
     public WindowIslandSettingsPage()
     {
         InitializeComponent();
+        CategoryList.SelectedIndex = 0;
         Loaded += OnLoaded;
     }
+
+    /// <summary>Shows the settings section belonging to the selected rail category.</summary>
+    private void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SectionGeneral is null) return;
+
+        string category = (CategoryList.SelectedItem as ListViewItem)?.Tag as string ?? "general";
+
+        SectionGeneral.Visibility = ShowSection(category, "general");
+        SectionAppearance.Visibility = ShowSection(category, "appearance");
+        SectionVisibility.Visibility = ShowSection(category, "visibility");
+        SectionIndicators.Visibility = ShowSection(category, "indicators");
+        SectionCards.Visibility = ShowSection(category, "cards");
+        SectionControls.Visibility = ShowSection(category, "controls");
+        SectionWeather.Visibility = ShowSection(category, "weather");
+        SectionChat.Visibility = ShowSection(category, "chat");
+        SectionSearch.Visibility = ShowSection(category, "search");
+        SectionPerformance.Visibility = ShowSection(category, "performance");
+        SectionAbout.Visibility = ShowSection(category, "about");
+
+        ContentScroller.ChangeView(null, 0, null, true);
+    }
+
+    private static Visibility ShowSection(string category, string wanted) =>
+        string.Equals(category, wanted, StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
