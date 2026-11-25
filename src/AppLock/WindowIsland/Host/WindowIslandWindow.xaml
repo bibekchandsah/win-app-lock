@@ -307,12 +307,14 @@
                               Visibility="Collapsed"
                               VerticalAlignment="Center"
                               ToolTipService.ToolTip="Microphone in use" />
-                    <Ellipse x:Name="CamDot"
-                             Width="6" Height="6"
-                             Fill="#22CC44"
-                             Visibility="Collapsed"
-                             VerticalAlignment="Center"
-                             ToolTipService.ToolTip="Camera in use" />
+                        <!-- Glyph="&#xE714;" -->
+                    <FontIcon x:Name="CamDot"
+                              Glyph="&#xE722;"
+                              FontSize="11.5"
+                              Foreground="#22CC44"
+                              Visibility="Collapsed"
+                              VerticalAlignment="Center"
+                              ToolTipService.ToolTip="Camera in use" />
                 </StackPanel>
 
                 <!-- Folded live music beat (right end) -->
@@ -691,6 +693,14 @@
                                 Click="HeaderMicMuteBtn_Click"
                                 ToolTipService.ToolTip="Microphone in use — Click to mute">
                             <FontIcon x:Name="HeaderMicMuteIcon" Glyph="&#xE720;" FontSize="13" />
+                        </Button>
+
+                        <!-- Camera in-use indicator (shown between mic and Quiet when camera is active) -->
+                        <Button x:Name="HeaderCamBtn"
+                                Style="{StaticResource TabButtonStyle}"
+                                Visibility="Collapsed"
+                                ToolTipService.ToolTip="Camera in use">
+                            <FontIcon x:Name="HeaderCamIcon" Glyph="&#xE714;" FontSize="13" Foreground="#22CC44" />
                         </Button>
 
                         <!-- Quiet chip (hide cards temporarily) -->

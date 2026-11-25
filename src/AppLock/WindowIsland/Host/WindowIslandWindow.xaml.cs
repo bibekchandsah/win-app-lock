@@ -250,6 +250,7 @@ public sealed partial class WindowIslandWindow : Window
     private string? _micDotLastTooltip;
     private string? _camDotLastTooltip;
     private string? _headerMicLastTooltip;
+    private string? _headerCamLastTooltip;
     private AppLock.Services.RingLight.CameraUsageMonitor? _cameraMonitor;
     private volatile bool _cameraMonitorInUse;
     private volatile string? _cameraMonitorApp;
@@ -521,7 +522,7 @@ public sealed partial class WindowIslandWindow : Window
         WindowIslandNotificationService.CameraFallback = () => (_cameraMonitorInUse, _cameraMonitorApp ?? string.Empty);
         if (_cameraMonitor == null)
         {
-            _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor();
+            _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(inactiveDebounceSeconds: 1);
             _cameraMonitor.CameraUsageChanged += OnRingLightCameraUsageChanged;
             _cameraMonitor.Start();
         }
@@ -5828,19 +5829,36 @@ public sealed partial class WindowIslandWindow : Window
                 ToolTipService.SetToolTip(MicDot, micTip);
             }
         }
+        string? camApp = _activeCamAppName;
+        if (_camDotActive && string.IsNullOrEmpty(camApp))
+        {
+            (_, _, _, camApp) = WindowIslandNotificationService.GetMicCamState();
+            _activeCamAppName = camApp;
+        }
+
         if (_camDotActive)
         {
-            string? camApp = _activeCamAppName;
-            if (string.IsNullOrEmpty(camApp))
-            {
-                (_, _, _, camApp) = WindowIslandNotificationService.GetMicCamState();
-                _activeCamAppName = camApp;
-            }
             string camTip = string.IsNullOrEmpty(camApp) ? "Camera in use" : $"Camera: {camApp}";
             if (!string.Equals(_camDotLastTooltip, camTip, StringComparison.Ordinal))
             {
                 _camDotLastTooltip = camTip;
                 ToolTipService.SetToolTip(CamDot, camTip);
+            }
+        }
+
+        if (HeaderCamBtn != null)
+        {
+            HeaderCamBtn.Visibility = _camDotActive ? Visibility.Visible : Visibility.Collapsed;
+            if (_camDotActive)
+            {
+                string headerCamTip = string.IsNullOrEmpty(camApp)
+                    ? "Camera in use"
+                    : $"Camera in use by {camApp}";
+                if (!string.Equals(_headerCamLastTooltip, headerCamTip, StringComparison.Ordinal))
+                {
+                    _headerCamLastTooltip = headerCamTip;
+                    ToolTipService.SetToolTip(HeaderCamBtn, headerCamTip);
+                }
             }
         }
 

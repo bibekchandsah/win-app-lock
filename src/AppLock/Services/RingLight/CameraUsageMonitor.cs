@@ -107,6 +107,7 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     public event EventHandler<(bool InUse, IReadOnlyList<string> ActiveApps)>? CameraUsageChanged;
 
     private readonly object _lock = new();
+    private readonly int _inactiveDebounceSeconds;
     private Timer? _pollTimer;
     private int _isPolling;
     private bool _isMonitoring;
@@ -114,6 +115,11 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     private int _consecutiveActiveSeconds;
     private int _consecutiveInactiveSeconds;
     private bool _disposed;
+
+    public CameraUsageMonitor(int inactiveDebounceSeconds = 5)
+    {
+        _inactiveDebounceSeconds = Math.Max(1, inactiveDebounceSeconds);
+    }
 
     // Browser capture-service sampling: a Chromium "VideoCaptureService" utility process lingers
     // after a call ends, so its CPU time is sampled to tell a streaming service from an idle one.
@@ -968,8 +974,8 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
                     _consecutiveInactiveSeconds++;
                     _consecutiveActiveSeconds = 0;
 
-                    // 5 seconds of silence required to turn off
-                    if (_isDebouncedInUse && _consecutiveInactiveSeconds >= 5)
+                    // Silence debounce before turning off
+                    if (_isDebouncedInUse && _consecutiveInactiveSeconds >= _inactiveDebounceSeconds)
                     {
                         _isDebouncedInUse = false;
                         NotifyUsageChanged(false, Array.Empty<string>());
