@@ -3097,24 +3097,40 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- Battery Tile -->
-                            <Button Grid.Column="3"
-                                    x:Name="ControlsBatteryBtn"
-                                    Click="ControlsBatteryBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch"
-                                    Background="#15FFFFFF"
-                                    BorderBrush="#20FFFFFF"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6"
-                                    ToolTipService.ToolTip="Battery &amp; power settings">
-                                <StackPanel Spacing="2">
-                                    <FontIcon x:Name="ControlsBatteryIcon" Glyph="&#xE83F;" FontSize="14" Foreground="#60CDFF" HorizontalAlignment="Left"/>
-                                    <TextBlock Text="Battery" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
-                                    <TextBlock x:Name="ControlsBatteryStatus" Text="100%" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- Battery Tile with Battery Saver icon in top-right -->
+                            <Grid Grid.Column="3">
+                                <Button x:Name="ControlsBatteryBtn"
+                                        Click="ControlsBatteryBtn_Click"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="#15FFFFFF"
+                                        BorderBrush="#20FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,6"
+                                        ToolTipService.ToolTip="Battery &amp; power settings">
+                                    <StackPanel Spacing="2">
+                                        <FontIcon x:Name="ControlsBatteryIcon" Glyph="&#xE83F;" FontSize="14" Foreground="#4CAF50" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Battery" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFFFF"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                            <FontIcon x:Name="ControlsBatteryPlugIcon" Glyph="&#xE83E;" FontSize="9" Foreground="#4CAF50" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="ControlsBatteryStatus" Text="100%" FontSize="9" Foreground="#80FFFFFF" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ControlsBatterySaverBtn"
+                                        Click="ControlsBatterySaverBtn_Click"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Width="20" Height="20"
+                                        Padding="0"
+                                        Margin="0,3,3,0"
+                                        CornerRadius="4"
+                                        Style="{StaticResource TabButtonStyle}"
+                                        ToolTipService.ToolTip="Battery saver">
+                                    <FontIcon x:Name="ControlsBatterySaverIcon" Glyph="&#xEBC0;" FontSize="10.5" Foreground="#70FFFFFF"/>
+                                </Button>
+                            </Grid>
 
                             <!-- VPN Tile -->
                             <Button Grid.Column="4"

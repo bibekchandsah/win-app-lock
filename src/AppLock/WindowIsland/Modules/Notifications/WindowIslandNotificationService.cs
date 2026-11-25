@@ -166,6 +166,11 @@ public sealed class WindowIslandNotificationService : IDisposable
         return (true, pct, charging, pluggedIn);
     }
 
+    public void NotifyPowerStatusChanged()
+    {
+        try { CheckBatteryState(); } catch { }
+    }
+
     private void CheckBatteryState()
     {
         var (hasBattery, pct, isCharging, isPluggedIn) = GetBatteryState();

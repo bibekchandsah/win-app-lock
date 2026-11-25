@@ -838,6 +838,43 @@ public sealed class WindowIslandControlsService
 
     // ── Battery ────────────────────────────────────────────────────────────────
 
+    public static (bool HasBattery, int Percent, bool IsCharging, bool IsPluggedIn, bool IsBatterySaverOn, string StatusText) GetDetailedBatteryInfo()
+    {
+        try
+        {
+            var status = PowerManager.BatteryStatus;
+            bool isPluggedIn = PowerManager.PowerSupplyStatus != PowerSupplyStatus.NotPresent;
+            bool isSaverOn = PowerManager.EnergySaverStatus == EnergySaverStatus.On;
+
+            if (status == BatteryStatus.NotPresent)
+            {
+                return (false, 100, true, true, isSaverOn, "On mains power");
+            }
+
+            int percent = PowerManager.RemainingChargePercent;
+            bool isCharging = status == BatteryStatus.Charging;
+
+            string text = isCharging
+                ? "Charging"
+                : (isPluggedIn ? (percent >= 99 ? "Fully charged" : "Plugged in") : "On battery");
+
+            if (!isPluggedIn && !isCharging && status == BatteryStatus.Discharging)
+            {
+                var remaining = PowerManager.RemainingDischargeTime;
+                if (remaining > TimeSpan.Zero && remaining < TimeSpan.FromHours(24))
+                {
+                    text = $"{remaining.Hours}h {remaining.Minutes}m left";
+                }
+            }
+
+            return (true, percent, isCharging, isPluggedIn, isSaverOn, text);
+        }
+        catch
+        {
+            return (false, 100, false, false, false, "Unavailable");
+        }
+    }
+
     public static (bool HasBattery, int Percent, bool IsCharging, string StatusText) GetBatteryInfo()
     {
         try

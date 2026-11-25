@@ -52,9 +52,10 @@ public sealed partial class WindowIslandWindow : Window
     private const uint  SWP_NOSIZE       = 0x0001;
     private const uint  SWP_NOACTIVATE   = 0x0010;
     private const uint  SWP_SHOWWINDOW   = 0x0040;
-    private const uint  WM_MOUSEACTIVATE = 0x0021;
-    private const uint  WM_DPICHANGED    = 0x02E0;
-    private const int   MA_NOACTIVATE    = 3;
+    private const uint  WM_MOUSEACTIVATE   = 0x0021;
+    private const uint  WM_POWERBROADCAST  = 0x0218;
+    private const uint  WM_DPICHANGED      = 0x02E0;
+    private const int   MA_NOACTIVATE      = 3;
     private static readonly nint HWND_TOPMOST = new(-1);
 
     private const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
@@ -398,6 +399,11 @@ public sealed partial class WindowIslandWindow : Window
         _batteryTimer.Start();
         UpdateBattery();
 
+        Windows.System.Power.PowerManager.BatteryStatusChanged         += OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.PowerSupplyStatusChanged     += OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.RemainingChargePercentChanged += OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.EnergySaverStatusChanged     += OnPowerManagerEvent;
+
         _controlsTimer = DispatcherQueue.CreateTimer();
         _controlsTimer.Interval = TimeSpan.FromSeconds(2);
         _controlsTimer.IsRepeating = true;
@@ -574,6 +580,11 @@ public sealed partial class WindowIslandWindow : Window
         WindowIslandNotificationService.Instance.BatteryLowCard      -= OnBatteryLowCard;
         WindowIslandNotificationService.Instance.BatteryChargingCard -= OnBatteryChargingCard;
         WindowIslandNotificationService.Instance.MicCamStateChanged  -= OnMicCamStateChanged;
+
+        Windows.System.Power.PowerManager.BatteryStatusChanged         -= OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.PowerSupplyStatusChanged     -= OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.RemainingChargePercentChanged -= OnPowerManagerEvent;
+        Windows.System.Power.PowerManager.EnergySaverStatusChanged     -= OnPowerManagerEvent;
 
         // Milestone 13: Chat cleanup
         _chatIdleTimer?.Stop();
@@ -1041,6 +1052,9 @@ public sealed partial class WindowIslandWindow : Window
                         >= 25 => "\uE853",
                         _     => "\uE850"
                     };
+                BatteryIcon.Foreground = isCharging
+                    ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
+                    : GetBtBatteryBrush(percent);
             }
         }
         catch (Exception ex) { WindowIslandHost.Log("UpdateBattery error: " + ex); }
@@ -1342,6 +1356,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             return DefSubclassProc(hWnd, msg, wParam, lParam);
         }
+        if (msg == WM_POWERBROADCAST)
+        {
+            DispatcherQueue.TryEnqueue(OnSystemPowerChanged);
+        }
         if (msg == WM_DPICHANGED)
         {
             DispatcherQueue.TryEnqueue(() =>
@@ -1351,6 +1369,21 @@ public sealed partial class WindowIslandWindow : Window
             });
         }
         return DefSubclassProc(hWnd, msg, wParam, lParam);
+    }
+
+    private void OnPowerManagerEvent(object? sender, object e)
+    {
+        DispatcherQueue.TryEnqueue(OnSystemPowerChanged);
+    }
+
+    private void OnSystemPowerChanged()
+    {
+        UpdateBattery();
+        WindowIslandNotificationService.Instance.NotifyPowerStatusChanged();
+        if (_activeTab == 7)
+        {
+            RefreshControlsUI();
+        }
     }
 
     // ── Milestone 4: Live Cards & Event Engine ─────────────────────────────────
@@ -5708,12 +5741,23 @@ public sealed partial class WindowIslandWindow : Window
             ControlsThemeIcon.Foreground = isDark ? accentBrush : new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
 
             // 4. Battery
-            var (hasBattery, batPct, isCharging, batText) = WindowIslandControlsService.GetBatteryInfo();
+            var (hasBattery, batPct, isCharging, isPluggedIn, isSaverOn, batText) = WindowIslandControlsService.GetDetailedBatteryInfo();
             ControlsBatteryStatus.Text = hasBattery ? $"{batPct}% · {batText}" : "On mains power";
-            ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : "\uE83F";
-            ControlsBatteryIcon.Foreground = hasBattery
-                ? (isCharging ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50)) : GetBtBatteryBrush(batPct))
+            var batColor = hasBattery
+                ? (isPluggedIn || isCharging
+                    ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
+                    : GetBtBatteryBrush(batPct))
                 : new SolidColorBrush(ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF));
+            ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : (isPluggedIn ? "\uEBB5" : "\uE83F");
+            ControlsBatteryIcon.Foreground = batColor;
+            ControlsBatteryPlugIcon.Glyph = isPluggedIn ? "\uE83E" : "\uE850";
+            ControlsBatteryPlugIcon.Foreground = isPluggedIn
+                ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
+                : batColor;
+            ControlsBatterySaverIcon.Foreground = isSaverOn
+                ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
+                : new SolidColorBrush(ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
+            ToolTipService.SetToolTip(ControlsBatterySaverBtn, isSaverOn ? "Battery Saver: On" : "Battery Saver: Off");
 
             // 5. VPN
             var (vpnConnected, vpnName) = WindowIslandControlsService.GetVpnStatus();
@@ -6009,6 +6053,19 @@ public sealed partial class WindowIslandWindow : Window
             Process.Start(new ProcessStartInfo
             {
                 FileName = "ms-settings:powersleep",
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private void ControlsBatterySaverBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:batterysaver",
                 UseShellExecute = true
             });
         }
