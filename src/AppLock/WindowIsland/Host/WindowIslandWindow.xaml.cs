@@ -5707,7 +5707,9 @@ public sealed partial class WindowIslandWindow : Window
             var (hasBattery, batPct, isCharging, batText) = WindowIslandControlsService.GetBatteryInfo();
             ControlsBatteryStatus.Text = hasBattery ? $"{batPct}% · {batText}" : "On mains power";
             ControlsBatteryIcon.Glyph = isCharging ? "\uEA93" : "\uE83F";
-            ControlsBatteryIcon.Foreground = accentBrush;
+            ControlsBatteryIcon.Foreground = hasBattery
+                ? (isCharging ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50)) : GetBtBatteryBrush(batPct))
+                : new SolidColorBrush(ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF));
 
             // 5. VPN
             var (vpnConnected, vpnName) = WindowIslandControlsService.GetVpnStatus();
@@ -6077,11 +6079,12 @@ public sealed partial class WindowIslandWindow : Window
 
     private static string GetBtBatteryGlyph(int percent) => WindowIslandControlsService.GetBtBatteryGlyph(percent);
 
-    private static SolidColorBrush GetBtBatteryBrush(int percent, Brush accentBrush)
+    private static SolidColorBrush GetBtBatteryBrush(int percent, Brush? accentBrush = null)
     {
-        if (percent <= 15) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 107, 107)); // Red
-        if (percent <= 25) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 185, 0));   // Amber
-        return accentBrush as SolidColorBrush ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 205, 255));
+        if (percent <= 20) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 77, 77));   // Red (low / <= 20%)
+        if (percent <= 50) return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 167, 38));  // Amber/Orange (21-50%)
+        if (percent < 80)  return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 139, 195, 74));  // Light Green (51-79%)
+        return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 76, 175, 80));                      // Full Green (80-100%)
     }
 
     private Grid BuildBluetoothDeviceRow(WindowIslandControlsService.IslandBtDevice dev)

@@ -467,6 +467,8 @@ fixed - when the app is locked and user click setting icon and network meter til
 
 show ring in island too during timer 
 after new build of app saved note aren't shown that is when new features are added then previous saved notes get lost and user can't find their previous notes 
+in home tab mouse wheel volume is effected all over the island not just in volume slider
+ 
 
 
 
