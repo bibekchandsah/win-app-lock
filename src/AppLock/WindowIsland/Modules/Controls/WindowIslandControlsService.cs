@@ -363,6 +363,114 @@ public sealed class WindowIslandControlsService
         });
     }
 
+    public static async Task<bool> ConnectWiFiWithPasswordAsync(string ssid, string? password, bool isSecured)
+    {
+        return await Task.Run(async () =>
+        {
+            string? tempFile = null;
+            try
+            {
+                string safeSsid = System.Security.SecurityElement.Escape(ssid) ?? ssid;
+                string hexSsid = Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(ssid));
+                string authBlock = isSecured
+                    ? $@"<authEncryption>
+                <authentication>WPA2PSK</authentication>
+                <encryption>AES</encryption>
+                <useOneX>false</useOneX>
+            </authEncryption>
+            <sharedKey>
+                <keyType>passPhrase</keyType>
+                <protected>false</protected>
+                <keyMaterial>{System.Security.SecurityElement.Escape(password ?? string.Empty)}</keyMaterial>
+            </sharedKey>"
+                    : @"<authEncryption>
+                <authentication>open</authentication>
+                <encryption>none</encryption>
+                <useOneX>false</useOneX>
+            </authEncryption>";
+
+                string xml = $@"<?xml version=""1.0""?>
+<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
+    <name>{safeSsid}</name>
+    <SSIDConfig>
+        <SSID>
+            <hex>{hexSsid}</hex>
+            <name>{safeSsid}</name>
+        </SSID>
+    </SSIDConfig>
+    <connectionType>ESS</connectionType>
+    <connectionMode>auto</connectionMode>
+    <MSM>
+        <security>
+            {authBlock}
+        </security>
+    </MSM>
+</WLANProfile>";
+
+                tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"applock_wlan_{Guid.NewGuid():N}.xml");
+                System.IO.File.WriteAllText(tempFile, xml, System.Text.Encoding.UTF8);
+
+                using (var addProc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = $"wlan add profile filename=\"{tempFile}\" user=current",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                }))
+                {
+                    addProc?.WaitForExit(3000);
+                    if (addProc?.ExitCode != 0) return false;
+                }
+
+                using (var connProc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "netsh.exe",
+                    Arguments = $"wlan connect name=\"{ssid}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                }))
+                {
+                    connProc?.WaitForExit(3000);
+                    if (connProc?.ExitCode != 0) return false;
+                }
+
+                for (int i = 0; i < 8; i++)
+                {
+                    await Task.Delay(500);
+                    if (string.Equals(GetConnectedSsid(), ssid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                // Clean up failed profile so wrong password doesn't remain saved as broken
+                if (isSecured)
+                {
+                    using var delProc = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "netsh.exe",
+                        Arguments = $"wlan delete profile name=\"{ssid}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    });
+                    delProc?.WaitForExit(2000);
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (tempFile != null)
+                {
+                    try { System.IO.File.Delete(tempFile); } catch { }
+                }
+            }
+        });
+    }
+
     public static async Task DisconnectWiFiAsync()
     {
         await Task.Run(() =>

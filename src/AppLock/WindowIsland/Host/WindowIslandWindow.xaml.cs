@@ -6101,6 +6101,7 @@ public sealed partial class WindowIslandWindow : Window
     private string _controlsDeviceMode = "none";
     private bool _isPopulatingDeviceList;
     private string _lastDeviceListSignature = string.Empty;
+    private string _pendingWifiSsid = string.Empty;
 
     private void ControlsWifiListBtn_Click(object sender, RoutedEventArgs e)
     {
@@ -6124,9 +6125,68 @@ public sealed partial class WindowIslandWindow : Window
 
     private void ControlsDeviceCloseBtn_Click(object sender, RoutedEventArgs e)
     {
+        if (ControlsWifiPasswordOverlay != null) ControlsWifiPasswordOverlay.Visibility = Visibility.Collapsed;
+        _pendingWifiSsid = string.Empty;
         ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
         _controlsDeviceMode = "none";
         _lastDeviceListSignature = string.Empty;
+    }
+
+    private void ControlsWifiPasswordCancelBtn_Click(object sender, RoutedEventArgs e)
+    {
+        ControlsWifiPasswordOverlay.Visibility = Visibility.Collapsed;
+        ControlsWifiPasswordBox.Password = string.Empty;
+        ControlsWifiPasswordError.Visibility = Visibility.Collapsed;
+        _pendingWifiSsid = string.Empty;
+    }
+
+    private void ControlsWifiPasswordBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            ControlsWifiPasswordConnectBtn_Click(sender, new RoutedEventArgs());
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            e.Handled = true;
+            ControlsWifiPasswordCancelBtn_Click(sender, new RoutedEventArgs());
+        }
+    }
+
+    private async void ControlsWifiPasswordConnectBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_pendingWifiSsid)) return;
+        string ssid = _pendingWifiSsid;
+        string password = ControlsWifiPasswordBox.Password;
+
+        ControlsWifiPasswordConnectBtn.IsEnabled = false;
+        ControlsWifiPasswordCancelBtn.IsEnabled = false;
+        ControlsWifiPasswordConnectBtn.Content = "Connecting...";
+        ControlsWifiPasswordError.Visibility = Visibility.Collapsed;
+        try
+        {
+            bool ok = await WindowIslandControlsService.ConnectWiFiWithPasswordAsync(ssid, password, isSecured: true);
+            if (ok)
+            {
+                ControlsWifiPasswordOverlay.Visibility = Visibility.Collapsed;
+                ControlsWifiPasswordBox.Password = string.Empty;
+                _pendingWifiSsid = string.Empty;
+                _lastDeviceListSignature = string.Empty;
+                await PopulateDeviceListAsync(showLoading: false);
+                RefreshControlsUI();
+            }
+            else
+            {
+                ControlsWifiPasswordError.Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            ControlsWifiPasswordConnectBtn.IsEnabled = true;
+            ControlsWifiPasswordCancelBtn.IsEnabled = true;
+            ControlsWifiPasswordConnectBtn.Content = "Connect";
+        }
     }
 
     private async void ControlsDeviceRefreshBtn_Click(object sender, RoutedEventArgs e)
@@ -6393,28 +6453,65 @@ public sealed partial class WindowIslandWindow : Window
         {
             if (net.IsConnected)
             {
-                actionBtn.Content = "Disconnecting...";
-                await WindowIslandControlsService.DisconnectWiFiAsync();
+                actionBtn.IsEnabled = false;
+                try
+                {
+                    actionBtn.Content = "Disconnecting...";
+                    await WindowIslandControlsService.DisconnectWiFiAsync();
+                    await Task.Delay(800);
+                    _lastDeviceListSignature = string.Empty;
+                    await PopulateDeviceListAsync(showLoading: false);
+                    RefreshControlsUI();
+                }
+                finally
+                {
+                    actionBtn.IsEnabled = true;
+                }
+            }
+            else if (net.IsSaved)
+            {
+                actionBtn.IsEnabled = false;
+                try
+                {
+                    actionBtn.Content = "Connecting...";
+                    await WindowIslandControlsService.ConnectWiFiAsync(net.Ssid);
+                    await Task.Delay(1200);
+                    _lastDeviceListSignature = string.Empty;
+                    await PopulateDeviceListAsync(showLoading: false);
+                    RefreshControlsUI();
+                }
+                finally
+                {
+                    actionBtn.IsEnabled = true;
+                }
+            }
+            else if (!net.IsSecured)
+            {
+                actionBtn.IsEnabled = false;
+                try
+                {
+                    actionBtn.Content = "Connecting...";
+                    await WindowIslandControlsService.ConnectWiFiWithPasswordAsync(net.Ssid, null, isSecured: false);
+                    await Task.Delay(800);
+                    _lastDeviceListSignature = string.Empty;
+                    await PopulateDeviceListAsync(showLoading: false);
+                    RefreshControlsUI();
+                }
+                finally
+                {
+                    actionBtn.IsEnabled = true;
+                }
             }
             else
             {
-                actionBtn.Content = "Connecting...";
-                bool ok = await WindowIslandControlsService.ConnectWiFiAsync(net.Ssid);
-                if (!ok && !net.IsSaved)
-                {
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo { FileName = "ms-availablenetworks:", UseShellExecute = true });
-                    }
-                    catch
-                    {
-                        try { Process.Start(new ProcessStartInfo { FileName = "ms-settings:network-wifi", UseShellExecute = true }); } catch { }
-                    }
-                }
+                _pendingWifiSsid = net.Ssid;
+                ControlsWifiPasswordTitle.Text = $"Connect to {net.Ssid}";
+                ControlsWifiPasswordBox.Password = string.Empty;
+                ControlsWifiPasswordError.Visibility = Visibility.Collapsed;
+                ControlsWifiPasswordConnectBtn.Background = new SolidColorBrush(GetSystemAccentColor());
+                ControlsWifiPasswordOverlay.Visibility = Visibility.Visible;
+                ControlsWifiPasswordBox.Focus(FocusState.Programmatic);
             }
-            await Task.Delay(1200);
-            await PopulateDeviceListAsync();
-            RefreshControlsUI();
         };
         Grid.SetColumn(actionBtn, 2);
         grid.Children.Add(actionBtn);

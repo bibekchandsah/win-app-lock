@@ -3380,6 +3380,55 @@
                                               HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel x:Name="ControlsDeviceList" Spacing="6"/>
                                 </ScrollViewer>
+
+                                <!-- Inline Wi-Fi Password Prompt -->
+                                <Border x:Name="ControlsWifiPasswordOverlay"
+                                        Grid.Row="0" Grid.RowSpan="2"
+                                        Visibility="Collapsed"
+                                        Background="#E6141418"
+                                        CornerRadius="8"
+                                        Padding="14">
+                                    <Border VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            Width="280"
+                                            Background="#222226"
+                                            BorderBrush="#28FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="14">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock x:Name="ControlsWifiPasswordTitle"
+                                                       Text="Connect to Wi-Fi"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#FFFFFFFF"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <PasswordBox x:Name="ControlsWifiPasswordBox"
+                                                         PlaceholderText="Enter network security key"
+                                                         KeyDown="ControlsWifiPasswordBox_KeyDown"/>
+                                            <TextBlock x:Name="ControlsWifiPasswordError"
+                                                       Visibility="Collapsed"
+                                                       Text="Could not connect. Check the password and try again."
+                                                       FontSize="10.5"
+                                                       Foreground="#FFFF6B6B"
+                                                       TextWrapping="Wrap"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                                                <Button x:Name="ControlsWifiPasswordCancelBtn"
+                                                        Content="Cancel"
+                                                        Click="ControlsWifiPasswordCancelBtn_Click"
+                                                        Style="{StaticResource TabButtonStyle}"
+                                                        Padding="12,5"
+                                                        CornerRadius="6"/>
+                                                <Button x:Name="ControlsWifiPasswordConnectBtn"
+                                                        Content="Connect"
+                                                        Click="ControlsWifiPasswordConnectBtn_Click"
+                                                        Padding="14,5"
+                                                        CornerRadius="6"
+                                                        Foreground="#FFFFFFFF"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Border>
                             </Grid>
                         </Border>
 
