@@ -124,6 +124,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardCamToggle.IsOn        = s.CardCamEnabled;
         MicDotToggle.IsOn         = s.MicDotEnabled;
         CamDotToggle.IsOn         = s.CamDotEnabled;
+        SelectComboItem(MediaPlayerStyleBox, s.MediaPlayerStyle);
         LyricsToggle.IsOn         = s.LyricsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
@@ -379,6 +380,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.MicDotEnabled         = MicDotToggle.IsOn;
         s.CamDotEnabled         = CamDotToggle.IsOn;
         s.MicCamDotsEnabled     = s.MicDotEnabled || s.CamDotEnabled;
+        s.MediaPlayerStyle      = TagOf(MediaPlayerStyleBox) ?? s.MediaPlayerStyle;
         s.LyricsEnabled         = LyricsToggle.IsOn;
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;

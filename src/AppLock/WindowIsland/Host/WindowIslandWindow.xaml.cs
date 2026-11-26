@@ -628,6 +628,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
+        ApplyMediaPlayerStyle();
 
         // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
         // switching it back on refetches for the song that is playing).
@@ -1056,6 +1057,7 @@ public sealed partial class WindowIslandWindow : Window
 
         ApplyTextTabAccent(accentColor);
         UpdateQuietButtonVisual();
+        UpdatePinButtonVisual();
     }
 
     private void ApplyTextTabAccent(Windows.UI.Color accent)
@@ -1114,7 +1116,33 @@ public sealed partial class WindowIslandWindow : Window
     private void OnPinClick(object sender, RoutedEventArgs e)
     {
         _isPinned = PinButton.IsChecked == true;
+        UpdatePinButtonVisual();
         WindowIslandHost.Log($"Pin = {_isPinned}");
+    }
+
+    private void UpdatePinButtonVisual()
+    {
+        if (PinButton == null) return;
+        if (_isPinned)
+        {
+            var accent = GetSystemAccentColor();
+            var accentBrush = new SolidColorBrush(accent);
+            PinButton.Background = new SolidColorBrush(ColorHelper.FromArgb(0x28, accent.R, accent.G, accent.B));
+            PinButton.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x90, accent.R, accent.G, accent.B));
+            PinButton.BorderThickness = new Thickness(1);
+            PinButton.Foreground = accentBrush;
+            if (PinButtonIcon != null) PinButtonIcon.Foreground = accentBrush;
+            ToolTipService.SetToolTip(PinButton, "Pinned open");
+        }
+        else
+        {
+            PinButton.ClearValue(Control.BackgroundProperty);
+            PinButton.ClearValue(Control.BorderBrushProperty);
+            PinButton.ClearValue(Control.BorderThicknessProperty);
+            PinButton.ClearValue(Control.ForegroundProperty);
+            PinButtonIcon?.ClearValue(IconElement.ForegroundProperty);
+            ToolTipService.SetToolTip(PinButton, "Pin open");
+        }
     }
 
     private void OnQuietClick(object sender, RoutedEventArgs e)
@@ -2426,12 +2454,14 @@ public sealed partial class WindowIslandWindow : Window
                     UpdateDynamicFoldedWidth();
                 }
                 MediaArtFallback.Visibility = Visibility.Collapsed;
-                MediaCard.Background = new SolidColorBrush(AdaptiveSurfaceColor(16));
+                _lastMediaArtPath = null;
+                ResetMediaCardAppearance();
                 return;
             }
 
             MediaPlayerPanel.Visibility = Visibility.Visible;
             RecentPanel.Visibility      = Visibility.Collapsed;
+            ApplyMediaPlayerLayout();
 
             // The chevron only makes sense while another app also has media to show.
             MediaNextApp.Visibility = snap.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -2496,16 +2526,18 @@ public sealed partial class WindowIslandWindow : Window
                         FoldedArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
                         FoldedArtFallback.Visibility = Visibility.Collapsed;
                         hasArt = true;
+                        _lastMediaArtPath = artPath;
                         _ = ApplyMediaAlbumGlowAsync(artPath, artKey);
                     }
                     catch { }
                 }
                 if (!hasArt)
                 {
+                    _lastMediaArtPath = null;
                     MediaArt.Source = null;
                     MediaArtFallback.Visibility = Visibility.Visible;
                     MediaArtFallback.Foreground = new SolidColorBrush(GetSystemAccentColor());
-                    MediaCard.Background = new SolidColorBrush(AdaptiveSurfaceColor(16));
+                    ResetMediaCardAppearance();
                     FoldedArtBorder.Background = new SolidColorBrush(AdaptiveSurfaceColor(40));
                     FoldedArtFallback.Visibility = Visibility.Visible;
                 }
@@ -2581,6 +2613,84 @@ public sealed partial class WindowIslandWindow : Window
         ShowLyrics(null);
     }
 
+    private string? _lastMediaArtPath;
+
+    private void ApplyMediaPlayerStyle()
+    {
+        ApplyMediaPlayerLayout();
+        if (_hasMediaSession && !string.IsNullOrEmpty(_lastMediaArtPath) && File.Exists(_lastMediaArtPath))
+        {
+            _ = ApplyMediaAlbumGlowAsync(_lastMediaArtPath, _lastMediaArtKey);
+        }
+        else
+        {
+            ResetMediaCardAppearance();
+        }
+    }
+
+    private void ApplyMediaPlayerLayout()
+    {
+        if (MediaHeaderGrid == null || MediaArtBorder == null || MediaInfoStack == null || MediaPlayerPanel == null) return;
+        bool isSoftMirror = string.Equals(_settings.MediaPlayerStyle, "SoftMirror", StringComparison.OrdinalIgnoreCase);
+
+        if (isSoftMirror)
+        {
+            MediaPlayerPanel.RowSpacing = 5;
+            MediaArtBorder.Width = 46;
+            MediaArtBorder.Height = 46;
+            MediaArtBorder.HorizontalAlignment = HorizontalAlignment.Center;
+            Grid.SetColumn(MediaArtBorder, 0);
+            Grid.SetColumnSpan(MediaArtBorder, 2);
+            Grid.SetRow(MediaArtBorder, 0);
+
+            Grid.SetColumn(MediaInfoStack, 0);
+            Grid.SetColumnSpan(MediaInfoStack, 2);
+            Grid.SetRow(MediaInfoStack, 1);
+            MediaInfoStack.HorizontalAlignment = HorizontalAlignment.Center;
+            MediaApp.Visibility = Visibility.Collapsed;
+            MediaTitle.TextAlignment = TextAlignment.Center;
+            MediaTitle.MaxLines = 1;
+            MediaArtist.TextAlignment = TextAlignment.Center;
+        }
+        else
+        {
+            MediaPlayerPanel.RowSpacing = 8;
+            MediaArtBorder.Width = 58;
+            MediaArtBorder.Height = 58;
+            MediaArtBorder.HorizontalAlignment = HorizontalAlignment.Left;
+            Grid.SetColumn(MediaArtBorder, 0);
+            Grid.SetColumnSpan(MediaArtBorder, 1);
+            Grid.SetRow(MediaArtBorder, 0);
+
+            Grid.SetColumn(MediaInfoStack, 1);
+            Grid.SetColumnSpan(MediaInfoStack, 1);
+            Grid.SetRow(MediaInfoStack, 0);
+            MediaInfoStack.HorizontalAlignment = HorizontalAlignment.Stretch;
+            MediaApp.Visibility = Visibility.Visible;
+            MediaTitle.TextAlignment = TextAlignment.Left;
+            MediaTitle.MaxLines = 2;
+            MediaArtist.TextAlignment = TextAlignment.Left;
+        }
+    }
+
+    private void ResetMediaCardAppearance()
+    {
+        if (MediaCard != null)
+            MediaCard.Background = new SolidColorBrush(AdaptiveSurfaceColor(16));
+        if (MediaMirrorLayer != null)
+            MediaMirrorLayer.Visibility = Visibility.Collapsed;
+        if (MediaMirrorBg != null)
+            MediaMirrorBg.Source = null;
+
+        MediaApp?.ClearValue(TextBlock.ForegroundProperty);
+        MediaTitle?.ClearValue(TextBlock.ForegroundProperty);
+        MediaArtist?.ClearValue(TextBlock.ForegroundProperty);
+        MediaElapsed?.ClearValue(TextBlock.ForegroundProperty);
+        MediaRemaining?.ClearValue(TextBlock.ForegroundProperty);
+        MediaPrev?.ClearValue(Control.ForegroundProperty);
+        MediaNext?.ClearValue(Control.ForegroundProperty);
+    }
+
     /// <summary>
     /// Renders the lyric sheet beside the player. While lyrics are on screen the tile grid steps
     /// aside so the text has room; without lyrics the tiles come back.
@@ -2589,30 +2699,95 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            var avg = await Task.Run(() => SampleAverageColor(artPath));
-            if (avg == null || !string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal)) return;
+            string style = _settings.MediaPlayerStyle ?? "Compact";
+            var palette = await Task.Run(() => SampleAlbumPalette(artPath));
+            if (palette == null || !string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal)) return;
 
-            var c = avg.Value;
-            DispatcherQueue.TryEnqueue(() =>
+            var (primary, secondary) = palette.Value;
+            byte[]? blurredPng = string.Equals(style, "SoftMirror", StringComparison.OrdinalIgnoreCase)
+                ? await Task.Run(() => CreateBlurredMirrorPng(artPath))
+                : null;
+
+            DispatcherQueue.TryEnqueue(async () =>
             {
                 if (!string.Equals(_lastMediaArtKey, artKey, StringComparison.Ordinal)) return;
-                var radial = new Microsoft.UI.Xaml.Media.RadialGradientBrush
+                ResetMediaCardAppearance();
+
+                if (string.Equals(style, "Fill", StringComparison.OrdinalIgnoreCase))
                 {
-                    Center = new Windows.Foundation.Point(0.16, 0.28),
-                    GradientOrigin = new Windows.Foundation.Point(0.16, 0.28),
-                    RadiusX = 0.95,
-                    RadiusY = 1.15
-                };
-                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(115, c.R, c.G, c.B), Offset = 0.0 });
-                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(52, c.R, c.G, c.B), Offset = 0.48 });
-                radial.GradientStops.Add(new GradientStop { Color = AdaptiveSurfaceColor(16), Offset = 1.0 });
-                MediaCard.Background = radial;
+                    var fill = new LinearGradientBrush
+                    {
+                        StartPoint = new Windows.Foundation.Point(0, 0),
+                        EndPoint = new Windows.Foundation.Point(1, 1)
+                    };
+                    fill.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(230, primary.R, primary.G, primary.B), Offset = 0.0 });
+                    fill.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(235, secondary.R, secondary.G, secondary.B), Offset = 1.0 });
+                    MediaCard.Background = fill;
+
+                    bool darkFill = WindowIslandColorHelper.IsDarkColor(primary);
+                    var fgPrimary = new SolidColorBrush(darkFill ? Colors.White : Windows.UI.Color.FromArgb(255, 20, 20, 24));
+                    var fgMuted   = new SolidColorBrush(darkFill ? Windows.UI.Color.FromArgb(200, 255, 255, 255) : Windows.UI.Color.FromArgb(190, 24, 24, 28));
+                    MediaApp.Foreground = fgMuted;
+                    MediaTitle.Foreground = fgPrimary;
+                    MediaArtist.Foreground = fgMuted;
+                    MediaElapsed.Foreground = fgMuted;
+                    MediaRemaining.Foreground = fgMuted;
+                    MediaPrev.Foreground = fgPrimary;
+                    MediaNext.Foreground = fgPrimary;
+                }
+                else if (string.Equals(style, "SoftMirror", StringComparison.OrdinalIgnoreCase) && blurredPng != null)
+                {
+                    try
+                    {
+                        using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                        using (var writer = new Windows.Storage.Streams.DataWriter(stream.GetOutputStreamAt(0)))
+                        {
+                            writer.WriteBytes(blurredPng);
+                            await writer.StoreAsync();
+                        }
+                        stream.Seek(0);
+                        var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                        await bmp.SetSourceAsync(stream);
+                        MediaMirrorBg.Source = bmp;
+                    }
+                    catch { }
+
+                    // Subtle center scrim so centered text stays crisp while blurred reflections glow at both sides
+                    var scrim = new LinearGradientBrush
+                    {
+                        StartPoint = new Windows.Foundation.Point(0, 0.5),
+                        EndPoint = new Windows.Foundation.Point(1, 0.5)
+                    };
+                    var edgeTint = AdaptiveSurfaceColor(24);
+                    var centerTint = _isLightSurfaceActive
+                        ? Windows.UI.Color.FromArgb(140, 255, 255, 255)
+                        : Windows.UI.Color.FromArgb(150, 14, 14, 18);
+                    scrim.GradientStops.Add(new GradientStop { Color = edgeTint, Offset = 0.0 });
+                    scrim.GradientStops.Add(new GradientStop { Color = centerTint, Offset = 0.5 });
+                    scrim.GradientStops.Add(new GradientStop { Color = edgeTint, Offset = 1.0 });
+                    MediaMirrorScrim.Background = scrim;
+                    MediaMirrorLayer.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    var radial = new Microsoft.UI.Xaml.Media.RadialGradientBrush
+                    {
+                        Center = new Windows.Foundation.Point(0.16, 0.28),
+                        GradientOrigin = new Windows.Foundation.Point(0.16, 0.28),
+                        RadiusX = 0.95,
+                        RadiusY = 1.15
+                    };
+                    radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(115, primary.R, primary.G, primary.B), Offset = 0.0 });
+                    radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(52, primary.R, primary.G, primary.B), Offset = 0.48 });
+                    radial.GradientStops.Add(new GradientStop { Color = AdaptiveSurfaceColor(16), Offset = 1.0 });
+                    MediaCard.Background = radial;
+                }
             });
         }
         catch { }
     }
 
-    private static Windows.UI.Color? SampleAverageColor(string path)
+    private static (Windows.UI.Color Primary, Windows.UI.Color Secondary)? SampleAlbumPalette(string path)
     {
         try
         {
@@ -2632,8 +2807,89 @@ public sealed partial class WindowIslandWindow : Window
                     count++;
                 }
             }
-            if (count == 0) return Windows.UI.Color.FromArgb(255, 96, 205, 255);
-            return Windows.UI.Color.FromArgb(255, (byte)(rSum / count), (byte)(gSum / count), (byte)(bSum / count));
+            var primary = count == 0
+                ? Windows.UI.Color.FromArgb(255, 96, 205, 255)
+                : Windows.UI.Color.FromArgb(255, (byte)(rSum / count), (byte)(gSum / count), (byte)(bSum / count));
+            var secondary = Windows.UI.Color.FromArgb(255,
+                (byte)Math.Max(0, (int)(primary.R * 0.62)),
+                (byte)Math.Max(0, (int)(primary.G * 0.62)),
+                (byte)Math.Max(0, (int)(primary.B * 0.62)));
+            return (primary, secondary);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static byte[]? CreateBlurredMirrorPng(string path)
+    {
+        try
+        {
+            const int w = 48, h = 48, radius = 4;
+            using var src = new System.Drawing.Bitmap(path);
+            using var small = new System.Drawing.Bitmap(src, new System.Drawing.Size(w, h));
+            var bufA = new int[w * h * 3];
+            var bufB = new int[w * h * 3];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    var p = small.GetPixel(x, y);
+                    int i = (y * w + x) * 3;
+                    bufA[i] = p.R;
+                    bufA[i + 1] = p.G;
+                    bufA[i + 2] = p.B;
+                }
+            }
+
+            // Horizontal pass -> bufB, vertical pass -> bufA (twice for smooth Gaussian-like blur)
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        int r = 0, g = 0, b = 0, n = 0;
+                        for (int dx = -radius; dx <= radius; dx++)
+                        {
+                            int sx = Math.Clamp(x + dx, 0, w - 1);
+                            int idx = (y * w + sx) * 3;
+                            r += bufA[idx]; g += bufA[idx + 1]; b += bufA[idx + 2]; n++;
+                        }
+                        int dst = (y * w + x) * 3;
+                        bufB[dst] = r / n; bufB[dst + 1] = g / n; bufB[dst + 2] = b / n;
+                    }
+                }
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        int r = 0, g = 0, b = 0, n = 0;
+                        for (int dy = -radius; dy <= radius; dy++)
+                        {
+                            int sy = Math.Clamp(y + dy, 0, h - 1);
+                            int idx = (sy * w + x) * 3;
+                            r += bufB[idx]; g += bufB[idx + 1]; b += bufB[idx + 2]; n++;
+                        }
+                        int dst = (y * w + x) * 3;
+                        bufA[dst] = r / n; bufA[dst + 1] = g / n; bufA[dst + 2] = b / n;
+                    }
+                }
+            }
+
+            using var blurred = new System.Drawing.Bitmap(w, h);
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    int i = (y * w + x) * 3;
+                    blurred.SetPixel(x, y, System.Drawing.Color.FromArgb(255, bufA[i], bufA[i + 1], bufA[i + 2]));
+                }
+            }
+            using var ms = new MemoryStream();
+            blurred.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            return ms.ToArray();
         }
         catch
         {

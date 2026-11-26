@@ -264,6 +264,9 @@ public sealed class WindowIslandSettings
     /// <summary>Show the lyrics sheet beside the player when the current track has lyrics.</summary>
     public bool LyricsEnabled         { get; set; } = true;
 
+    /// <summary>Home tab player visual style: "Compact", "Fill", or "SoftMirror".</summary>
+    public string MediaPlayerStyle    { get; set; } = "Compact";
+
     // ── Milestone 13: Chat Tab (WebView2) ────────────────────────────────────
     /// <summary>List of AI chat sites available as sub-tabs (defaults: Gemini, DeepSeek, ChatGPT; max 6).</summary>
     public System.Collections.Generic.List<ChatSite> ChatSites { get; set; } = DefaultChatSites();

@@ -242,11 +242,7 @@
                                                     <Setter Target="Root.Background" Value="{ThemeResource IslandSurfaceHover}" />
                                                 </VisualState.Setters>
                                             </VisualState>
-                                            <VisualState x:Name="Checked">
-                                                <VisualState.Setters>
-                                                    <Setter Target="Root.Background" Value="{ThemeResource IslandSurfaceHover}" />
-                                                </VisualState.Setters>
-                                            </VisualState>
+                                            <VisualState x:Name="Checked" />
                                         </VisualStateGroup>
                                     </VisualStateManager.VisualStateGroups>
                                 </Border>
@@ -796,7 +792,7 @@
                                       Style="{StaticResource PinButtonStyle}"
                                       ToolTipService.ToolTip="Pin open"
                                       Click="OnPinClick">
-                            <FontIcon Glyph="&#xE840;" FontSize="13" />
+                            <FontIcon x:Name="PinButtonIcon" Glyph="&#xE840;" FontSize="13" />
                         </ToggleButton>
 
                         <!-- Settings -->
@@ -855,25 +851,44 @@
                                                 CornerRadius="14"
                                                 Background="{ThemeResource IslandSurfaceSubtle}"
                                                 BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                                BorderThickness="1"
-                                                Padding="12,11,12,11">
+                                                BorderThickness="1">
                                             <Grid>
+                                                <!-- Soft mirror blurred side-reflection backdrop -->
+                                                <Border x:Name="MediaMirrorLayer"
+                                                        CornerRadius="13"
+                                                        Visibility="Collapsed"
+                                                        IsHitTestVisible="False">
+                                                    <Grid>
+                                                        <Image x:Name="MediaMirrorBg"
+                                                               Stretch="UniformToFill"
+                                                               Opacity="0.72" />
+                                                        <Border x:Name="MediaMirrorScrim" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <Grid Margin="12,11,12,11">
                                                 <Grid x:Name="MediaPlayerPanel"
                                                       RowSpacing="8"
                                                       Visibility="Collapsed">
                                                     <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="*"    />
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
 
-                                                    <Grid Grid.Row="0" ColumnSpacing="11">
+                                                    <Grid x:Name="MediaHeaderGrid" Grid.Row="0" ColumnSpacing="11" RowSpacing="4">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="*"    />
                                                         </Grid.ColumnDefinitions>
-                                                        <Border Grid.Column="0"
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Border x:Name="MediaArtBorder"
+                                                                Grid.Column="0"
+                                                                Grid.Row="0"
                                                                 Width="58" Height="58"
                                                                 CornerRadius="9"
                                                                 Background="{ThemeResource IslandSurfaceCard}">
@@ -888,7 +903,7 @@
                                                                           Visibility="Collapsed" />
                                                             </Grid>
                                                         </Border>
-                                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                        <StackPanel x:Name="MediaInfoStack" Grid.Column="1" Grid.Row="0" Spacing="2" VerticalAlignment="Center">
                                                             <TextBlock x:Name="MediaApp"
                                                                        Text=""
                                                                        FontSize="8.5"
@@ -1040,6 +1055,7 @@
                                                                TextWrapping="Wrap"
                                                                VerticalAlignment="Top"
                                                                Margin="1,13,0,0" />
+                                                </Grid>
                                                 </Grid>
                                             </Grid>
                                         </Border>

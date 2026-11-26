@@ -317,6 +317,14 @@
 
                     <!-- ░░ Media & Lyrics ░░ -->
                     <StackPanel x:Name="SectionMedia" Spacing="10" Visibility="Collapsed">
+                        <ComboBox x:Name="MediaPlayerStyleBox"
+                                  Header="Player style on Home"
+                                  SelectionChanged="OnSelectionChanged"
+                                  Width="300">
+                            <ComboBoxItem Content="Compact (album art + subtle glow)" Tag="Compact" />
+                            <ComboBoxItem Content="Fill (whole player in album colors)" Tag="Fill" />
+                            <ComboBoxItem Content="Soft mirror (centered art + blurred sides)" Tag="SoftMirror" />
+                        </ComboBox>
                         <ToggleSwitch x:Name="LyricsToggle"
                                       Header="Show lyrics beside the player"
                                       Toggled="OnSettingChanged" />
