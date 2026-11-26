@@ -128,6 +128,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         ShowClockToggle.IsOn   = s.ShowClock;
         TimeFormat24HCheck.IsChecked = s.TimeFormat24H;
         ShowSecondsCheck.IsChecked = s.ShowSeconds;
+        SelectComboItem(CalendarClockStyleBox, string.IsNullOrWhiteSpace(s.CalendarClockStyle) ? "DigitalSeconds" : s.CalendarClockStyle);
         ShowBatteryToggle.IsOn = s.ShowBattery;
 
         CardCapsLockToggle.IsOn   = s.CardCapsLockEnabled;
@@ -455,6 +456,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.ShowClock     = ShowClockToggle.IsOn;
         s.TimeFormat24H = TimeFormat24HCheck.IsChecked ?? true;
         s.ShowSeconds   = ShowSecondsCheck.IsChecked ?? false;
+        s.CalendarClockStyle = TagOf(CalendarClockStyleBox) ?? s.CalendarClockStyle;
         s.ShowBattery   = ShowBatteryToggle.IsOn;
         s.CardCapsLockEnabled   = CardCapsLockToggle.IsOn;
         s.CardNumLockEnabled    = CardNumLockToggle.IsOn;

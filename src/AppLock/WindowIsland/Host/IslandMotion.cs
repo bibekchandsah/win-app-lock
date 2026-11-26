@@ -72,6 +72,7 @@ public static class IslandMotion
     public static float ChatHeightDip { get; set; } = 440f;
     public static (float W, float H) TabSizeChat => (660f, ChatHeightDip);
     public static readonly (float W, float H) TabSizeNote      = (660f, 360f);
+    public static readonly (float W, float H) TabSizeCalendar  = (660f, 360f);
     public static readonly (float W, float H) TabSizeWeather   = (660f, 360f);
     public static readonly (float W, float H) TabSizeControls  = (660f, 400f);
     public static readonly (float W, float H) CommandBarSize   = (660f, 380f);
@@ -92,8 +93,9 @@ public static class IslandMotion
         3 => TabSizeText,
         4 => TabSizeChat,
         5 => TabSizeNote,
-        6 => TabSizeWeather,
-        7 => TabSizeControls,
+        6 => TabSizeCalendar,
+        7 => TabSizeWeather,
+        8 => TabSizeControls,
         _ => TabSizeHome
     };
 

@@ -519,6 +519,8 @@ copy files live indicator
 cpu, ram, disk, gpu usage icon and percentage
 clock and calendar
 save setting on restart of app 
+when all media is paused then don't show mini player treat it like other pill when music plays 
+
 
 
 

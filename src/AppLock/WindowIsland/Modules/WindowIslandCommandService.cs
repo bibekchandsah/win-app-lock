@@ -555,8 +555,10 @@ public sealed class WindowIslandCommandService
                 "text"      => 3,
                 "chat"      => 4,
                 "note"      => 5,
-                "weather"   => 6,
-                "controls"  => 7,
+                "calendar"  => 6,
+                "date"      => 6,
+                "weather"   => 7,
+                "controls"  => 8,
                 _           => 0
             };
             switchTabAction?.Invoke(idx);

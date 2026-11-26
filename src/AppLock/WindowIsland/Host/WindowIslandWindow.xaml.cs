@@ -177,7 +177,11 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Tab definitions ────────────────────────────────────────────────────────
     private static readonly string[] TabNames = { "Home", "Clipboard", "Shelf", "Text", "Chat", "Note", "Weather", "Controls" };
-    private const int TabCount = 8;
+    private const int TabCount = 9;
+    private const int TabIndexNote = 5;
+    private const int TabIndexCalendar = 6;
+    private const int TabIndexWeather = 7;
+    private const int TabIndexControls = 8;
 
     // ── Fields ─────────────────────────────────────────────────────────────────
     private readonly nint         _hwnd;
@@ -370,17 +374,17 @@ public sealed partial class WindowIslandWindow : Window
         _tabContents = new Grid[]
         {
             ContentHome, ContentClipboard, ContentShelf, ContentText,
-            ContentChat, ContentNote, ContentWeather, ContentControls
+            ContentChat, ContentNote, ContentCalendar, ContentWeather, ContentControls
         };
         _tabButtons = new Button[]
         {
             TabHome, TabClipboard, TabShelf, TabText,
-            TabChat, TabNote, TabWeather, TabControls
+            TabChat, TabNote, TabCalendar, TabWeather, TabControls
         };
         _tabTextBlocks = new TextBlock[]
         {
             TabHomeText, TabClipboardText, TabShelfText, TabTextText,
-            TabChatText, TabNoteText, TabWeatherText, TabControlsText
+            TabChatText, TabNoteText, TabCalendarText, TabWeatherText, TabControlsText
         };
 
         // Grab composition visuals for layer fading
@@ -510,6 +514,7 @@ public sealed partial class WindowIslandWindow : Window
         _clockTimer.Tick += (_, _) => UpdateClock();
         _clockTimer.Start();
         UpdateClock();
+        RefreshCalendarTabUI();
 
         _batteryTimer = DispatcherQueue.CreateTimer();
         _batteryTimer.Interval = TimeSpan.FromSeconds(15);
@@ -528,7 +533,7 @@ public sealed partial class WindowIslandWindow : Window
         _controlsTimer.IsRepeating = true;
         _controlsTimer.Tick += (_, _) =>
         {
-            if (_activeTab == 7 && _compositor?.IsOpen == true)
+            if (_activeTab == TabIndexControls && _compositor?.IsOpen == true)
             {
                 RefreshControlsUI();
                 if (ControlsDeviceOverlay != null && ControlsDeviceOverlay.Visibility == Visibility.Visible)
@@ -653,6 +658,7 @@ public sealed partial class WindowIslandWindow : Window
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
         UpdateClock();
+        RefreshCalendarTabUI();
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
@@ -859,19 +865,27 @@ public sealed partial class WindowIslandWindow : Window
             ResetNoteDeleteBtnUI();
             if (NoteNewTitleOverlay != null) NoteNewTitleOverlay.Visibility = Visibility.Collapsed;
         }
-        if (_activeTab == 6)
+        if (_activeTab == TabIndexCalendar)
+        {
+            RefreshCalendarTabUI();
+        }
+        else if (_previousTab == TabIndexCalendar)
+        {
+            if (CalendarAddClockPanel != null) CalendarAddClockPanel.Visibility = Visibility.Collapsed;
+        }
+        if (_activeTab == TabIndexWeather)
         {
             RefreshWeatherUI();
         }
-        else if (_previousTab == 6)
+        else if (_previousTab == TabIndexWeather)
         {
             if (WeatherCityOverlay != null) WeatherCityOverlay.Visibility = Visibility.Collapsed;
         }
-        if (_activeTab == 7)
+        if (_activeTab == TabIndexControls)
         {
             RefreshControlsUI();
         }
-        else if (_previousTab == 7)
+        else if (_previousTab == TabIndexControls)
         {
             if (ControlsDeviceOverlay != null) ControlsDeviceOverlay.Visibility = Visibility.Collapsed;
             if (ControlsAddCardOverlay != null) ControlsAddCardOverlay.Visibility = Visibility.Collapsed;
@@ -1061,6 +1075,7 @@ public sealed partial class WindowIslandWindow : Window
         try { RefreshShelfUI(); } catch { }
         try { RefreshLauncherUI(); } catch { }
         try { RefreshNotesUI(); RefreshRemindersUI(); } catch { }
+        try { RefreshCalendarTabUI(); } catch { }
         try { RefreshWeatherUI(); } catch { }
         try { RefreshControlsUI(); RenderQuickCardsGrid(); } catch { }
         try { RefreshChatUI(); } catch { }
@@ -1347,6 +1362,10 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
+            if (_activeTab == TabIndexCalendar && _compositor?.IsOpen == true)
+            {
+                UpdateCalendarClockOnly();
+            }
             if (!_settings.ShowClock) return;
             string pattern = _settings.TimeFormat24H
                 ? (_settings.ShowSeconds ? "HH:mm:ss" : "HH:mm")
@@ -1926,7 +1945,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         UpdateBattery();
         WindowIslandNotificationService.Instance.NotifyPowerStatusChanged();
-        if (_activeTab == 7)
+        if (_activeTab == TabIndexControls)
         {
             RefreshControlsUI();
         }
@@ -1935,7 +1954,7 @@ public sealed partial class WindowIslandWindow : Window
         await Task.Delay(150);
         UpdateBattery();
         WindowIslandNotificationService.Instance.NotifyPowerStatusChanged();
-        if (_activeTab == 7)
+        if (_activeTab == TabIndexControls)
         {
             RefreshControlsUI();
         }
@@ -3627,7 +3646,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (_compositor?.IsOpen == true && _activeTab == 7 && _settings.Controls.ShowMicrophone)
+            if (_compositor?.IsOpen == true && _activeTab == TabIndexControls && _settings.Controls.ShowMicrophone)
             {
                 RefreshControlsMicrophoneUi();
             }
@@ -4216,7 +4235,7 @@ public sealed partial class WindowIslandWindow : Window
             if (Environment.TickCount64 - _brightnessLastWriteMs < 400 || _controlsBrightnessPointerDown)
                 return;
 
-            if (_compositor?.IsOpen == true && _activeTab == 7)
+            if (_compositor?.IsOpen == true && _activeTab == TabIndexControls)
             {
                 _controlsBrightnessChanging = true;
                 ControlsBrightnessSlider.Value = clamped;
@@ -4235,7 +4254,7 @@ public sealed partial class WindowIslandWindow : Window
     private void QueueBrightnessCard(int level)
     {
         if (!_settings.CardBrightnessEnabled) return;
-        if (_compositor?.IsOpen == true && _activeTab == 7) return;
+        if (_compositor?.IsOpen == true && _activeTab == TabIndexControls) return;
 
         if (Environment.TickCount64 - _lastBrightnessCardMs >= 250)
         {
@@ -7127,7 +7146,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (_activeTab == 6) RefreshWeatherUI();
+            if (_activeTab == TabIndexWeather) RefreshWeatherUI();
             UpdateFoldedWeatherMini();
         });
     }
@@ -7404,7 +7423,7 @@ public sealed partial class WindowIslandWindow : Window
         catch { }
 
         UpdateMicCamDots();
-        if (_compositor?.IsOpen == true && _activeTab == 7 && _settings.Controls.ShowMicrophone)
+        if (_compositor?.IsOpen == true && _activeTab == TabIndexControls && _settings.Controls.ShowMicrophone)
         {
             RefreshControlsMicrophoneUi();
         }
@@ -11749,5 +11768,329 @@ public sealed partial class WindowIslandWindow : Window
         if (_appWindow == null) return;
         _appWindow.Move(new Windows.Graphics.PointInt32(_windowX, _windowY));
         PositionAndSize();
+    }
+
+    // ── Date & Calendar Tab ──────────────────────────────────────────────────
+
+    private DateTime _calendarViewMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _calendarSelectedDate = DateTime.Today;
+    private readonly List<(TextBlock TimeBlock, CustomWorldClock Clock)> _worldClockBindings = new();
+    private IReadOnlyList<TimeZoneInfo>? _systemTimeZones;
+
+    private bool CalendarShowSeconds =>
+        string.Equals(_settings.CalendarClockStyle, "DigitalSeconds", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase);
+
+    private bool CalendarIsAnalog =>
+        string.Equals(_settings.CalendarClockStyle, "Analog", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase);
+
+    private void RefreshCalendarTabUI()
+    {
+        if (ContentCalendar == null) return;
+        UpdateCalendarClockOnly();
+        RebuildWorldClockPills();
+        RenderCalendarDays();
+    }
+
+    private void UpdateCalendarClockOnly()
+    {
+        if (CalendarDigitalPanel == null || CalendarAnalogPanel == null) return;
+
+        var now = DateTime.Now;
+        var accent = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accent);
+        bool analog = CalendarIsAnalog;
+        bool showSec = CalendarShowSeconds;
+
+        CalendarDigitalPanel.Visibility = analog ? Visibility.Collapsed : Visibility.Visible;
+        CalendarAnalogPanel.Visibility = analog ? Visibility.Visible : Visibility.Collapsed;
+
+        string dateText = now.ToString("dddd, MMM d, yyyy");
+        if (!analog)
+        {
+            if (_settings.TimeFormat24H)
+            {
+                CalendarDigitalTime.Text = now.ToString(showSec ? "HH:mm:ss" : "HH:mm");
+                CalendarDigitalAmPm.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                CalendarDigitalTime.Text = now.ToString(showSec ? "h:mm:ss" : "h:mm");
+                CalendarDigitalAmPm.Text = now.ToString("tt");
+                CalendarDigitalAmPm.Foreground = accentBrush;
+                CalendarDigitalAmPm.Visibility = Visibility.Visible;
+            }
+            CalendarDigitalDate.Text = dateText;
+        }
+        else
+        {
+            CalendarAnalogDate.Text = dateText;
+            double secAngle = now.Second * 6.0;
+            double minAngle = now.Minute * 6.0 + now.Second * 0.1;
+            double hrAngle = (now.Hour % 12) * 30.0 + now.Minute * 0.5;
+            if (CalendarAnalogHourRotate != null) CalendarAnalogHourRotate.Angle = hrAngle;
+            if (CalendarAnalogMinuteRotate != null) CalendarAnalogMinuteRotate.Angle = minAngle;
+            if (CalendarAnalogSecondRotate != null) CalendarAnalogSecondRotate.Angle = secAngle;
+            if (CalendarAnalogSecondHand != null)
+            {
+                CalendarAnalogSecondHand.Visibility = showSec ? Visibility.Visible : Visibility.Collapsed;
+                CalendarAnalogSecondHand.Background = accentBrush;
+            }
+            if (CalendarAnalogCenterDot != null) CalendarAnalogCenterDot.Fill = accentBrush;
+        }
+
+        // Update world clock pill times live
+        var utcNow = DateTime.UtcNow;
+        foreach (var (tb, wc) in _worldClockBindings)
+        {
+            tb.Text = FormatWorldClockTime(utcNow, wc.TimeZoneId, showSec);
+        }
+    }
+
+    private string FormatWorldClockTime(DateTime utcNow, string timeZoneId, bool showSec)
+    {
+        DateTime local = utcNow;
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, tz);
+        }
+        catch { }
+
+        string pattern = _settings.TimeFormat24H
+            ? (showSec ? "HH:mm:ss" : "HH:mm")
+            : (showSec ? "h:mm:ss tt" : "h:mm tt");
+        return local.ToString(pattern);
+    }
+
+    private void RebuildWorldClockPills()
+    {
+        if (CalendarWorldClocksList == null) return;
+        CalendarWorldClocksList.Children.Clear();
+        _worldClockBindings.Clear();
+
+        var clocks = _settings.CustomClocks;
+        if (clocks == null || clocks.Count == 0)
+        {
+            CalendarWorldClocksList.Children.Add(new TextBlock
+            {
+                Text = "No custom clocks added yet.",
+                FontSize = 11,
+                Opacity = 0.55,
+                Margin = new Thickness(4, 4, 0, 0)
+            });
+            return;
+        }
+
+        bool showSec = CalendarShowSeconds;
+        var utcNow = DateTime.UtcNow;
+        var surfaceBrush = new SolidColorBrush(AdaptiveSurfaceColor(28));
+        var borderBrush = new SolidColorBrush(AdaptiveBorderColor(28));
+        var primaryBrush = new SolidColorBrush(AdaptiveInkColor(240));
+        var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(175));
+
+        foreach (var wc in clocks)
+        {
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(18),
+                Background = surfaceBrush,
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(12, 6, 8, 6)
+            };
+
+            var row = new Grid { ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var textStack = new StackPanel { Spacing = 0 };
+            var timeTb = new TextBlock
+            {
+                Text = FormatWorldClockTime(utcNow, wc.TimeZoneId, showSec),
+                FontSize = 12.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = primaryBrush
+            };
+            var placeTb = new TextBlock
+            {
+                Text = wc.PlaceName,
+                FontSize = 10.5,
+                Foreground = secondaryBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            textStack.Children.Add(timeTb);
+            textStack.Children.Add(placeTb);
+            Grid.SetColumn(textStack, 0);
+            row.Children.Add(textStack);
+
+            var removeBtn = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 9.5, Foreground = secondaryBrush },
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                BorderThickness = new Thickness(0),
+                Width = 22,
+                Height = 22,
+                MinWidth = 22,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(11),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(removeBtn, "Remove clock");
+            var targetClock = wc;
+            removeBtn.Click += (_, _) => RemoveWorldClock(targetClock);
+            Grid.SetColumn(removeBtn, 1);
+            row.Children.Add(removeBtn);
+
+            pill.Child = row;
+            CalendarWorldClocksList.Children.Add(pill);
+            _worldClockBindings.Add((timeTb, wc));
+        }
+    }
+
+    private void RemoveWorldClock(CustomWorldClock clock)
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        s.CustomClocks.RemoveAll(c =>
+            string.Equals(c.PlaceName, clock.PlaceName, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.TimeZoneId, clock.TimeZoneId, StringComparison.OrdinalIgnoreCase));
+        _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        RebuildWorldClockPills();
+    }
+
+    private void CalendarAddClockBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (CalendarAddClockPanel == null || CalendarNewTzBox == null) return;
+        if (_systemTimeZones == null)
+        {
+            _systemTimeZones = TimeZoneInfo.GetSystemTimeZones().ToList();
+            CalendarNewTzBox.ItemsSource = _systemTimeZones.Select(tz => new ComboBoxItem
+            {
+                Content = tz.DisplayName,
+                Tag = tz.Id
+            }).ToList();
+            if (_systemTimeZones.Count > 0) CalendarNewTzBox.SelectedIndex = 0;
+        }
+        CalendarNewPlaceBox.Text = string.Empty;
+        var accent = GetSystemAccentColor();
+        if (CalendarSaveClockBtn != null)
+        {
+            CalendarSaveClockBtn.Background = new SolidColorBrush(accent);
+            CalendarSaveClockBtn.Foreground = new SolidColorBrush(GetContrastingForeground(accent));
+        }
+        CalendarAddClockPanel.Visibility = Visibility.Visible;
+    }
+
+    private void CalendarCancelAddClock_Click(object sender, RoutedEventArgs e)
+    {
+        if (CalendarAddClockPanel != null) CalendarAddClockPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void CalendarSaveClock_Click(object sender, RoutedEventArgs e)
+    {
+        if (CalendarNewTzBox?.SelectedItem is not ComboBoxItem item || item.Tag is not string tzId) return;
+        string place = CalendarNewPlaceBox?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(place))
+        {
+            string disp = item.Content as string ?? tzId;
+            int paren = disp.LastIndexOf(')');
+            place = paren >= 0 && paren + 1 < disp.Length ? disp[(paren + 1)..].Trim() : tzId;
+        }
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        s.CustomClocks.Add(new CustomWorldClock(place, tzId));
+        _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+        if (CalendarAddClockPanel != null) CalendarAddClockPanel.Visibility = Visibility.Collapsed;
+        RebuildWorldClockPills();
+    }
+
+    private void CalendarPrevMonth_Click(object sender, RoutedEventArgs e)
+    {
+        _calendarViewMonth = _calendarViewMonth.AddMonths(-1);
+        RenderCalendarDays();
+    }
+
+    private void CalendarNextMonth_Click(object sender, RoutedEventArgs e)
+    {
+        _calendarViewMonth = _calendarViewMonth.AddMonths(1);
+        RenderCalendarDays();
+    }
+
+    private void CalendarToday_Click(object sender, RoutedEventArgs e)
+    {
+        var today = DateTime.Today;
+        _calendarViewMonth = new DateTime(today.Year, today.Month, 1);
+        _calendarSelectedDate = today;
+        RenderCalendarDays();
+    }
+
+    private void RenderCalendarDays()
+    {
+        if (CalendarDaysGrid == null || CalendarMonthLabel == null) return;
+        CalendarMonthLabel.Text = _calendarViewMonth.ToString("MMMM yyyy");
+        CalendarDaysGrid.Children.Clear();
+
+        var today = DateTime.Today;
+        var accent = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accent);
+        var accentFgBrush = new SolidColorBrush(GetContrastingForeground(accent));
+        var primaryBrush = new SolidColorBrush(AdaptiveInkColor(235));
+        var mutedBrush = new SolidColorBrush(AdaptiveInkColor(110));
+        var selectedBgBrush = new SolidColorBrush(AdaptiveSurfaceColor(36));
+        var clearBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+        int startDow = (int)_calendarViewMonth.DayOfWeek; // 0=Sunday
+        DateTime gridStart = _calendarViewMonth.AddDays(-startDow);
+
+        for (int i = 0; i < 42; i++)
+        {
+            DateTime d = gridStart.AddDays(i);
+            bool inMonth = d.Month == _calendarViewMonth.Month && d.Year == _calendarViewMonth.Year;
+            bool isToday = d == today;
+            bool isSelected = d == _calendarSelectedDate;
+
+            var btn = new Button
+            {
+                Content = d.Day.ToString(),
+                FontSize = 11.5,
+                FontWeight = isToday ? FontWeights.Bold : (isSelected ? FontWeights.SemiBold : FontWeights.Normal),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(14),
+                Background = isToday ? accentBrush : (isSelected ? selectedBgBrush : clearBrush),
+                Foreground = isToday ? accentFgBrush : (inMonth ? primaryBrush : mutedBrush),
+                BorderBrush = (!isToday && isSelected) ? accentBrush : clearBrush,
+                BorderThickness = new Thickness((!isToday && isSelected) ? 1.5 : 0)
+            };
+
+            DateTime captured = d;
+            btn.Click += (_, _) =>
+            {
+                _calendarSelectedDate = captured;
+                if (captured.Month != _calendarViewMonth.Month || captured.Year != _calendarViewMonth.Year)
+                {
+                    _calendarViewMonth = new DateTime(captured.Year, captured.Month, 1);
+                }
+                RenderCalendarDays();
+            };
+
+            Grid.SetRow(btn, i / 7);
+            Grid.SetColumn(btn, i % 7);
+            CalendarDaysGrid.Children.Add(btn);
+        }
+
+        if (CalendarSelectedFooter != null)
+        {
+            CalendarSelectedFooter.Text = _calendarSelectedDate == today
+                ? $"Today · {today:dddd, MMM d, yyyy}"
+                : $"Selected · {_calendarSelectedDate:dddd, MMM d, yyyy}";
+        }
     }
 }

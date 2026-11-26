@@ -937,10 +937,22 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Date & Calendar -->
+                        <Button x:Name="TabCalendar"
+                                Style="{StaticResource TabButtonStyle}"
+                                Tag="6"
+                                Click="OnTabButtonClick"
+                                ToolTipService.ToolTip="Date &amp; Calendar">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon x:Name="TabCalendarIcon" Glyph="&#xE787;" FontSize="13" />
+                                <TextBlock x:Name="TabCalendarText" Text="Date" FontSize="11" VerticalAlignment="Center" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Button>
+
                         <!-- Weather -->
                         <Button x:Name="TabWeather"
                                 Style="{StaticResource TabButtonStyle}"
-                                Tag="6"
+                                Tag="7"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Weather">
                             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -952,7 +964,7 @@
                         <!-- Controls -->
                         <Button x:Name="TabControls"
                                 Style="{StaticResource TabButtonStyle}"
-                                Tag="7"
+                                Tag="8"
                                 Click="OnTabButtonClick"
                                 ToolTipService.ToolTip="Controls">
                             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -2896,6 +2908,273 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+                    </Grid>
+
+                    <!-- ═══════════════════════════════════════════════════════════
+                         DATE & CALENDAR TAB
+                    ════════════════════════════════════════════════════════════ -->
+                    <Grid x:Name="ContentCalendar" Opacity="1" Visibility="Collapsed">
+                        <Grid ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="248" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: Main Clock + Custom World Clocks (scrollable pills) -->
+                            <Grid Grid.Column="0" RowSpacing="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Main Clock Card -->
+                                <Border Grid.Row="0"
+                                        CornerRadius="14"
+                                        Background="{ThemeResource IslandSurfaceSubtle}"
+                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
+                                        BorderThickness="1"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <!-- Digital Clock -->
+                                        <StackPanel x:Name="CalendarDigitalPanel" Spacing="3">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom">
+                                                <TextBlock x:Name="CalendarDigitalTime"
+                                                           Text="01:45:00"
+                                                           FontFamily="Segoe UI Variable Display"
+                                                           FontWeight="Bold"
+                                                           FontSize="30"
+                                                           Foreground="{ThemeResource IslandTextPrimary}" />
+                                                <TextBlock x:Name="CalendarDigitalAmPm"
+                                                           Text="AM"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Margin="0,0,0,5"
+                                                           VerticalAlignment="Bottom"
+                                                           Foreground="{ThemeResource IslandCyanAccent}" />
+                                            </StackPanel>
+                                            <TextBlock x:Name="CalendarDigitalDate"
+                                                       Text="Friday, Nov 27, 2026"
+                                                       FontSize="11.5"
+                                                       Foreground="{ThemeResource IslandTextSecondary}" />
+                                        </StackPanel>
+
+                                        <!-- Analog Clock -->
+                                        <StackPanel x:Name="CalendarAnalogPanel" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
+                                            <Grid Width="108" Height="108" HorizontalAlignment="Center">
+                                                <Border Width="108" Height="108" CornerRadius="54"
+                                                        Background="{ThemeResource IslandSurfaceCard}"
+                                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
+                                                        BorderThickness="1.5" />
+                                                <Canvas x:Name="CalendarAnalogCanvas" Width="108" Height="108">
+                                                    <Ellipse Canvas.Left="52.5" Canvas.Top="6" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
+                                                    <Ellipse Canvas.Left="99" Canvas.Top="52.5" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
+                                                    <Ellipse Canvas.Left="52.5" Canvas.Top="99" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
+                                                    <Ellipse Canvas.Left="6" Canvas.Top="52.5" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
+
+                                                    <!-- Hour Hand -->
+                                                    <Border x:Name="CalendarAnalogHourHand"
+                                                            Canvas.Left="52.5" Canvas.Top="26"
+                                                            Width="3" Height="28" CornerRadius="1.5"
+                                                            Background="{ThemeResource IslandTextPrimary}"
+                                                            RenderTransformOrigin="0.5,1.0">
+                                                        <Border.RenderTransform>
+                                                            <RotateTransform x:Name="CalendarAnalogHourRotate" Angle="0" />
+                                                        </Border.RenderTransform>
+                                                    </Border>
+
+                                                    <!-- Minute Hand -->
+                                                    <Border x:Name="CalendarAnalogMinuteHand"
+                                                            Canvas.Left="53" Canvas.Top="16"
+                                                            Width="2" Height="38" CornerRadius="1"
+                                                            Background="{ThemeResource IslandTextPrimary}"
+                                                            RenderTransformOrigin="0.5,1.0">
+                                                        <Border.RenderTransform>
+                                                            <RotateTransform x:Name="CalendarAnalogMinuteRotate" Angle="0" />
+                                                        </Border.RenderTransform>
+                                                    </Border>
+
+                                                    <!-- Second Hand -->
+                                                    <Border x:Name="CalendarAnalogSecondHand"
+                                                            Canvas.Left="53.25" Canvas.Top="12"
+                                                            Width="1.5" Height="42" CornerRadius="0.75"
+                                                            Background="{ThemeResource IslandCyanAccent}"
+                                                            RenderTransformOrigin="0.5,1.0">
+                                                        <Border.RenderTransform>
+                                                            <RotateTransform x:Name="CalendarAnalogSecondRotate" Angle="0" />
+                                                        </Border.RenderTransform>
+                                                    </Border>
+
+                                                    <!-- Center Cap -->
+                                                    <Ellipse x:Name="CalendarAnalogCenterDot"
+                                                             Canvas.Left="50.5" Canvas.Top="50.5"
+                                                             Width="7" Height="7"
+                                                             Fill="{ThemeResource IslandCyanAccent}" />
+                                                </Canvas>
+                                            </Grid>
+                                            <TextBlock x:Name="CalendarAnalogDate"
+                                                       Text="Friday, Nov 27, 2026"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{ThemeResource IslandTextSecondary}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Custom World Clocks Section -->
+                                <Grid Grid.Row="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0" Margin="2,0,2,6">
+                                        <TextBlock Text="WORLD CLOCKS"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"
+                                                   CharacterSpacing="80"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource IslandTextHint}" />
+                                        <Button x:Name="CalendarAddClockBtn"
+                                                Click="CalendarAddClockBtn_Click"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                HorizontalAlignment="Right"
+                                                Padding="8,2"
+                                                CornerRadius="10"
+                                                ToolTipService.ToolTip="Add custom place clock">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE710;" FontSize="10" />
+                                                <TextBlock Text="Add" FontSize="10.5" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Scrollable pill list -->
+                                    <ScrollViewer Grid.Row="1"
+                                                  x:Name="CalendarWorldClocksScroll"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel x:Name="CalendarWorldClocksList" Spacing="6" />
+                                    </ScrollViewer>
+
+                                    <!-- Inline Add Clock Form -->
+                                    <Border x:Name="CalendarAddClockPanel"
+                                            Grid.Row="1"
+                                            Visibility="Collapsed"
+                                            CornerRadius="12"
+                                            Background="{ThemeResource IslandSurfaceCard}"
+                                            BorderBrush="{ThemeResource IslandBorderSubtle}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            VerticalAlignment="Top">
+                                        <StackPanel Spacing="7">
+                                            <TextBox x:Name="CalendarNewPlaceBox"
+                                                     PlaceholderText="Place name (e.g. Paris)"
+                                                     FontSize="11.5" />
+                                            <ComboBox x:Name="CalendarNewTzBox"
+                                                      PlaceholderText="Select time zone"
+                                                      HorizontalAlignment="Stretch"
+                                                      FontSize="11" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                                                <Button Content="Cancel" Click="CalendarCancelAddClock_Click"
+                                                        Style="{StaticResource TabButtonStyle}" FontSize="11" Padding="10,4" />
+                                                <Button x:Name="CalendarSaveClockBtn" Content="Save" Click="CalendarSaveClock_Click"
+                                                        FontSize="11" Padding="12,4" CornerRadius="8" BorderThickness="0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+
+                            <!-- Right: Interactive Monthly Calendar -->
+                            <Border Grid.Column="1"
+                                    CornerRadius="14"
+                                    Background="{ThemeResource IslandSurfaceSubtle}"
+                                    BorderBrush="{ThemeResource IslandBorderSubtle}"
+                                    BorderThickness="1"
+                                    Padding="14,12">
+                                <Grid RowSpacing="8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Month Navigation -->
+                                    <Grid Grid.Row="0">
+                                        <Button x:Name="CalendarMonthBtn"
+                                                Click="CalendarToday_Click"
+                                                Style="{StaticResource TabButtonStyle}"
+                                                HorizontalAlignment="Left"
+                                                Padding="4,2">
+                                            <TextBlock x:Name="CalendarMonthLabel"
+                                                       Text="November 2026"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource IslandTextPrimary}" />
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+                                            <Button x:Name="CalendarTodayBtn"
+                                                    Content="Today"
+                                                    Click="CalendarToday_Click"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    FontSize="10.5"
+                                                    Padding="8,3"
+                                                    CornerRadius="10" />
+                                            <Button Click="CalendarPrevMonth_Click"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    Width="26" Height="26" Padding="0">
+                                                <FontIcon Glyph="&#xE76B;" FontSize="11" />
+                                            </Button>
+                                            <Button Click="CalendarNextMonth_Click"
+                                                    Style="{StaticResource TabButtonStyle}"
+                                                    Width="26" Height="26" Padding="0">
+                                                <FontIcon Glyph="&#xE76C;" FontSize="11" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Weekday Headers -->
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Su" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="1" Text="Mo" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="2" Text="Tu" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="3" Text="We" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="4" Text="Th" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="5" Text="Fr" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                        <TextBlock Grid.Column="6" Text="Sa" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{ThemeResource IslandTextSubtle}" />
+                                    </Grid>
+
+                                    <!-- 6x7 Calendar Days Grid -->
+                                    <Grid x:Name="CalendarDaysGrid" Grid.Row="2" RowSpacing="2" ColumnSpacing="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" /><RowDefinition Height="*" />
+                                            <RowDefinition Height="*" /><RowDefinition Height="*" />
+                                            <RowDefinition Height="*" /><RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                    </Grid>
+
+                                    <!-- Footer -->
+                                    <TextBlock x:Name="CalendarSelectedFooter"
+                                               Grid.Row="3"
+                                               Text="Today · Friday, Nov 27, 2026"
+                                               FontSize="10.5"
+                                               Foreground="{ThemeResource IslandTextSecondary}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- ═══════════════════════════════════════════════════════════

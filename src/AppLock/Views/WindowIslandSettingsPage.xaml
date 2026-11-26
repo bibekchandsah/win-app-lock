@@ -342,6 +342,16 @@
                             <CheckBox x:Name="ShowSecondsCheck" Content="Show seconds" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
                         </StackPanel>
 
+                        <ComboBox x:Name="CalendarClockStyleBox"
+                                  Header="Date &amp; Calendar tab clock style"
+                                  SelectionChanged="OnSelectionChanged"
+                                  Width="260">
+                            <ComboBoxItem Content="Digital" Tag="Digital" />
+                            <ComboBoxItem Content="Digital with seconds" Tag="DigitalSeconds" />
+                            <ComboBoxItem Content="Analog" Tag="Analog" />
+                            <ComboBoxItem Content="Analog with seconds" Tag="AnalogSeconds" />
+                        </ComboBox>
+
                         <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery percentage &amp; status" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Header="Show temperature on folded island" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="MicDotToggle" Header="Microphone indicator dot on folded island" Toggled="OnSettingChanged" />

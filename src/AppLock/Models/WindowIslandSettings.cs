@@ -36,6 +36,12 @@ public sealed class WindowIslandSettings
     /// <summary>Show seconds in clock.</summary>
     public bool ShowSeconds { get; set; } = false;
 
+    /// <summary>Date & Calendar tab clock style: "Digital" | "DigitalSeconds" | "Analog" | "AnalogSeconds".</summary>
+    public string CalendarClockStyle { get; set; } = "DigitalSeconds";
+
+    /// <summary>Custom world clocks displayed as scrollable pills in the Date & Calendar tab.</summary>
+    public System.Collections.Generic.List<CustomWorldClock> CustomClocks { get; set; } = new();
+
     /// <summary>Show battery in folded notch.</summary>
     public bool ShowBattery { get; set; } = true;
 
@@ -398,7 +404,32 @@ public sealed class WindowIslandSettings
                 clone.WeatherCities.Add(new WeatherCity(c.Name, c.Latitude, c.Longitude, c.Country, c.UtcOffsetSeconds));
             }
         }
+        clone.CustomClocks = new System.Collections.Generic.List<CustomWorldClock>();
+        if (CustomClocks != null)
+        {
+            foreach (var cc in CustomClocks)
+            {
+                clone.CustomClocks.Add(new CustomWorldClock(cc.PlaceName, cc.TimeZoneId));
+            }
+        }
         return clone;
+    }
+}
+
+/// <summary>
+/// Custom world clock entry for the Window Island Date & Calendar tab.
+/// </summary>
+public sealed class CustomWorldClock
+{
+    public string PlaceName { get; set; } = string.Empty;
+    public string TimeZoneId { get; set; } = string.Empty;
+
+    public CustomWorldClock() { }
+
+    public CustomWorldClock(string placeName, string timeZoneId)
+    {
+        PlaceName = placeName;
+        TimeZoneId = timeZoneId;
     }
 }
 
