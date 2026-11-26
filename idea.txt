@@ -507,12 +507,12 @@ fixed - in setting page can we add the screenshot and user can set the path for 
 fixed - in weather tab of left side card of right side "down arrow" isn't working
 fixed - visibility page toggles settings aren't working 
 fixed - through mode 
+fixed - the pills while music plays 
 
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 
-the pills while music plays 
 the song's words
 the words in the player on home
 downloads on live cards

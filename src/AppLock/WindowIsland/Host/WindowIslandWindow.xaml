@@ -492,8 +492,20 @@
                                 <TextBlock x:Name="MiniClockText" Text="12:45" FontSize="11" FontWeight="SemiBold"
                                            Foreground="{ThemeResource IslandTextPrimary}" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock x:Name="MiniStatusText" Text="" FontSize="10" HorizontalAlignment="Right"
-                                       Foreground="{ThemeResource IslandTextSecondary}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                <StackPanel x:Name="MiniWeatherPanel" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <FontIcon x:Name="MiniWeatherIcon" FontFamily="Segoe UI Symbol, Segoe Fluent Icons" Glyph="&#x2600;"
+                                              FontSize="10" Foreground="{ThemeResource IslandGoldAccent}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="MiniWeatherTemp" Text="" FontSize="10"
+                                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel x:Name="MiniBatteryPanel" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <FontIcon x:Name="MiniBatteryIcon" Glyph="&#xE83F;" FontSize="11"
+                                              Foreground="{ThemeResource IslandTextSubtle}" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="MiniBatteryText" Text="" FontSize="10"
+                                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
 
@@ -537,14 +549,20 @@
                 </StackPanel>
 
                 <!-- Optional live lyrics on the right -->
-                <StackPanel x:Name="MiniLyricsCol" Grid.Column="1" Width="210" VerticalAlignment="Center" Spacing="4" Visibility="Collapsed">
-                    <TextBlock x:Name="MiniLyricsPrev" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                               Opacity="0.45" MaxLines="1" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="MiniLyricsCurr" Text="" FontSize="12" FontWeight="SemiBold"
-                               Foreground="{ThemeResource IslandTextPrimary}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="MiniLyricsNext" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                               Opacity="0.45" MaxLines="1" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
+                <Grid x:Name="MiniLyricsCol" Grid.Column="1" Width="210" VerticalAlignment="Center" Visibility="Collapsed">
+                    <StackPanel x:Name="MiniLyricsStack" Spacing="3" VerticalAlignment="Center">
+                        <TextBlock x:Name="MiniLyricsLine0" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine1" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine2" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine3" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine4" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Grid>
 

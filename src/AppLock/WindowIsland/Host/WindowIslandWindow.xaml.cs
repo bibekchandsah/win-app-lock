@@ -227,6 +227,7 @@ public sealed partial class WindowIslandWindow : Window
     private readonly LrclibLyricsService _lyricsService = new();
     private string _lyricsKey = string.Empty;
     private LyricsResult? _currentLyrics;
+    private int _lastMiniLyricIndex = -2;
     private string _lastMediaTitle = string.Empty;
     private string _lastMediaArtist = string.Empty;
     private double _lastMediaPositionSeconds;
@@ -2984,6 +2985,7 @@ public sealed partial class WindowIslandWindow : Window
         try
         {
             _currentLyrics = lyrics;
+            _lastMiniLyricIndex = -2;
             StopLyricsDragScroll();
             LyricsStack.Children.Clear();
 
@@ -8313,36 +8315,131 @@ public sealed partial class WindowIslandWindow : Window
             if (MiniClockText != null && FoldedClockText != null)
                 MiniClockText.Text = FoldedClockText.Text;
 
-            if (MiniStatusText != null)
+            if (MiniWeatherPanel != null)
             {
-                var parts = new List<string>();
-                if (_settings.WeatherTempOnIsland && FoldedWeatherMini?.Visibility == Visibility.Visible && FoldedWeatherTemp != null)
-                    parts.Add(FoldedWeatherTemp.Text);
-                if (_settings.ShowBattery && FoldedBatteryText != null)
-                    parts.Add(FoldedBatteryText.Text);
-                MiniStatusText.Text = string.Join(" · ", parts);
+                bool showWeather = _settings.WeatherTempOnIsland && FoldedWeatherMini?.Visibility == Visibility.Visible;
+                MiniWeatherPanel.Visibility = showWeather ? Visibility.Visible : Visibility.Collapsed;
+                if (showWeather && FoldedWeatherIcon != null && FoldedWeatherTemp != null)
+                {
+                    MiniWeatherIcon.Glyph = FoldedWeatherIcon.Glyph;
+                    MiniWeatherIcon.Foreground = FoldedWeatherIcon.Foreground;
+                    MiniWeatherTemp.Text = FoldedWeatherTemp.Text;
+                }
             }
 
-            if (MiniLyricsCol != null)
+            if (MiniBatteryPanel != null)
+            {
+                bool showBat = _settings.ShowBattery && BatteryContainer?.Visibility == Visibility.Visible;
+                MiniBatteryPanel.Visibility = showBat ? Visibility.Visible : Visibility.Collapsed;
+                if (showBat && BatteryIcon != null && FoldedBatteryText != null)
+                {
+                    MiniBatteryIcon.Glyph = BatteryIcon.Glyph;
+                    MiniBatteryIcon.Foreground = BatteryIcon.Foreground;
+                    MiniBatteryText.Text = FoldedBatteryText.Text;
+                }
+            }
+
+            if (MiniLyricsCol != null && MiniLyricsStack != null)
             {
                 bool hasLyrics = _settings.LyricsEnabled && _currentLyrics != null &&
                                  (_currentLyrics.SyncedLines.Count > 0 || _currentLyrics.Lines.Count > 0);
                 MiniLyricsCol.Visibility = hasLyrics ? Visibility.Visible : Visibility.Collapsed;
                 if (hasLyrics && _currentLyrics != null)
                 {
+                    var lineBlocks = new[] { MiniLyricsLine0, MiniLyricsLine1, MiniLyricsLine2, MiniLyricsLine3, MiniLyricsLine4 };
+                    var primaryBrush = new SolidColorBrush(AdaptiveInkColor(245));
+                    var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(200));
+
                     if (_currentLyrics.SyncedLines.Count > 0)
                     {
-                        int idx = _currentLyrics.GetCurrentLineIndex(_lastMediaPositionSeconds);
-                        if (idx < 0) idx = 0;
-                        MiniLyricsPrev.Text = idx > 0 ? _currentLyrics.SyncedLines[idx - 1].Text : string.Empty;
-                        MiniLyricsCurr.Text = _currentLyrics.SyncedLines[idx].Text;
-                        MiniLyricsNext.Text = idx + 1 < _currentLyrics.SyncedLines.Count ? _currentLyrics.SyncedLines[idx + 1].Text : string.Empty;
+                        int count = _currentLyrics.SyncedLines.Count;
+                        int idx = Math.Max(0, _currentLyrics.GetCurrentLineIndex(_lastMediaPositionSeconds));
+                        int start = Math.Clamp(idx - 2, 0, Math.Max(0, count - 5));
+
+                        for (int i = 0; i < lineBlocks.Length; i++)
+                        {
+                            var tb = lineBlocks[i];
+                            if (tb == null) continue;
+                            int lineIdx = start + i;
+                            if (lineIdx < count)
+                            {
+                                tb.Visibility = Visibility.Visible;
+                                tb.Text = _currentLyrics.SyncedLines[lineIdx].Text;
+                                if (lineIdx == idx)
+                                {
+                                    tb.FontWeight = FontWeights.SemiBold;
+                                    tb.FontSize = 12;
+                                    tb.Opacity = 1.0;
+                                    tb.Foreground = primaryBrush;
+                                    tb.MaxLines = 2;
+                                    tb.TextWrapping = TextWrapping.Wrap;
+                                }
+                                else
+                                {
+                                    int dist = Math.Abs(lineIdx - idx);
+                                    tb.FontWeight = FontWeights.Normal;
+                                    tb.FontSize = dist == 1 ? 11 : 10.5;
+                                    tb.Opacity = dist == 1 ? 0.45 : (dist == 2 ? 0.24 : 0.14);
+                                    tb.Foreground = secondaryBrush;
+                                    tb.MaxLines = 1;
+                                    tb.TextWrapping = TextWrapping.NoWrap;
+                                }
+                            }
+                            else
+                            {
+                                tb.Visibility = Visibility.Collapsed;
+                            }
+                        }
+
+                        if (idx != _lastMiniLyricIndex)
+                        {
+                            bool shouldAnimate = _lastMiniLyricIndex >= 0 && !_settings.ReducedMotion;
+                            _lastMiniLyricIndex = idx;
+                            if (shouldAnimate)
+                            {
+                                var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(MiniLyricsStack);
+                                var comp = visual.Compositor;
+                                var ease = comp.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.16f, 1f), new System.Numerics.Vector2(0.3f, 1f));
+
+                                var offsetAnim = comp.CreateVector3KeyFrameAnimation();
+                                offsetAnim.InsertKeyFrame(0f, new System.Numerics.Vector3(0f, 14f, 0f));
+                                offsetAnim.InsertKeyFrame(1f, System.Numerics.Vector3.Zero, ease);
+                                offsetAnim.Duration = TimeSpan.FromMilliseconds(240);
+                                visual.StartAnimation("Offset", offsetAnim);
+
+                                var fadeAnim = comp.CreateScalarKeyFrameAnimation();
+                                fadeAnim.InsertKeyFrame(0f, 0.55f);
+                                fadeAnim.InsertKeyFrame(1f, 1f, ease);
+                                fadeAnim.Duration = TimeSpan.FromMilliseconds(200);
+                                visual.StartAnimation("Opacity", fadeAnim);
+                            }
+                        }
                     }
                     else
                     {
-                        MiniLyricsPrev.Text = string.Empty;
-                        MiniLyricsCurr.Text = _currentLyrics.Lines[0];
-                        MiniLyricsNext.Text = _currentLyrics.Lines.Count > 1 ? _currentLyrics.Lines[1] : string.Empty;
+                        _lastMiniLyricIndex = -1;
+                        int count = _currentLyrics.Lines.Count;
+                        double[] opacities = { 1.0, 0.48, 0.28, 0.18, 0.12 };
+                        for (int i = 0; i < lineBlocks.Length; i++)
+                        {
+                            var tb = lineBlocks[i];
+                            if (tb == null) continue;
+                            if (i < count)
+                            {
+                                tb.Visibility = Visibility.Visible;
+                                tb.Text = _currentLyrics.Lines[i];
+                                tb.FontWeight = i == 0 ? FontWeights.SemiBold : FontWeights.Normal;
+                                tb.FontSize = i == 0 ? 12 : 11;
+                                tb.Opacity = opacities[i];
+                                tb.Foreground = i == 0 ? primaryBrush : secondaryBrush;
+                                tb.MaxLines = i == 0 ? 2 : 1;
+                                tb.TextWrapping = i == 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
+                            }
+                            else
+                            {
+                                tb.Visibility = Visibility.Collapsed;
+                            }
+                        }
                     }
                 }
             }
