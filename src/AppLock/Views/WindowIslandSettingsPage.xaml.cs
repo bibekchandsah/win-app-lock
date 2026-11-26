@@ -15,6 +15,8 @@ public sealed partial class WindowIslandSettingsPage : Page
     private string _customIslandHex = "#1E293B";
     private string _mediaPillMode = "Usual";
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _diskSaveTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _worldClockTimer;
+    private readonly System.Collections.Generic.List<(TextBlock LiveBlock, CustomWorldClock Clock)> _settingsClockBindings = new();
 
     public WindowIslandSettingsPage()
     {
@@ -28,6 +30,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     {
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
+        _worldClockTimer?.Stop();
         if (_diskSaveTimer != null && _diskSaveTimer.IsRunning)
         {
             _diskSaveTimer.Stop();
@@ -77,10 +80,12 @@ public sealed partial class WindowIslandSettingsPage : Page
     {
         if (SettingsWorldClocksList == null) return;
         SettingsWorldClocksList.Children.Clear();
+        _settingsClockBindings.Clear();
 
         var clocks = ServiceContainer.Settings.WindowIsland.CustomClocks;
         if (clocks == null || clocks.Count == 0)
         {
+            _worldClockTimer?.Stop();
             SettingsWorldClocksList.Children.Add(new TextBlock
             {
                 Text = "No custom world clocks added yet.",
@@ -90,6 +95,7 @@ public sealed partial class WindowIslandSettingsPage : Page
             return;
         }
 
+        var utcNow = DateTime.UtcNow;
         for (int i = 0; i < clocks.Count; i++)
         {
             int idx = i;
@@ -107,8 +113,9 @@ public sealed partial class WindowIslandSettingsPage : Page
                 BorderThickness = new Thickness(1)
             };
 
-            var row = new Grid { ColumnSpacing = 8 };
+            var row = new Grid { ColumnSpacing = 10 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var info = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
@@ -116,6 +123,18 @@ public sealed partial class WindowIslandSettingsPage : Page
             info.Children.Add(new TextBlock { Text = tzLabel, FontSize = 11.5, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis });
             Grid.SetColumn(info, 0);
             row.Children.Add(info);
+
+            var liveTb = new TextBlock
+            {
+                Text = FormatSettingsWorldClockLive(utcNow, wc.TimeZoneId),
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 4, 0)
+            };
+            Grid.SetColumn(liveTb, 1);
+            row.Children.Add(liveTb);
+            _settingsClockBindings.Add((liveTb, wc));
 
             var btns = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
             if (clocks.Count > 1)
@@ -150,11 +169,50 @@ public sealed partial class WindowIslandSettingsPage : Page
             delBtn.Click += (_, _) => RemoveSettingsWorldClock(idx);
             btns.Children.Add(delBtn);
 
-            Grid.SetColumn(btns, 1);
+            Grid.SetColumn(btns, 2);
             row.Children.Add(btns);
             card.Child = row;
             SettingsWorldClocksList.Children.Add(card);
         }
+
+        if (_worldClockTimer == null)
+        {
+            _worldClockTimer = DispatcherQueue.CreateTimer();
+            _worldClockTimer.Interval = TimeSpan.FromSeconds(1);
+            _worldClockTimer.IsRepeating = true;
+            _worldClockTimer.Tick += (_, _) => UpdateSettingsWorldClockTimes();
+        }
+        if (!_worldClockTimer.IsRunning) _worldClockTimer.Start();
+    }
+
+    private void UpdateSettingsWorldClockTimes()
+    {
+        if (_settingsClockBindings.Count == 0) return;
+        var utcNow = DateTime.UtcNow;
+        foreach (var (tb, wc) in _settingsClockBindings)
+        {
+            tb.Text = FormatSettingsWorldClockLive(utcNow, wc.TimeZoneId);
+        }
+    }
+
+    private static string FormatSettingsWorldClockLive(DateTime utcNow, string timeZoneId)
+    {
+        DateTime local = utcNow;
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            local = TimeZoneInfo.ConvertTimeFromUtc(utcNow, tz);
+        }
+        catch { }
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        bool showSec = string.Equals(s.CalendarClockStyle, "DigitalSeconds", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(s.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(s.CalendarClockStyle, "AnalogClassic", StringComparison.OrdinalIgnoreCase);
+        string pattern = s.TimeFormat24H
+            ? (showSec ? "HH:mm:ss" : "HH:mm")
+            : (showSec ? "h:mm:ss tt" : "h:mm tt");
+        return $"{local.ToString(pattern)} · {local:ddd, MMM d}";
     }
 
     private void SettingsAddClockBtn_Click(object sender, RoutedEventArgs e)

@@ -11821,7 +11821,7 @@ public sealed partial class WindowIslandWindow : Window
     private CalendarViewMode _calendarViewMode = CalendarViewMode.Days;
     private DateTime _calendarViewMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _calendarSelectedDate = DateTime.Today;
-    private readonly List<(TextBlock TimeBlock, CustomWorldClock Clock)> _worldClockBindings = new();
+    private readonly List<(TextBlock TimeBlock, TextBlock PlaceDateBlock, CustomWorldClock Clock)> _worldClockBindings = new();
     private IReadOnlyList<TimeZoneInfo>? _systemTimeZones;
     private bool? _analogDialLightTheme;
     private string? _analogDialStyle;
@@ -11996,15 +11996,17 @@ public sealed partial class WindowIslandWindow : Window
             if (CalendarAnalogCenterDot != null) CalendarAnalogCenterDot.Fill = accentBrush;
         }
 
-        // Update world clock pill times live
+        // Update world clock pill times & dates live
         var utcNow = DateTime.UtcNow;
-        foreach (var (tb, wc) in _worldClockBindings)
+        foreach (var (timeTb, placeDateTb, wc) in _worldClockBindings)
         {
-            tb.Text = FormatWorldClockTime(utcNow, wc.TimeZoneId, showSec);
+            var (t, d) = FormatWorldClockTimeAndDate(utcNow, wc.TimeZoneId, showSec);
+            timeTb.Text = t;
+            placeDateTb.Text = $"{wc.PlaceName} · {d}";
         }
     }
 
-    private string FormatWorldClockTime(DateTime utcNow, string timeZoneId, bool showSec)
+    private (string TimeText, string DateText) FormatWorldClockTimeAndDate(DateTime utcNow, string timeZoneId, bool showSec)
     {
         DateTime local = utcNow;
         try
@@ -12017,7 +12019,7 @@ public sealed partial class WindowIslandWindow : Window
         string pattern = _settings.TimeFormat24H
             ? (showSec ? "HH:mm:ss" : "HH:mm")
             : (showSec ? "h:mm:ss tt" : "h:mm tt");
-        return local.ToString(pattern);
+        return (local.ToString(pattern), local.ToString("ddd, MMM d"));
     }
 
     private void RebuildWorldClockPills()
@@ -12063,16 +12065,17 @@ public sealed partial class WindowIslandWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var textStack = new StackPanel { Spacing = 0 };
+            var (timeStr, dateStr) = FormatWorldClockTimeAndDate(utcNow, wc.TimeZoneId, showSec);
             var timeTb = new TextBlock
             {
-                Text = FormatWorldClockTime(utcNow, wc.TimeZoneId, showSec),
+                Text = timeStr,
                 FontSize = 12.5,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = primaryBrush
             };
             var placeTb = new TextBlock
             {
-                Text = wc.PlaceName,
+                Text = $"{wc.PlaceName} · {dateStr}",
                 FontSize = 10.5,
                 Foreground = secondaryBrush,
                 TextTrimming = TextTrimming.CharacterEllipsis
@@ -12134,7 +12137,7 @@ public sealed partial class WindowIslandWindow : Window
 
             pill.Child = row;
             CalendarWorldClocksList.Children.Add(pill);
-            _worldClockBindings.Add((timeTb, wc));
+            _worldClockBindings.Add((timeTb, placeTb, wc));
         }
     }
 
