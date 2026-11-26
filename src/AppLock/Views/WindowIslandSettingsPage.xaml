@@ -210,7 +210,7 @@
                         </StackPanel>
 
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Surface Opacity" Opacity="0.7" FontSize="12"/>
+                            <TextBlock Text="Background Opacity (Transparency)" Opacity="0.7" FontSize="12"/>
                             <Slider x:Name="OpacitySlider" Width="320" HorizontalAlignment="Left"
                                     ValueChanged="OnSliderChanged" />
                             <TextBlock x:Name="OpacityLabelText" FontSize="12" Opacity="0.6"/>

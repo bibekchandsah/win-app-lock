@@ -193,6 +193,12 @@
             </Style>
         </Grid.Resources>
 
+        <!-- Background layer rendered strictly behind all XAML layers (even at 100% opacity) -->
+        <Grid x:Name="BackdropHost"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              IsHitTestVisible="False" />
+
         <!-- ═══════════════════════════════════════════════════════════════
              FOLDED LAYER — clock + battery (shown when island is collapsed)
         ═══════════════════════════════════════════════════════════════════ -->

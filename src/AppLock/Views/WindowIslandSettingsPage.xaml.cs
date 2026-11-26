@@ -64,11 +64,11 @@ public sealed partial class WindowIslandSettingsPage : Page
         SizeSlider.TickFrequency = 10;
         SizeSlider.Value      = s.SizePercent;
 
-        OpacitySlider.Minimum    = 40;
+        OpacitySlider.Minimum    = 10;
         OpacitySlider.Maximum    = 100;
         OpacitySlider.StepFrequency = 5;
-        OpacitySlider.TickFrequency = 5;
-        OpacitySlider.Value      = s.OpacityPercent;
+        OpacitySlider.TickFrequency = 10;
+        OpacitySlider.Value      = Math.Clamp(s.OpacityPercent, 10, 100);
 
         YOffsetSlider.Minimum    = -10;
         YOffsetSlider.Maximum    = 50;
@@ -514,7 +514,12 @@ public sealed partial class WindowIslandSettingsPage : Page
         => SizeLabelText.Text = $"{(int)SizeSlider.Value}%";
 
     private void UpdateOpacityLabel()
-        => OpacityLabelText.Text = $"{(int)OpacitySlider.Value}%";
+    {
+        int val = (int)OpacitySlider.Value;
+        OpacityLabelText.Text = val >= 100
+            ? "100% (Solid)"
+            : $"{val}% ({100 - val}% transparent)";
+    }
 
     private void UpdateYOffsetLabel()
         => YOffsetLabelText.Text = $"{(int)YOffsetSlider.Value} DIPs";

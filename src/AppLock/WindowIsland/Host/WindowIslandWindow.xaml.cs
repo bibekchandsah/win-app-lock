@@ -527,7 +527,7 @@ public sealed partial class WindowIslandWindow : Window
         IslandMotion.ChatHeightDip = settings.ChatHeightDip > 0 ? settings.ChatHeightDip : 440f;
         UpdateChatHeightLabel();
 
-        _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
+        _compositor   = new WindowIslandCompositor(BackdropHost, settings, WindowWidthDip);
         _compositor.AttachContentClip(AnimatedContentHost);
         _foldedVisual  = ElementCompositionPreview.GetElementVisual(FoldedLayer);
         _cardVisual    = ElementCompositionPreview.GetElementVisual(CardLayer);

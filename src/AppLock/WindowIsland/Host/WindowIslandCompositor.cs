@@ -319,11 +319,11 @@ public sealed class WindowIslandCompositor : IDisposable
         _settings = settings;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
 
-        // Animate opacity via Composition
-        float opacity = settings.OpacityPercent / 100f;
+        // Apply opacity linearly via _outputVisual.Opacity (10..100%)
+        float opacity = Math.Clamp(settings.OpacityPercent, 10, 100) / 100f;
         var opacityAnim = _compositor.CreateScalarKeyFrameAnimation();
         opacityAnim.InsertKeyFrame(1f, opacity);
-        opacityAnim.Duration = TimeSpan.FromMilliseconds(200);
+        opacityAnim.Duration = TimeSpan.FromMilliseconds(120);
         _outputVisual.StartAnimation("Opacity", opacityAnim);
 
         _outputMaskBrush.Source = GetBodyBrush(settings);
@@ -498,11 +498,9 @@ public sealed class WindowIslandCompositor : IDisposable
     private CompositionBrush GetBodyBrush(WindowIslandSettings settings)
     {
         Color baseColor = WindowIslandColorHelper.ResolveBaseColor(settings);
-        byte alpha = settings.LiteMode
-            ? (byte)255
-            : (byte)Math.Clamp((int)(255 * (settings.OpacityPercent / 100.0)), 0, 255);
-
-        return _compositor.CreateColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+        // Keep the brush opaque here because _outputVisual.Opacity already applies OpacityPercent;
+        // multiplying both squared the transparency effect.
+        return _compositor.CreateColorBrush(Color.FromArgb(255, baseColor.R, baseColor.G, baseColor.B));
     }
 
     public static Color ResolveBaseColor(WindowIslandSettings settings)
