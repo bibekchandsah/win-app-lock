@@ -2281,11 +2281,12 @@ public sealed partial class WindowIslandWindow : Window
         float factor = (float)(_settings.SizePercent / 100.0);
         var (tabW, tabH) = isCmd ? IslandMotion.CommandBarSize : IslandMotion.TabSize(_activeTab);
         float baseWinW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
-        // Every tab gets the tallest tab's window height: a window resize makes Windows rebuild the
-        // window surface with the opaque theme colour, which is what made the light-themed island
-        // solid white after switching tabs. The shape and the window region still follow the active
-        // tab, so the spare space below it is transparent and click-through.
-        float baseWinH = (isCmd ? tabH : IslandMotion.MaxTabHeight) + 60f;
+        // Every tab and the command bar get the tallest tab's window height: a window resize makes
+        // Windows rebuild the window surface with the opaque theme colour, which is what made the
+        // light-themed island solid white after switching tabs and why the command bar came up
+        // opaque. The shape and the window region still follow the active tab or command bar, so the
+        // spare space below it is transparent and click-through.
+        float baseWinH = IslandMotion.MaxTabHeight + 60f;
         float winW = baseWinW * factor;
         float winH = baseWinH * factor;
 
