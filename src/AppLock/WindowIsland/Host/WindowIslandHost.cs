@@ -96,14 +96,16 @@ public sealed class WindowIslandHost
         lock (_lock) { _started = false; }
         UnregisterHotkey();
 
+        var closingWindow = _window;
+        _window = null;
+
         void DoStop()
         {
-            try { _window?.Close(); } catch { }
-            _window = null;
+            try { closingWindow?.Close(); } catch { }
             Log("Window closed and stopped");
         }
 
-        if (_uiQueue != null) _uiQueue.TryEnqueue(DoStop);
+        if (_uiQueue != null && !_uiQueue.HasThreadAccess) _uiQueue.TryEnqueue(DoStop);
         else DoStop();
     }
 

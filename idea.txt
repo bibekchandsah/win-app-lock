@@ -488,7 +488,31 @@ fixed - live beat isn't working for all type of media played
 fixed - full screen screenshot [open] preview
 fixed - music background blur effect
 fixed - speaker/microphone changed notification
-command navigation
+fixed - command navigation
+setting page optimization with description 
+custom color theme 
+theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
+
+general:
+hide in full-screen apps
+coe out over them ...
+show the island in screenshots and recordings
+hide the island until it is needed
+stay in sight on the desktop
+hide only while a window is under the island
+the island in choosen apps
+island shaped
+island theme
+island color
+island size
+transparency of the folded island
+place along the top edge
+under the taskbar when it is at the top
+the pill while music plays
+the player on home: compact, fill, soft mirror
+
+
+
 
 
 

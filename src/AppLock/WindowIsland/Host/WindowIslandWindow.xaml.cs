@@ -52,6 +52,7 @@ public sealed partial class WindowIslandWindow : Window
     private const uint  SWP_NOSIZE       = 0x0001;
     private const uint  SWP_NOACTIVATE   = 0x0010;
     private const uint  SWP_SHOWWINDOW   = 0x0040;
+    private const uint  WM_ERASEBKGND    = 0x0014;
     private const uint  WM_MOUSEACTIVATE   = 0x0021;
     private const uint  WM_POWERBROADCAST  = 0x0218;
     private const uint  WM_DPICHANGED      = 0x02E0;
@@ -540,11 +541,17 @@ public sealed partial class WindowIslandWindow : Window
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
 
+        // Size and position the window BEFORE Activate() so WinUI builds the initial surface
+        // at its final dimensions instead of resizing right after Activate() (resizing triggers
+        // Windows to rebuild the surface with the opaque theme color).
+        PositionAndSize();
+        UpdateShapeContentOffset();
+
         Activate();
         EnableDwmTransparency();
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
 
-        // Position & hit region after Activate() ensures window geometry is respected
+        // Ensure geometry/region is applied after Activate() without resizing unless Activate() shifted it
         PositionAndSize();
         UpdateHitRegion(open: false);
         UpdateShapeContentOffset();
@@ -1539,7 +1546,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
         }
-        if (rgn != nint.Zero) SetWindowRgn(_hwnd, rgn, false);
+        if (rgn != nint.Zero && !SetWindowRgn(_hwnd, rgn, false))
+        {
+            DeleteObject(rgn);
+        }
     }
 
     private static nint CreateNotchRegion(int left, int right, int bottom, int ear, int botR)
@@ -1715,6 +1725,9 @@ public sealed partial class WindowIslandWindow : Window
             presenter.IsAlwaysOnTop   = true;
         }
 
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(null);
+
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
 
         nint style = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
@@ -1761,6 +1774,9 @@ public sealed partial class WindowIslandWindow : Window
 
     private nint WindowIslandSubclass(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data)
     {
+        // Prevent GDI from painting the window class's opaque background brush into the
+        // redirection bitmap (which would otherwise leave an opaque white region behind DComp).
+        if (msg == WM_ERASEBKGND) return 1;
         if (msg == WM_MOUSEACTIVATE) return MA_NOACTIVATE;
         if (_clipboardSource?.HandleMessage(msg) == true)
         {
@@ -2311,8 +2327,15 @@ public sealed partial class WindowIslandWindow : Window
         // surface rebuild, and that rebuild is what loses the island's transparency.
         if (rect != _lastWindowRect)
         {
+            bool sizeChanged = _lastWindowRect.Width > 0 &&
+                (rect.Width != _lastWindowRect.Width || rect.Height != _lastWindowRect.Height);
             _lastWindowRect = rect;
             _appWindow?.MoveAndResize(rect);
+            if (_isVisible && sizeChanged)
+            {
+                EnableDwmTransparency();
+                this.SystemBackdrop = new AppLock.Views.TransparentBackdrop();
+            }
         }
     }
 
