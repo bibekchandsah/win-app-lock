@@ -11,6 +11,8 @@ namespace AppLock.Views;
 public sealed partial class WindowIslandSettingsPage : Page
 {
     private bool _loading = true;
+    private bool _updatingCustomColor;
+    private string _customIslandHex = "#1E293B";
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _diskSaveTimer;
 
     public WindowIslandSettingsPage()
@@ -67,7 +69,19 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(PositionBox, s.Position);
         SelectComboItem(ShapeBox, s.Shape);
         SelectComboItem(ThemeBox, s.Theme);
-        SelectComboItem(IslandColorBox, s.IslandColor);
+        if (!string.IsNullOrWhiteSpace(s.IslandColor) && s.IslandColor.StartsWith('#'))
+        {
+            if (TryParseHex6(s.IslandColor, out var customColor))
+            {
+                _customIslandHex = FormatHex(customColor);
+            }
+            SelectComboItem(IslandColorBox, "Custom");
+        }
+        else
+        {
+            SelectComboItem(IslandColorBox, s.IslandColor);
+        }
+        SyncCustomColorControls();
 
         SizeSlider.Minimum    = 60;
         SizeSlider.Maximum    = 150;
@@ -190,6 +204,104 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => Save();
 
+    private void OnIslandColorChanged(object sender, SelectionChangedEventArgs e)
+    {
+        SyncCustomColorControls();
+        Save();
+    }
+
+    private void IslandCustomColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+    {
+        if (_loading || _updatingCustomColor) return;
+        _updatingCustomColor = true;
+        try
+        {
+            _customIslandHex = FormatHex(args.NewColor);
+            if (IslandCustomColorSwatch != null)
+            {
+                IslandCustomColorSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(args.NewColor);
+            }
+            if (IslandCustomColorHexBox != null && IslandCustomColorHexBox.Text != _customIslandHex)
+            {
+                IslandCustomColorHexBox.Text = _customIslandHex;
+            }
+        }
+        finally
+        {
+            _updatingCustomColor = false;
+        }
+        Save(debounceDisk: true);
+    }
+
+    private void IslandCustomColorHexBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loading || _updatingCustomColor || IslandCustomColorHexBox == null) return;
+        if (!TryParseHex6(IslandCustomColorHexBox.Text, out var parsed)) return;
+
+        _updatingCustomColor = true;
+        try
+        {
+            _customIslandHex = FormatHex(parsed);
+            if (IslandCustomColorPicker != null) IslandCustomColorPicker.Color = parsed;
+            if (IslandCustomColorSwatch != null)
+            {
+                IslandCustomColorSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(parsed);
+            }
+        }
+        finally
+        {
+            _updatingCustomColor = false;
+        }
+        Save(debounceDisk: true);
+    }
+
+    private void SyncCustomColorControls()
+    {
+        bool isCustom = string.Equals(TagOf(IslandColorBox), "Custom", StringComparison.OrdinalIgnoreCase);
+        if (IslandCustomColorPanel != null)
+        {
+            IslandCustomColorPanel.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (!TryParseHex6(_customIslandHex, out var color))
+        {
+            color = Windows.UI.Color.FromArgb(255, 0x1E, 0x29, 0x3B);
+            _customIslandHex = FormatHex(color);
+        }
+
+        _updatingCustomColor = true;
+        try
+        {
+            if (IslandCustomColorPicker != null) IslandCustomColorPicker.Color = color;
+            if (IslandCustomColorSwatch != null)
+            {
+                IslandCustomColorSwatch.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+            }
+            if (IslandCustomColorHexBox != null) IslandCustomColorHexBox.Text = _customIslandHex;
+        }
+        finally
+        {
+            _updatingCustomColor = false;
+        }
+    }
+
+    private static string FormatHex(Windows.UI.Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    private static bool TryParseHex6(string? text, out Windows.UI.Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        string raw = text.Trim().TrimStart('#');
+        if (raw.Length != 6) return false;
+        if (byte.TryParse(raw[..2], System.Globalization.NumberStyles.HexNumber, null, out byte r) &&
+            byte.TryParse(raw[2..4], System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
+            byte.TryParse(raw[4..6], System.Globalization.NumberStyles.HexNumber, null, out byte b))
+        {
+            color = Windows.UI.Color.FromArgb(255, r, g, b);
+            return true;
+        }
+        return false;
+    }
+
     private void OnDefaultSearchEngineChanged(object sender, SelectionChangedEventArgs e)
     {
         if (CustomDefaultSearchUrlBox != null)
@@ -236,7 +348,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Position      = TagOf(PositionBox) ?? s.Position;
         s.Shape         = TagOf(ShapeBox)    ?? s.Shape;
         s.Theme         = TagOf(ThemeBox)    ?? s.Theme;
-        s.IslandColor   = TagOf(IslandColorBox) ?? s.IslandColor;
+        var colorTag    = TagOf(IslandColorBox);
+        s.IslandColor   = string.Equals(colorTag, "Custom", StringComparison.OrdinalIgnoreCase)
+            ? _customIslandHex
+            : (colorTag ?? s.IslandColor);
         s.SizePercent   = (int)SizeSlider.Value;
         s.OpacityPercent = (int)OpacitySlider.Value;
         s.YOffsetDip    = (int)YOffsetSlider.Value;

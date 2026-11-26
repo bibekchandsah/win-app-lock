@@ -190,17 +190,58 @@
                             <ComboBoxItem Content="Dark" Tag="Dark" />
                         </ComboBox>
 
-                        <ComboBox x:Name="IslandColorBox" Header="Island Color" SelectionChanged="OnSelectionChanged" Width="260">
-                            <ComboBoxItem Content="Default (Auto black/white)" Tag="Default" />
-                            <ComboBoxItem Content="Dark Navy" Tag="Navy" />
-                            <ComboBoxItem Content="Deep Indigo" Tag="Indigo" />
-                            <ComboBoxItem Content="Forest Green" Tag="Green" />
-                            <ComboBoxItem Content="Rich Maroon" Tag="Maroon" />
-                            <ComboBoxItem Content="Warm Brown" Tag="Brown" />
-                            <ComboBoxItem Content="Soft Cream" Tag="Cream" />
-                            <ComboBoxItem Content="Fresh Mint" Tag="Mint" />
-                            <ComboBoxItem Content="Gentle Lavender" Tag="Lavender" />
-                        </ComboBox>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox x:Name="IslandColorBox" Header="Island Color" SelectionChanged="OnIslandColorChanged" Width="260">
+                                <ComboBoxItem Content="Default (Auto black/white)" Tag="Default" />
+                                <ComboBoxItem Content="Dark Navy" Tag="Navy" />
+                                <ComboBoxItem Content="Deep Indigo" Tag="Indigo" />
+                                <ComboBoxItem Content="Forest Green" Tag="Green" />
+                                <ComboBoxItem Content="Rich Maroon" Tag="Maroon" />
+                                <ComboBoxItem Content="Warm Brown" Tag="Brown" />
+                                <ComboBoxItem Content="Soft Cream" Tag="Cream" />
+                                <ComboBoxItem Content="Fresh Mint" Tag="Mint" />
+                                <ComboBoxItem Content="Gentle Lavender" Tag="Lavender" />
+                                <ComboBoxItem Content="Custom color" Tag="Custom" />
+                            </ComboBox>
+
+                            <StackPanel x:Name="IslandCustomColorPanel"
+                                        Orientation="Horizontal"
+                                        Spacing="8"
+                                        VerticalAlignment="Bottom"
+                                        Visibility="Collapsed">
+                                <Button x:Name="IslandCustomColorButton"
+                                        Width="56" Height="32" Padding="3" CornerRadius="4"
+                                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                        AutomationProperties.Name="Pick custom island color"
+                                        ToolTipService.ToolTip="Pick a custom island color">
+                                    <Border x:Name="IslandCustomColorSwatch" CornerRadius="3"
+                                            BorderThickness="1"
+                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                            Background="#1E293B"/>
+                                    <Button.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedLeft">
+                                            <ColorPicker x:Name="IslandCustomColorPicker"
+                                                         Width="300"
+                                                         IsAlphaEnabled="False"
+                                                         IsAlphaSliderVisible="False"
+                                                         IsAlphaTextInputVisible="False"
+                                                         IsColorChannelTextInputVisible="False"
+                                                         IsHexInputVisible="True"
+                                                         IsMoreButtonVisible="False"
+                                                         ColorSpectrumShape="Box"
+                                                         ColorChanged="IslandCustomColorPicker_ColorChanged"/>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <TextBox x:Name="IslandCustomColorHexBox"
+                                         Width="96"
+                                         VerticalAlignment="Center"
+                                         FontFamily="Consolas"
+                                         PlaceholderText="#1E293B"
+                                         MaxLength="7"
+                                         TextChanged="IslandCustomColorHexBox_TextChanged"/>
+                            </StackPanel>
+                        </StackPanel>
 
                         <StackPanel Spacing="4">
                             <TextBlock Text="Size Scale" Opacity="0.7" FontSize="12"/>
