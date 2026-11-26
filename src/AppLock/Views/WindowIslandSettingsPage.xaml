@@ -352,6 +352,8 @@
                         <ToggleSwitch x:Name="ShowRamNotchToggle" Header="RAM usage on folded island" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="ShowDiskNotchToggle" Header="Disk usage on folded island" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="ShowGpuNotchToggle" Header="GPU usage on folded island" Toggled="OnSettingChanged" />
+                        <ToggleSwitch x:Name="ShowDownSpeedNotchToggle" Header="Download speed on folded island" Toggled="OnSettingChanged" />
+                        <ToggleSwitch x:Name="ShowUpSpeedNotchToggle" Header="Upload speed on folded island" Toggled="OnSettingChanged" />
                     </StackPanel>
 
                     <!-- ░░ Clock & Calendar ░░ -->

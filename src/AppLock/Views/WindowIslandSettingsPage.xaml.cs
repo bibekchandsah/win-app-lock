@@ -151,6 +151,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         ShowRamNotchToggle.IsOn   = s.ShowRamInNotch;
         ShowDiskNotchToggle.IsOn  = s.ShowDiskInNotch;
         ShowGpuNotchToggle.IsOn   = s.ShowGpuInNotch;
+        ShowDownSpeedNotchToggle.IsOn = s.ShowDownSpeedInNotch;
+        ShowUpSpeedNotchToggle.IsOn   = s.ShowUpSpeedInNotch;
         SelectComboItem(MediaPlayerStyleBox, s.MediaPlayerStyle);
         _mediaPillMode = string.IsNullOrWhiteSpace(s.MediaPillMode) ? "Usual" : s.MediaPillMode;
         UpdateMediaPillModeButtons();
@@ -483,6 +485,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.ShowRamInNotch        = ShowRamNotchToggle.IsOn;
         s.ShowDiskInNotch       = ShowDiskNotchToggle.IsOn;
         s.ShowGpuInNotch        = ShowGpuNotchToggle.IsOn;
+        s.ShowDownSpeedInNotch  = ShowDownSpeedNotchToggle.IsOn;
+        s.ShowUpSpeedInNotch    = ShowUpSpeedNotchToggle.IsOn;
         s.MicCamDotsEnabled     = s.MicDotEnabled || s.CamDotEnabled;
         s.MediaPlayerStyle      = TagOf(MediaPlayerStyleBox) ?? s.MediaPlayerStyle;
         s.MediaPillMode         = _mediaPillMode;

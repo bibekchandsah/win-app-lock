@@ -405,6 +405,16 @@
                     <TextBlock x:Name="FoldedGpuText" Text="0%" FontFamily="Segoe UI Variable Small" FontSize="11"
                                Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
                 </StackPanel>
+                <StackPanel x:Name="FoldedDownSpeedMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE896;" FontSize="10.5" Foreground="{ThemeResource IslandCyanAccent}" />
+                    <TextBlock x:Name="FoldedDownSpeedText" Text="0 KB/s" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel x:Name="FoldedUpSpeedMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE898;" FontSize="10.5" Foreground="{ThemeResource IslandGoldAccent}" />
+                    <TextBlock x:Name="FoldedUpSpeedText" Text="0 KB/s" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
 
                 <!-- Connected Bluetooth device battery pill(s) -->
                 <StackPanel x:Name="FoldedBtBatteryPanel"

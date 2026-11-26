@@ -1360,6 +1360,8 @@ public sealed partial class WindowIslandWindow : Window
         if (FoldedRamMini != null)  FoldedRamMini.Visibility  = _settings.ShowRamInNotch  ? Visibility.Visible : Visibility.Collapsed;
         if (FoldedDiskMini != null) FoldedDiskMini.Visibility = _settings.ShowDiskInNotch ? Visibility.Visible : Visibility.Collapsed;
         if (FoldedGpuMini != null)  FoldedGpuMini.Visibility  = _settings.ShowGpuInNotch  ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedDownSpeedMini != null) FoldedDownSpeedMini.Visibility = _settings.ShowDownSpeedInNotch ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedUpSpeedMini != null)   FoldedUpSpeedMini.Visibility   = _settings.ShowUpSpeedInNotch   ? Visibility.Visible : Visibility.Collapsed;
         _homeState?.SetTrackDiskGpu(_settings.ShowDiskInNotch, _settings.ShowGpuInNotch);
         UpdateDynamicFoldedWidth();
     }
@@ -3595,6 +3597,27 @@ public sealed partial class WindowIslandWindow : Window
                 FoldedDiskText.Text = $"{diskPct:F0}%";
             if (FoldedGpuText != null && _settings.ShowGpuInNotch && snap.GpuPercent is double gpuPct)
                 FoldedGpuText.Text = $"{gpuPct:F0}%";
+
+            bool speedChanged = false;
+            if (FoldedDownSpeedText != null && _settings.ShowDownSpeedInNotch)
+            {
+                string next = FormatSpeed(snap.DownBytesPerSec);
+                if (FoldedDownSpeedText.Text != next)
+                {
+                    speedChanged = FoldedDownSpeedText.Text.Length != next.Length;
+                    FoldedDownSpeedText.Text = next;
+                }
+            }
+            if (FoldedUpSpeedText != null && _settings.ShowUpSpeedInNotch)
+            {
+                string next = FormatSpeed(snap.UpBytesPerSec);
+                if (FoldedUpSpeedText.Text != next)
+                {
+                    speedChanged |= FoldedUpSpeedText.Text.Length != next.Length;
+                    FoldedUpSpeedText.Text = next;
+                }
+            }
+            if (speedChanged) UpdateDynamicFoldedWidth();
 
             // Network tile
             TileNetDown.Text = $"↓ {FormatSpeed(snap.DownBytesPerSec)}";
