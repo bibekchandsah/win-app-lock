@@ -84,6 +84,9 @@ public sealed class WindowIslandVisibilityService : IDisposable
     private static extern bool GetCursorPos(out POINT lpPoint);
 
     private readonly WindowIslandSettings _settings;
+    private readonly Func<(RECT IslandRect, RECT MonitorRect)>? _boundsProvider;
+    private readonly IntPtr _ownHwnd;
+    private readonly Func<bool>? _isInteracting;
 #pragma warning disable CS0649
     private readonly System.Timers.Timer? _evalTimer;
     private readonly System.Timers.Timer? _dwellTimer;
@@ -104,10 +107,17 @@ public sealed class WindowIslandVisibilityService : IDisposable
     /// Production constructor — pass a DispatcherQueue to marshal callbacks onto the UI thread.
     /// </summary>
 #if !TEST
-    public WindowIslandVisibilityService(WindowIslandSettings settings,
-        Microsoft.UI.Dispatching.DispatcherQueue? dq = null)
+    public WindowIslandVisibilityService(
+        WindowIslandSettings settings,
+        Microsoft.UI.Dispatching.DispatcherQueue? dq = null,
+        Func<(RECT IslandRect, RECT MonitorRect)>? boundsProvider = null,
+        IntPtr ownHwnd = default,
+        Func<bool>? isInteracting = null)
     {
         _settings = settings;
+        _boundsProvider = boundsProvider;
+        _ownHwnd = ownHwnd;
+        _isInteracting = isInteracting;
 
         if (dq != null)
         {
@@ -116,7 +126,7 @@ public sealed class WindowIslandVisibilityService : IDisposable
             _evalTimer.Elapsed += (_, _) => dq.TryEnqueue(() => EvaluateState());
             _evalTimer.AutoReset = true;
 
-            // 30 Hz cursor-dwell poll — only runs while hidden
+            // 30 Hz cursor-dwell poll — runs while hidden (and while edge-dwell revealed so it re-hides when cursor leaves)
             _dwellTimer          = new System.Timers.Timer(33);
             _dwellTimer.Elapsed += (_, _) => dq.TryEnqueue(() => OnDwellTimerTick());
             _dwellTimer.AutoReset = true;
@@ -179,10 +189,13 @@ public sealed class WindowIslandVisibilityService : IDisposable
             return new VisibilityEvaluation(false, "TemporaryReveal");
         }
 
-        // 2. Edge dwell brings the island out over full-screen apps or auto-hide
+        // 2. Edge dwell brings the island out over auto-hide (and over full-screen apps when EdgeDwellEnabled)
         if (ctx.IsEdgeDwellActive)
         {
-            return new VisibilityEvaluation(false, "EdgeDwell");
+            if (!(settings.HideInFullScreen && ctx.IsFullScreen) || settings.EdgeDwellEnabled)
+            {
+                return new VisibilityEvaluation(false, "EdgeDwell");
+            }
         }
 
         // 3. Full-screen app rule
@@ -208,8 +221,8 @@ public sealed class WindowIslandVisibilityService : IDisposable
             }
         }
 
-        // 5. Auto-hide rules
-        if (settings.AutoHide)
+        // 5. Auto-hide rules (also allow "Hide only while overlapped" to work standalone)
+        if (settings.AutoHide || settings.AutoHideOnlyWhenOverlapped)
         {
             // Stay in sight on desktop if enabled
             if (settings.AutoHideStayOnDesktop && ctx.IsDesktop)
@@ -266,6 +279,17 @@ public sealed class WindowIslandVisibilityService : IDisposable
             _temporaryRevealActive = false;
         }
 
+        if ((!currentIslandScreenRect.HasValue || !currentMonitorRect.HasValue) && _boundsProvider != null)
+        {
+            try
+            {
+                var (ir, mr) = _boundsProvider();
+                currentIslandScreenRect ??= ir;
+                currentMonitorRect ??= mr;
+            }
+            catch { }
+        }
+
         var ctx = GatherLiveContext(currentIslandScreenRect, currentMonitorRect);
         ctx.IsTemporaryRevealActive = _temporaryRevealActive;
         ctx.IsEdgeDwellActive = _edgeDwellTriggered;
@@ -277,14 +301,12 @@ public sealed class WindowIslandVisibilityService : IDisposable
         {
             _isCurrentlyHidden = shouldHide;
 
-            if (_isCurrentlyHidden)
+            bool canDwellReveal = _settings.EdgeDwellEnabled || _settings.AutoHide || _settings.AutoHideOnlyWhenOverlapped;
+            if ((_isCurrentlyHidden || _edgeDwellTriggered) && canDwellReveal)
             {
-                // Start 30 Hz dwell timer while hidden
-                if (_settings.EdgeDwellEnabled)
-                {
-                    _dwellStopwatch.Reset();
-                    _dwellTimer?.Start();
-                }
+                // Start 30 Hz dwell timer while hidden (or while edge-dwell revealed so we detect leaving)
+                _dwellStopwatch.Reset();
+                _dwellTimer?.Start();
             }
             else
             {
@@ -310,7 +332,7 @@ public sealed class WindowIslandVisibilityService : IDisposable
 
         // 2. Foreground window inspection
         var fg = GetForegroundWindow();
-        if (fg != IntPtr.Zero)
+        if (fg != IntPtr.Zero && fg != _ownHwnd)
         {
             var sb = new StringBuilder(128);
             GetClassName(fg, sb, sb.Capacity);
@@ -354,36 +376,68 @@ public sealed class WindowIslandVisibilityService : IDisposable
 
     private void OnDwellTimerTick()
     {
-        if (!_isCurrentlyHidden || !_settings.EdgeDwellEnabled)
+        bool canDwellReveal = _settings.EdgeDwellEnabled || _settings.AutoHide || _settings.AutoHideOnlyWhenOverlapped;
+        if (!canDwellReveal)
+        {
+            _edgeDwellTriggered = false;
+            _dwellTimer?.Stop();
+            _dwellStopwatch.Reset();
+            return;
+        }
+
+        if (!GetCursorPos(out var pt)) return;
+
+        int topEdge = 2;
+        int leaveBottom = 60;
+        if (_boundsProvider != null)
+        {
+            try
+            {
+                var (ir, mr) = _boundsProvider();
+                topEdge = mr.Top + 4;
+                leaveBottom = Math.Max(ir.Bottom + 24, mr.Top + 60);
+            }
+            catch { }
+        }
+
+        if (_edgeDwellTriggered)
+        {
+            if (_isInteracting?.Invoke() == true) return;
+            if (pt.Y > leaveBottom)
+            {
+                _edgeDwellTriggered = false;
+                _dwellStopwatch.Reset();
+                EvaluateState();
+            }
+            return;
+        }
+
+        if (!_isCurrentlyHidden)
         {
             _dwellTimer?.Stop();
             _dwellStopwatch.Reset();
             return;
         }
 
-        if (GetCursorPos(out var pt))
+        // Cursor at top edge of target monitor
+        if (pt.Y <= topEdge)
         {
-            // Cursor at top edge of any monitor (Y <= 2)
-            if (pt.Y <= 2)
+            if (!_dwellStopwatch.IsRunning)
             {
-                if (!_dwellStopwatch.IsRunning)
-                {
-                    _dwellStopwatch.Restart();
-                }
-                else if (_dwellStopwatch.ElapsedMilliseconds >= _settings.EdgeDwellMs)
-                {
-                    _edgeDwellTriggered = true;
-                    _dwellStopwatch.Reset();
-                    _dwellTimer?.Stop();
-                    EdgeDwellTriggered?.Invoke();
-                    EvaluateState();
-                }
+                _dwellStopwatch.Restart();
             }
-            else
+            else if (_dwellStopwatch.ElapsedMilliseconds >= _settings.EdgeDwellMs)
             {
-                // Cursor moved away from top edge
+                _edgeDwellTriggered = true;
                 _dwellStopwatch.Reset();
+                EdgeDwellTriggered?.Invoke();
+                EvaluateState();
             }
+        }
+        else
+        {
+            // Cursor moved away from top edge
+            _dwellStopwatch.Reset();
         }
     }
 }

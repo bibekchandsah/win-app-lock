@@ -594,7 +594,7 @@ public sealed partial class WindowIslandWindow : Window
 
         // Milestone 15: start visibility service
         _visibilityService?.Dispose();
-        _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue);
+        _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue, GetVisibilityBounds, _hwnd, IsIslandInteracting);
         _visibilityService.VisibilityChanged += OnIslandVisibilityChanged;
         _visibilityService.EdgeDwellTriggered += OnEdgeDwellTriggered;
         _visibilityService.Start();
@@ -643,7 +643,8 @@ public sealed partial class WindowIslandWindow : Window
             _visibilityService.VisibilityChanged  -= OnIslandVisibilityChanged;
             _visibilityService.EdgeDwellTriggered -= OnEdgeDwellTriggered;
             _visibilityService.Dispose();
-            _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue);
+            SlideIslandOnScreen();
+            _visibilityService = new WindowIslandVisibilityService(_settings, DispatcherQueue, GetVisibilityBounds, _hwnd, IsIslandInteracting);
             _visibilityService.VisibilityChanged  += OnIslandVisibilityChanged;
             _visibilityService.EdgeDwellTriggered += OnEdgeDwellTriggered;
             _visibilityService.Start();
@@ -11015,30 +11016,56 @@ public sealed partial class WindowIslandWindow : Window
         });
     }
 
+    private bool IsIslandInteracting()
+        => _hoverInside || _compositor?.IsOpen == true || _compositor?.IsCommand == true || _compositor?.IsCard == true;
+
     private void OnEdgeDwellTriggered()
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            _visibilityService?.ResetEdgeDwell();
             SlideIslandOnScreen();
         });
+    }
+
+    private (AppLock.WindowIsland.Services.RECT IslandRect, AppLock.WindowIsland.Services.RECT MonitorRect) GetVisibilityBounds()
+    {
+        var area = WindowIslandPositioner.GetTargetDisplayArea(_appWindow, _settings);
+        var mon = area.OuterBounds;
+        double scale = _scale > 0 ? _scale : 1.0;
+        float factor = (float)(_settings.SizePercent / 100.0);
+
+        float widthDip = _compositor?.IsCommand == true
+            ? IslandMotion.CommandBarSize.W
+            : (_compositor?.IsOpen == true
+                ? IslandMotion.TabSize(_activeTab).W
+                : (_compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip));
+        float heightDip = _compositor?.IsCommand == true
+            ? IslandMotion.CommandBarSize.H
+            : (_compositor?.IsOpen == true
+                ? IslandMotion.TabSize(_activeTab).H
+                : WindowIslandCompositor.FoldedHeightDip);
+
+        int wPx = (int)Math.Round(widthDip * factor * scale);
+        int hPx = (int)Math.Round(heightDip * factor * scale);
+        int leftPx = _windowX + Math.Max(0, (_windowWidthPx - wPx) / 2);
+        int topPx = _windowY;
+
+        var islandRect = new AppLock.WindowIsland.Services.RECT(leftPx, topPx, leftPx + wPx, topPx + hPx);
+        var monitorRect = new AppLock.WindowIsland.Services.RECT(mon.X, mon.Y, mon.X + mon.Width, mon.Y + mon.Height);
+        return (islandRect, monitorRect);
     }
 
     private void SlideIslandOffScreen()
     {
         if (_appWindow == null) return;
         // Move window above top edge so it is off-screen but still live
-        var rect = new Windows.Graphics.RectInt32(
-            _windowX,
-            _windowY - _windowHeightPx - 10,
-            _windowWidthPx,
-            _windowHeightPx);
-        _appWindow.MoveAndResize(rect);
+        _appWindow.Move(new Windows.Graphics.PointInt32(_windowX, _windowY - _windowHeightPx - 10));
     }
 
     private void SlideIslandOnScreen()
     {
-        // PositionAndSize restores the canonical on-screen position
+        if (_appWindow == null) return;
+        _appWindow.Move(new Windows.Graphics.PointInt32(_windowX, _windowY));
         PositionAndSize();
     }
 }
