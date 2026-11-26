@@ -2993,6 +2993,7 @@ public sealed partial class WindowIslandWindow : Window
     private void RecentChevron_Click(object sender, RoutedEventArgs e) => SwitchTab(1);
 
     private const int HomeRecentCount = 4;
+    private string _lastHomeRecentSignature = string.Empty;
 
     /// <summary>
     /// Fills the Home tab's RECENTLY COPIED rows from the same clipboard history list. Each row is a
@@ -3002,9 +3003,17 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
+            int count = Math.Min(rows.Count, HomeRecentCount);
+            string sig = string.Join("|", rows.Take(count).Select(r => $"{r.Id}:{r.Thumb}:{r.Preview}"));
+            if (string.Equals(sig, _lastHomeRecentSignature, StringComparison.Ordinal) &&
+                RecentList.Children.Count == count)
+            {
+                return;
+            }
+            _lastHomeRecentSignature = sig;
+
             RecentList.Children.Clear();
 
-            int count = Math.Min(rows.Count, HomeRecentCount);
             for (int i = 0; i < count; i++)
             {
                 RecentList.Children.Add(BuildRecentRow(rows[i]));
@@ -3068,7 +3077,7 @@ public sealed partial class WindowIslandWindow : Window
                     badge.Width = 40;
                     badge.Background = new ImageBrush
                     {
-                        ImageSource = new BitmapImage(new Uri(thumbPath)),
+                        ImageSource = GetCachedThumbBitmap(thumbPath),
                         Stretch = Stretch.UniformToFill
                     };
                 }
@@ -3906,12 +3915,22 @@ public sealed partial class WindowIslandWindow : Window
 
     private IReadOnlyList<AppLock.Island.Modules.ClipboardRow> _currentClipboardRows = Array.Empty<AppLock.Island.Modules.ClipboardRow>();
     private int _selectedClipboardIndex = 0;
+    private readonly Dictionary<string, BitmapImage> _clipboardThumbCache = new(StringComparer.OrdinalIgnoreCase);
 
     private void NavigateClipboardSelection(int delta)
     {
         if (_currentClipboardRows.Count == 0) return;
         _selectedClipboardIndex = Math.Clamp(_selectedClipboardIndex + delta, 0, _currentClipboardRows.Count - 1);
-        UpdateClipboardSelection();
+        UpdateClipboardSelection(scrollIntoView: true);
+    }
+
+    private void ClipboardScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (ClipboardScrollViewer == null || ClipboardScrollViewer.ScrollableHeight <= 0) return;
+        if (ClipboardScrollViewer.VerticalOffset >= ClipboardScrollViewer.ScrollableHeight - 80)
+        {
+            _clipboardState?.LoadMoreIfNeeded(_currentClipboardRows.Count);
+        }
     }
 
     private async void PasteSelectedClipboardItem()
@@ -3985,16 +4004,80 @@ public sealed partial class WindowIslandWindow : Window
         _clipboardClearConfirmTimer.Start();
     }
 
+    private BitmapImage GetCachedThumbBitmap(string imagePath)
+    {
+        if (!_clipboardThumbCache.TryGetValue(imagePath, out var bmp))
+        {
+            bmp = new BitmapImage(new Uri(imagePath))
+            {
+                DecodePixelHeight = 96
+            };
+            if (_clipboardThumbCache.Count > 120) _clipboardThumbCache.Clear();
+            _clipboardThumbCache[imagePath] = bmp;
+        }
+        return bmp;
+    }
+
+    private static bool AreClipboardRowsEqual(
+        IReadOnlyList<AppLock.Island.Modules.ClipboardRow> a,
+        IReadOnlyList<AppLock.Island.Modules.ClipboardRow> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!string.Equals(a[i].Id, b[i].Id, StringComparison.Ordinal) ||
+                a[i].Pinned != b[i].Pinned ||
+                !string.Equals(a[i].Thumb, b[i].Thumb, StringComparison.Ordinal) ||
+                !string.Equals(a[i].Preview, b[i].Preview, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void OnClipboardItemsLoaded(IReadOnlyList<AppLock.Island.Modules.ClipboardRow> rows)
     {
+        var previousRows = _currentClipboardRows;
+        UpdateHomeRecents(rows);
+
+        if (previousRows.Count > 0 &&
+            ClipboardList.Children.Count == previousRows.Count &&
+            AreClipboardRowsEqual(previousRows, rows))
+        {
+            _currentClipboardRows = rows;
+            return;
+        }
+
+        bool isAppendOnly = previousRows.Count > 0 && rows.Count > previousRows.Count && ClipboardList.Children.Count == previousRows.Count;
+        if (isAppendOnly)
+        {
+            for (int i = 0; i < previousRows.Count; i++)
+            {
+                if (!string.Equals(previousRows[i].Id, rows[i].Id, StringComparison.Ordinal))
+                {
+                    isAppendOnly = false;
+                    break;
+                }
+            }
+        }
+
         _currentClipboardRows = rows;
         if (_selectedClipboardIndex >= rows.Count)
         {
             _selectedClipboardIndex = Math.Max(0, rows.Count - 1);
         }
 
+        if (isAppendOnly)
+        {
+            for (int i = previousRows.Count; i < rows.Count; i++)
+            {
+                ClipboardList.Children.Add(BuildClipboardRow(rows[i], i));
+            }
+            return;
+        }
+
         ClipboardList.Children.Clear();
-        UpdateHomeRecents(rows);
 
         if (rows.Count == 0)
         {
@@ -4017,7 +4100,7 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
-    private void UpdateClipboardSelection()
+    private void UpdateClipboardSelection(bool scrollIntoView = false)
     {
         var accentBrush = new SolidColorBrush(GetSystemAccentColor());
         var normalBg = new SolidColorBrush(AdaptiveSurfaceColor(20));
@@ -4031,9 +4114,8 @@ public sealed partial class WindowIslandWindow : Window
                 bool sel = (i == _selectedClipboardIndex);
                 b.Background = sel ? selectedBg : normalBg;
                 b.BorderBrush = sel ? accentBrush : normalBorder;
-                b.BorderThickness = new Thickness(sel ? 1.5 : 1);
 
-                if (sel)
+                if (sel && scrollIntoView)
                 {
                     b.StartBringIntoView();
                 }
@@ -4049,20 +4131,23 @@ public sealed partial class WindowIslandWindow : Window
         var selectedBg = new SolidColorBrush(AdaptiveSurfaceColor(40));
         var normalBorder = new SolidColorBrush(AdaptiveSurfaceColor(15));
 
-        // Outer border button with comfortable sizing
+        // Outer border button with comfortable sizing (constant BorderThickness prevents layout reflow flicker)
         var border = new Border
         {
             Background = isSelected ? selectedBg : normalBg,
             BorderBrush = isSelected ? accentBrush : normalBorder,
-            BorderThickness = new Thickness(isSelected ? 1.5 : 1),
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 5, 8, 5),
             Tag = index
         };
         border.PointerEntered  += (s, _) =>
         {
-            _selectedClipboardIndex = index;
-            UpdateClipboardSelection();
+            if (_selectedClipboardIndex != index)
+            {
+                _selectedClipboardIndex = index;
+                UpdateClipboardSelection(scrollIntoView: false);
+            }
         };
         border.PointerExited   += (s, _) =>
         {
@@ -4115,10 +4200,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 try
                 {
-                    var bmp = new BitmapImage(new Uri(imagePath))
-                    {
-                        DecodePixelHeight = 96
-                    };
+                    var bmp = GetCachedThumbBitmap(imagePath);
                     var img = new Image
                     {
                         Source = bmp,
@@ -10661,7 +10743,7 @@ public sealed partial class WindowIslandWindow : Window
         _currentQrText = text;
         try
         {
-            var visual = WifiQrCode.CreateVisual(text, 140);
+            var visual = WifiQrCode.CreateVisual(text, 108);
             TextQrContainer.Child = visual;
             TextQrPreviewText.Text = text.Length <= 40 ? text : text[..40] + "…";
             TextQrCopyText.Text = "Copy Image";
@@ -10827,9 +10909,12 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            var target = _previousForegroundWindow != nint.Zero ? _previousForegroundWindow : GetForegroundWindow();
+            var target = _previousForegroundWindow != nint.Zero
+                ? _previousForegroundWindow
+                : (_pasteTargetWindow != nint.Zero ? _pasteTargetWindow : GetForegroundWindow());
+            if (target == _hwnd) target = nint.Zero;
             Collapse();
-            await Task.Delay(180);
+            await Task.Delay(Math.Max(220, EffectiveCloseAnimMs));
             await WindowIslandTextManager.TriggerDictationAsync(target);
         }
         catch { }

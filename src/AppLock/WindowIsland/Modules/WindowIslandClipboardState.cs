@@ -15,9 +15,12 @@ namespace AppLock.WindowIsland.Modules;
 /// </summary>
 public sealed class WindowIslandClipboardState : IDisposable
 {
+    private const int PageSize = 60;
     private readonly IslandClipboardTab _tab = new();
     private readonly DispatcherQueue    _dq;
     private string? _lastSearch;
+    private int _currentLimit = PageSize;
+    private bool _loadingMore;
 
     public event Action<IReadOnlyList<ClipboardRow>>? ItemsLoaded;
 
@@ -38,19 +41,34 @@ public sealed class WindowIslandClipboardState : IDisposable
 
     public void Refresh(string? search = null)
     {
+        if (!string.Equals(_lastSearch, search, StringComparison.Ordinal))
+        {
+            _currentLimit = PageSize;
+        }
         _lastSearch = search;
+        int limit = _currentLimit;
         _ = Task.Run(async () =>
         {
             try
             {
-                var rows = await _tab.ListAsync(search);
+                var rows = await _tab.ListAsync(search, limit);
+                _loadingMore = false;
                 _dq.TryEnqueue(() => ItemsLoaded?.Invoke(rows));
             }
             catch (Exception ex)
             {
+                _loadingMore = false;
                 Debug.WriteLine($"[WindowIsland] clipboard refresh failed: {ex.Message}");
             }
         });
+    }
+
+    public void LoadMoreIfNeeded(int currentCount)
+    {
+        if (_loadingMore || currentCount < _currentLimit) return;
+        _loadingMore = true;
+        _currentLimit += PageSize;
+        Refresh(_lastSearch);
     }
 
     public Task<bool> PasteAsync(string id, bool copyOnly, nint targetWindow = 0)

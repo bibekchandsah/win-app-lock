@@ -1504,9 +1504,11 @@
                         </Grid>
 
                         <!-- Item list -->
-                        <ScrollViewer Grid.Row="1"
+                        <ScrollViewer x:Name="ClipboardScrollViewer"
+                                      Grid.Row="1"
                                       VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      ViewChanged="ClipboardScrollViewer_ViewChanged">
                             <StackPanel x:Name="ClipboardList" Spacing="3" />
                         </ScrollViewer>
 
@@ -1800,11 +1802,14 @@
                                     BorderBrush="{ThemeResource IslandBorderStrong}"
                                     BorderThickness="1"
                                     CornerRadius="10"
-                                    Padding="14,10"
+                                    Padding="12,8"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    MaxWidth="380">
-                                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    MaxWidth="380"
+                                    MaxHeight="248">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Spacing="6" HorizontalAlignment="Center">
                                     <!-- Header with Title and Close Button -->
                                     <Grid Width="220">
                                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -1827,7 +1832,7 @@
                                     <Border x:Name="TextQrContainer"
                                             Background="{ThemeResource IslandPlayBtnBg}"
                                             CornerRadius="8"
-                                            Padding="10"
+                                            Padding="8"
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center">
                                         <!-- QR Code Visual inserted dynamically -->
@@ -1869,6 +1874,7 @@
                                         </Button>
                                     </StackPanel>
                                 </StackPanel>
+                                </ScrollViewer>
                             </Border>
                         </Grid>
                     </Grid>

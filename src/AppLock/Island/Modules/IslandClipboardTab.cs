@@ -35,12 +35,12 @@ public sealed class IslandClipboardTab
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
-    public async Task<IReadOnlyList<ClipboardRow>> ListAsync(string? search)
+    public async Task<IReadOnlyList<ClipboardRow>> ListAsync(string? search, int limit = Limit)
     {
         try
         {
             List<ClipboardItem> items = await ServiceContainer.ClipboardStore.GetItemsAsync(
-                Limit, "All", string.IsNullOrWhiteSpace(search) ? null : search);
+                Math.Max(1, limit), "All", string.IsNullOrWhiteSpace(search) ? null : search);
 
             return items.Select(ToRow).ToList();
         }

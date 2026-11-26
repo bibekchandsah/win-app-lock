@@ -491,23 +491,24 @@ fixed - speaker/microphone changed notification
 fixed - command navigation
 fixed - custom color theme 
 fixed - separate toggle setting for microphone & camera in notch indicators "mic / camera indicator dots on folded island"
-setting page optimization with description 
-theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
-visibility page toggles settings aren't working 
-The player on Home:
+fixed - The player on Home:
      add these option in "media & lyrics" tab of setting
     "Soft mirror": the cover/album in the middle, its blurred reflection at the sides. 
     "Fill": the whole player in the cover/album's colours. 
     "Compact": we have already implemented
-when pin open icon is enabled then window accent effect 
-in clipboard tab copied image is flickered and when user scrolls down show more clipboard items, it's not showing all when scrolled down 
-in text tab dictation isn't opened (win + h) and show qr code a bit smaller or make it scrollable below buttons aren't visible
+fixed - when pin open icon is enabled then window accent effect 
+fixed - in clipboard tab copied image is flickered and when user scrolls down show more clipboard items, it's not showing all when scrolled down 
+fixed - in text tab dictation isn't opened (win + h) and show qr code a bit smaller or make it scrollable below buttons aren't visible
+setting page optimization with description 
+theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
+visibility page toggles settings aren't working 
 optimize ai buttons for light mode 
 in note show saved status icon before "+" icon in window accent color if status is saved and make the bold, italic, underline row scrollable
 when note is saved blank next time it shows with text cursor in next line
 when remove highlight is used then it shows black background on text 
 Reminders understand a date in words ("November 19 at 4 pm"), for a day of the week they offer this one, the next one or every week, and the time read can be moved by a day or 15 minutes with buttons.
 in weather tab of left side card of right side "down arrow" isn't working
+screenshot folder 
 
 
 the pills while music plays 
@@ -515,7 +516,6 @@ through mode
 the song's words
 the words in the player on home
 downloads on live cards
-screenshot folder 
 
 
 
