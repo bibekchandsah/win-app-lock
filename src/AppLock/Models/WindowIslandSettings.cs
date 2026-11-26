@@ -57,13 +57,18 @@ public sealed class WindowIslandSettings
     public int YOffsetDip { get; set; } = 0;
 
     // ── Milestone 4: Live Card Settings ───────────────────────────────────────
-    /// <summary>Card stay duration: "Shorter" (2000ms), "Usual" (3500ms), "Longer" (6000ms).</summary>
+    /// <summary>Card stay duration: "1s" (1000ms), "Shorter" (2000ms), "Usual" (3500ms), "Longer" (6000ms), "Custom".</summary>
     public string CardStayDuration { get; set; } = "Usual";
+
+    /// <summary>Custom card stay duration in milliseconds when CardStayDuration is "Custom" (500..30000 ms).</summary>
+    public int CardStayCustomMs { get; set; } = 4000;
 
     public int GetCardStayMs() => CardStayDuration switch
     {
+        "1s"      => 1000,
         "Shorter" => 2000,
         "Longer"  => 6000,
+        "Custom"  => Math.Clamp(CardStayCustomMs > 0 ? CardStayCustomMs : 4000, 500, 30000),
         _         => 3500
     };
 

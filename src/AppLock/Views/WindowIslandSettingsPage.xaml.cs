@@ -364,6 +364,12 @@ public sealed partial class WindowIslandSettingsPage : Page
         UpdateMediaPillModeButtons();
         LyricsToggle.IsOn         = s.LyricsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
+        double customSec = Math.Clamp((s.CardStayCustomMs > 0 ? s.CardStayCustomMs : 4000) / 1000.0, 0.5, 30.0);
+        CardStayCustomSlider.Value = customSec;
+        CardStayCustomLabel.Text = $"Custom duration: {customSec:0.0} s";
+        CardStayCustomPanel.Visibility = string.Equals(s.CardStayDuration, "Custom", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         WeatherCityBox.Text = s.WeatherCity;
         WeatherCityStatus.Text = string.IsNullOrEmpty(s.WeatherCity) ? "No city configured (Weather tab is dormant)" : $"Saved: {s.WeatherCity} ({s.WeatherLatitude:F2}, {s.WeatherLongitude:F2})";
@@ -573,6 +579,26 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnCheckChanged(object sender, RoutedEventArgs e) => Save();
 
+    private void OnCardStaySelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CardStayCustomPanel != null)
+        {
+            CardStayCustomPanel.Visibility = string.Equals(TagOf(CardStayBox), "Custom", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        Save();
+    }
+
+    private void OnCardStayCustomSliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (CardStayCustomLabel != null)
+        {
+            CardStayCustomLabel.Text = $"Custom duration: {e.NewValue:0.0} s";
+        }
+        Save(debounceDisk: true);
+    }
+
     private void OnMediaPillModeClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is string tag)
@@ -684,6 +710,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardDownloadsEnabled  = CardDownloadsToggle.IsOn;
         s.CardFileCopyEnabled   = CardFileCopyToggle.IsOn;
         s.CardStayDuration      = TagOf(CardStayBox) ?? s.CardStayDuration;
+        s.CardStayCustomMs      = (int)Math.Round(Math.Clamp(CardStayCustomSlider?.Value ?? 4.0, 0.5, 30.0) * 1000.0);
         s.CardVpnEnabled        = CardVpnToggle.IsOn;
         s.CardBatteryLowEnabled = CardBatteryLowToggle.IsOn;
         s.CardChargingEnabled   = CardChargingToggle.IsOn;

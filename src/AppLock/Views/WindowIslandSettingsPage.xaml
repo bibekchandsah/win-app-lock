@@ -456,11 +456,24 @@
                         <ToggleSwitch x:Name="CardMicToggle" Header="Microphone usage detected" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardCamToggle" Header="Camera usage detected" Toggled="OnSettingChanged" />
 
-                        <ComboBox x:Name="CardStayBox" Header="Card display duration" SelectionChanged="OnSelectionChanged" Width="260">
+                        <ComboBox x:Name="CardStayBox" Header="Card display duration" SelectionChanged="OnCardStaySelectionChanged" Width="260">
+                            <ComboBoxItem Content="Brief (1.0s)" Tag="1s" />
                             <ComboBoxItem Content="Shorter (2.0s)" Tag="Shorter" />
                             <ComboBoxItem Content="Usual (3.5s)" Tag="Usual" />
                             <ComboBoxItem Content="Longer (6.0s)" Tag="Longer" />
+                            <ComboBoxItem Content="Custom" Tag="Custom" />
                         </ComboBox>
+                        <StackPanel x:Name="CardStayCustomPanel" Spacing="4" Visibility="Collapsed" Margin="0,2,0,0">
+                            <TextBlock x:Name="CardStayCustomLabel" Text="Custom duration: 4.0 s" FontSize="12" Opacity="0.8" />
+                            <Slider x:Name="CardStayCustomSlider"
+                                    Minimum="0.5"
+                                    Maximum="30"
+                                    StepFrequency="0.5"
+                                    TickFrequency="5"
+                                    Width="260"
+                                    HorizontalAlignment="Left"
+                                    ValueChanged="OnCardStayCustomSliderChanged" />
+                        </StackPanel>
 
                         <!-- Windows Notifications — unavailable without package identity -->
                         <StackPanel Spacing="4" Opacity="0.55">
