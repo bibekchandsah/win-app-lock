@@ -513,8 +513,6 @@ setting page optimization with description
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 
-the song's words
-the words in the player on home
 downloads on live cards
 
 

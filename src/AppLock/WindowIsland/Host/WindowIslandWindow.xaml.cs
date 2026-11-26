@@ -228,6 +228,8 @@ public sealed partial class WindowIslandWindow : Window
     private string _lyricsKey = string.Empty;
     private LyricsResult? _currentLyrics;
     private int _lastMiniLyricIndex = -2;
+    private readonly List<TextBlock> _homeLyricBlocks = new();
+    private int _lastHomeLyricIndex = -2;
     private string _lastMediaTitle = string.Empty;
     private string _lastMediaArtist = string.Empty;
     private double _lastMediaPositionSeconds;
@@ -2502,6 +2504,7 @@ public sealed partial class WindowIslandWindow : Window
                 _lastMediaArtist = string.Empty;
                 _lastMediaPositionSeconds = 0;
                 UpdateFoldedMediaPillMode();
+            UpdateHomeLyricsSync(animate: true);
                 MediaArtFallback.Visibility = Visibility.Collapsed;
                 _lastMediaArtPath = null;
                 ResetMediaCardAppearance();
@@ -2543,14 +2546,15 @@ public sealed partial class WindowIslandWindow : Window
                 double ratio = Math.Clamp(snap.PositionSeconds / snap.DurationSeconds, 0, 1);
                 MediaProgress.Value = ratio;
                 MediaProgress.Visibility = Visibility.Visible;
-                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Value = ratio;
-                if (MiniProgressBar != null) MiniProgressBar.Value = ratio;
+                if (FoldedTrackProgressScale != null) FoldedTrackProgressScale.ScaleX = ratio;
+                if (MiniProgressScale != null) MiniProgressScale.ScaleX = ratio;
                 if (MiniSeekArea != null) MiniSeekArea.Visibility = Visibility.Visible;
             }
             else
             {
                 MediaProgress.Visibility = Visibility.Collapsed;
-                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Value = 0;
+                if (FoldedTrackProgressScale != null) FoldedTrackProgressScale.ScaleX = 0;
+                if (MiniProgressScale != null) MiniProgressScale.ScaleX = 0;
                 if (MiniSeekArea != null) MiniSeekArea.Visibility = Visibility.Collapsed;
             }
 
@@ -2631,7 +2635,7 @@ public sealed partial class WindowIslandWindow : Window
                 if (MiniEqBar2 != null) MiniEqBar2.Background = eqBrush;
                 if (MiniEqBar3 != null) MiniEqBar3.Background = eqBrush;
                 if (MiniArtFallback != null) MiniArtFallback.Foreground = eqBrush;
-                if (MiniProgressBar != null) MiniProgressBar.Foreground = eqBrush;
+                if (MiniProgressFill != null) MiniProgressFill.Background = eqBrush;
                 StartEqTimer();
             }
             else
@@ -2645,6 +2649,7 @@ public sealed partial class WindowIslandWindow : Window
                 UpdateFoldedWeatherMini();
             }
             UpdateFoldedMediaPillMode();
+            UpdateHomeLyricsSync(animate: true);
 
             // Lyrics follow the track: fetched once per title/artist pair.
             _ = UpdateLyricsAsync(snap);
@@ -2986,11 +2991,35 @@ public sealed partial class WindowIslandWindow : Window
         {
             _currentLyrics = lyrics;
             _lastMiniLyricIndex = -2;
+            _lastHomeLyricIndex = -2;
+            _homeLyricBlocks.Clear();
             StopLyricsDragScroll();
             LyricsStack.Children.Clear();
 
+            var synced = lyrics?.SyncedLines ?? Array.Empty<SyncedLyricLine>();
             var lines = lyrics?.Lines ?? Array.Empty<string>();
-            if (lines.Count > 0)
+            if (synced.Count > 0)
+            {
+                var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(200));
+                foreach (var sl in synced)
+                {
+                    var lineTb = new TextBlock
+                    {
+                        Text = sl.Text,
+                        FontSize = 11.5,
+                        LineHeight = 17,
+                        TextWrapping = TextWrapping.Wrap,
+                        Opacity = 0.42,
+                        Margin = new Thickness(0, 1, 0, 1),
+                        Foreground = secondaryBrush
+                    };
+                    double ts = sl.TimeSeconds;
+                    lineTb.Tapped += (_, _) => _ = _homeState?.SeekMediaAsync(ts);
+                    _homeLyricBlocks.Add(lineTb);
+                    LyricsStack.Children.Add(lineTb);
+                }
+            }
+            else if (lines.Count > 0)
             {
                 var tb = new TextBlock
                 {
@@ -3063,8 +3092,67 @@ public sealed partial class WindowIslandWindow : Window
             // spans the whole width again.
             Grid.SetColumnSpan(MediaCard, show ? 1 : 2);
             UpdateFoldedMediaPillMode();
+            UpdateHomeLyricsSync(animate: false);
         }
         catch (Exception ex) { WindowIslandHost.Log("ShowLyrics: " + ex.Message); }
+    }
+
+    private void UpdateHomeLyricsSync(bool animate)
+    {
+        if (!_settings.LyricsEnabled || _currentLyrics == null || _currentLyrics.SyncedLines.Count == 0 || _homeLyricBlocks.Count == 0)
+            return;
+
+        int idx = Math.Max(0, _currentLyrics.GetCurrentLineIndex(_lastMediaPositionSeconds));
+        if (idx >= _homeLyricBlocks.Count) idx = _homeLyricBlocks.Count - 1;
+        if (idx == _lastHomeLyricIndex) return;
+
+        int prevIdx = _lastHomeLyricIndex;
+        _lastHomeLyricIndex = idx;
+
+        var primaryBrush = new SolidColorBrush(AdaptiveInkColor(245));
+        var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(200));
+
+        for (int i = 0; i < _homeLyricBlocks.Count; i++)
+        {
+            var tb = _homeLyricBlocks[i];
+            if (i == idx)
+            {
+                tb.FontWeight = FontWeights.SemiBold;
+                tb.Opacity = 1.0;
+                tb.Foreground = primaryBrush;
+            }
+            else
+            {
+                tb.FontWeight = FontWeights.Normal;
+                tb.Opacity = Math.Abs(i - idx) == 1 ? 0.52 : 0.32;
+                tb.Foreground = secondaryBrush;
+            }
+        }
+
+        if (LyricsScrollViewer != null && LyricsStack != null && LyricsPanel?.Visibility == Visibility.Visible)
+        {
+            try
+            {
+                var target = _homeLyricBlocks[idx];
+                var pt = target.TransformToVisual(LyricsStack).TransformPoint(new Windows.Foundation.Point(0, 0));
+                double viewportH = LyricsScrollViewer.ActualHeight;
+                double offset = Math.Clamp(pt.Y - (viewportH * 0.38), 0, Math.Max(0, LyricsScrollViewer.ScrollableHeight));
+                LyricsScrollViewer.ChangeView(null, offset, null, disableAnimation: !animate || _settings.ReducedMotion);
+
+                if (animate && prevIdx >= 0 && !_settings.ReducedMotion)
+                {
+                    var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(target);
+                    var comp = visual.Compositor;
+                    var ease = comp.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.22f, 1f), new System.Numerics.Vector2(0.36f, 1f));
+                    var anim = comp.CreateVector3KeyFrameAnimation();
+                    anim.InsertKeyFrame(0f, new System.Numerics.Vector3(0f, 6f, 0f));
+                    anim.InsertKeyFrame(1f, System.Numerics.Vector3.Zero, ease);
+                    anim.Duration = TimeSpan.FromMilliseconds(320);
+                    visual.StartAnimation("Offset", anim);
+                }
+            }
+            catch { }
+        }
     }
 
     private void RecentChevron_Click(object sender, RoutedEventArgs e) => SwitchTab(1);
@@ -3766,7 +3854,7 @@ public sealed partial class WindowIslandWindow : Window
 
         double ratio = Math.Clamp(x / width, 0, 1);
         double target = ratio * _mediaDuration;
-        if (MiniProgressBar != null) MiniProgressBar.Value = ratio;
+        if (MiniProgressScale != null) MiniProgressScale.ScaleX = ratio;
         if (MiniElapsed != null) MiniElapsed.Text = FormatTime(target);
         if (MiniRemaining != null) MiniRemaining.Text = "-" + FormatTime(Math.Max(0, _mediaDuration - target));
 
@@ -7108,6 +7196,9 @@ public sealed partial class WindowIslandWindow : Window
         MicCamDotsContainer.Visibility = anyActive ? Visibility.Visible : Visibility.Collapsed;
         MicDot.Visibility = showMic ? Visibility.Visible : Visibility.Collapsed;
         CamDot.Visibility = showCam ? Visibility.Visible : Visibility.Collapsed;
+        if (MiniMicCamPanel != null) MiniMicCamPanel.Visibility = MicCamDotsContainer.Visibility;
+        if (MiniMicDot != null) MiniMicDot.Visibility = MicDot.Visibility;
+        if (MiniCamDot != null) MiniCamDot.Visibility = CamDot.Visibility;
 
         string? micApp = _activeMicAppName;
         if (_micDotActive && string.IsNullOrEmpty(micApp))
@@ -8159,10 +8250,12 @@ public sealed partial class WindowIslandWindow : Window
 
         if (FoldedBtBatteryPanel == null) return;
         FoldedBtBatteryPanel.Children.Clear();
+        MiniBtBatteryPanel?.Children.Clear();
 
         if (!_settings.Controls.ShowBtBatteryOnIsland || !btOn)
         {
             FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
+            if (MiniBtBatteryPanel != null) MiniBtBatteryPanel.Visibility = Visibility.Collapsed;
             UpdateDynamicFoldedWidth();
             return;
         }
@@ -8176,6 +8269,7 @@ public sealed partial class WindowIslandWindow : Window
         if (connected.Count == 0)
         {
             FoldedBtBatteryPanel.Visibility = Visibility.Collapsed;
+            if (MiniBtBatteryPanel != null) MiniBtBatteryPanel.Visibility = Visibility.Collapsed;
             UpdateDynamicFoldedWidth();
             return;
         }
@@ -8188,61 +8282,68 @@ public sealed partial class WindowIslandWindow : Window
 
         foreach (var dev in toShow)
         {
-            int pct = Math.Clamp(dev.BatteryPercent!.Value, 0, 100);
-            string devGlyph = dev.DeviceType switch
-            {
-                "Headphones" => "\uE7F6",
-                "Speaker"    => "\uE7F5",
-                "Keyboard"   => "\uE765",
-                "Mouse"      => "\uE962",
-                "Phone"      => "\uE8EA",
-                _            => "\uE702"
-            };
-
-            var chip = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 3,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            chip.Children.Add(new FontIcon
-            {
-                Glyph = devGlyph,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(AdaptiveInkColor(0xD0)),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-
-            var batBrush = GetBtBatteryBrush(pct);
-            if (style == "IconAndBattery" || style == "IconBatteryAndPercent")
-            {
-                chip.Children.Add(new FontIcon
-                {
-                    Glyph = GetBtBatteryGlyph(pct),
-                    FontSize = 11,
-                    Foreground = batBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-            }
-
-            if (style == "IconAndPercent" || style == "IconBatteryAndPercent")
-            {
-                chip.Children.Add(new TextBlock
-                {
-                    Text = $"{pct}%",
-                    FontFamily = new FontFamily("Segoe UI Variable Small"),
-                    FontSize = 11,
-                    Foreground = batBrush,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-            }
-
-            FoldedBtBatteryPanel.Children.Add(chip);
+            FoldedBtBatteryPanel.Children.Add(BuildBtBatteryChip(dev, style, 11));
+            MiniBtBatteryPanel?.Children.Add(BuildBtBatteryChip(dev, style, 10));
         }
 
         FoldedBtBatteryPanel.Visibility = Visibility.Visible;
+        if (MiniBtBatteryPanel != null) MiniBtBatteryPanel.Visibility = Visibility.Visible;
         UpdateDynamicFoldedWidth();
+    }
+
+    private StackPanel BuildBtBatteryChip(WindowIslandControlsService.IslandBtDevice dev, string style, double fontSize)
+    {
+        int pct = Math.Clamp(dev.BatteryPercent!.Value, 0, 100);
+        string devGlyph = dev.DeviceType switch
+        {
+            "Headphones" => "\uE7F6",
+            "Speaker"    => "\uE7F5",
+            "Keyboard"   => "\uE765",
+            "Mouse"      => "\uE962",
+            "Phone"      => "\uE8EA",
+            _            => "\uE702"
+        };
+
+        var chip = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 3,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        chip.Children.Add(new FontIcon
+        {
+            Glyph = devGlyph,
+            FontSize = fontSize,
+            Foreground = new SolidColorBrush(AdaptiveInkColor(0xD0)),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var batBrush = GetBtBatteryBrush(pct);
+        if (style == "IconAndBattery" || style == "IconBatteryAndPercent")
+        {
+            chip.Children.Add(new FontIcon
+            {
+                Glyph = GetBtBatteryGlyph(pct),
+                FontSize = fontSize,
+                Foreground = batBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        if (style == "IconAndPercent" || style == "IconBatteryAndPercent")
+        {
+            chip.Children.Add(new TextBlock
+            {
+                Text = $"{pct}%",
+                FontFamily = new FontFamily("Segoe UI Variable Small"),
+                FontSize = fontSize,
+                Foreground = batBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        return chip;
     }
 
     private void CheckBtBatteryWarnings(bool btOn, System.Collections.Generic.List<WindowIslandControlsService.IslandBtDevice> btDevices)
@@ -8339,6 +8440,22 @@ public sealed partial class WindowIslandWindow : Window
                 }
             }
 
+            if (MiniMicCamPanel != null && MicCamDotsContainer != null)
+            {
+                MiniMicCamPanel.Visibility = MicCamDotsContainer.Visibility;
+                if (MiniMicDot != null && MicDot != null)
+                {
+                    MiniMicDot.Visibility = MicDot.Visibility;
+                    MiniMicDot.Glyph = MicDot.Glyph;
+                    MiniMicDot.Foreground = MicDot.Foreground;
+                }
+                if (MiniCamDot != null && CamDot != null)
+                {
+                    MiniCamDot.Visibility = CamDot.Visibility;
+                    MiniCamDot.Foreground = CamDot.Foreground;
+                }
+            }
+
             if (MiniLyricsCol != null && MiniLyricsStack != null)
             {
                 bool hasLyrics = _settings.LyricsEnabled && _currentLyrics != null &&
@@ -8368,10 +8485,10 @@ public sealed partial class WindowIslandWindow : Window
                                 if (lineIdx == idx)
                                 {
                                     tb.FontWeight = FontWeights.SemiBold;
-                                    tb.FontSize = 12;
+                                    tb.FontSize = 11.5;
                                     tb.Opacity = 1.0;
                                     tb.Foreground = primaryBrush;
-                                    tb.MaxLines = 2;
+                                    tb.MaxLines = 3;
                                     tb.TextWrapping = TextWrapping.Wrap;
                                 }
                                 else
@@ -8381,8 +8498,8 @@ public sealed partial class WindowIslandWindow : Window
                                     tb.FontSize = dist == 1 ? 11 : 10.5;
                                     tb.Opacity = dist == 1 ? 0.45 : (dist == 2 ? 0.24 : 0.14);
                                     tb.Foreground = secondaryBrush;
-                                    tb.MaxLines = 1;
-                                    tb.TextWrapping = TextWrapping.NoWrap;
+                                    tb.MaxLines = 2;
+                                    tb.TextWrapping = TextWrapping.Wrap;
                                 }
                             }
                             else
@@ -8393,25 +8510,24 @@ public sealed partial class WindowIslandWindow : Window
 
                         if (idx != _lastMiniLyricIndex)
                         {
-                            bool shouldAnimate = _lastMiniLyricIndex >= 0 && !_settings.ReducedMotion;
+                            int prevIdx = _lastMiniLyricIndex;
+                            bool shouldAnimate = prevIdx >= 0 && !_settings.ReducedMotion;
                             _lastMiniLyricIndex = idx;
                             if (shouldAnimate)
                             {
+                                int delta = Math.Clamp(idx - prevIdx, -2, 2);
+                                if (delta == 0) delta = 1;
+                                float startY = delta * 21f;
+
                                 var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(MiniLyricsStack);
                                 var comp = visual.Compositor;
-                                var ease = comp.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.16f, 1f), new System.Numerics.Vector2(0.3f, 1f));
+                                var ease = comp.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.22f, 1f), new System.Numerics.Vector2(0.36f, 1f));
 
                                 var offsetAnim = comp.CreateVector3KeyFrameAnimation();
-                                offsetAnim.InsertKeyFrame(0f, new System.Numerics.Vector3(0f, 14f, 0f));
+                                offsetAnim.InsertKeyFrame(0f, new System.Numerics.Vector3(0f, startY, 0f));
                                 offsetAnim.InsertKeyFrame(1f, System.Numerics.Vector3.Zero, ease);
-                                offsetAnim.Duration = TimeSpan.FromMilliseconds(240);
+                                offsetAnim.Duration = TimeSpan.FromMilliseconds(360);
                                 visual.StartAnimation("Offset", offsetAnim);
-
-                                var fadeAnim = comp.CreateScalarKeyFrameAnimation();
-                                fadeAnim.InsertKeyFrame(0f, 0.55f);
-                                fadeAnim.InsertKeyFrame(1f, 1f, ease);
-                                fadeAnim.Duration = TimeSpan.FromMilliseconds(200);
-                                visual.StartAnimation("Opacity", fadeAnim);
                             }
                         }
                     }
@@ -8463,7 +8579,8 @@ public sealed partial class WindowIslandWindow : Window
                 if (FoldedTrackProgressBar != null)
                 {
                     FoldedTrackProgressBar.Visibility = _mediaDuration > 0 ? Visibility.Visible : Visibility.Collapsed;
-                    FoldedTrackProgressBar.Foreground = new SolidColorBrush(GetSystemAccentColor());
+                    if (FoldedTrackProgressFill != null)
+                        FoldedTrackProgressFill.Background = new SolidColorBrush(GetSystemAccentColor());
                 }
             }
             else if (string.Equals(mode, "WithWords", StringComparison.OrdinalIgnoreCase))

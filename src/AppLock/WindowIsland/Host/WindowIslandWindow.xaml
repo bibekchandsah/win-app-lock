@@ -434,18 +434,23 @@
                             VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
-                <ProgressBar x:Name="FoldedTrackProgressBar"
-                             VerticalAlignment="Bottom"
-                             HorizontalAlignment="Stretch"
-                             Height="2.5"
-                             MinHeight="2.5"
-                             Margin="10,0,10,2"
-                             Minimum="0"
-                             Maximum="1"
-                             Value="0"
-                             CornerRadius="1.5"
-                             Background="#28FFFFFF"
-                             Visibility="Collapsed" />
+                <Grid x:Name="FoldedTrackProgressBar"
+                      VerticalAlignment="Bottom"
+                      HorizontalAlignment="Stretch"
+                      Height="2.5"
+                      Margin="10,0,10,2"
+                      Visibility="Collapsed">
+                    <Border Background="#28FFFFFF" CornerRadius="1.5" />
+                    <Border x:Name="FoldedTrackProgressFill"
+                            Background="#FF60CDFF"
+                            CornerRadius="1.5"
+                            HorizontalAlignment="Stretch"
+                            RenderTransformOrigin="0,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="FoldedTrackProgressScale" ScaleX="0" ScaleY="1" />
+                        </Border.RenderTransform>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- Mini player pill (when MediaPillMode == MiniPlayer and music is playing) -->
@@ -506,6 +511,15 @@
                                                Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                <StackPanel x:Name="MiniBtBatteryPanel" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Visibility="Collapsed" />
+                                <StackPanel x:Name="MiniMicCamPanel" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Visibility="Collapsed">
+                                    <FontIcon x:Name="MiniMicDot" Glyph="&#xE720;" FontSize="10.5"
+                                              Foreground="{ThemeResource IslandGoldAccent}" Visibility="Collapsed" VerticalAlignment="Center" />
+                                    <FontIcon x:Name="MiniCamDot" Glyph="&#xE722;" FontSize="10.5"
+                                              Foreground="{ThemeResource IslandGreenAccent}" Visibility="Collapsed" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
 
@@ -523,8 +537,18 @@
                               PointerPressed="MiniSeek_PointerPressed"
                               PointerMoved="MiniSeek_PointerMoved"
                               PointerReleased="MiniSeek_PointerReleased">
-                            <ProgressBar x:Name="MiniProgressBar" VerticalAlignment="Center" Height="3.5" MinHeight="3.5"
-                                         Minimum="0" Maximum="1" Value="0" CornerRadius="2" Background="#2EFFFFFF" />
+                            <Grid VerticalAlignment="Center" Height="3.5">
+                                <Border Background="#2EFFFFFF" CornerRadius="2" />
+                                <Border x:Name="MiniProgressFill"
+                                        Background="#FF60CDFF"
+                                        CornerRadius="2"
+                                        HorizontalAlignment="Stretch"
+                                        RenderTransformOrigin="0,0.5">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform x:Name="MiniProgressScale" ScaleX="0" ScaleY="1" />
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Grid>
                         </Grid>
                         <TextBlock x:Name="MiniRemaining" Grid.Column="2" Text="-0:00" FontSize="10"
                                    Foreground="{ThemeResource IslandTextSubtle}" VerticalAlignment="Center" />
@@ -549,18 +573,21 @@
                 </StackPanel>
 
                 <!-- Optional live lyrics on the right -->
-                <Grid x:Name="MiniLyricsCol" Grid.Column="1" Width="210" VerticalAlignment="Center" Visibility="Collapsed">
+                <Grid x:Name="MiniLyricsCol" Grid.Column="1" Width="220" Height="116" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Grid.Clip>
+                        <RectangleGeometry Rect="0,0,220,116" />
+                    </Grid.Clip>
                     <StackPanel x:Name="MiniLyricsStack" Spacing="3" VerticalAlignment="Center">
-                        <TextBlock x:Name="MiniLyricsLine0" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="MiniLyricsLine1" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="MiniLyricsLine2" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                                   MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="MiniLyricsLine3" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="MiniLyricsLine4" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
-                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine0" Text="" LineHeight="15" FontSize="10.5" Foreground="{ThemeResource IslandTextSecondary}"
+                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine1" Text="" LineHeight="15" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine2" Text="" LineHeight="16" FontSize="11.5" Foreground="{ThemeResource IslandTextSecondary}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="MiniLyricsLine3" Text="" LineHeight="15" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MiniLyricsLine4" Text="" LineHeight="15" FontSize="10.5" Foreground="{ThemeResource IslandTextSecondary}"
+                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
             </Grid>
