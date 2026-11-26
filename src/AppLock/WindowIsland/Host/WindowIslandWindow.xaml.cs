@@ -87,6 +87,33 @@ public sealed partial class WindowIslandWindow : Window
     private const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, int cbAttribute);
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmExtendFrameIntoClientArea(nint hWnd, ref MARGINS pMarInset);
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmEnableBlurBehindWindow(nint hWnd, ref DWM_BLURBEHIND pBlurBehind);
+    [DllImport("gdi32.dll")]
+    private static extern nint CreateRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(nint hObject);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MARGINS
+    {
+        public int cxLeftWidth, cxRightWidth, cyTopHeight, cyBottomHeight;
+        public MARGINS(int all) { cxLeftWidth = cxRightWidth = cyTopHeight = cyBottomHeight = all; }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DWM_BLURBEHIND
+    {
+        public uint dwFlags;
+        public bool fEnable;
+        public nint hRgnBlur;
+        public bool fTransitionOnMaximized;
+    }
+
+    private const uint DWM_BB_ENABLE = 0x00000001;
+    private const uint DWM_BB_BLURREGION = 0x00000002;
     [DllImport("gdi32.dll")]
     private static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);
     [DllImport("gdi32.dll")]
@@ -306,6 +333,7 @@ public sealed partial class WindowIslandWindow : Window
     public WindowIslandWindow()
     {
         InitializeComponent();
+        this.SystemBackdrop = new AppLock.Views.TransparentBackdrop();
         _hwnd      = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(_hwnd));
         Title      = "Window Island";
@@ -500,6 +528,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateChatHeightLabel();
 
         _compositor   = new WindowIslandCompositor(RootGrid, settings, WindowWidthDip);
+        _compositor.AttachContentClip(AnimatedContentHost);
         _foldedVisual  = ElementCompositionPreview.GetElementVisual(FoldedLayer);
         _cardVisual    = ElementCompositionPreview.GetElementVisual(CardLayer);
         _commandVisual = ElementCompositionPreview.GetElementVisual(CommandLayer);
@@ -511,6 +540,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateTabHighlight(animate: false);
 
         Activate();
+        EnableDwmTransparency();
         try { if (_appWindow != null) _appWindow.IsShownInSwitchers = false; } catch { }
 
         // Position & hit region after Activate() ensures window geometry is respected
@@ -1272,6 +1302,7 @@ public sealed partial class WindowIslandWindow : Window
         FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
         CommandLayer.IsHitTestVisible = false;
         FadeVisual(_openVisual,   1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        if (_openVisual != null) _openVisual.Scale = System.Numerics.Vector3.One;
 
         _compositor.AnimateToOpen(_activeTab, () =>
         {
@@ -1333,6 +1364,18 @@ public sealed partial class WindowIslandWindow : Window
     private void FadeVisual(Visual? visual, float targetOpacity, int durationMs, int delayMs = 0)
     {
         if (visual == null) return;
+
+        if (_settings.ReducedMotion)
+        {
+            durationMs = Math.Min(durationMs, IslandMotion.ReducedMotionFadeMs);
+            delayMs = 0;
+        }
+        else if (_settings.LiteMode)
+        {
+            durationMs = Math.Min(durationMs, 100);
+            delayMs = Math.Min(delayMs, 20);
+        }
+
         var anim = visual.Compositor.CreateScalarKeyFrameAnimation();
         if (delayMs > 0)
         {
@@ -1340,7 +1383,7 @@ public sealed partial class WindowIslandWindow : Window
             anim.DelayTime = TimeSpan.FromMilliseconds(delayMs);
         }
         anim.InsertKeyFrame(1f, targetOpacity);
-        anim.Duration = TimeSpan.FromMilliseconds(durationMs);
+        anim.Duration = TimeSpan.FromMilliseconds(Math.Max(16, durationMs));
         visual.StartAnimation("Opacity", anim);
     }
 
@@ -1592,6 +1635,32 @@ public sealed partial class WindowIslandWindow : Window
 
         uint ncPolicy = DWMNCRP_DISABLED;
         DwmSetWindowAttribute(_hwnd, DWMWA_NCRENDERING_POLICY, ref ncPolicy, sizeof(uint));
+
+        EnableDwmTransparency();
+    }
+
+    private void EnableDwmTransparency()
+    {
+        if (_hwnd == nint.Zero) return;
+        try
+        {
+            var margins = new MARGINS(-1);
+            DwmExtendFrameIntoClientArea(_hwnd, ref margins);
+
+            nint hRgn = CreateRectRgn(-2, -2, -1, -1);
+            if (hRgn != nint.Zero)
+            {
+                var blur = new DWM_BLURBEHIND
+                {
+                    dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION,
+                    fEnable = true,
+                    hRgnBlur = hRgn
+                };
+                DwmEnableBlurBehindWindow(_hwnd, ref blur);
+                DeleteObject(hRgn);
+            }
+        }
+        catch { }
     }
 
     private nint WindowIslandSubclass(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data)
@@ -4361,6 +4430,7 @@ public sealed partial class WindowIslandWindow : Window
         FadeVisual(_cardVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        if (_commandVisual != null) _commandVisual.Scale = System.Numerics.Vector3.One;
 
         if (CommandSearchIcon != null)
         {

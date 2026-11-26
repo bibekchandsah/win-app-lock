@@ -28,6 +28,8 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly CompositionMaskBrush _outputMaskBrush;
     private readonly SpriteVisual _outputVisual;
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
+    private readonly CompositionRoundedRectangleGeometry _clipGeometry;
+    private readonly CompositionGeometricClip _bodyClip;
     private readonly CompositionSpriteShape _bodyShape;
     private readonly CompositionSpriteShape _notchLeftEarShape;
     private readonly CompositionSpriteShape _notchRightEarShape;
@@ -124,6 +126,23 @@ public sealed class WindowIslandCompositor : IDisposable
         _bodyShape = _compositor.CreateSpriteShape(_bodyGeometry);
         _bodyShape.FillBrush = whiteMaskBrush;
 
+        // GPU clip geometry mirroring _bodyGeometry + _bodyShape.Offset so foreground layers
+        // stay cleanly clipped inside the expanding notch without scaling distortion.
+        _clipGeometry = _compositor.CreateRoundedRectangleGeometry();
+        var clipSizeAnim = _compositor.CreateExpressionAnimation("geom.Size");
+        clipSizeAnim.SetReferenceParameter("geom", _bodyGeometry);
+        _clipGeometry.StartAnimation("Size", clipSizeAnim);
+
+        var clipRadiusAnim = _compositor.CreateExpressionAnimation("geom.CornerRadius");
+        clipRadiusAnim.SetReferenceParameter("geom", _bodyGeometry);
+        _clipGeometry.StartAnimation("CornerRadius", clipRadiusAnim);
+
+        var clipOffsetAnim = _compositor.CreateExpressionAnimation("shape.Offset");
+        clipOffsetAnim.SetReferenceParameter("shape", _bodyShape);
+        _clipGeometry.StartAnimation("Offset", clipOffsetAnim);
+
+        _bodyClip = _compositor.CreateGeometricClip(_clipGeometry);
+
         // Apple-style concave top ears + corner fillers
         _notchLeftEarShape = _compositor.CreateSpriteShape(CreateNotchEarGeometry(isRight: false));
         _notchLeftEarShape.FillBrush = whiteMaskBrush;
@@ -165,6 +184,12 @@ public sealed class WindowIslandCompositor : IDisposable
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
+
+    public void AttachContentClip(UIElement contentHost)
+    {
+        if (_disposed) return;
+        ElementCompositionPreview.GetElementVisual(contentHost).Clip = _bodyClip;
+    }
 
     /// <summary>Animate to open state for the given tab index (or default if -1).</summary>
     public void AnimateToOpen(int tabIndex = 0, Action? onCompleted = null)
@@ -324,6 +349,8 @@ public sealed class WindowIslandCompositor : IDisposable
         _maskSurface.Dispose();
         _notchLeftEarShape.Dispose();
         _notchRightEarShape.Dispose();
+        _bodyClip.Dispose();
+        _clipGeometry.Dispose();
         _bodyGeometry.Dispose();
         _bodyShape.Dispose();
         _shapeVisual.Dispose();

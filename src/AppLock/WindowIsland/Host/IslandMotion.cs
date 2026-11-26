@@ -9,23 +9,23 @@ namespace AppLock.WindowIsland.Host;
 public static class IslandMotion
 {
     // ── Shape springs ──────────────────────────────────────────────────────────
-    public const float OpenDampingRatio  = 0.72f;
-    public const int   OpenPeriodMs      = 320;
+    public const float OpenDampingRatio  = 0.88f;
+    public const int   OpenPeriodMs      = 180;
 
-    public const float CloseDampingRatio = 0.90f;
-    public const int   ClosePeriodMs     = 260;
+    public const float CloseDampingRatio = 0.92f;
+    public const int   ClosePeriodMs     = 170;
 
-    public const float CardInDampingRatio  = 0.70f;
-    public const int   CardInPeriodMs      = 300;
+    public const float CardInDampingRatio  = 0.84f;
+    public const int   CardInPeriodMs      = 190;
 
     // ── Tab switch ─────────────────────────────────────────────────────────────
-    public const int   TabSwitchMs         = 160;    // crossfade + 8 DIP slide
+    public const int   TabSwitchMs         = 130;    // crossfade + 8 DIP slide
     public const float TabSlideDip         = 8f;
 
     // ── Content fades ──────────────────────────────────────────────────────────
     public const int   ContentFadeInMs     = 140;
-    public const int   ContentFadeInDelayMs = 80;
-    public const int   ContentFadeOutMs    = 90;
+    public const int   ContentFadeInDelayMs = 30;
+    public const int   ContentFadeOutMs    = 80;
 
     // ── Stagger ────────────────────────────────────────────────────────────────
     public const int   StaggerPerItemMs    = 18;

@@ -339,6 +339,11 @@
             </StackPanel>
         </Grid>
 
+        <!-- Foreground layers clipped to the animated notch/capsule shape -->
+        <Grid x:Name="AnimatedContentHost"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+
         <!-- ═══════════════════════════════════════════════════════════════
              LIVE CARD LAYER — temporary pop-out cards (Caps Lock, Volume, Copied, etc.)
         ═══════════════════════════════════════════════════════════════════ -->
@@ -3921,6 +3926,8 @@
                                VerticalAlignment="Center" />
                 </Grid>
             </Grid>
+        </Grid>
+
         </Grid>
 
     </Grid>
