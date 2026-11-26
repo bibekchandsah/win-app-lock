@@ -67,6 +67,13 @@ public static class IslandMotion
     public static readonly (float W, float H) CommandBarSize   = (660f, 380f);
     public static float WindowWidthForCommand => MathF.Max(CommandBarSize.W + 40f, 560f);
 
+    /// <summary>
+    /// Height of the tallest tab. The island window is sized for it so switching tabs never resizes
+    /// the window — a resize makes Windows rebuild the window surface with the opaque theme colour,
+    /// which is what turned the light-themed island solid white after the first tab switch.
+    /// </summary>
+    public static float MaxTabHeight => MathF.Max(ChatHeightDip, TabSizeControls.H);
+
     public static (float W, float H) TabSize(int tabIndex) => tabIndex switch
     {
         0 => TabSizeHome,

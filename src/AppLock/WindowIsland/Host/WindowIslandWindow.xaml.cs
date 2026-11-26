@@ -2281,7 +2281,11 @@ public sealed partial class WindowIslandWindow : Window
         float factor = (float)(_settings.SizePercent / 100.0);
         var (tabW, tabH) = isCmd ? IslandMotion.CommandBarSize : IslandMotion.TabSize(_activeTab);
         float baseWinW = isCmd ? IslandMotion.WindowWidthForCommand : WindowWidthDip;
-        float baseWinH = tabH + 60f;
+        // Every tab gets the tallest tab's window height: a window resize makes Windows rebuild the
+        // window surface with the opaque theme colour, which is what made the light-themed island
+        // solid white after switching tabs. The shape and the window region still follow the active
+        // tab, so the spare space below it is transparent and click-through.
+        float baseWinH = (isCmd ? tabH : IslandMotion.MaxTabHeight) + 60f;
         float winW = baseWinW * factor;
         float winH = baseWinH * factor;
 
@@ -2302,8 +2306,16 @@ public sealed partial class WindowIslandWindow : Window
         _windowWidthPx  = rect.Width;
         _windowHeightPx = rect.Height;
 
-        _appWindow?.MoveAndResize(rect);
+        // Only resize when the rectangle really changes: re-applying the same size still costs a
+        // surface rebuild, and that rebuild is what loses the island's transparency.
+        if (rect != _lastWindowRect)
+        {
+            _lastWindowRect = rect;
+            _appWindow?.MoveAndResize(rect);
+        }
     }
+
+    private Windows.Graphics.RectInt32 _lastWindowRect;
 
     // ── Milestone 5: Home tab ──────────────────────────────────────────────────
 
