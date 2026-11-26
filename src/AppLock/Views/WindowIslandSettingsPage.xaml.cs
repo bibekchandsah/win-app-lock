@@ -63,6 +63,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         SectionAppearance.Visibility = ShowSection(category, "appearance");
         SectionVisibility.Visibility = ShowSection(category, "visibility");
         SectionIndicators.Visibility = ShowSection(category, "indicators");
+        SectionClock.Visibility = ShowSection(category, "clock");
         SectionMedia.Visibility = ShowSection(category, "media");
         SectionCards.Visibility = ShowSection(category, "cards");
         SectionControls.Visibility = ShowSection(category, "controls");

@@ -19,9 +19,10 @@ public sealed record MediaSnapshot(
     double PositionSeconds,
     double DurationSeconds,
     string ArtFile,
-    int SessionCount)
+    int SessionCount,
+    bool AnyPlaying = false)
 {
-    public static MediaSnapshot Empty { get; } = new(false, false, string.Empty, string.Empty, string.Empty, 0, 0, string.Empty, 0);
+    public static MediaSnapshot Empty { get; } = new(false, false, string.Empty, string.Empty, string.Empty, 0, 0, string.Empty, 0, false);
 }
 
 /// <summary>
@@ -109,12 +110,15 @@ public sealed class MediaSessionSource : IDisposable
             }
 
             int count = 0;
+            bool anyPlaying = playing;
             foreach (var candidate in _sessions)
             {
-                if (StatusOf(candidate) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed) count++;
+                var st = StatusOf(candidate);
+                if (st != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed) count++;
+                if (st == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) anyPlaying = true;
             }
 
-            return new MediaSnapshot(true, playing, title, artist, app, position, duration, _artFile, count);
+            return new MediaSnapshot(true, playing, title, artist, app, position, duration, _artFile, count, anyPlaying);
         }
         catch (Exception ex)
         {

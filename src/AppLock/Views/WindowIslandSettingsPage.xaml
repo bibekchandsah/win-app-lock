@@ -98,6 +98,9 @@
                             <ListViewItem Tag="indicators">
                                 <TextBlock Text="Notch Indicators" FontSize="13" TextTrimming="CharacterEllipsis"/>
                             </ListViewItem>
+                            <ListViewItem Tag="clock">
+                                <TextBlock Text="Clock &amp; Calendar" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                            </ListViewItem>
                             <ListViewItem Tag="media">
                                 <TextBlock Text="Media &amp; Lyrics" FontSize="13" TextTrimming="CharacterEllipsis"/>
                             </ListViewItem>
@@ -341,21 +344,26 @@
                             <CheckBox x:Name="TimeFormat24HCheck" Content="24-hour format (e.g. 14:30 vs 2:30 PM)" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
                             <CheckBox x:Name="ShowSecondsCheck" Content="Show seconds" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
                         </StackPanel>
+                        <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery percentage &amp; status" Toggled="OnSettingChanged" />
+                        <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Header="Show temperature on folded island" Toggled="OnSettingChanged" />
+                        <ToggleSwitch x:Name="MicDotToggle" Header="Microphone indicator dot on folded island" Toggled="OnSettingChanged" />
+                        <ToggleSwitch x:Name="CamDotToggle" Header="Camera indicator dot on folded island" Toggled="OnSettingChanged" />
+                    </StackPanel>
 
+                    <!-- ░░ Clock & Calendar ░░ -->
+                    <StackPanel x:Name="SectionClock" Spacing="10" Visibility="Collapsed">
                         <ComboBox x:Name="CalendarClockStyleBox"
-                                  Header="Date &amp; Calendar tab clock style"
+                                  Header="Clock style in Date &amp; Calendar tab"
                                   SelectionChanged="OnSelectionChanged"
                                   Width="260">
                             <ComboBoxItem Content="Digital" Tag="Digital" />
                             <ComboBoxItem Content="Digital with seconds" Tag="DigitalSeconds" />
                             <ComboBoxItem Content="Analog" Tag="Analog" />
                             <ComboBoxItem Content="Analog with seconds" Tag="AnalogSeconds" />
+                            <ComboBoxItem Content="Analog classic (numbers &amp; ticks)" Tag="AnalogClassic" />
                         </ComboBox>
-
-                        <ToggleSwitch x:Name="ShowBatteryToggle" Header="Show battery percentage &amp; status" Toggled="OnSettingChanged" />
-                        <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Header="Show temperature on folded island" Toggled="OnSettingChanged" />
-                        <ToggleSwitch x:Name="MicDotToggle" Header="Microphone indicator dot on folded island" Toggled="OnSettingChanged" />
-                        <ToggleSwitch x:Name="CamDotToggle" Header="Camera indicator dot on folded island" Toggled="OnSettingChanged" />
+                        <TextBlock Text="Custom world clocks can be added or removed directly in the island's Date &amp; Calendar tab."
+                                   FontSize="12" Opacity="0.6" TextWrapping="Wrap" MaxWidth="560" />
                     </StackPanel>
 
                     <!-- ░░ Media & Lyrics ░░ -->

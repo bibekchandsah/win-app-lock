@@ -2856,7 +2856,11 @@ public sealed partial class WindowIslandWindow : Window
             // hide cleanly when paused so paused media doesn't keep the beat/icon on the island.
             _isMediaPlaying = snap.Playing;
             _hasMediaSession = true;
-            if (snap.Playing && string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase))
+            if (!snap.AnyPlaying)
+            {
+                _miniPlayerKeepPaused = false;
+            }
+            else if (snap.Playing && string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase))
             {
                 _miniPlayerKeepPaused = true;
             }
@@ -11780,14 +11784,20 @@ public sealed partial class WindowIslandWindow : Window
     private readonly List<(TextBlock TimeBlock, CustomWorldClock Clock)> _worldClockBindings = new();
     private IReadOnlyList<TimeZoneInfo>? _systemTimeZones;
     private bool? _analogDialLightTheme;
+    private string? _analogDialStyle;
 
     private bool CalendarShowSeconds =>
         string.Equals(_settings.CalendarClockStyle, "DigitalSeconds", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase);
+        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_settings.CalendarClockStyle, "AnalogClassic", StringComparison.OrdinalIgnoreCase);
 
     private bool CalendarIsAnalog =>
         string.Equals(_settings.CalendarClockStyle, "Analog", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase);
+        string.Equals(_settings.CalendarClockStyle, "AnalogSeconds", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_settings.CalendarClockStyle, "AnalogClassic", StringComparison.OrdinalIgnoreCase);
+
+    private bool CalendarIsClassicAnalog =>
+        string.Equals(_settings.CalendarClockStyle, "AnalogClassic", StringComparison.OrdinalIgnoreCase);
 
     private void RefreshCalendarTabUI()
     {
@@ -11801,40 +11811,101 @@ public sealed partial class WindowIslandWindow : Window
     private void EnsureAnalogDialTicks()
     {
         if (CalendarAnalogTicksCanvas == null) return;
-        if (_analogDialLightTheme == _isLightSurfaceActive && CalendarAnalogTicksCanvas.Children.Count > 0)
+        string styleKey = CalendarIsClassicAnalog ? "classic" : "modern";
+        if (_analogDialLightTheme == _isLightSurfaceActive &&
+            string.Equals(_analogDialStyle, styleKey, StringComparison.Ordinal) &&
+            CalendarAnalogTicksCanvas.Children.Count > 0)
+        {
             return;
+        }
 
         _analogDialLightTheme = _isLightSurfaceActive;
+        _analogDialStyle = styleKey;
         CalendarAnalogTicksCanvas.Children.Clear();
 
-        var majorBrush = new SolidColorBrush(AdaptiveInkColor(215));
+        var majorBrush = new SolidColorBrush(AdaptiveInkColor(235));
         var minorBrush = new SolidColorBrush(AdaptiveInkColor(115));
 
         const double cx = 58.0;
         const double cy = 58.0;
-        for (int i = 0; i < 12; i++)
-        {
-            bool isQuarter = (i % 3) == 0;
-            double w = isQuarter ? 2.2 : 1.4;
-            double h = isQuarter ? 7.5 : 4.5;
-            double radius = 50.0 - h / 2.0;
-            double angleDeg = i * 30.0;
-            double rad = (angleDeg - 90.0) * Math.PI / 180.0;
-            double x = cx + radius * Math.Cos(rad) - w / 2.0;
-            double y = cy + radius * Math.Sin(rad) - h / 2.0;
 
-            var tick = new Border
+        if (CalendarIsClassicAnalog)
+        {
+            // 60 outer ticks (every 5th is bright hour tick, others dimmed minute ticks)
+            for (int i = 0; i < 60; i++)
             {
-                Width = w,
-                Height = h,
-                CornerRadius = new CornerRadius(w / 2.0),
-                Background = isQuarter ? majorBrush : minorBrush,
-                RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
-                RenderTransform = new RotateTransform { Angle = angleDeg }
-            };
-            Canvas.SetLeft(tick, x);
-            Canvas.SetTop(tick, y);
-            CalendarAnalogTicksCanvas.Children.Add(tick);
+                bool isHour = (i % 5) == 0;
+                double w = isHour ? 1.6 : 1.1;
+                double h = isHour ? 5.5 : 4.0;
+                double radius = 53.0 - h / 2.0;
+                double angleDeg = i * 6.0;
+                double rad = (angleDeg - 90.0) * Math.PI / 180.0;
+                double x = cx + radius * Math.Cos(rad) - w / 2.0;
+                double y = cy + radius * Math.Sin(rad) - h / 2.0;
+
+                var tick = new Border
+                {
+                    Width = w,
+                    Height = h,
+                    CornerRadius = new CornerRadius(w / 2.0),
+                    Background = isHour ? majorBrush : minorBrush,
+                    RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+                    RenderTransform = new RotateTransform { Angle = angleDeg }
+                };
+                Canvas.SetLeft(tick, x);
+                Canvas.SetTop(tick, y);
+                CalendarAnalogTicksCanvas.Children.Add(tick);
+            }
+
+            // Numbers 1..12 inside the tick ring
+            for (int num = 1; num <= 12; num++)
+            {
+                double rad = (num * 30.0 - 90.0) * Math.PI / 180.0;
+                double rNum = 39.5;
+                double x = cx + rNum * Math.Cos(rad) - 9.0;
+                double y = cy + rNum * Math.Sin(rad) - 8.0;
+
+                var lbl = new TextBlock
+                {
+                    Text = num.ToString(),
+                    Width = 18,
+                    Height = 16,
+                    FontSize = 10.5,
+                    FontWeight = FontWeights.SemiBold,
+                    TextAlignment = TextAlignment.Center,
+                    Foreground = majorBrush
+                };
+                Canvas.SetLeft(lbl, x);
+                Canvas.SetTop(lbl, y);
+                CalendarAnalogTicksCanvas.Children.Add(lbl);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < 12; i++)
+            {
+                bool isQuarter = (i % 3) == 0;
+                double w = isQuarter ? 2.2 : 1.4;
+                double h = isQuarter ? 7.5 : 4.5;
+                double radius = 50.0 - h / 2.0;
+                double angleDeg = i * 30.0;
+                double rad = (angleDeg - 90.0) * Math.PI / 180.0;
+                double x = cx + radius * Math.Cos(rad) - w / 2.0;
+                double y = cy + radius * Math.Sin(rad) - h / 2.0;
+
+                var tick = new Border
+                {
+                    Width = w,
+                    Height = h,
+                    CornerRadius = new CornerRadius(w / 2.0),
+                    Background = isQuarter ? majorBrush : minorBrush,
+                    RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+                    RenderTransform = new RotateTransform { Angle = angleDeg }
+                };
+                Canvas.SetLeft(tick, x);
+                Canvas.SetTop(tick, y);
+                CalendarAnalogTicksCanvas.Children.Add(tick);
+            }
         }
     }
 
@@ -12019,6 +12090,13 @@ public sealed partial class WindowIslandWindow : Window
             if (_systemTimeZones.Count > 0) CalendarNewTzBox.SelectedIndex = 0;
         }
         CalendarNewPlaceBox.Text = string.Empty;
+        if (CalendarAddClockCard != null)
+        {
+            CalendarAddClockCard.Background = new SolidColorBrush(_isLightSurfaceActive
+                ? ColorHelper.FromArgb(0xFF, 0xF5, 0xF6, 0xF8)
+                : ColorHelper.FromArgb(0xFF, 0x20, 0x22, 0x28));
+            CalendarAddClockCard.BorderBrush = new SolidColorBrush(AdaptiveBorderColor(60));
+        }
         var accent = GetSystemAccentColor();
         if (CalendarSaveClockBtn != null)
         {
