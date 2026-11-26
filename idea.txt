@@ -509,9 +509,9 @@ fixed - visibility page toggles settings aren't working
 fixed - through mode 
 fixed - the pills while music plays 
 fixed - downloads on live cards
-fixed - clock and calendar
+fixed - clock and calendar and world clock with rearrange
 fixed - when all media is paused then don't show mini player treat it like other pill when music plays 
-fixed - cpu, ram, disk, gpu usage icon and percentage
+fixed - cpu, ram, disk, gpu usage icon and percentage, upload/download
 
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
@@ -520,6 +520,7 @@ optimize ai buttons for light mode
 when another microphone is in use other than system microphone like earbud microphone then in notch and before 'quiet" it don't show microphone icon with active app tooltip and 
 copy files live indicator 
 save setting on restart of app 
+camera usage improvement 
 
 
 

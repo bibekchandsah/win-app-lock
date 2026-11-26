@@ -32,6 +32,9 @@ public sealed class WindowIslandHost
     private int _throughHotkeyId = -1;
 
     public event Action<bool>? ThroughModeChanged;
+    public event Action? CustomClocksChanged;
+
+    public void NotifyCustomClocksChanged() => CustomClocksChanged?.Invoke();
 
     private WindowIslandHost() { }
 

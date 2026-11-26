@@ -12148,6 +12148,7 @@ public sealed partial class WindowIslandWindow : Window
         (s.CustomClocks[index], s.CustomClocks[target]) = (s.CustomClocks[target], s.CustomClocks[index]);
         _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.NotifyCustomClocksChanged();
         RebuildWorldClockPills();
     }
 
@@ -12159,6 +12160,7 @@ public sealed partial class WindowIslandWindow : Window
             string.Equals(c.TimeZoneId, clock.TimeZoneId, StringComparison.OrdinalIgnoreCase));
         _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.NotifyCustomClocksChanged();
         RebuildWorldClockPills();
     }
 
@@ -12212,6 +12214,7 @@ public sealed partial class WindowIslandWindow : Window
         s.CustomClocks.Add(new CustomWorldClock(place, tzId));
         _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.NotifyCustomClocksChanged();
 
         if (CalendarAddClockPanel != null) CalendarAddClockPanel.Visibility = Visibility.Collapsed;
         RebuildWorldClockPills();

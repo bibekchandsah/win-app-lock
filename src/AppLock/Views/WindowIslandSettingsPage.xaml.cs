@@ -27,6 +27,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
+        WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
         if (_diskSaveTimer != null && _diskSaveTimer.IsRunning)
         {
             _diskSaveTimer.Stop();
@@ -50,6 +51,152 @@ public sealed partial class WindowIslandSettingsPage : Page
                 _loading = prevLoading;
             }
         });
+    }
+
+    private void OnExternalCustomClocksChanged()
+    {
+        DispatcherQueue?.TryEnqueue(RefreshSettingsWorldClocksList);
+    }
+
+    private void InitSettingsWorldClocks()
+    {
+        if (SettingsClockTzBox != null && SettingsClockTzBox.Items.Count == 0)
+        {
+            var zones = TimeZoneInfo.GetSystemTimeZones();
+            SettingsClockTzBox.ItemsSource = zones.Select(tz => new ComboBoxItem
+            {
+                Content = tz.DisplayName,
+                Tag = tz.Id
+            }).ToList();
+            if (zones.Count > 0) SettingsClockTzBox.SelectedIndex = 0;
+        }
+        RefreshSettingsWorldClocksList();
+    }
+
+    private void RefreshSettingsWorldClocksList()
+    {
+        if (SettingsWorldClocksList == null) return;
+        SettingsWorldClocksList.Children.Clear();
+
+        var clocks = ServiceContainer.Settings.WindowIsland.CustomClocks;
+        if (clocks == null || clocks.Count == 0)
+        {
+            SettingsWorldClocksList.Children.Add(new TextBlock
+            {
+                Text = "No custom world clocks added yet.",
+                FontSize = 12,
+                Opacity = 0.6
+            });
+            return;
+        }
+
+        for (int i = 0; i < clocks.Count; i++)
+        {
+            int idx = i;
+            var wc = clocks[i];
+
+            string tzLabel = wc.TimeZoneId;
+            try { tzLabel = TimeZoneInfo.FindSystemTimeZoneById(wc.TimeZoneId).DisplayName; } catch { }
+
+            var card = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(12, 8, 8, 8),
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1)
+            };
+
+            var row = new Grid { ColumnSpacing = 8 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var info = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+            info.Children.Add(new TextBlock { Text = wc.PlaceName, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 13 });
+            info.Children.Add(new TextBlock { Text = tzLabel, FontSize = 11.5, Opacity = 0.65, TextTrimming = TextTrimming.CharacterEllipsis });
+            Grid.SetColumn(info, 0);
+            row.Children.Add(info);
+
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            if (clocks.Count > 1)
+            {
+                var upBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE70E", FontSize = 11 },
+                    Padding = new Thickness(6),
+                    IsEnabled = idx > 0
+                };
+                ToolTipService.SetToolTip(upBtn, "Move up");
+                upBtn.Click += (_, _) => MoveSettingsWorldClock(idx, -1);
+                btns.Children.Add(upBtn);
+
+                var downBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE70D", FontSize = 11 },
+                    Padding = new Thickness(6),
+                    IsEnabled = idx < clocks.Count - 1
+                };
+                ToolTipService.SetToolTip(downBtn, "Move down");
+                downBtn.Click += (_, _) => MoveSettingsWorldClock(idx, 1);
+                btns.Children.Add(downBtn);
+            }
+
+            var delBtn = new Button
+            {
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 11 },
+                Padding = new Thickness(6)
+            };
+            ToolTipService.SetToolTip(delBtn, "Remove clock");
+            delBtn.Click += (_, _) => RemoveSettingsWorldClock(idx);
+            btns.Children.Add(delBtn);
+
+            Grid.SetColumn(btns, 1);
+            row.Children.Add(btns);
+            card.Child = row;
+            SettingsWorldClocksList.Children.Add(card);
+        }
+    }
+
+    private void SettingsAddClockBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsClockTzBox?.SelectedItem is not ComboBoxItem item || item.Tag is not string tzId) return;
+        string place = SettingsClockPlaceBox?.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(place))
+        {
+            string disp = item.Content as string ?? tzId;
+            int paren = disp.LastIndexOf(')');
+            place = paren >= 0 && paren + 1 < disp.Length ? disp[(paren + 1)..].Trim() : tzId;
+        }
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        s.CustomClocks.Add(new CustomWorldClock(place, tzId));
+        if (SettingsClockPlaceBox != null) SettingsClockPlaceBox.Text = string.Empty;
+        PersistAndSyncWorldClocks();
+    }
+
+    private void MoveSettingsWorldClock(int index, int delta)
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        int target = index + delta;
+        if (index < 0 || index >= s.CustomClocks.Count || target < 0 || target >= s.CustomClocks.Count) return;
+        (s.CustomClocks[index], s.CustomClocks[target]) = (s.CustomClocks[target], s.CustomClocks[index]);
+        PersistAndSyncWorldClocks();
+    }
+
+    private void RemoveSettingsWorldClock(int index)
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        if (index < 0 || index >= s.CustomClocks.Count) return;
+        s.CustomClocks.RemoveAt(index);
+        PersistAndSyncWorldClocks();
+    }
+
+    private void PersistAndSyncWorldClocks()
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.ApplySettings(s);
+        RefreshSettingsWorldClocksList();
     }
 
     /// <summary>Shows the settings section belonging to the selected rail category.</summary>
@@ -209,6 +356,9 @@ public sealed partial class WindowIslandSettingsPage : Page
         ThroughModeHotkeyBox.Text               = s.ThroughModeHotkey ?? string.Empty;
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.ThroughModeChanged += OnExternalThroughModeChanged;
+        WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
+        WindowIslandHost.Instance.CustomClocksChanged += OnExternalCustomClocksChanged;
+        InitSettingsWorldClocks();
         SelectComboItem(TargetMonitorBox,  s.TargetMonitorMode);
         SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
         ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());
