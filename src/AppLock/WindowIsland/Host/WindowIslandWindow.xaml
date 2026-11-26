@@ -555,21 +555,33 @@
                     </Grid>
 
                     <!-- Playback controls -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="18">
-                        <Button x:Name="MiniPrevBtn" Click="MediaPrev_Click"
-                                Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
-                            <FontIcon Glyph="&#xE892;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="18">
+                            <Button x:Name="MiniPrevBtn" Click="MediaPrev_Click"
+                                    Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
+                                <FontIcon Glyph="&#xE892;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
+                            </Button>
+                            <Button x:Name="MiniPlayPauseBtn" Click="MediaPlayPause_Click"
+                                    Width="30" Height="30" Padding="0" CornerRadius="15" BorderThickness="0"
+                                    Background="#F2FFFFFF">
+                                <FontIcon x:Name="MiniPlayPauseIcon" Glyph="&#xE769;" FontSize="12" Foreground="#FF141414" />
+                            </Button>
+                            <Button x:Name="MiniNextBtn" Click="MediaNext_Click"
+                                    Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
+                                <FontIcon Glyph="&#xE893;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
+                            </Button>
+                        </StackPanel>
+                        <Button x:Name="MiniNextAppBtn"
+                                Click="MediaNextApp_Click"
+                                Width="26" Height="26" MinWidth="26" Padding="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Visibility="Collapsed"
+                                Style="{StaticResource TabButtonStyle}"
+                                ToolTipService.ToolTip="Show the next app that is playing">
+                            <FontIcon Glyph="&#xE76C;" FontSize="11" />
                         </Button>
-                        <Button x:Name="MiniPlayPauseBtn" Click="MediaPlayPause_Click"
-                                Width="30" Height="30" Padding="0" CornerRadius="15" BorderThickness="0"
-                                Background="#F2FFFFFF">
-                            <FontIcon x:Name="MiniPlayPauseIcon" Glyph="&#xE769;" FontSize="12" Foreground="#FF141414" />
-                        </Button>
-                        <Button x:Name="MiniNextBtn" Click="MediaNext_Click"
-                                Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
-                            <FontIcon Glyph="&#xE893;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
-                        </Button>
-                    </StackPanel>
+                    </Grid>
                 </StackPanel>
 
                 <!-- Optional live lyrics on the right -->

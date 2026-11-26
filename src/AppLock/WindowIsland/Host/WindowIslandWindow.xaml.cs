@@ -237,8 +237,10 @@ public sealed partial class WindowIslandWindow : Window
     private string _lastMediaArtist = string.Empty;
     private double _lastMediaPositionSeconds;
     private bool _miniSeekPointerDown;
+    private bool _miniPlayerKeepPaused;
     private bool IsMiniPlayerPillActive =>
-        _isMediaPlaying && string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase);
+        string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase) &&
+        (_isMediaPlaying || (_hasMediaSession && _miniPlayerKeepPaused));
 
     // Milestone 7: Launcher
     private WindowIslandLauncher?             _launcher;
@@ -2138,7 +2140,7 @@ public sealed partial class WindowIslandWindow : Window
             PrimaryActionLabel: "Open"));
     }
 
-    private void OnDownloadProgress(string fileName, long bytes, double speedBytesPerSec)
+    private void OnDownloadProgress(int activeCount, string fileName, long bytes, double speedBytesPerSec)
     {
         if (!_settings.CardDownloadsEnabled) return;
         string sizeText = FormatDownloadSize(bytes);
@@ -2146,10 +2148,14 @@ public sealed partial class WindowIslandWindow : Window
             ? $"{sizeText} · {FormatDownloadSize((long)speedBytesPerSec)}/s"
             : sizeText;
 
+        string title = activeCount > 1
+            ? $"Downloading {activeCount} files..."
+            : "Downloading...";
+
         _eventQueue?.Push(new WindowIslandCard(
             Kind: "download-progress",
             Icon: "\uE896",
-            Title: "Downloading...",
+            Title: title,
             Detail: fileName,
             AccentHex: "#8C9EFF",
             Priority: WindowIslandCardPriority.DownloadProgress,
@@ -2697,10 +2703,12 @@ public sealed partial class WindowIslandWindow : Window
             {
                 MediaPlayerPanel.Visibility = Visibility.Collapsed;
                 MediaNextApp.Visibility     = Visibility.Collapsed;
+                if (MiniNextAppBtn != null) MiniNextAppBtn.Visibility = Visibility.Collapsed;
                 RecentPanel.Visibility      = Visibility.Visible;
                 FoldedMediaMini.Visibility  = Visibility.Collapsed;
                 FoldedEqMini.Visibility     = Visibility.Collapsed;
                 _hasMediaSession = false;
+                _miniPlayerKeepPaused = false;
                 _lastMediaArtKey = null;
                 StopEqTimer();
                 ClearLyrics();
@@ -2726,6 +2734,7 @@ public sealed partial class WindowIslandWindow : Window
 
             // The chevron only makes sense while another app also has media to show.
             MediaNextApp.Visibility = snap.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
+            if (MiniNextAppBtn != null) MiniNextAppBtn.Visibility = MediaNextApp.Visibility;
 
             MediaTitle.Text  = snap.Title;
             MediaArtist.Text = snap.Artist;
@@ -2828,6 +2837,10 @@ public sealed partial class WindowIslandWindow : Window
             // hide cleanly when paused so paused media doesn't keep the beat/icon on the island.
             _isMediaPlaying = snap.Playing;
             _hasMediaSession = true;
+            if (snap.Playing && string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase))
+            {
+                _miniPlayerKeepPaused = true;
+            }
             bool showFoldedMedia = snap.Playing;
             FoldedMediaMini.Visibility = showFoldedMedia ? Visibility.Visible : Visibility.Collapsed;
             FoldedEqMini.Visibility = showFoldedMedia ? Visibility.Visible : Visibility.Collapsed;
@@ -3957,7 +3970,13 @@ public sealed partial class WindowIslandWindow : Window
 
     /// <summary>Shows the next app that has media; the panel stays on it, so Play/Pause hit it.</summary>
     private void MediaNextApp_Click(object sender, RoutedEventArgs e)
-        => _homeState?.CycleMediaSession();
+    {
+        if (string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase) && _hasMediaSession)
+        {
+            _miniPlayerKeepPaused = true;
+        }
+        _homeState?.CycleMediaSession();
+    }
 
     // ── Seek bar: click or drag anywhere on the line to jump there ───────────
 
@@ -8612,9 +8631,12 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (FoldedStandardPill == null || FoldedMiniPlayer == null || FoldedLayer == null) return;
 
-        string mode = _isMediaPlaying && !string.IsNullOrWhiteSpace(_settings.MediaPillMode)
-            ? _settings.MediaPillMode
-            : "Usual";
+        string mode = string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase) &&
+                      (_isMediaPlaying || (_hasMediaSession && _miniPlayerKeepPaused))
+            ? "MiniPlayer"
+            : (_isMediaPlaying && !string.IsNullOrWhiteSpace(_settings.MediaPillMode)
+                ? _settings.MediaPillMode
+                : "Usual");
 
         if (string.Equals(mode, "MiniPlayer", StringComparison.OrdinalIgnoreCase))
         {

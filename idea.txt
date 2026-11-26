@@ -515,6 +515,11 @@ theme sync hover effect for play/pause icon, check icon for timer & remainder, m
 optimize ai buttons for light mode 
 
 when another microphone is in use other than system microphone like earbud microphone then in notch and before 'quiet" it don't show microphone icon with active app tooltip and 
+copy files live indicator 
+cpu, ram, disk, gpu usage icon and percentage
+clock and calendar
+save setting on restart of app 
+
 
 
 

@@ -148,6 +148,17 @@ public sealed class MediaSessionSource : IDisposable
             catch { }
         }
 
+        if (StatusOf(current) != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+        {
+            foreach (var candidate in _sessions)
+            {
+                if (StatusOf(candidate) == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                {
+                    return candidate;
+                }
+            }
+        }
+
         return current;
     }
 
@@ -187,6 +198,14 @@ public sealed class MediaSessionSource : IDisposable
         }
 
         if (sessions.Count < 2) return;
+
+        // Keep currently playing sessions first, then paused/other sessions.
+        sessions.Sort((a, b) =>
+        {
+            bool aPlay = StatusOf(a) == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            bool bPlay = StatusOf(b) == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            return bPlay.CompareTo(aPlay);
+        });
 
         int index = -1;
         for (int i = 0; i < sessions.Count; i++)

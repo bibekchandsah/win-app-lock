@@ -651,22 +651,32 @@ public sealed class DownloadCardSource : IDisposable
     [DllImport("shell32.dll")]
     private static extern int SHGetKnownFolderPath(ref Guid rfid, uint dwFlags, nint hToken, out nint ppszPath);
 
+    private sealed class ActiveDownload
+    {
+        public string TempPath { get; }
+        public long LastBytes { get; set; } = -1;
+        public long LastTickMs { get; set; }
+        public double SmoothedSpeed { get; set; }
+        public string ResolvedName { get; set; } = string.Empty;
+        public bool Resolving { get; set; }
+
+        public ActiveDownload(string tempPath, long nowMs)
+        {
+            TempPath = tempPath;
+            LastTickMs = nowMs;
+        }
+    }
+
     private readonly DispatcherQueue _queue;
     private readonly DispatcherQueueTimer _pollTimer;
     private FileSystemWatcher? _watcher;
     private string _folder = string.Empty;
-    private string? _activeTempPath;
-    private long _lastBytes = -1;
-    private long _lastTickMs;
-    private double _smoothedSpeed;
+    private readonly Dictionary<string, ActiveDownload> _activeDownloads = new(StringComparer.OrdinalIgnoreCase);
     private string _lastCompletedPath = string.Empty;
     private long _lastCompletedTickMs;
-    private string _resolvedTempPath = string.Empty;
-    private string _resolvedRealName = string.Empty;
-    private bool _resolvingName;
     private static readonly Regex UnconfirmedRegex = new(@"^Unconfirmed\s+\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public event Action<string, long, double>? Progress;
+    public event Action<int, string, long, double>? Progress;
     public event Action<string, long>? Completed;
     public event Action? Cancelled;
 
@@ -731,7 +741,7 @@ public sealed class DownloadCardSource : IDisposable
     public void Stop()
     {
         _pollTimer.Stop();
-        _activeTempPath = null;
+        _activeDownloads.Clear();
         if (_watcher == null) return;
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();
@@ -768,10 +778,8 @@ public sealed class DownloadCardSource : IDisposable
             }
 
             // Browser renamed temp file -> final file, or new completed file appeared
-            if (string.Equals(_activeTempPath, oldPath, StringComparison.OrdinalIgnoreCase) || IsTempFile(oldPath))
-            {
-                ClearTempTracking();
-            }
+            _activeDownloads.Remove(oldPath);
+            if (_activeDownloads.Count == 0) _pollTimer.Stop();
             ReportCompleted(newPath);
         });
     }
@@ -782,10 +790,9 @@ public sealed class DownloadCardSource : IDisposable
         {
             if (isDelete)
             {
-                if (!string.IsNullOrEmpty(_activeTempPath) &&
-                    string.Equals(_activeTempPath, path, StringComparison.OrdinalIgnoreCase))
+                if (_activeDownloads.Remove(path) && _activeDownloads.Count == 0)
                 {
-                    ClearTempTracking();
+                    _pollTimer.Stop();
                     Cancelled?.Invoke();
                 }
                 return;
@@ -802,106 +809,111 @@ public sealed class DownloadCardSource : IDisposable
             // Firefox creates a 0-byte target file alongside <name>.part; wait for .part to finish.
             if (File.Exists(path + ".part")) return;
 
-            if (!string.IsNullOrEmpty(_activeTempPath) &&
-                !File.Exists(_activeTempPath))
-            {
-                ClearTempTracking();
-            }
-
+            PruneMissingTempDownloads();
             ReportCompleted(path);
         });
     }
 
     private void TrackTemp(string path)
     {
-        bool isNew = !string.Equals(_activeTempPath, path, StringComparison.OrdinalIgnoreCase);
-        _activeTempPath = path;
+        bool isNew = !_activeDownloads.ContainsKey(path);
         if (isNew)
         {
-            _lastBytes = -1;
-            _lastTickMs = Environment.TickCount64;
-            _smoothedSpeed = 0;
+            _activeDownloads[path] = new ActiveDownload(path, Environment.TickCount64);
         }
         if (!_pollTimer.IsRunning) _pollTimer.Start();
         if (isNew) PollActiveTemp();
     }
 
-    private void ClearTempTracking()
+    private void PruneMissingTempDownloads()
     {
-        _pollTimer.Stop();
-        _activeTempPath = null;
-        _lastBytes = -1;
-        _smoothedSpeed = 0;
-        _resolvedTempPath = string.Empty;
-        _resolvedRealName = string.Empty;
+        foreach (string key in _activeDownloads.Keys.ToList())
+        {
+            if (!File.Exists(key))
+            {
+                _activeDownloads.Remove(key);
+            }
+        }
+        if (_activeDownloads.Count == 0)
+        {
+            _pollTimer.Stop();
+        }
     }
 
     private void PollActiveTemp()
     {
-        if (string.IsNullOrEmpty(_activeTempPath))
-        {
-            _pollTimer.Stop();
-            return;
-        }
+        PruneMissingTempDownloads();
+        if (_activeDownloads.Count == 0) return;
 
         try
         {
-            if (!File.Exists(_activeTempPath))
-            {
-                ClearTempTracking();
-                return;
-            }
-
-            long bytes = new FileInfo(_activeTempPath).Length;
             long now = Environment.TickCount64;
-            if (_lastBytes >= 0)
-            {
-                double dt = (now - _lastTickMs) / 1000.0;
-                if (dt >= 0.2 && bytes >= _lastBytes)
-                {
-                    double instant = (bytes - _lastBytes) / dt;
-                    _smoothedSpeed = _smoothedSpeed <= 0 ? instant : (_smoothedSpeed * 0.55 + instant * 0.45);
-                }
-            }
-            _lastBytes = bytes;
-            _lastTickMs = now;
-            string displayName = Path.GetFileNameWithoutExtension(_activeTempPath);
-            if (string.IsNullOrWhiteSpace(displayName))
-                displayName = Path.GetFileName(_activeTempPath);
+            long totalBytes = 0;
+            double totalSpeed = 0;
+            var names = new List<string>();
 
-            if (UnconfirmedRegex.IsMatch(displayName))
+            foreach (var dl in _activeDownloads.Values)
             {
-                if (string.Equals(_resolvedTempPath, _activeTempPath, StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(_resolvedRealName))
+                long bytes = new FileInfo(dl.TempPath).Length;
+                if (dl.LastBytes >= 0)
                 {
-                    displayName = _resolvedRealName;
-                }
-                else
-                {
-                    string tempPath = _activeTempPath;
-                    if (!_resolvingName)
+                    double dt = (now - dl.LastTickMs) / 1000.0;
+                    if (dt >= 0.2 && bytes >= dl.LastBytes)
                     {
-                        _resolvingName = true;
-                        _ = Task.Run(() =>
-                        {
-                            string? resolved = TryResolveChromiumTargetName(tempPath);
-                            _queue.TryEnqueue(() =>
-                            {
-                                if (string.Equals(_activeTempPath, tempPath, StringComparison.OrdinalIgnoreCase) &&
-                                    !string.IsNullOrWhiteSpace(resolved))
-                                {
-                                    _resolvedTempPath = tempPath;
-                                    _resolvedRealName = resolved;
-                                }
-                                _resolvingName = false;
-                            });
-                        });
+                        double instant = (bytes - dl.LastBytes) / dt;
+                        dl.SmoothedSpeed = dl.SmoothedSpeed <= 0 ? instant : (dl.SmoothedSpeed * 0.55 + instant * 0.45);
                     }
-                    displayName = string.Empty;
+                }
+                dl.LastBytes = bytes;
+                dl.LastTickMs = now;
+                totalBytes += bytes;
+                totalSpeed += dl.SmoothedSpeed;
+
+                string displayName = Path.GetFileNameWithoutExtension(dl.TempPath);
+                if (string.IsNullOrWhiteSpace(displayName))
+                    displayName = Path.GetFileName(dl.TempPath);
+
+                if (UnconfirmedRegex.IsMatch(displayName))
+                {
+                    if (!string.IsNullOrWhiteSpace(dl.ResolvedName))
+                    {
+                        displayName = dl.ResolvedName;
+                    }
+                    else
+                    {
+                        if (!dl.Resolving)
+                        {
+                            dl.Resolving = true;
+                            string tempPath = dl.TempPath;
+                            _ = Task.Run(() =>
+                            {
+                                string? resolved = TryResolveChromiumTargetName(tempPath);
+                                _queue.TryEnqueue(() =>
+                                {
+                                    if (_activeDownloads.TryGetValue(tempPath, out var active) &&
+                                        !string.IsNullOrWhiteSpace(resolved))
+                                    {
+                                        active.ResolvedName = resolved;
+                                    }
+                                    if (_activeDownloads.TryGetValue(tempPath, out var a2))
+                                    {
+                                        a2.Resolving = false;
+                                    }
+                                });
+                            });
+                        }
+                        displayName = string.Empty;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(displayName))
+                {
+                    names.Add(displayName);
                 }
             }
 
-            Progress?.Invoke(displayName, bytes, _smoothedSpeed);
+            string combinedNames = string.Join(", ", names);
+            Progress?.Invoke(_activeDownloads.Count, combinedNames, totalBytes, totalSpeed);
         }
         catch { }
     }
