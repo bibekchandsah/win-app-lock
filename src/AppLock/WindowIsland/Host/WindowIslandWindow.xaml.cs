@@ -2935,11 +2935,11 @@ public sealed partial class WindowIslandWindow : Window
     private void InitAudioListener()
     {
         if (_audio != null) return;
-        _audio = new WindowIslandAudio();
+        _audio = new WindowIslandAudio(DispatcherQueue);
         _audio.SystemVolumeChanged += OnSystemVolumeChanged;
         _audio.DefaultRenderDeviceChanged += OnDefaultRenderDeviceChanged;
         _audio.DefaultCaptureDeviceChanged += OnDefaultCaptureDeviceChanged;
-        _ = Task.Run(() => _audio?.Refresh());
+        DispatcherQueue.TryEnqueue(() => _audio?.Refresh());
     }
 
     private void OnDefaultRenderDeviceChanged(string deviceName)

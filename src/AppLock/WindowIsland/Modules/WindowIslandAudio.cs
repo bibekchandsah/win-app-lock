@@ -35,9 +35,12 @@ public sealed class WindowIslandAudio : IDisposable
     /// <summary>Mixer rule for "this session is making sound".</summary>
     private const float AudiblePeak = 0.0005f;
 
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _uiQueue;
     private MMDeviceEnumerator? _enumerator;
     private EndpointNotificationClient? _endpointClient;
     private MMDevice? _defaultDevice;
+    private AudioEndpointVolume? _endpointVolume;
+    private AudioEndpointVolumeNotificationDelegate? _volumeCallbackDelegate;
     private AudioSessionManager? _sessionManager;
     private List<IslandAudioDevice> _devices = new();
     private string? _defaultId;
@@ -45,6 +48,11 @@ public sealed class WindowIslandAudio : IDisposable
     private string? _lastNotifiedCaptureId;
     private int _lastScanTick;
     private bool _scanned;
+
+    public WindowIslandAudio(Microsoft.UI.Dispatching.DispatcherQueue? uiQueue = null)
+    {
+        _uiQueue = uiQueue;
+    }
 
     public event Action<int, bool>? SystemVolumeChanged;
     public event Action<string>? DefaultRenderDeviceChanged;
@@ -175,9 +183,15 @@ public sealed class WindowIslandAudio : IDisposable
         try { _sessionManager?.Dispose(); } catch { }
         _sessionManager = null;
 
+        if (_endpointVolume != null && _volumeCallbackDelegate != null)
+        {
+            try { _endpointVolume.OnVolumeNotification -= _volumeCallbackDelegate; } catch { }
+        }
+        _volumeCallbackDelegate = null;
+        _endpointVolume = null;
+
         if (_defaultDevice != null)
         {
-            try { _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnEndpointVolumeNotification; } catch { }
             try { _defaultDevice.Dispose(); } catch { }
             _defaultDevice = null;
         }
@@ -189,7 +203,9 @@ public sealed class WindowIslandAudio : IDisposable
             _defaultDevice = Enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             if (_defaultDevice != null)
             {
-                _defaultDevice.AudioEndpointVolume.OnVolumeNotification += OnEndpointVolumeNotification;
+                _endpointVolume = _defaultDevice.AudioEndpointVolume;
+                _volumeCallbackDelegate = OnEndpointVolumeNotification;
+                _endpointVolume.OnVolumeNotification += _volumeCallbackDelegate;
                 _sessionManager = _defaultDevice.AudioSessionManager;
             }
         }
@@ -440,25 +456,39 @@ public sealed class WindowIslandAudio : IDisposable
         {
             if (flow == DataFlow.Render && role == Role.Multimedia)
             {
-                if (string.Equals(_lastNotifiedRenderId, defaultDeviceId, StringComparison.Ordinal)) return;
-                _lastNotifiedRenderId = defaultDeviceId;
-
-                string? name = null;
-                try
+                if (!string.Equals(_lastNotifiedRenderId, defaultDeviceId, StringComparison.Ordinal))
                 {
-                    using var dev = _enumerator?.GetDevice(defaultDeviceId);
-                    name = dev?.FriendlyName;
+                    _lastNotifiedRenderId = defaultDeviceId;
+
+                    string? name = null;
+                    try
+                    {
+                        using var dev = _enumerator?.GetDevice(defaultDeviceId);
+                        name = dev?.FriendlyName;
+                    }
+                    catch { }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                        DefaultRenderDeviceChanged?.Invoke(name);
                 }
-                catch { }
 
-                _defaultId = defaultDeviceId;
-                _ = System.Threading.Tasks.Task.Run(() =>
+                // Re-scan on the STA UI thread without overwriting _defaultId beforehand, so
+                // ScanDevices sees defaultChanged == true and rebinds OnVolumeNotification to the
+                // new default device (e.g. back to System Speaker after unplugging earphones).
+                if (_uiQueue != null)
                 {
-                    try { ScanDevices(); } catch { }
-                });
-
-                if (!string.IsNullOrWhiteSpace(name))
-                    DefaultRenderDeviceChanged?.Invoke(name);
+                    _uiQueue.TryEnqueue(() =>
+                    {
+                        try { ScanDevices(); } catch { }
+                    });
+                }
+                else
+                {
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        try { ScanDevices(); } catch { }
+                    });
+                }
             }
             else if (flow == DataFlow.Capture && role == Role.Communications)
             {
@@ -496,9 +526,15 @@ public sealed class WindowIslandAudio : IDisposable
         try { _sessionManager?.Dispose(); } catch { }
         _sessionManager = null;
 
+        if (_endpointVolume != null && _volumeCallbackDelegate != null)
+        {
+            try { _endpointVolume.OnVolumeNotification -= _volumeCallbackDelegate; } catch { }
+        }
+        _volumeCallbackDelegate = null;
+        _endpointVolume = null;
+
         if (_defaultDevice != null)
         {
-            try { _defaultDevice.AudioEndpointVolume.OnVolumeNotification -= OnEndpointVolumeNotification; } catch { }
             try { _defaultDevice.Dispose(); } catch { }
             _defaultDevice = null;
         }

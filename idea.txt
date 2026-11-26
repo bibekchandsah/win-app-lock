@@ -492,6 +492,34 @@ fixed - command navigation
 fixed - custom color theme 
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
+separate toggle setting for microphone & camera in notch indicators "mic / camera indicator dots on folded island"
+The player on Home:
+    "Soft mirror": the cover/album in the middle, its blurred reflection at the sides. 
+    "Fill": the whole player in the cover/album's colours. 
+    "Compact": we have already implemented
+pin open icon enabled window accent effect 
+in clipboard tab copied image is flickered and when user scrolls down show more clipboard items, it's not showing all when scrolled down 
+in text tab dictation isn't opened (win + h) and show qr code a bit smaller or make it scrollable below buttons aren't visible
+optimize ai buttons for light mode 
+in note show saved status icon before "+" icon in window accent color if status is saved and make the bold, italic, underline row scrollable
+when note is saved blank next time it shows with text cursor in next line
+when remove highlight is used then it shows black background on text 
+in weather tab of left side card of right side "down arrow" isn't working
+
+hide in full-screen apps isn't working
+auto-hide island until needed (slides off-screen) isn't working
+
+the pills while music plays 
+through mode 
+the song's words
+the words in the player on home
+downloads on live cards
+screenshot folder 
+
+Reminders understand a date in words ("November 19 at 4 pm"), for a day of the week they offer this one, the next one or every week, and the time read can be moved by a day or 15 minutes with buttons.
+
+
+
 
 general:
 hide in full-screen apps
