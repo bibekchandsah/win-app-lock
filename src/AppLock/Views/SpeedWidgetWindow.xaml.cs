@@ -182,7 +182,9 @@ public sealed partial class SpeedWidgetWindow : Window
     /// <summary>
     /// Glass uses the acrylic system backdrop and Follow Windows uses Mica; the widget draws its
     /// own rounded card on top. Without a backdrop those presets only showed the window's black
-    /// default background, which is why opacity seemed to do nothing.
+    /// default background, which is why opacity seemed to do nothing. Transparent draws no card fill
+    /// at all, so it needs the transparent backdrop for the same reason: otherwise the window's own
+    /// opaque surface is what shows behind the readings.
     /// </summary>
     private void ApplyBackdrop()
     {
@@ -200,6 +202,7 @@ public sealed partial class SpeedWidgetWindow : Window
             {
                 "Glass" => acrylic ? new DesktopAcrylicBackdrop() : null,
                 "FollowWindows" => mica ? new MicaBackdrop() : null,
+                "Transparent" => new TransparentBackdrop(),
                 _ => null
             };
 
