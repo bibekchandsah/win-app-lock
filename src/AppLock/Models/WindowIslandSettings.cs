@@ -248,6 +248,18 @@ public sealed class WindowIslandSettings
     /// <summary>Show orange/green mic/camera indicator dots on the folded island.</summary>
     public bool MicCamDotsEnabled     { get; set; } = true;
 
+    /// <summary>Show microphone indicator dot on the folded island.</summary>
+    public bool MicDotEnabled         { get; set; } = true;
+
+    /// <summary>Show camera indicator dot on the folded island.</summary>
+    public bool CamDotEnabled         { get; set; } = true;
+
+    /// <summary>Push a live card when an app starts using the microphone.</summary>
+    public bool CardMicEnabled        { get; set; } = true;
+
+    /// <summary>Push a live card when an app starts using the camera.</summary>
+    public bool CardCamEnabled        { get; set; } = true;
+
     // ── Home tab media ────────────────────────────────────────────────────────
     /// <summary>Show the lyrics sheet beside the player when the current track has lyrics.</summary>
     public bool LyricsEnabled         { get; set; } = true;

@@ -490,9 +490,10 @@ fixed - music background blur effect
 fixed - speaker/microphone changed notification
 fixed - command navigation
 fixed - custom color theme 
+fixed - separate toggle setting for microphone & camera in notch indicators "mic / camera indicator dots on folded island"
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
-separate toggle setting for microphone & camera in notch indicators "mic / camera indicator dots on folded island"
+visibility page toggles settings aren't working 
 The player on Home:
     "Soft mirror": the cover/album in the middle, its blurred reflection at the sides. 
     "Fill": the whole player in the cover/album's colours. 
@@ -504,10 +505,9 @@ optimize ai buttons for light mode
 in note show saved status icon before "+" icon in window accent color if status is saved and make the bold, italic, underline row scrollable
 when note is saved blank next time it shows with text cursor in next line
 when remove highlight is used then it shows black background on text 
+Reminders understand a date in words ("November 19 at 4 pm"), for a day of the week they offer this one, the next one or every week, and the time read can be moved by a day or 15 minutes with buttons.
 in weather tab of left side card of right side "down arrow" isn't working
 
-hide in full-screen apps isn't working
-auto-hide island until needed (slides off-screen) isn't working
 
 the pills while music plays 
 through mode 
@@ -516,7 +516,6 @@ the words in the player on home
 downloads on live cards
 screenshot folder 
 
-Reminders understand a date in words ("November 19 at 4 pm"), for a day of the week they offer this one, the next one or every week, and the time read can be moved by a day or 15 minutes with buttons.
 
 
 

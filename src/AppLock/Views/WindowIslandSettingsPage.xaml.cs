@@ -120,7 +120,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardVpnToggle.IsOn        = s.CardVpnEnabled;
         CardBatteryLowToggle.IsOn = s.CardBatteryLowEnabled;
         CardChargingToggle.IsOn   = s.CardChargingEnabled;
-        MicCamDotsToggle.IsOn     = s.MicCamDotsEnabled;
+        CardMicToggle.IsOn        = s.CardMicEnabled;
+        CardCamToggle.IsOn        = s.CardCamEnabled;
+        MicDotToggle.IsOn         = s.MicDotEnabled;
+        CamDotToggle.IsOn         = s.CamDotEnabled;
         LyricsToggle.IsOn         = s.LyricsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
@@ -371,7 +374,11 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardVpnEnabled        = CardVpnToggle.IsOn;
         s.CardBatteryLowEnabled = CardBatteryLowToggle.IsOn;
         s.CardChargingEnabled   = CardChargingToggle.IsOn;
-        s.MicCamDotsEnabled     = MicCamDotsToggle.IsOn;
+        s.CardMicEnabled        = CardMicToggle.IsOn;
+        s.CardCamEnabled        = CardCamToggle.IsOn;
+        s.MicDotEnabled         = MicDotToggle.IsOn;
+        s.CamDotEnabled         = CamDotToggle.IsOn;
+        s.MicCamDotsEnabled     = s.MicDotEnabled || s.CamDotEnabled;
         s.LyricsEnabled         = LyricsToggle.IsOn;
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;

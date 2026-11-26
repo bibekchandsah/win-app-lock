@@ -6349,7 +6349,7 @@ public sealed partial class WindowIslandWindow : Window
                 _activeCamAppName = string.Empty;
 
             string displayApp = _activeCamAppName ?? appName;
-            if (nowCamActive && _settings.MicCamDotsEnabled &&
+            if (nowCamActive && _settings.CardCamEnabled &&
                 (!wasCamActive || !string.Equals(_lastWarnedCamApp, displayApp, StringComparison.OrdinalIgnoreCase)) &&
                 ShouldAnnounceCam(displayApp))
             {
@@ -6409,7 +6409,7 @@ public sealed partial class WindowIslandWindow : Window
                 ? e.CamApp
                 : (_cameraMonitorInUse ? (_cameraMonitorApp ?? string.Empty) : string.Empty);
 
-            if (e.MicActive && _settings.MicCamDotsEnabled &&
+            if (e.MicActive && _settings.CardMicEnabled &&
                 (!wasMicActive || !string.Equals(_lastWarnedMicApp, e.MicApp, StringComparison.OrdinalIgnoreCase)))
             {
                 _lastWarnedMicApp = e.MicApp;
@@ -6434,7 +6434,7 @@ public sealed partial class WindowIslandWindow : Window
                 _lastWarnedMicApp = null;
             }
 
-            if (e.CamActive && _settings.MicCamDotsEnabled &&
+            if (e.CamActive && _settings.CardCamEnabled &&
                 (!wasCamActive || !string.Equals(_lastWarnedCamApp, e.CamApp, StringComparison.OrdinalIgnoreCase)) &&
                 ShouldAnnounceCam(e.CamApp))
             {
@@ -6545,14 +6545,15 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateMicCamDots()
     {
-        bool enabled = _settings.MicCamDotsEnabled;
-        bool anyActive = enabled && (_micDotActive || _camDotActive);
+        bool showMic = _settings.MicDotEnabled && _micDotActive;
+        bool showCam = _settings.CamDotEnabled && _camDotActive;
+        bool anyActive = showMic || showCam;
         bool micMuted = IsSystemDefaultMicMuted();
         var accentBrush = new SolidColorBrush(GetSystemAccentColor());
 
         MicCamDotsContainer.Visibility = anyActive ? Visibility.Visible : Visibility.Collapsed;
-        MicDot.Visibility = (enabled && _micDotActive) ? Visibility.Visible : Visibility.Collapsed;
-        CamDot.Visibility = (enabled && _camDotActive) ? Visibility.Visible : Visibility.Collapsed;
+        MicDot.Visibility = showMic ? Visibility.Visible : Visibility.Collapsed;
+        CamDot.Visibility = showCam ? Visibility.Visible : Visibility.Collapsed;
 
         string? micApp = _activeMicAppName;
         if (_micDotActive && string.IsNullOrEmpty(micApp))
