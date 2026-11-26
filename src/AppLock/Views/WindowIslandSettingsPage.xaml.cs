@@ -25,11 +25,30 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         if (_diskSaveTimer != null && _diskSaveTimer.IsRunning)
         {
             _diskSaveTimer.Stop();
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
+    }
+
+    private void OnExternalThroughModeChanged(bool enabled)
+    {
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            if (ThroughModeToggle == null || ThroughModeToggle.IsOn == enabled) return;
+            bool prevLoading = _loading;
+            _loading = true;
+            try
+            {
+                ThroughModeToggle.IsOn = enabled;
+            }
+            finally
+            {
+                _loading = prevLoading;
+            }
+        });
     }
 
     /// <summary>Shows the settings section belonging to the selected rail category.</summary>
@@ -176,6 +195,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         UnderTopTaskbarToggle.IsOn              = s.UnderTopTaskbar;
         ThroughModeToggle.IsOn                  = s.ThroughMode;
         ThroughModeHotkeyBox.Text               = s.ThroughModeHotkey ?? string.Empty;
+        WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
+        WindowIslandHost.Instance.ThroughModeChanged += OnExternalThroughModeChanged;
         SelectComboItem(TargetMonitorBox,  s.TargetMonitorMode);
         SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
         ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());

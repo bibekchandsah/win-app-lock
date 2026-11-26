@@ -31,6 +31,8 @@ public sealed class WindowIslandHost
     private int _cmdHotkeyId = -1;
     private int _throughHotkeyId = -1;
 
+    public event Action<bool>? ThroughModeChanged;
+
     private WindowIslandHost() { }
 
     public static void Log(string msg)
@@ -142,6 +144,8 @@ public sealed class WindowIslandHost
         {
             App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
         }
+
+        ThroughModeChanged?.Invoke(settings.ThroughMode);
     }
 
     public void ToggleVisibility()
