@@ -515,7 +515,7 @@ public sealed partial class WindowIslandWindow : Window
         };
         _controlsTimer.Start();
 
-        try { CompositionTarget.Rendering += OnCompositionRendering; } catch { }
+        UpdateRenderingSubscription();
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -536,6 +536,7 @@ public sealed partial class WindowIslandWindow : Window
 
         // Wire up composition visuals for tab content slides
         UpdateTabVisuals();
+        ApplyThemeColors(settings);
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
 
@@ -610,10 +611,12 @@ public sealed partial class WindowIslandWindow : Window
         UpdateChatHeightLabel();
         PositionAndSize();
         _compositor?.ApplySettings(settings);
+        ApplyThemeColors(settings);
         UpdateHitRegion(_compositor?.IsOpen ?? false);
         UpdateShapeContentOffset();
         SyncWatchedKeys();
         ApplyContentVisibility();
+        UpdateTabHighlight(animate: false);
         UpdateClock();
         UpdateBattery();
         UpdateFoldedWeatherMini();
@@ -653,6 +656,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             FrameStatsRow.Visibility = settings.ShowFrameStats ? Visibility.Visible : Visibility.Collapsed;
         }
+        UpdateRenderingSubscription();
     }
 
     public void ToggleVisible() => SetIslandVisible(!_isVisible);
@@ -668,7 +672,7 @@ public sealed partial class WindowIslandWindow : Window
 
     public new void Close()
     {
-        try { CompositionTarget.Rendering -= OnCompositionRendering; } catch { }
+        try { CompositionTarget.Rendering -= OnCompositionRendering; _renderingHooked = false; } catch { }
         _topmostTimer?.Stop();
         _hoverTimer?.Stop();
         _clockTimer?.Stop();
@@ -885,14 +889,15 @@ public sealed partial class WindowIslandWindow : Window
         float slideDip  = IslandMotion.TabSlideDip;
 
         // Outgoing: fade out + slide out
+        int tabMs = EffectiveTabSwitchMs;
         var fadeOut = comp.CreateScalarKeyFrameAnimation();
         fadeOut.InsertKeyFrame(1f, 0f);
-        fadeOut.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+        fadeOut.Duration = TimeSpan.FromMilliseconds(tabMs);
 
         var slideOut = comp.CreateVector3KeyFrameAnimation();
         slideOut.InsertKeyFrame(0f, Vector3.Zero);
         slideOut.InsertKeyFrame(1f, new Vector3(goingRight ? -slideDip : slideDip, 0, 0));
-        slideOut.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+        slideOut.Duration = TimeSpan.FromMilliseconds(tabMs);
 
         fromVisual.StartAnimation("Opacity", fadeOut);
         fromVisual.StartAnimation("Offset",  slideOut);
@@ -903,11 +908,11 @@ public sealed partial class WindowIslandWindow : Window
 
         var fadeIn = comp.CreateScalarKeyFrameAnimation();
         fadeIn.InsertKeyFrame(1f, 1f);
-        fadeIn.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+        fadeIn.Duration = TimeSpan.FromMilliseconds(tabMs);
 
         var slideIn = comp.CreateVector3KeyFrameAnimation();
         slideIn.InsertKeyFrame(1f, Vector3.Zero);
-        slideIn.Duration = TimeSpan.FromMilliseconds(IslandMotion.TabSwitchMs);
+        slideIn.Duration = TimeSpan.FromMilliseconds(tabMs);
 
         var batch = comp.CreateScopedBatch(CompositionBatchTypes.Animation);
         batch.Completed += (_, _) =>
@@ -939,11 +944,88 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private static bool _isLightSurfaceActive;
+
+    private bool IsLightSurface
+        => !WindowIslandColorHelper.IsDarkColor(WindowIslandColorHelper.ResolveBaseColor(_settings));
+
+    private static Windows.UI.Color AdaptiveInkColor(byte alpha = 255)
+        => _isLightSurfaceActive
+            ? Windows.UI.Color.FromArgb(alpha, 24, 24, 28)
+            : Windows.UI.Color.FromArgb(alpha, 255, 255, 255);
+
+    private static Windows.UI.Color AdaptiveInverseInkColor(byte alpha = 255)
+        => _isLightSurfaceActive
+            ? Windows.UI.Color.FromArgb(alpha, 255, 255, 255)
+            : Windows.UI.Color.FromArgb(alpha, 17, 17, 17);
+
+    private static Windows.UI.Color AdaptiveSurfaceColor(byte darkAlpha)
+        => darkAlpha == 0
+            ? Windows.UI.Color.FromArgb(0, 0, 0, 0)
+            : (_isLightSurfaceActive
+                ? Windows.UI.Color.FromArgb((byte)Math.Clamp((int)darkAlpha, 12, 46), 0, 0, 0)
+                : Windows.UI.Color.FromArgb(darkAlpha, 255, 255, 255));
+
+    private static Windows.UI.Color AdaptiveBorderColor(byte darkAlpha)
+        => _isLightSurfaceActive
+            ? Windows.UI.Color.FromArgb((byte)Math.Clamp((int)darkAlpha, 20, 64), 0, 0, 0)
+            : Windows.UI.Color.FromArgb(darkAlpha, 255, 255, 255);
+
+    private static Windows.UI.Color AdaptiveCyanColor(byte alpha = 255)
+        => _isLightSurfaceActive
+            ? Windows.UI.Color.FromArgb(alpha, 0, 103, 192)
+            : Windows.UI.Color.FromArgb(alpha, 96, 205, 255);
+
+    private static Windows.UI.Color AdaptiveGoldColor(byte alpha = 255)
+        => _isLightSurfaceActive
+            ? Windows.UI.Color.FromArgb(alpha, 180, 83, 9)
+            : Windows.UI.Color.FromArgb(alpha, 255, 215, 0);
+
+    private bool? _lastAppliedLightTheme;
+    private bool _renderingHooked;
+    private bool _benchmarkActive;
+
+    private void UpdateRenderingSubscription()
+    {
+        bool need = _settings.ShowFrameStats || _benchmarkActive;
+        if (need && !_renderingHooked)
+        {
+            try { CompositionTarget.Rendering += OnCompositionRendering; _renderingHooked = true; } catch { }
+        }
+        else if (!need && _renderingHooked)
+        {
+            try { CompositionTarget.Rendering -= OnCompositionRendering; _renderingHooked = false; } catch { }
+        }
+    }
+
+    private void ApplyThemeColors(WindowIslandSettings settings)
+    {
+        bool isLight = !WindowIslandColorHelper.IsDarkColor(WindowIslandColorHelper.ResolveBaseColor(settings));
+        _isLightSurfaceActive = isLight;
+        if (_lastAppliedLightTheme == isLight) return;
+        _lastAppliedLightTheme = isLight;
+
+        var desired = isLight ? ElementTheme.Light : ElementTheme.Dark;
+        if (RootGrid != null && RootGrid.RequestedTheme != desired)
+        {
+            RootGrid.RequestedTheme = desired;
+        }
+        try { UpdateTabHighlight(animate: false); } catch { }
+        try { if (_currentClipboardRows != null) OnClipboardItemsLoaded(_currentClipboardRows); } catch { }
+        try { if (_activeTab == 2) RefreshShelfUI(); } catch { }
+        try { if (_activeTab == 0) RefreshLauncherUI(); } catch { }
+        try { if (_activeTab == 5) { RefreshNotesUI(); RefreshRemindersUI(); } } catch { }
+        try { if (_activeTab == 6) RefreshWeatherUI(); } catch { }
+        try { if (_activeTab == 7) { RefreshControlsUI(); RenderQuickCardsGrid(); } } catch { }
+        try { if (_activeTab == 4) RefreshChatUI(); } catch { }
+        try { if (_activeTab == 3) RefreshTextUI(); } catch { }
+    }
+
     private void UpdateTabHighlight(bool animate)
     {
         var accentColor = GetSystemAccentColor();
         var accentBrush = new SolidColorBrush(accentColor);
-        var defaultBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(192, 255, 255, 255)); // #C0FFFFFF default
+        var defaultBrush = new SolidColorBrush(AdaptiveInkColor(192));
 
         // Highlight the active tab button text/icon with window accent color,
         // show text only for the active tab (e.g. icon [clipboard]), remaining tabs show icon only
@@ -1297,11 +1379,11 @@ public sealed partial class WindowIslandWindow : Window
         OpenLayer.IsHitTestVisible = true;
         _measuringFrames = true;
 
-        FadeVisual(_cardVisual,   0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_foldedVisual, 0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_cardVisual,    0f, EffectiveFadeOutMs);
+        FadeVisual(_foldedVisual,  0f, EffectiveFadeOutMs);
+        FadeVisual(_commandVisual, 0f, EffectiveFadeOutMs);
         CommandLayer.IsHitTestVisible = false;
-        FadeVisual(_openVisual,   1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        FadeVisual(_openVisual,    1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
         if (_openVisual != null) _openVisual.Scale = System.Numerics.Vector3.One;
 
         _compositor.AnimateToOpen(_activeTab, () =>
@@ -1335,10 +1417,10 @@ public sealed partial class WindowIslandWindow : Window
 
         _measuringFrames = true;
         OpenLayer.IsHitTestVisible = false;
-        _eventQueue?.HoldForMotion(IslandMotion.ClosePeriodMs);
+        _eventQueue?.HoldForMotion(EffectiveAnimMs);
 
-        FadeVisual(_openVisual,   0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_foldedVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        FadeVisual(_openVisual,   0f, EffectiveFadeOutMs);
+        FadeVisual(_foldedVisual, 1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
 
         _compositor.AnimateToFolded(() =>
         {
@@ -1360,6 +1442,12 @@ public sealed partial class WindowIslandWindow : Window
         });
         UpdateHitRegion(open: false, isCard: false);
     }
+
+    private int EffectiveAnimMs => IslandMotion.ResolveDurationMs(_settings);
+    private int EffectiveFadeInMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.72), 60, 500);
+    private int EffectiveFadeInDelayMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.12), 0, 80);
+    private int EffectiveFadeOutMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.45), 40, 300);
+    private int EffectiveTabSwitchMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.65), 60, 450);
 
     private void FadeVisual(Visual? visual, float targetOpacity, int durationMs, int delayMs = 0)
     {
@@ -1447,7 +1535,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             rgn = CreateRoundRectRgn(leftPx, topPx, rightPx, bottomPx, ellipsePx, ellipsePx);
         }
-        if (rgn != nint.Zero) SetWindowRgn(_hwnd, rgn, true);
+        if (rgn != nint.Zero) SetWindowRgn(_hwnd, rgn, false);
     }
 
     private static nint CreateNotchRegion(int left, int right, int bottom, int ear, int botR)
@@ -1539,6 +1627,8 @@ public sealed partial class WindowIslandWindow : Window
 
     public async Task RunBenchmarkAsync(int cycles = 200)
     {
+        _benchmarkActive = true;
+        UpdateRenderingSubscription();
         BenchStatusText.Text = $"Bench ({cycles} cycles)…";
         lock (_frameTimes) { _frameTimes.Clear(); }
 
@@ -1585,6 +1675,8 @@ public sealed partial class WindowIslandWindow : Window
         await File.WriteAllTextAsync(benchPath, report);
         await File.WriteAllTextAsync(Path.Combine(islandDir, "bench.txt"), report);
         BenchStatusText.Text = $"p95={p95:F1}ms {(pass ? "PASS ✓" : "WARN")}";
+        _benchmarkActive = false;
+        UpdateRenderingSubscription();
     }
 
     private (double p50, double p95, double p99, double max) ComputePercentiles()
@@ -1988,9 +2080,9 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     CardPrimaryActionBtn.Visibility = Visibility.Visible;
                     CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
-                    CardDismissActionBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+                    CardDismissActionBtn.Background = new SolidColorBrush(AdaptiveInkColor(255));
                     CardDismissActionIcon.Glyph = "\uE73E";
-                    CardDismissActionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x00, 0x00, 0x00));
+                    CardDismissActionIcon.Foreground = new SolidColorBrush(AdaptiveInverseInkColor(255));
                     ToolTipService.SetToolTip(CardDismissActionBtn, "Dismiss");
                 }
             }
@@ -2022,7 +2114,7 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.CornerRadius = new CornerRadius(17);
                 CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use" || card.Kind == "audio-output-changed" || card.Kind == "audio-input-changed")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(34, 255, 255, 255));
+                    : new SolidColorBrush(AdaptiveSurfaceColor(34));
                 CardIcon.FontSize = 15;
             }
         }
@@ -2264,7 +2356,7 @@ public sealed partial class WindowIslandWindow : Window
                     UpdateDynamicFoldedWidth();
                 }
                 MediaArtFallback.Visibility = Visibility.Collapsed;
-                MediaCard.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(16, 255, 255, 255));
+                MediaCard.Background = new SolidColorBrush(AdaptiveSurfaceColor(16));
                 return;
             }
 
@@ -2343,8 +2435,8 @@ public sealed partial class WindowIslandWindow : Window
                     MediaArt.Source = null;
                     MediaArtFallback.Visibility = Visibility.Visible;
                     MediaArtFallback.Foreground = new SolidColorBrush(GetSystemAccentColor());
-                    MediaCard.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(16, 255, 255, 255));
-                    FoldedArtBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
+                    MediaCard.Background = new SolidColorBrush(AdaptiveSurfaceColor(16));
+                    FoldedArtBorder.Background = new SolidColorBrush(AdaptiveSurfaceColor(40));
                     FoldedArtFallback.Visibility = Visibility.Visible;
                 }
             }
@@ -2443,7 +2535,7 @@ public sealed partial class WindowIslandWindow : Window
                 };
                 radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(115, c.R, c.G, c.B), Offset = 0.0 });
                 radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(52, c.R, c.G, c.B), Offset = 0.48 });
-                radial.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(16, 255, 255, 255), Offset = 1.0 });
+                radial.GradientStops.Add(new GradientStop { Color = AdaptiveSurfaceColor(16), Offset = 1.0 });
                 MediaCard.Background = radial;
             });
         }
@@ -2505,7 +2597,7 @@ public sealed partial class WindowIslandWindow : Window
                     LineHeight = 17,
                     TextWrapping = TextWrapping.Wrap,
                     IsTextSelectionEnabled = true,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(210, 255, 255, 255))
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(210))
                 };
 
                 bool dragging = false;
@@ -2623,8 +2715,8 @@ public sealed partial class WindowIslandWindow : Window
             Width = 26,
             Height = 26,
             CornerRadius = new CornerRadius(7),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(22, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(26, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(22)),
+            BorderBrush = new SolidColorBrush(AdaptiveBorderColor(26)),
             BorderThickness = new Thickness(1)
         };
 
@@ -2636,7 +2728,7 @@ public sealed partial class WindowIslandWindow : Window
                     Text = "T",
                     FontSize = 11.5,
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(190, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(190)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -2674,7 +2766,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Text = row.Preview,
             FontSize = 11,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(230)),
             MaxLines = 1,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center
@@ -2685,7 +2777,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Text = row.Age,
             FontSize = 9.5,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(112, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(112)),
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(age, 2);
@@ -2705,7 +2797,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         Glyph = glyph,
         FontSize = 11,
-        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255))
+        Foreground = new SolidColorBrush(AdaptiveInkColor(180))
     };
 
     private static string? ResolveRecentThumb(string thumb)
@@ -2962,7 +3054,7 @@ public sealed partial class WindowIslandWindow : Window
     private static void SetVolumeTargetVisual(Button button, bool selected)
     {
         button.Background = new SolidColorBrush(
-            Windows.UI.Color.FromArgb(selected ? (byte)38 : (byte)0, 255, 255, 255));
+            AdaptiveSurfaceColor(selected ? (byte)38 : (byte)0));
         button.Opacity = selected ? 1.0 : 0.55;
     }
 
@@ -3020,7 +3112,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "No playback devices",
                 FontSize = 10.5,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(130, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(130)),
                 Margin = new Thickness(8, 6, 8, 6)
             });
             return;
@@ -3584,7 +3676,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "No clipboard history yet.",
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(80)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 16, 0, 0)
             };
@@ -3602,9 +3694,9 @@ public sealed partial class WindowIslandWindow : Window
     private void UpdateClipboardSelection()
     {
         var accentBrush = new SolidColorBrush(GetSystemAccentColor());
-        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
-        var selectedBg = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
-        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255));
+        var normalBg = new SolidColorBrush(AdaptiveSurfaceColor(20));
+        var selectedBg = new SolidColorBrush(AdaptiveSurfaceColor(40));
+        var normalBorder = new SolidColorBrush(AdaptiveSurfaceColor(15));
 
         for (int i = 0; i < ClipboardList.Children.Count; i++)
         {
@@ -3627,9 +3719,9 @@ public sealed partial class WindowIslandWindow : Window
     {
         bool isSelected = (index == _selectedClipboardIndex);
         var accentBrush = new SolidColorBrush(GetSystemAccentColor());
-        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
-        var selectedBg = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255));
-        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255));
+        var normalBg = new SolidColorBrush(AdaptiveSurfaceColor(20));
+        var selectedBg = new SolidColorBrush(AdaptiveSurfaceColor(40));
+        var normalBorder = new SolidColorBrush(AdaptiveSurfaceColor(15));
 
         // Outer border button with comfortable sizing
         var border = new Border
@@ -3687,8 +3779,8 @@ public sealed partial class WindowIslandWindow : Window
                 Height = 38,
                 CornerRadius = new CornerRadius(6),
                 Margin = new Thickness(0, 0, 8, 0),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(30, 255, 255, 255)),
-                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(30)),
+                BorderBrush = new SolidColorBrush(AdaptiveBorderColor(40)),
                 BorderThickness = new Thickness(1),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -3716,7 +3808,7 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         Glyph = "\uEB9F",
                         FontSize = 18,
-                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(180)),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center
                     };
@@ -3728,7 +3820,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Glyph = "\uEB9F",
                     FontSize = 18,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(180)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -3742,7 +3834,7 @@ public sealed partial class WindowIslandWindow : Window
                 Width = 30,
                 Height = 30,
                 CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(25)),
                 Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
@@ -3751,7 +3843,7 @@ public sealed partial class WindowIslandWindow : Window
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 13,
                     FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI, sans-serif"),
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(220)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextAlignment = TextAlignment.Center
@@ -3771,14 +3863,14 @@ public sealed partial class WindowIslandWindow : Window
                 Width = 30,
                 Height = 30,
                 CornerRadius = new CornerRadius(6),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(25)),
                 Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new FontIcon
                 {
                     Glyph = glyph,
                     FontSize = 13,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(200)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
@@ -3796,14 +3888,14 @@ public sealed partial class WindowIslandWindow : Window
             Text = row.Preview,
             FontSize = 11.5,
             MaxLines = 1,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(240)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var source = new TextBlock
         {
             Text = string.IsNullOrEmpty(row.Source) ? row.Age : $"{row.Source} · {row.Age}",
             FontSize = 9.5,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(120)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         textStack.Children.Add(preview);
@@ -3828,21 +3920,21 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 13,
             Foreground = row.Pinned
                 ? new SolidColorBrush(GetSystemAccentColor())
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255))
+                : new SolidColorBrush(AdaptiveInkColor(100))
         };
         pinBtn.Content = pinIcon;
         pinBtn.PointerEntered += (_, _) =>
         {
             if (!row.Pinned)
             {
-                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(230, 255, 255, 255));
+                pinIcon.Foreground = new SolidColorBrush(AdaptiveInkColor(230));
             }
         };
         pinBtn.PointerExited += (_, _) =>
         {
             if (!row.Pinned)
             {
-                pinIcon.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255));
+                pinIcon.Foreground = new SolidColorBrush(AdaptiveInkColor(100));
             }
         };
         pinBtn.Click += async (s, e) =>
@@ -3965,7 +4057,7 @@ public sealed partial class WindowIslandWindow : Window
             Width = 34,
             Height = 34,
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(25)),
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -3993,8 +4085,8 @@ public sealed partial class WindowIslandWindow : Window
                 Glyph = iconGlyph,
                 FontSize = 15,
                 Foreground = new SolidColorBrush(row.Exists
-                    ? Windows.UI.Color.FromArgb(220, 255, 255, 255)
-                    : Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                    ? AdaptiveInkColor(220)
+                    : AdaptiveInkColor(80)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -4013,8 +4105,8 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(row.Exists
-                ? Windows.UI.Color.FromArgb(235, 255, 255, 255)
-                : Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+                ? AdaptiveInkColor(235)
+                : AdaptiveInkColor(100)),
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxLines = 1
         };
@@ -4024,7 +4116,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Text = subText,
             FontSize = 9,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(110, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(110)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
@@ -4038,7 +4130,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = "\uE711",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255))
+                Foreground = new SolidColorBrush(AdaptiveInkColor(220))
             },
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
             Width = 20,
@@ -4074,8 +4166,8 @@ public sealed partial class WindowIslandWindow : Window
         var card = new Border
         {
             Height = 54,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(18)),
+            BorderBrush = new SolidColorBrush(AdaptiveBorderColor(25)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8, 6, 6, 6),
@@ -4086,14 +4178,14 @@ public sealed partial class WindowIslandWindow : Window
         // Hover effect: highlight border and reveal clear button
         card.PointerEntered += (s, _) =>
         {
-            ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(35, 255, 255, 255));
-            ((Border)s).BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 255, 255, 255));
+            ((Border)s).Background = new SolidColorBrush(AdaptiveSurfaceColor(35));
+            ((Border)s).BorderBrush = new SolidColorBrush(AdaptiveBorderColor(50));
             removeBtn.Opacity = 1.0;
         };
         card.PointerExited += (s, _) =>
         {
-            ((Border)s).Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255));
-            ((Border)s).BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255));
+            ((Border)s).Background = new SolidColorBrush(AdaptiveSurfaceColor(18));
+            ((Border)s).BorderBrush = new SolidColorBrush(AdaptiveBorderColor(25));
             removeBtn.Opacity = 0.0;
         };
 
@@ -4204,8 +4296,8 @@ public sealed partial class WindowIslandWindow : Window
             Height = 30,
             Padding = new Thickness(2),
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(25, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(18)),
+            BorderBrush = new SolidColorBrush(AdaptiveBorderColor(25)),
             BorderThickness = new Thickness(1),
             Tag = item.Id
         };
@@ -4295,7 +4387,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             return new FontIcon { Glyph = "\uE8B7", FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 215, 0)) };
         }
-        return new FontIcon { Glyph = "\uE756", FontSize = 13, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255)) };
+        return new FontIcon { Glyph = "\uE756", FontSize = 13, Foreground = new SolidColorBrush(AdaptiveInkColor(200)) };
     }
 
     private void LauncherAddBtn_Click(object sender, RoutedEventArgs e)
@@ -4426,10 +4518,10 @@ public sealed partial class WindowIslandWindow : Window
         OpenLayer.IsHitTestVisible    = false;
         _measuringFrames = true;
 
-        FadeVisual(_foldedVisual,  0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_cardVisual,    0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_openVisual,    0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_commandVisual, 1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        FadeVisual(_foldedVisual,  0f, EffectiveFadeOutMs);
+        FadeVisual(_cardVisual,    0f, EffectiveFadeOutMs);
+        FadeVisual(_openVisual,    0f, EffectiveFadeOutMs);
+        FadeVisual(_commandVisual, 1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
         if (_commandVisual != null) _commandVisual.Scale = System.Numerics.Vector3.One;
 
         if (CommandSearchIcon != null)
@@ -4451,8 +4543,8 @@ public sealed partial class WindowIslandWindow : Window
         if (_compositor == null || !_compositor.IsCommand) return;
 
         CommandLayer.IsHitTestVisible = false;
-        FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
-        FadeVisual(_foldedVisual,  1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
+        FadeVisual(_commandVisual, 0f, EffectiveFadeOutMs);
+        FadeVisual(_foldedVisual,  1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
 
         _compositor.AnimateToFolded(() =>
         {
@@ -4499,7 +4591,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "Type a file name, app name, math (e.g. 2*(3+4)), or @command (e.g. @youtube, @google, @github, @incognito, lock, note, weather)…",
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(120)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(12, 36, 12, 0),
@@ -4527,10 +4619,10 @@ public sealed partial class WindowIslandWindow : Window
         {
             Background = isSelected
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(45, accent.R, accent.G, accent.B))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+                : new SolidColorBrush(AdaptiveSurfaceColor(14)),
             BorderBrush = isSelected
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(140, accent.R, accent.G, accent.B))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+                : new SolidColorBrush(AdaptiveSurfaceColor(20)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 6, 10, 6)
@@ -4594,14 +4686,14 @@ public sealed partial class WindowIslandWindow : Window
             Text = item.Title,
             FontSize = 11,
             FontWeight = isSelected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(240)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var sub = new TextBlock
         {
             Text = item.Subtitle,
             FontSize = 9,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(120)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         stack.Children.Add(title);
@@ -4702,8 +4794,8 @@ public sealed partial class WindowIslandWindow : Window
         var accent = GetSystemAccentColor();
         var selBg = new SolidColorBrush(Windows.UI.Color.FromArgb(45, accent.R, accent.G, accent.B));
         var selBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(140, accent.R, accent.G, accent.B));
-        var normalBg = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255));
-        var normalBorder = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+        var normalBg = new SolidColorBrush(AdaptiveSurfaceColor(14));
+        var normalBorder = new SolidColorBrush(AdaptiveSurfaceColor(20));
 
         for (int i = 0; i < CommandResultList.Children.Count; i++)
         {
@@ -4878,10 +4970,10 @@ public sealed partial class WindowIslandWindow : Window
                 CornerRadius = new CornerRadius(4),
                 Background = isAct
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(50, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)),
+                    : new SolidColorBrush(AdaptiveSurfaceColor(15)),
                 Foreground = isAct
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, accent.R, accent.G, accent.B))
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    : new SolidColorBrush(AdaptiveInkColor(180)),
                 Tag = note.Id
             };
             btn.Click += (s, _) =>
@@ -5076,7 +5168,7 @@ public sealed partial class WindowIslandWindow : Window
         _noteDeleteTimer?.Stop();
         if (NoteDeleteBtn != null)
         {
-            NoteDeleteBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 11, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)) };
+            NoteDeleteBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 11, Foreground = new SolidColorBrush(AdaptiveInkColor(160)) };
             ToolTipService.SetToolTip(NoteDeleteBtn, "Delete current note");
         }
     }
@@ -5190,7 +5282,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (btn == null) return;
         btn.BorderBrush = isActive
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            ? new SolidColorBrush(AdaptiveInkColor(255))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
         btn.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(0);
     }
@@ -5316,7 +5408,7 @@ public sealed partial class WindowIslandWindow : Window
 
             // Format circle with soft white
             var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
-            markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+            markerRange.CharacterFormat.ForegroundColor = AdaptiveInkColor(180);
             markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
 
             // Remove strikethrough & restore white color (excluding trailingBreak)
@@ -5333,7 +5425,7 @@ public sealed partial class WindowIslandWindow : Window
             // Convert normal line to checklist item
             range.SetText(TextSetOptions.None, indent + "○ " + body + trailingBreak);
             var markerRange = NoteContentBox.Document.GetRange(range.StartPosition + indentLen, range.StartPosition + indentLen + 1);
-            markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+            markerRange.CharacterFormat.ForegroundColor = AdaptiveInkColor(180);
             markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
         }
 
@@ -5434,7 +5526,7 @@ public sealed partial class WindowIslandWindow : Window
                 bool isChecked = t.StartsWith("✔ ") || t.StartsWith("● ") || t.StartsWith("☑ ");
                 markerRange.CharacterFormat.ForegroundColor = isChecked
                     ? accent
-                    : Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                    : AdaptiveInkColor(180);
                 markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
 
                 int textLen = Math.Max(0, t.Length - 2);
@@ -5548,7 +5640,7 @@ public sealed partial class WindowIslandWindow : Window
                 sel.SetText(TextSetOptions.None, insertion);
 
                 var markerRange = NoteContentBox.Document.GetRange(insertPos + 1 + indentLen, insertPos + 1 + indentLen + 1);
-                markerRange.CharacterFormat.ForegroundColor = Windows.UI.Color.FromArgb(180, 255, 255, 255);
+                markerRange.CharacterFormat.ForegroundColor = AdaptiveInkColor(180);
                 markerRange.CharacterFormat.Strikethrough = FormatEffect.Off;
 
                 int newCaret = insertPos + insertion.Length;
@@ -5817,7 +5909,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = "Type below what and when:",
                 FontSize = 9.5,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(140)),
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
@@ -5825,7 +5917,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "\u201Ccall mum tomorrow at 9\u201D",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(95)),
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
@@ -5833,7 +5925,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "\u201Cpills every day at 23:00\u201D",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(95)),
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
@@ -5841,7 +5933,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "\u201Cin 20 minutes turn the stove off\u201D",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(95, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(95)),
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
@@ -5868,7 +5960,7 @@ public sealed partial class WindowIslandWindow : Window
 
         var grid = new Grid
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(14)),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 4, 6, 4)
         };
@@ -5882,7 +5974,7 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 13,
             Foreground = isNow
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 167, 38))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(112, 255, 255, 255)),
+                : new SolidColorBrush(AdaptiveInkColor(112)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0)
         };
@@ -5895,7 +5987,7 @@ public sealed partial class WindowIslandWindow : Window
             Text = rem.Title,
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(240)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var relTime = new TextBlock
@@ -5905,7 +5997,7 @@ public sealed partial class WindowIslandWindow : Window
             FontWeight = isNow ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = isNow
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 167, 38))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(115, 255, 255, 255))
+                : new SolidColorBrush(AdaptiveInkColor(115))
         };
         stack.Children.Add(title);
         stack.Children.Add(relTime);
@@ -5930,7 +6022,7 @@ public sealed partial class WindowIslandWindow : Window
         bool confirmingDelete = false;
         var delBtn = new Button
         {
-            Content = new FontIcon { Glyph = "\uE74D", FontSize = 9, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)) },
+            Content = new FontIcon { Glyph = "\uE74D", FontSize = 9, Foreground = new SolidColorBrush(AdaptiveInkColor(140)) },
             Style = (Style)RootGrid.Resources["TabButtonStyle"],
             Height = 20,
             Padding = new Thickness(4, 0, 4, 0),
@@ -6458,7 +6550,7 @@ public sealed partial class WindowIslandWindow : Window
                 HeaderMicMuteIcon.Glyph = micMuted ? "\uEC54" : "\uE720";
                 HeaderMicMuteIcon.Foreground = micMuted
                     ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
-                    : (_micDotActive ? accentBrush : new SolidColorBrush(ColorHelper.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)));
+                    : (_micDotActive ? accentBrush : new SolidColorBrush(AdaptiveInkColor(0xB0)));
 
                 string appLabel = string.IsNullOrEmpty(micApp) ? "an app" : micApp;
                 string headerTip = _micDotActive
@@ -6690,8 +6782,8 @@ public sealed partial class WindowIslandWindow : Window
         {
             var itemBorder = new Border
             {
-                Background = new SolidColorBrush(ColorHelper.FromArgb(isFirst ? (byte)0x28 : (byte)0x15, 0xFF, 0xFF, 0xFF)),
-                BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(isFirst ? (byte)0x35 : (byte)0x20, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(isFirst ? (byte)0x28 : (byte)0x15)),
+                BorderBrush = new SolidColorBrush(AdaptiveBorderColor(isFirst ? (byte)0x35 : (byte)0x20)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(6, 4, 6, 4),
@@ -6705,7 +6797,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = timeLabel,
                 FontSize = 9,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0x99)),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6714,7 +6806,7 @@ public sealed partial class WindowIslandWindow : Window
                 FontFamily = new FontFamily("Segoe UI Symbol, Segoe Fluent Icons"),
                 Glyph = pt.IconGlyph,
                 FontSize = 13,
-                Foreground = new SolidColorBrush(pt.SymbolCode.Contains("rain") || pt.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
+                Foreground = new SolidColorBrush(pt.SymbolCode.Contains("rain") || pt.SymbolCode.Contains("snow") ? AdaptiveCyanColor() : AdaptiveGoldColor()),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6723,7 +6815,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = WindowIslandWeatherService.FormatTemp(pt.TempC, units),
                 FontSize = 10,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0xF0)),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6755,8 +6847,8 @@ public sealed partial class WindowIslandWindow : Window
         {
             var itemBorder = new Border
             {
-                Background = new SolidColorBrush(ColorHelper.FromArgb(0x15, 0xFF, 0xFF, 0xFF)),
-                BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(0x15)),
+                BorderBrush = new SolidColorBrush(AdaptiveBorderColor(0x20)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(8, 4, 8, 4),
@@ -6770,7 +6862,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = d.DayName,
                 FontSize = 9,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0x99)),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6779,7 +6871,7 @@ public sealed partial class WindowIslandWindow : Window
                 FontFamily = new FontFamily("Segoe UI Symbol, Segoe Fluent Icons"),
                 Glyph = d.IconGlyph,
                 FontSize = 13,
-                Foreground = new SolidColorBrush(d.SymbolCode.Contains("rain") || d.SymbolCode.Contains("snow") ? ColorHelper.FromArgb(0xFF, 0x60, 0xCD, 0xFF) : ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00)),
+                Foreground = new SolidColorBrush(d.SymbolCode.Contains("rain") || d.SymbolCode.Contains("snow") ? AdaptiveCyanColor() : AdaptiveGoldColor()),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6787,7 +6879,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = $"{WindowIslandWeatherService.FormatTemp(d.TempHighC, units)}/{WindowIslandWeatherService.FormatTemp(d.TempLowC, units)}",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0xF0)),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -6852,7 +6944,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             var upBtn = new Button
             {
-                Content = new FontIcon { Glyph = "\uE70E", FontSize = 8, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)) },
+                Content = new FontIcon { Glyph = "\uE70E", FontSize = 8, Foreground = new SolidColorBrush(AdaptiveInkColor(0xD0)) },
                 Background = new SolidColorBrush(ColorHelper.FromArgb(0, 0, 0, 0)),
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(3, 2, 3, 2),
@@ -6885,8 +6977,8 @@ public sealed partial class WindowIslandWindow : Window
                 Width = isSel ? 8 : 6,
                 Height = isSel ? 8 : 6,
                 Fill = new SolidColorBrush(isSel
-                    ? ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)
-                    : ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF)),
+                    ? AdaptiveInkColor(0xFF)
+                    : AdaptiveInkColor(0x70)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -6915,7 +7007,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             var downBtn = new Button
             {
-                Content = new FontIcon { Glyph = "\uE70D", FontSize = 8, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)) },
+                Content = new FontIcon { Glyph = "\uE70D", FontSize = 8, Foreground = new SolidColorBrush(AdaptiveInkColor(0xD0)) },
                 Background = new SolidColorBrush(ColorHelper.FromArgb(0, 0, 0, 0)),
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(3, 2, 3, 2),
@@ -7005,8 +7097,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
-                Background = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x30, accent.R, accent.G, accent.B) : ColorHelper.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
-                BorderBrush = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B) : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                Background = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x30, accent.R, accent.G, accent.B) : AdaptiveSurfaceColor(0x14)),
+                BorderBrush = new SolidColorBrush(isActive ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B) : AdaptiveBorderColor(0x20)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 6, 10, 6)
@@ -7017,7 +7109,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = "\uE707",
                 FontSize = 11,
-                Foreground = new SolidColorBrush(isActive ? accent : ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF))
+                Foreground = new SolidColorBrush(isActive ? accent : AdaptiveInkColor(0xA0))
             });
 
             var nameText = new TextBlock
@@ -7025,7 +7117,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = string.IsNullOrEmpty(c.Country) ? c.Name : $"{c.Name}, {c.Country}",
                 FontSize = 11,
                 FontWeight = isActive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0xF0)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -7061,12 +7153,12 @@ public sealed partial class WindowIslandWindow : Window
                     Height = 28,
                     Padding = new Thickness(0),
                     Margin = new Thickness(4, 0, 0, 0),
-                    Background = new SolidColorBrush(ColorHelper.FromArgb(0x10, 0xFF, 0xFF, 0xFF)),
-                    BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                    Background = new SolidColorBrush(AdaptiveSurfaceColor(0x10)),
+                    BorderBrush = new SolidColorBrush(AdaptiveBorderColor(0x18)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6)
                 };
-                delBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 10, Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xA0, 0xFF, 0xFF, 0xFF)) };
+                delBtn.Content = new FontIcon { Glyph = "\uE74D", FontSize = 10, Foreground = new SolidColorBrush(AdaptiveInkColor(0xA0)) };
                 delBtn.Click += async (_, _) =>
                 {
                     await WindowIslandWeatherService.Instance.RemoveCityAsync(index);
@@ -7122,7 +7214,7 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         HorizontalAlignment = HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = HorizontalAlignment.Left,
-                        Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                        Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18)),
                         BorderThickness = new Thickness(0),
                         CornerRadius = new CornerRadius(4),
                         Padding = new Thickness(8, 6, 8, 6),
@@ -7134,14 +7226,14 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         Text = loc.DisplayName,
                         FontSize = 11,
-                        Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF)),
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(0xF0)),
                         TextTrimming = TextTrimming.CharacterEllipsis
                     });
                     sp.Children.Add(new TextBlock
                     {
                         Text = $"{loc.Latitude:F2}, {loc.Longitude:F2}",
                         FontSize = 9,
-                        Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF))
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(0x80))
                     });
                     btn.Content = sp;
 
@@ -7195,10 +7287,10 @@ public sealed partial class WindowIslandWindow : Window
         _showingWeeklyWeather = false;
         WeatherHoursScroll.Visibility = Visibility.Visible;
         WeatherWeekScroll.Visibility = Visibility.Collapsed;
-        WeatherBtnHours.Background = new SolidColorBrush(ColorHelper.FromArgb(0x25, 0xFF, 0xFF, 0xFF));
-        WeatherBtnHours.Foreground = new SolidColorBrush(Colors.White);
+        WeatherBtnHours.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x25));
+        WeatherBtnHours.Foreground = new SolidColorBrush(AdaptiveInkColor(255));
         WeatherBtnWeek.Background = new SolidColorBrush(Colors.Transparent);
-        WeatherBtnWeek.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
+        WeatherBtnWeek.Foreground = new SolidColorBrush(AdaptiveInkColor(0x90));
     }
 
     private void WeatherBtnWeek_Click(object sender, RoutedEventArgs e)
@@ -7206,10 +7298,10 @@ public sealed partial class WindowIslandWindow : Window
         _showingWeeklyWeather = true;
         WeatherHoursScroll.Visibility = Visibility.Collapsed;
         WeatherWeekScroll.Visibility = Visibility.Visible;
-        WeatherBtnWeek.Background = new SolidColorBrush(ColorHelper.FromArgb(0x25, 0xFF, 0xFF, 0xFF));
-        WeatherBtnWeek.Foreground = new SolidColorBrush(Colors.White);
+        WeatherBtnWeek.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x25));
+        WeatherBtnWeek.Foreground = new SolidColorBrush(AdaptiveInkColor(255));
         WeatherBtnHours.Background = new SolidColorBrush(Colors.Transparent);
-        WeatherBtnHours.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
+        WeatherBtnHours.Foreground = new SolidColorBrush(AdaptiveInkColor(0x90));
     }
 
     // ── Milestone 11: Controls Tab ─────────────────────────────────────────────
@@ -7223,7 +7315,7 @@ public sealed partial class WindowIslandWindow : Window
         try
         {
             var accentBrush = new SolidColorBrush(GetSystemAccentColor());
-            var disabledBrush = new SolidColorBrush(ColorHelper.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+            var disabledBrush = new SolidColorBrush(AdaptiveInkColor(0x80));
 
             // 1. Wi-Fi
             var (hasWifi, wifiOn, wifiSsid) = await WindowIslandControlsService.Instance.GetWiFiStateAsync();
@@ -7251,7 +7343,7 @@ public sealed partial class WindowIslandWindow : Window
             // 3. Dark Theme
             bool isDark = WindowIslandControlsService.IsSystemDarkTheme();
             ControlsThemeStatus.Text = isDark ? "Dark" : "Light";
-            ControlsThemeIcon.Foreground = isDark ? accentBrush : new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
+            ControlsThemeIcon.Foreground = isDark ? accentBrush : new SolidColorBrush(AdaptiveGoldColor());
 
             // 4. Battery
             var (hasBattery, batPct, isCharging, isPluggedIn, isSaverOn, batText) = WindowIslandControlsService.GetDetailedBatteryInfo();
@@ -7260,7 +7352,7 @@ public sealed partial class WindowIslandWindow : Window
                 ? (isPluggedIn || isCharging
                     ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
                     : GetBtBatteryBrush(batPct))
-                : new SolidColorBrush(ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF));
+                : new SolidColorBrush(AdaptiveInkColor(0xC0));
             ControlsBatteryIcon.Glyph = isCharging
                 ? "\uEA93"
                 : (isPluggedIn
@@ -7282,7 +7374,7 @@ public sealed partial class WindowIslandWindow : Window
                 : batColor;
             ControlsBatterySaverIcon.Foreground = isSaverOn
                 ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x4C, 0xAF, 0x50))
-                : new SolidColorBrush(ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
+                : new SolidColorBrush(AdaptiveInkColor(0x70));
             ToolTipService.SetToolTip(ControlsBatterySaverBtn, isSaverOn ? "Battery Saver: On (click to turn off)" : "Battery Saver: Off (click to turn on)");
 
             // 5. VPN
@@ -7382,11 +7474,11 @@ public sealed partial class WindowIslandWindow : Window
                         {
                             ControlsBtBatteryCardIcon.Foreground = btOn
                                 ? accentBrush
-                                : new SolidColorBrush(ColorHelper.FromArgb(0x60, 0xFF, 0xFF, 0xFF));
+                                : new SolidColorBrush(AdaptiveInkColor(0x60));
                         }
                         ControlsBtBatteryCardTitle.Text = "Bluetooth devices";
                         ControlsBtBatteryCardStatus.Text = btOn ? "No devices connected" : "Bluetooth is turned off";
-                        ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(128, 255, 255, 255));
+                        ControlsBtBatteryCardStatus.Foreground = new SolidColorBrush(AdaptiveInkColor(128));
                         Grid.SetRow(ControlsBtBatteryCard, 0);
                         Grid.SetColumn(ControlsBtBatteryCard, 0);
                         Grid.SetColumnSpan(ControlsBtBatteryCard, 1);
@@ -7494,7 +7586,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = devGlyph,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(0xD0)),
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -7770,7 +7862,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Text = "Loading...",
                     FontSize = 11,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(140)),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 25, 0, 0)
                 });
@@ -7796,7 +7888,7 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         Text = "No Wi-Fi networks found",
                         FontSize = 11,
-                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(140)),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         Margin = new Thickness(0, 25, 0, 0)
                     });
@@ -7838,7 +7930,7 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         Text = "No paired Bluetooth devices found",
                         FontSize = 11,
-                        Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(140)),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         Margin = new Thickness(0, 25, 0, 0)
                     });
@@ -7929,7 +8021,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Text = "Location is off — turn on Location to scan nearby Wi-Fi networks.",
             FontSize = 10.5,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(235, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(235)),
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0)
@@ -7947,7 +8039,7 @@ public sealed partial class WindowIslandWindow : Window
             CornerRadius = new CornerRadius(12),
             VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(65, 255, 167, 38)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            Foreground = new SolidColorBrush(AdaptiveInkColor(255))
         };
         btn.Click += (_, _) =>
         {
@@ -7965,7 +8057,7 @@ public sealed partial class WindowIslandWindow : Window
 
         var grid = new Grid
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(18)),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 6, 10, 6)
         };
@@ -7978,7 +8070,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Width = 32, Height = 32,
             CornerRadius = new CornerRadius(16),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(28)),
             Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -7999,7 +8091,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Glyph = "\uE701",
             FontSize = 15,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(net.SignalBars == 0 ? (byte)45 : (byte)65, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(net.SignalBars == 0 ? (byte)45 : (byte)65)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -8011,7 +8103,7 @@ public sealed partial class WindowIslandWindow : Window
                 FontSize = 15,
                 Foreground = net.IsConnected
                     ? accentBrush
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(235, 255, 255, 255)),
+                    : new SolidColorBrush(AdaptiveInkColor(235)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -8027,7 +8119,7 @@ public sealed partial class WindowIslandWindow : Window
             Text = net.Ssid,
             FontSize = 11.5,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(245, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(245)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var status = new TextBlock
@@ -8036,7 +8128,7 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 9.5,
             Foreground = net.IsConnected
                 ? accentBrush
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255))
+                : new SolidColorBrush(AdaptiveInkColor(120))
         };
         stack.Children.Add(title);
         stack.Children.Add(status);
@@ -8054,9 +8146,9 @@ public sealed partial class WindowIslandWindow : Window
             CornerRadius = new CornerRadius(13),
             VerticalAlignment = VerticalAlignment.Center,
             Background = net.IsConnected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255))
+                ? new SolidColorBrush(AdaptiveSurfaceColor(32))
                 : accentBrush,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255))
+            Foreground = new SolidColorBrush(AdaptiveInkColor(250))
         };
         actionBtn.Click += async (_, _) =>
         {
@@ -8144,7 +8236,7 @@ public sealed partial class WindowIslandWindow : Window
 
         var grid = new Grid
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(18)),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 6, 10, 6)
         };
@@ -8166,7 +8258,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Width = 32, Height = 32,
             CornerRadius = new CornerRadius(16),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(28)),
             Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -8176,7 +8268,7 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 14,
             Foreground = dev.IsConnected
                 ? accentBrush
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                : new SolidColorBrush(AdaptiveInkColor(180)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -8191,7 +8283,7 @@ public sealed partial class WindowIslandWindow : Window
             Text = dev.Name,
             FontSize = 11.5,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(245, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(245)),
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
@@ -8202,7 +8294,7 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 9.5,
             Foreground = dev.IsConnected
                 ? accentBrush
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                : new SolidColorBrush(AdaptiveInkColor(120)),
             VerticalAlignment = VerticalAlignment.Center
         };
         statusRow.Children.Add(status);
@@ -8213,7 +8305,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "·",
                 FontSize = 9.5,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(100, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(100)),
                 VerticalAlignment = VerticalAlignment.Center
             };
             statusRow.Children.Add(dotSep);
@@ -8254,9 +8346,9 @@ public sealed partial class WindowIslandWindow : Window
             CornerRadius = new CornerRadius(13),
             VerticalAlignment = VerticalAlignment.Center,
             Background = dev.IsConnected
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255))
+                ? new SolidColorBrush(AdaptiveSurfaceColor(32))
                 : accentBrush,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255))
+            Foreground = new SolidColorBrush(AdaptiveInkColor(250))
         };
         actionBtn.Click += async (_, _) =>
         {
@@ -8313,8 +8405,8 @@ public sealed partial class WindowIslandWindow : Window
 
         var border = new Border
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(20)),
+            BorderBrush = new SolidColorBrush(AdaptiveBorderColor(28)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             HorizontalAlignment = HorizontalAlignment.Stretch
@@ -8336,7 +8428,7 @@ public sealed partial class WindowIslandWindow : Window
                 Width = 32,
                 Height = 32,
                 CornerRadius = new CornerRadius(16),
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(28)),
                 Margin = new Thickness(0, 0, 10, 0),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -8345,8 +8437,8 @@ public sealed partial class WindowIslandWindow : Window
                 Glyph = glyph,
                 FontSize = 15,
                 Foreground = dev.IsConnected
-                    ? (accentBrush as SolidColorBrush ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x60, 0xCD, 0xFF)))
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                    ? (accentBrush as SolidColorBrush ?? new SolidColorBrush(AdaptiveCyanColor()))
+                    : new SolidColorBrush(AdaptiveInkColor(140)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -8361,7 +8453,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = dev.Name,
                 FontSize = 12,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(250)),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
 
@@ -8379,7 +8471,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Text = "Connected",
                 FontSize = 9.5,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(180)),
                 VerticalAlignment = VerticalAlignment.Center
             };
             statusRow.Children.Add(statusText);
@@ -8444,8 +8536,8 @@ public sealed partial class WindowIslandWindow : Window
                 Glyph = glyph,
                 FontSize = 18,
                 Foreground = dev.IsConnected
-                    ? (accentBrush as SolidColorBrush ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x60, 0xCD, 0xFF)))
-                    : new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)),
+                    ? (accentBrush as SolidColorBrush ?? new SolidColorBrush(AdaptiveCyanColor()))
+                    : new SolidColorBrush(AdaptiveInkColor(140)),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             Grid.SetColumn(icon, 0);
@@ -8455,7 +8547,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = "\uE712",
                 FontSize = 9,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(80, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(80)),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top
             };
@@ -8471,7 +8563,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = dev.Name,
                 FontSize = 11,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(250, 255, 255, 255)),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(250)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Margin = new Thickness(0, 2, 0, 1)
@@ -8503,7 +8595,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Text = "Connected",
                     FontSize = 9,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(180)),
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 statusStack.Children.Add(statusText);
@@ -8514,7 +8606,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Text = "Not connected",
                     FontSize = 9,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(120)),
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 statusStack.Children.Add(statusText);
@@ -8567,8 +8659,8 @@ public sealed partial class WindowIslandWindow : Window
                     Padding = new Thickness(8, 0, 8, 0),
                     CornerRadius = new CornerRadius(10),
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255)),
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 255, 255, 255))
+                    Background = new SolidColorBrush(AdaptiveSurfaceColor(32)),
+                    Foreground = new SolidColorBrush(AdaptiveInkColor(240))
                 };
                 connectBtn.Click += async (s, e) =>
                 {
@@ -8590,11 +8682,11 @@ public sealed partial class WindowIslandWindow : Window
 
         border.PointerEntered += (s, e) =>
         {
-            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(32, 255, 255, 255));
+            border.Background = new SolidColorBrush(AdaptiveSurfaceColor(32));
         };
         border.PointerExited += (s, e) =>
         {
-            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255));
+            border.Background = new SolidColorBrush(AdaptiveSurfaceColor(20));
         };
         border.Tapped += (s, e) =>
         {
@@ -8608,8 +8700,8 @@ public sealed partial class WindowIslandWindow : Window
     {
         var border = new Border
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(22, 255, 255, 255)),
+            Background = new SolidColorBrush(AdaptiveSurfaceColor(14)),
+            BorderBrush = new SolidColorBrush(AdaptiveBorderColor(22)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
@@ -8628,7 +8720,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Glyph = "\uE710",
             FontSize = 20,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(160)),
             HorizontalAlignment = HorizontalAlignment.Center
         };
         stack.Children.Add(icon);
@@ -8638,7 +8730,7 @@ public sealed partial class WindowIslandWindow : Window
             Text = "Add device",
             FontSize = 11.5,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(220)),
             HorizontalAlignment = HorizontalAlignment.Center
         };
         stack.Children.Add(title);
@@ -8647,7 +8739,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             Text = "Pair Bluetooth",
             FontSize = 9,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)),
+            Foreground = new SolidColorBrush(AdaptiveInkColor(120)),
             HorizontalAlignment = HorizontalAlignment.Center
         };
         stack.Children.Add(sub);
@@ -8656,11 +8748,11 @@ public sealed partial class WindowIslandWindow : Window
 
         border.PointerEntered += (s, e) =>
         {
-            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(26, 255, 255, 255));
+            border.Background = new SolidColorBrush(AdaptiveSurfaceColor(26));
         };
         border.PointerExited += (s, e) =>
         {
-            border.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(14, 255, 255, 255));
+            border.Background = new SolidColorBrush(AdaptiveSurfaceColor(14));
         };
         border.Tapped += (s, e) =>
         {
@@ -8771,7 +8863,7 @@ public sealed partial class WindowIslandWindow : Window
                 ControlsMicMuteBtn.IsEnabled = false;
                 ControlsMicText.Text = "--";
                 ControlsMicMuteIcon.Glyph = "\uEC54";
-                ControlsMicMuteIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
+                ControlsMicMuteIcon.Foreground = new SolidColorBrush(AdaptiveInkColor(0x70));
                 ControlsMicLockBadge.Visibility = Visibility.Collapsed;
                 return;
             }
@@ -8806,7 +8898,7 @@ public sealed partial class WindowIslandWindow : Window
         ControlsMicMuteIcon.Glyph = muted ? "\uEC54" : "\uE720";
         ControlsMicMuteIcon.Foreground = muted
             ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
-            : new SolidColorBrush(ColorHelper.FromArgb(0xF0, 0xFF, 0xFF, 0xFF));
+            : new SolidColorBrush(AdaptiveInkColor(0xF0));
 
         var vmSettings = ServiceContainer.Settings.VolumeMixer;
         bool locked = vmSettings.LockMicrophoneVolume;
@@ -8951,7 +9043,7 @@ public sealed partial class WindowIslandWindow : Window
             _restartConfirmTimer?.Stop();
             _restartConfirming = false;
             ControlsRestartText.Text = "Restarting...";
-            ControlsRestartBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            ControlsRestartBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
             WindowIslandControlsService.RestartComputer();
         }
         else
@@ -8968,7 +9060,7 @@ public sealed partial class WindowIslandWindow : Window
                 _restartConfirmTimer.Stop();
                 _restartConfirming = false;
                 ControlsRestartText.Text = "Restart";
-                ControlsRestartBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+                ControlsRestartBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
             };
             _restartConfirmTimer.Start();
         }
@@ -8981,7 +9073,7 @@ public sealed partial class WindowIslandWindow : Window
             _shutdownConfirmTimer?.Stop();
             _shutdownConfirming = false;
             ControlsShutdownText.Text = "Shutting down...";
-            ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            ControlsShutdownBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
             WindowIslandControlsService.ShutdownComputer();
         }
         else
@@ -8998,7 +9090,7 @@ public sealed partial class WindowIslandWindow : Window
                 _shutdownConfirmTimer.Stop();
                 _shutdownConfirming = false;
                 ControlsShutdownText.Text = "Shut down";
-                ControlsShutdownBtn.Background = new SolidColorBrush(ColorHelper.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+                ControlsShutdownBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
             };
             _shutdownConfirmTimer.Start();
         }
@@ -9054,8 +9146,8 @@ public sealed partial class WindowIslandWindow : Window
                 VerticalAlignment = VerticalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
-                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(18)),
+                BorderBrush = new SolidColorBrush(AdaptiveBorderColor(28)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(8, 5, 8, 5)
@@ -9083,7 +9175,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = card.Name,
                 FontSize = 10.5,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                Foreground = new SolidColorBrush(AdaptiveInkColor(255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = 115
@@ -9172,7 +9264,7 @@ public sealed partial class WindowIslandWindow : Window
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Height = 54,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(10, 255, 255, 255)),
+                Background = new SolidColorBrush(AdaptiveSurfaceColor(10)),
                 BorderBrush = new SolidColorBrush(accentColor),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
@@ -9277,12 +9369,12 @@ public sealed partial class WindowIslandWindow : Window
         ControlsAddCardBuiltInPanel.Visibility = builtIn ? Visibility.Visible : Visibility.Collapsed;
         ControlsAddCardCustomPanel.Visibility = builtIn ? Visibility.Collapsed : Visibility.Visible;
 
-        ControlsCardTabBuiltInBtn.Background = builtIn ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        ControlsCardTabBuiltInText.Foreground = builtIn ? new SolidColorBrush(Microsoft.UI.Colors.White) : new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255));
+        ControlsCardTabBuiltInBtn.Background = builtIn ? new SolidColorBrush(AdaptiveSurfaceColor(40)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        ControlsCardTabBuiltInText.Foreground = builtIn ? new SolidColorBrush(AdaptiveInkColor(255)) : new SolidColorBrush(AdaptiveInkColor(160));
         ControlsCardTabBuiltInText.FontWeight = builtIn ? FontWeights.SemiBold : FontWeights.Normal;
 
-        ControlsCardTabCustomBtn.Background = !builtIn ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        ControlsCardTabCustomText.Foreground = !builtIn ? new SolidColorBrush(Microsoft.UI.Colors.White) : new SolidColorBrush(Windows.UI.Color.FromArgb(160, 255, 255, 255));
+        ControlsCardTabCustomBtn.Background = !builtIn ? new SolidColorBrush(AdaptiveSurfaceColor(40)) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        ControlsCardTabCustomText.Foreground = !builtIn ? new SolidColorBrush(AdaptiveInkColor(255)) : new SolidColorBrush(AdaptiveInkColor(160));
         ControlsCardTabCustomText.FontWeight = !builtIn ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
@@ -9338,8 +9430,8 @@ public sealed partial class WindowIslandWindow : Window
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Height = 52,
-                Background = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(8, 255, 255, 255)) : new SolidColorBrush(Windows.UI.Color.FromArgb(18, 255, 255, 255)),
-                BorderBrush = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)) : new SolidColorBrush(Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                Background = isAdded ? new SolidColorBrush(AdaptiveSurfaceColor(8)) : new SolidColorBrush(AdaptiveSurfaceColor(18)),
+                BorderBrush = isAdded ? new SolidColorBrush(AdaptiveBorderColor(15)) : new SolidColorBrush(AdaptiveBorderColor(28)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(6, 4, 6, 4),
@@ -9357,7 +9449,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 Glyph = string.IsNullOrEmpty(item.IconGlyph) ? "\uE71D" : item.IconGlyph,
                 FontSize = 14,
-                Foreground = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 255, 255)) : new SolidColorBrush(accentColor),
+                Foreground = isAdded ? new SolidColorBrush(AdaptiveInkColor(120)) : new SolidColorBrush(accentColor),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
 
@@ -9366,7 +9458,7 @@ public sealed partial class WindowIslandWindow : Window
                 Text = item.Name,
                 FontSize = 10,
                 FontWeight = isAdded ? FontWeights.Normal : FontWeights.SemiBold,
-                Foreground = isAdded ? new SolidColorBrush(Windows.UI.Color.FromArgb(140, 255, 255, 255)) : new SolidColorBrush(Microsoft.UI.Colors.White),
+                Foreground = isAdded ? new SolidColorBrush(AdaptiveInkColor(140)) : new SolidColorBrush(AdaptiveInkColor(255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = 110
@@ -9478,8 +9570,8 @@ public sealed partial class WindowIslandWindow : Window
                     Height = 28,
                     Padding = new Thickness(0),
                     CornerRadius = new CornerRadius(5),
-                    Background = isSelected ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, accentColor.R, accentColor.G, accentColor.B)) : new SolidColorBrush(Windows.UI.Color.FromArgb(15, 255, 255, 255)),
-                    BorderBrush = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(Windows.UI.Color.FromArgb(20, 255, 255, 255)),
+                    Background = isSelected ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, accentColor.R, accentColor.G, accentColor.B)) : new SolidColorBrush(AdaptiveSurfaceColor(15)),
+                    BorderBrush = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(AdaptiveBorderColor(20)),
                     BorderThickness = new Thickness(isSelected ? 1.5 : 1)
                 };
                 string hexLabel = ((int)glyph[0]).ToString("X4");
@@ -9489,7 +9581,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     Glyph = glyph,
                     FontSize = 13,
-                    Foreground = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(Windows.UI.Color.FromArgb(200, 255, 255, 255))
+                    Foreground = isSelected ? new SolidColorBrush(accentColor) : new SolidColorBrush(AdaptiveInkColor(200))
                 };
 
                 iconBtn.Click += (_, _) =>
@@ -9673,10 +9765,10 @@ public sealed partial class WindowIslandWindow : Window
                 CornerRadius = new CornerRadius(14),
                 Background = new SolidColorBrush(isActive
                     ? ColorHelper.FromArgb(0x40, accent.R, accent.G, accent.B)
-                    : ColorHelper.FromArgb(0x15, 0xFF, 0xFF, 0xFF)),
+                    : AdaptiveInkColor(0x15)),
                 BorderBrush = new SolidColorBrush(isActive
                     ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B)
-                    : ColorHelper.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                    : AdaptiveInkColor(0x20)),
                 BorderThickness = new Thickness(1)
             };
 
@@ -9689,7 +9781,7 @@ public sealed partial class WindowIslandWindow : Window
                     FontSize = 11,
                     Foreground = new SolidColorBrush(isActive
                         ? ColorHelper.FromArgb(0xFF, accent.R, accent.G, accent.B)
-                        : ColorHelper.FromArgb(0xC0, 0xFF, 0xFF, 0xFF))
+                        : AdaptiveInkColor(0xC0))
                 });
             }
             sp.Children.Add(new TextBlock
@@ -9698,8 +9790,8 @@ public sealed partial class WindowIslandWindow : Window
                 FontSize = 11,
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
                 Foreground = new SolidColorBrush(isActive
-                    ? ColorHelper.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)
-                    : ColorHelper.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)),
+                    ? AdaptiveInkColor(0xFF)
+                    : AdaptiveInkColor(0xD0)),
                 VerticalAlignment = VerticalAlignment.Center
             });
 

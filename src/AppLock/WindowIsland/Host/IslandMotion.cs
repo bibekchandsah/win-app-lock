@@ -8,6 +8,20 @@ namespace AppLock.WindowIsland.Host;
 /// </summary>
 public static class IslandMotion
 {
+    // ── Configurable animation duration ───────────────────────────────────────
+    public const int   DefaultAnimationDurationMs = 240;
+    public const int   MinAnimationDurationMs     = 80;
+    public const int   MaxAnimationDurationMs     = 1200;
+
+    public static int ResolveDurationMs(AppLock.Models.WindowIslandSettings? settings)
+    {
+        if (settings == null) return DefaultAnimationDurationMs;
+        if (settings.ReducedMotion) return ReducedMotionFadeMs;
+        int raw = settings.AnimationDurationMs > 0 ? settings.AnimationDurationMs : DefaultAnimationDurationMs;
+        int clamped = Math.Clamp(raw, MinAnimationDurationMs, MaxAnimationDurationMs);
+        return settings.LiteMode ? Math.Min(clamped, 120) : clamped;
+    }
+
     // ── Shape springs ──────────────────────────────────────────────────────────
     public const float OpenDampingRatio  = 0.88f;
     public const int   OpenPeriodMs      = 180;

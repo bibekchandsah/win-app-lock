@@ -17,6 +17,7 @@ public sealed class M16_SettingsAndPolishTests
         var s = new WindowIslandSettings();
         Assert.False(s.LiteMode);
         Assert.False(s.ReducedMotion);
+        Assert.Equal(240, s.AnimationDurationMs);
         Assert.False(s.ExcludeFromCapture);
         Assert.Equal("Default", s.IslandColor);
         Assert.Equal(150, s.OpenDelayMs);
@@ -31,6 +32,7 @@ public sealed class M16_SettingsAndPolishTests
         {
             LiteMode = true,
             ReducedMotion = true,
+            AnimationDurationMs = 420,
             ExcludeFromCapture = true,
             IslandColor = "Navy",
             OpenDelayMs = 200,
@@ -42,11 +44,23 @@ public sealed class M16_SettingsAndPolishTests
 
         Assert.True(clone.LiteMode);
         Assert.True(clone.ReducedMotion);
+        Assert.Equal(420, clone.AnimationDurationMs);
         Assert.True(clone.ExcludeFromCapture);
         Assert.Equal("Navy", clone.IslandColor);
         Assert.Equal(200, clone.OpenDelayMs);
         Assert.Equal(400, clone.CloseDelayMs);
         Assert.True(clone.ShowFrameStats);
+    }
+
+    [Fact]
+    public void IslandMotion_ResolveDurationMs_RespectsSettingsAndModes()
+    {
+        Assert.Equal(240, IslandMotion.ResolveDurationMs(new WindowIslandSettings()));
+        Assert.Equal(500, IslandMotion.ResolveDurationMs(new WindowIslandSettings { AnimationDurationMs = 500 }));
+        Assert.Equal(80, IslandMotion.ResolveDurationMs(new WindowIslandSettings { AnimationDurationMs = 10 }));
+        Assert.Equal(1200, IslandMotion.ResolveDurationMs(new WindowIslandSettings { AnimationDurationMs = 5000 }));
+        Assert.Equal(80, IslandMotion.ResolveDurationMs(new WindowIslandSettings { AnimationDurationMs = 500, ReducedMotion = true }));
+        Assert.Equal(120, IslandMotion.ResolveDurationMs(new WindowIslandSettings { AnimationDurationMs = 500, LiteMode = true }));
     }
 
     [Theory]

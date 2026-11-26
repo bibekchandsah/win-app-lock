@@ -26,6 +26,7 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly CompositionVisualSurface _maskSurface;
     private readonly CompositionSurfaceBrush _maskSurfaceBrush;
     private readonly CompositionMaskBrush _outputMaskBrush;
+    private readonly CompositionColorBrush _bodyColorBrush;
     private readonly SpriteVisual _outputVisual;
     private readonly CompositionRoundedRectangleGeometry _bodyGeometry;
     private readonly CompositionRoundedRectangleGeometry _clipGeometry;
@@ -33,7 +34,11 @@ public sealed class WindowIslandCompositor : IDisposable
     private readonly CompositionSpriteShape _bodyShape;
     private readonly CompositionSpriteShape _notchLeftEarShape;
     private readonly CompositionSpriteShape _notchRightEarShape;
+    private readonly CompositionEasingFunction _easeOut;
     private WindowIslandSettings _settings;
+    private string? _lastShape;
+    private int _lastOpacityPercent = -1;
+    private int _lastSizePercent = -1;
 
     public const float NotchEarRadius = 12f;
     public const float FoldedNotchRadiusDip = 12f;
@@ -105,6 +110,7 @@ public sealed class WindowIslandCompositor : IDisposable
     {
         _settings      = settings;
         _compositor    = ElementCompositionPreview.GetElementVisual(hostElement).Compositor;
+        _easeOut       = _compositor.CreateCubicBezierEasingFunction(new Vector2(0.16f, 1.0f), new Vector2(0.30f, 1.0f));
         _windowWidthDip = windowWidthDip;
         _sizeFactor    = (float)(settings.SizePercent / 100.0);
 
@@ -154,7 +160,7 @@ public sealed class WindowIslandCompositor : IDisposable
         RefreshCenterAnimation(settings.Shape);
 
         _shapeVisual = _compositor.CreateShapeVisual();
-        float maskH = 800f * _sizeFactor;
+        float maskH = MathF.Max(OpenHeightDip + 40f, (IslandMotion.ChatHeightDip + 40f) * _sizeFactor);
         _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
         _shapeVisual.Shapes.Add(_bodyShape);
         _shapeVisual.Shapes.Add(_notchLeftEarShape);
@@ -169,13 +175,21 @@ public sealed class WindowIslandCompositor : IDisposable
         _maskSurfaceBrush.HorizontalAlignmentRatio = 0f;
         _maskSurfaceBrush.VerticalAlignmentRatio = 0f;
 
+        Color initialColor = WindowIslandColorHelper.ResolveBaseColor(settings);
+        _bodyColorBrush = _compositor.CreateColorBrush(Color.FromArgb(255, initialColor.R, initialColor.G, initialColor.B));
+
         _outputMaskBrush = _compositor.CreateMaskBrush();
-        _outputMaskBrush.Source = GetBodyBrush(settings);
+        _outputMaskBrush.Source = _bodyColorBrush;
         _outputMaskBrush.Mask = _maskSurfaceBrush;
 
         _outputVisual = _compositor.CreateSpriteVisual();
         _outputVisual.RelativeSizeAdjustment = Vector2.One;
         _outputVisual.Brush = _outputMaskBrush;
+        int initOpacityPct = Math.Clamp(settings.OpacityPercent, 10, 100);
+        _outputVisual.Opacity = initOpacityPct / 100f;
+        _lastOpacityPercent = initOpacityPct;
+        _lastShape = settings.Shape;
+        _lastSizePercent = settings.SizePercent;
 
         _rootVisual.Children.InsertAtTop(_outputVisual);
         ElementCompositionPreview.SetElementChildVisual(hostElement, _rootVisual);
@@ -307,7 +321,7 @@ public sealed class WindowIslandCompositor : IDisposable
         if (_disposed) return;
         _windowWidthDip = windowWidthDip;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
-        float maskH = MathF.Max(800f, (IslandMotion.ChatHeightDip + 120f) * _sizeFactor);
+        float maskH = MathF.Max(OpenHeightDip + 40f, (IslandMotion.ChatHeightDip + 40f) * _sizeFactor);
         _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
         _maskSurface.SourceSize = new Vector2(_windowWidthDip, maskH);
         RefreshCenterAnimation(settings.Shape);
@@ -319,24 +333,40 @@ public sealed class WindowIslandCompositor : IDisposable
         _settings = settings;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
 
-        // Apply opacity linearly via _outputVisual.Opacity (10..100%)
-        float opacity = Math.Clamp(settings.OpacityPercent, 10, 100) / 100f;
-        var opacityAnim = _compositor.CreateScalarKeyFrameAnimation();
-        opacityAnim.InsertKeyFrame(1f, opacity);
-        opacityAnim.Duration = TimeSpan.FromMilliseconds(120);
-        _outputVisual.StartAnimation("Opacity", opacityAnim);
+        // Apply opacity linearly via _outputVisual.Opacity (10..100%) only when changed
+        int clampedOpacityPct = Math.Clamp(settings.OpacityPercent, 10, 100);
+        if (clampedOpacityPct != _lastOpacityPercent)
+        {
+            _lastOpacityPercent = clampedOpacityPct;
+            float opacity = clampedOpacityPct / 100f;
+            var opacityAnim = _compositor.CreateScalarKeyFrameAnimation();
+            opacityAnim.InsertKeyFrame(1f, opacity);
+            opacityAnim.Duration = TimeSpan.FromMilliseconds(80);
+            _outputVisual.StartAnimation("Opacity", opacityAnim);
+        }
 
-        _outputMaskBrush.Source = GetBodyBrush(settings);
+        Color baseColor = WindowIslandColorHelper.ResolveBaseColor(settings);
+        _bodyColorBrush.Color = Color.FromArgb(255, baseColor.R, baseColor.G, baseColor.B);
 
-        RefreshCenterAnimation(settings.Shape);
+        bool shapeChanged = !string.Equals(_lastShape, settings.Shape, StringComparison.Ordinal);
+        bool sizeChanged  = _lastSizePercent != settings.SizePercent;
+        if (shapeChanged)
+        {
+            _lastShape = settings.Shape;
+            RefreshCenterAnimation(settings.Shape);
+        }
 
-        // Snap to current logical state (no animation for settings change)
-        float foldedRadius = settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip;
-        float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : CurrentFoldedWidthDip))  * _sizeFactor;
-        float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : FoldedHeightDip)) * _sizeFactor;
-        float radius = (_isOpen ? OpenRadiusDip : (_isCard ? MathF.Min(CardDefaultRadiusDip, _cardTargetH / 2f) : foldedRadius)) * _sizeFactor;
-        _bodyGeometry.Size         = new Vector2(width, height);
-        _bodyGeometry.CornerRadius = new Vector2(radius, radius);
+        if (shapeChanged || sizeChanged)
+        {
+            _lastSizePercent = settings.SizePercent;
+            // Snap to current logical state (no animation for settings change)
+            float foldedRadius = settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip;
+            float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : CurrentFoldedWidthDip))  * _sizeFactor;
+            float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : FoldedHeightDip)) * _sizeFactor;
+            float radius = (_isOpen ? OpenRadiusDip : (_isCard ? MathF.Min(CardDefaultRadiusDip, _cardTargetH / 2f) : foldedRadius)) * _sizeFactor;
+            _bodyGeometry.Size         = new Vector2(width, height);
+            _bodyGeometry.CornerRadius = new Vector2(radius, radius);
+        }
     }
 
     public void Dispose()
@@ -345,6 +375,7 @@ public sealed class WindowIslandCompositor : IDisposable
         _disposed = true;
         _outputVisual.Dispose();
         _outputMaskBrush.Dispose();
+        _bodyColorBrush.Dispose();
         _maskSurfaceBrush.Dispose();
         _maskSurface.Dispose();
         _notchLeftEarShape.Dispose();
@@ -354,6 +385,7 @@ public sealed class WindowIslandCompositor : IDisposable
         _bodyGeometry.Dispose();
         _bodyShape.Dispose();
         _shapeVisual.Dispose();
+        _easeOut.Dispose();
         _rootVisual.Dispose();
     }
 
@@ -369,45 +401,53 @@ public sealed class WindowIslandCompositor : IDisposable
         }
         catch { }
 
+        int configuredMs = _settings.AnimationDurationMs > 0
+            ? Math.Clamp(_settings.AnimationDurationMs, IslandMotion.MinAnimationDurationMs, IslandMotion.MaxAnimationDurationMs)
+            : IslandMotion.DefaultAnimationDurationMs;
+
         if (_settings.LiteMode)
         {
-            // Simple 120 ms linear fade / keyframe animation (no springs)
+            // Fast linear keyframe animation (no springs or long tail)
+            int liteMs = Math.Min(configuredMs, 120);
             var sizeAnim = _compositor.CreateVector2KeyFrameAnimation();
-            sizeAnim.Duration = TimeSpan.FromMilliseconds(120);
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(liteMs);
             sizeAnim.InsertKeyFrame(1.0f, targetSize);
 
             var radiusAnim = _compositor.CreateVector2KeyFrameAnimation();
-            radiusAnim.Duration = TimeSpan.FromMilliseconds(120);
+            radiusAnim.Duration = TimeSpan.FromMilliseconds(liteMs);
             radiusAnim.InsertKeyFrame(1.0f, targetRadius);
 
             RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
         }
         else if (reducedMotion)
         {
-            // 80 ms fade / fast transition for reduced motion
+            // 80 ms fast transition for reduced motion
             var sizeAnim = _compositor.CreateVector2KeyFrameAnimation();
-            sizeAnim.Duration = TimeSpan.FromMilliseconds(80);
-            sizeAnim.InsertKeyFrame(1.0f, targetSize);
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(IslandMotion.ReducedMotionFadeMs);
+            sizeAnim.InsertKeyFrame(1.0f, targetSize, _easeOut);
 
             var radiusAnim = _compositor.CreateVector2KeyFrameAnimation();
-            radiusAnim.Duration = TimeSpan.FromMilliseconds(80);
-            radiusAnim.InsertKeyFrame(1.0f, targetRadius);
+            radiusAnim.Duration = TimeSpan.FromMilliseconds(IslandMotion.ReducedMotionFadeMs);
+            radiusAnim.InsertKeyFrame(1.0f, targetRadius, _easeOut);
 
             RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
         }
         else
         {
-            // Using SpringVector2NaturalMotionAnimation retargets from current in-flight position.
-            // This is the key to interruptible animations — just update FinalValue.
-            var sizeAnim = _compositor.CreateSpringVector2Animation();
-            sizeAnim.DampingRatio = dampingRatio;
-            sizeAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
-            sizeAnim.FinalValue   = targetSize;
+            // Exact-duration ease-out keyframe animation: starts seamlessly from current live
+            // size/radius on mid-flight retargets and settles cleanly at the configured duration
+            // (eliminating the ~1.5-2s spring settle tail).
+            int durationMs = periodMs < IslandMotion.OpenPeriodMs
+                ? Math.Max(IslandMotion.MinAnimationDurationMs, (int)MathF.Round(configuredMs * 0.9f))
+                : configuredMs;
 
-            var radiusAnim = _compositor.CreateSpringVector2Animation();
-            radiusAnim.DampingRatio = dampingRatio;
-            radiusAnim.Period       = TimeSpan.FromMilliseconds(periodMs);
-            radiusAnim.FinalValue   = targetRadius;
+            var sizeAnim = _compositor.CreateVector2KeyFrameAnimation();
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(durationMs);
+            sizeAnim.InsertKeyFrame(1.0f, targetSize, _easeOut);
+
+            var radiusAnim = _compositor.CreateVector2KeyFrameAnimation();
+            radiusAnim.Duration = TimeSpan.FromMilliseconds(durationMs);
+            radiusAnim.InsertKeyFrame(1.0f, targetRadius, _easeOut);
 
             RunBatchOrDirect(sizeAnim, radiusAnim, onCompleted);
         }
@@ -493,14 +533,6 @@ public sealed class WindowIslandCompositor : IDisposable
         }
         using var canvasGeom = CanvasGeometry.CreatePath(builder);
         return _compositor.CreatePathGeometry(new CompositionPath(canvasGeom));
-    }
-
-    private CompositionBrush GetBodyBrush(WindowIslandSettings settings)
-    {
-        Color baseColor = WindowIslandColorHelper.ResolveBaseColor(settings);
-        // Keep the brush opaque here because _outputVisual.Opacity already applies OpacityPercent;
-        // multiplying both squared the transparency effect.
-        return _compositor.CreateColorBrush(Color.FromArgb(255, baseColor.R, baseColor.G, baseColor.B));
     }
 
     public static Color ResolveBaseColor(WindowIslandSettings settings)

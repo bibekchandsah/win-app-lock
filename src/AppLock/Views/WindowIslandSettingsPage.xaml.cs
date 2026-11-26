@@ -11,12 +11,23 @@ namespace AppLock.Views;
 public sealed partial class WindowIslandSettingsPage : Page
 {
     private bool _loading = true;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _diskSaveTimer;
 
     public WindowIslandSettingsPage()
     {
         InitializeComponent();
         CategoryList.SelectedIndex = 0;
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_diskSaveTimer != null && _diskSaveTimer.IsRunning)
+        {
+            _diskSaveTimer.Stop();
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
     }
 
     /// <summary>Shows the settings section belonging to the selected rail category.</summary>
@@ -148,6 +159,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         ExcludeFromCaptureToggle.IsOn = s.ExcludeFromCapture;
         OpenDelaySlider.Value         = s.OpenDelayMs;
         CloseDelaySlider.Value        = s.CloseDelayMs;
+        AnimationDurationSlider.Value = Math.Clamp(s.AnimationDurationMs > 0 ? s.AnimationDurationMs : 240, 80, 1000);
         FrameStatsToggle.IsOn         = s.ShowFrameStats;
         UpdateDelayLabels();
         SelectComboItem(DefaultSearchEngineBox, s.DefaultSearchEngine);
@@ -206,12 +218,14 @@ public sealed partial class WindowIslandSettingsPage : Page
         UpdateSizeLabel();
         UpdateOpacityLabel();
         UpdateYOffsetLabel();
-        Save();
+        Save(debounceDisk: true);
     }
 
     // ── Persistence ────────────────────────────────────────────────────────────
 
-    private void Save()
+    private void Save() => Save(debounceDisk: false);
+
+    private void Save(bool debounceDisk)
     {
         if (_loading) return;
 
@@ -286,20 +300,40 @@ public sealed partial class WindowIslandSettingsPage : Page
             .ToList();
 
         // Milestone 16: Polish, Lite mode, Delays, Frame Stats
-        s.LiteMode           = LiteModeToggle.IsOn;
-        s.ReducedMotion      = ReducedMotionToggle.IsOn;
-        s.ExcludeFromCapture = ExcludeFromCaptureToggle.IsOn;
-        s.OpenDelayMs        = (int)OpenDelaySlider.Value;
-        s.CloseDelayMs       = (int)CloseDelaySlider.Value;
-        s.ShowFrameStats     = FrameStatsToggle.IsOn;
+        s.LiteMode            = LiteModeToggle.IsOn;
+        s.ReducedMotion       = ReducedMotionToggle.IsOn;
+        s.AnimationDurationMs = (int)AnimationDurationSlider.Value;
+        s.ExcludeFromCapture  = ExcludeFromCaptureToggle.IsOn;
+        s.OpenDelayMs         = (int)OpenDelaySlider.Value;
+        s.CloseDelayMs        = (int)CloseDelaySlider.Value;
+        s.ShowFrameStats      = FrameStatsToggle.IsOn;
 
-        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        if (debounceDisk)
+        {
+            _diskSaveTimer ??= CreateDiskSaveTimer();
+            _diskSaveTimer.Stop();
+            _diskSaveTimer.Start();
+        }
+        else
+        {
+            _diskSaveTimer?.Stop();
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        }
         ServiceContainer.SetWindowIslandEnabled(s.Enabled);
 
         if (s.Enabled)
         {
             WindowIslandHost.Instance.ApplySettings(s);
         }
+    }
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer CreateDiskSaveTimer()
+    {
+        var t = DispatcherQueue.CreateTimer();
+        t.Interval = TimeSpan.FromMilliseconds(150);
+        t.IsRepeating = false;
+        t.Tick += (_, _) => ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        return t;
     }
 
     private async void WeatherSearchBtn_Click(object sender, RoutedEventArgs e)
@@ -534,11 +568,13 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnDelaySliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         UpdateDelayLabels();
-        Save();
+        Save(debounceDisk: true);
     }
 
     private void UpdateDelayLabels()
     {
+        if (AnimationDurationLabelText != null && AnimationDurationSlider != null)
+            AnimationDurationLabelText.Text = $"{(int)AnimationDurationSlider.Value} ms";
         if (OpenDelayLabelText != null && OpenDelaySlider != null)
             OpenDelayLabelText.Text = $"{(int)OpenDelaySlider.Value} ms";
         if (CloseDelayLabelText != null && CloseDelaySlider != null)
