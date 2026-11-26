@@ -2792,6 +2792,7 @@
                                     <Border x:Name="WeatherCityDotsContainer"
                                             Grid.Row="0"
                                             Grid.RowSpan="5"
+                                            Canvas.ZIndex="10"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center"
                                             Background="#24000000"

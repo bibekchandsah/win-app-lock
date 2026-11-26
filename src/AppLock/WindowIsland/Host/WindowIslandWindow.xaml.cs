@@ -409,8 +409,7 @@ public sealed partial class WindowIslandWindow : Window
         _tileActions = new IslandTileActions(
             hideIsland: () => { SetIslandVisible(false); return Task.CompletedTask; },
             showIsland: () => { SetIslandVisible(true);  return Task.CompletedTask; },
-            screenshotsFolder: () => Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots"));
+            screenshotsFolder: () => _settings.GetEffectiveScreenshotsFolder());
 
         // Milestone 6: Clipboard + Shelf
         _clipboardState = new WindowIslandClipboardState(DispatcherQueue);
@@ -540,6 +539,7 @@ public sealed partial class WindowIslandWindow : Window
         ApplyThemeColors(settings);
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
+        _screenshotSource?.Start(settings.GetEffectiveScreenshotsFolder());
 
         // Size and position the window BEFORE Activate() so WinUI builds the initial surface
         // at its final dimensions instead of resizing right after Activate() (resizing triggers
@@ -629,6 +629,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
         ApplyMediaPlayerStyle();
+        _screenshotSource?.Start(settings.GetEffectiveScreenshotsFolder());
 
         // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
         // switching it back on refetches for the song that is playing).
@@ -2059,7 +2060,7 @@ public sealed partial class WindowIslandWindow : Window
         // the path or they would look next to the executable.
         string fullPath = Path.IsPathRooted(path)
             ? path
-            : Path.Combine(ScreenshotCardSource.DefaultFolder, path);
+            : Path.Combine(_settings.GetEffectiveScreenshotsFolder(), path);
 
         // Show the capture itself, like a copied image: the card is useless if the user cannot tell
         // which shot was saved, and it usually needs to be opened right away.
@@ -6379,8 +6380,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 12, 6, 12),
-                Spacing = 4
+                Margin = new Thickness(6, 8, 6, 8),
+                Spacing = 3
             };
 
             var guideTitle = new TextBlock
@@ -6416,11 +6417,20 @@ public sealed partial class WindowIslandWindow : Window
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
+            var ex4 = new TextBlock
+            {
+                Text = "\u201Ccall mom on Nov 26 at 4pm\u201D",
+                FontSize = 9,
+                Foreground = new SolidColorBrush(AdaptiveInkColor(95)),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
 
             placeholderStack.Children.Add(guideTitle);
             placeholderStack.Children.Add(ex1);
             placeholderStack.Children.Add(ex2);
             placeholderStack.Children.Add(ex3);
+            placeholderStack.Children.Add(ex4);
 
             ReminderList.Children.Add(placeholderStack);
             return;
@@ -10879,7 +10889,7 @@ public sealed partial class WindowIslandWindow : Window
         try
         {
             byte[] pngBytes = GenerateQrPngBytes(_currentQrText, 400);
-            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+            string folder = _settings.GetEffectiveScreenshotsFolder();
             if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
             string fileName = $"QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png";
             string filePath = Path.Combine(folder, fileName);

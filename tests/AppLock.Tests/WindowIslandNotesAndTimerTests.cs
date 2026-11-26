@@ -214,4 +214,39 @@ public class WindowIslandNotesAndTimerTests : IDisposable
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
         }
     }
+
+    [Fact]
+    public void ReminderParser_ParsesMonthAndDay()
+    {
+        var result = WindowIslandReminderParser.Parse("call mom on November 19 at 4pm");
+        Assert.True(result.Success);
+        Assert.True(result.HasExplicitTime);
+        Assert.Equal("call mom", result.Title);
+        var local = result.DueTimeUtc.ToLocalTime();
+        Assert.Equal(11, local.Month);
+        Assert.Equal(19, local.Day);
+        Assert.Equal(16, local.Hour);
+        Assert.Equal(0, local.Minute);
+    }
+
+    [Fact]
+    public void ReminderParser_ParsesDayThenMonth()
+    {
+        var result = WindowIslandReminderParser.Parse("pay rent 3rd Dec at 10:30am");
+        Assert.True(result.Success);
+        Assert.Equal("pay rent", result.Title);
+        var local = result.DueTimeUtc.ToLocalTime();
+        Assert.Equal(12, local.Month);
+        Assert.Equal(3, local.Day);
+        Assert.Equal(10, local.Hour);
+        Assert.Equal(30, local.Minute);
+    }
+
+    [Fact]
+    public void ReminderStore_FormatRelativeTime_ShowsExactDateAfter24Hours()
+    {
+        DateTime dueLocal = DateTime.Now.AddDays(3).Date.AddHours(16);
+        string formatted = WindowIslandReminderStore.FormatRelativeTime(dueLocal.ToUniversalTime());
+        Assert.Equal(dueLocal.ToString("MMM d h:mm tt"), formatted);
+    }
 }

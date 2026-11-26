@@ -146,6 +146,13 @@ public sealed partial class WindowIslandSettingsPage : Page
         }
 
         HotkeyBox.Text = string.IsNullOrWhiteSpace(s.Hotkey) ? "Ctrl+Shift+W" : s.Hotkey;
+        string defaultShotsFolder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+        ScreenshotsFolderBox.PlaceholderText = defaultShotsFolder;
+        ScreenshotsFolderBox.Text = string.IsNullOrWhiteSpace(s.ScreenshotsFolder)
+            ? defaultShotsFolder
+            : s.ScreenshotsFolder;
+        ScreenshotsDefaultPathText.Text = $"Default: {defaultShotsFolder}";
 
         // Controls Tab Add-on
         ControlsCloseAfterCardToggle.IsOn       = s.Controls.CloseIslandAfterCard;
@@ -324,6 +331,40 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnHotkeyChanged(object sender, TextChangedEventArgs e) => Save();
 
+    private void OnScreenshotsFolderChanged(object sender, TextChangedEventArgs e) => Save(debounceDisk: true);
+
+    private async void ScreenshotsFolderBrowseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            if (App.MainWindowInstance != null)
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindowInstance);
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder != null && ScreenshotsFolderBox != null)
+            {
+                ScreenshotsFolderBox.Text = folder.Path;
+                Save();
+            }
+        }
+        catch { }
+    }
+
+    private void ScreenshotsFolderResetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string defaultShotsFolder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+        if (ScreenshotsFolderBox != null)
+        {
+            ScreenshotsFolderBox.Text = defaultShotsFolder;
+        }
+        Save();
+    }
+
     private void OnChosenAppsChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnBtWarningLevelsChanged(object sender, TextChangedEventArgs e) => Save();
@@ -390,6 +431,12 @@ public sealed partial class WindowIslandSettingsPage : Page
             s.ChatIdleMinutes = AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.ClampIdleMinutes(idleMin);
         }
         s.Hotkey        = HotkeyBox.Text.Trim();
+        string defaultShotsFolder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+        string enteredShots = ScreenshotsFolderBox?.Text?.Trim() ?? string.Empty;
+        s.ScreenshotsFolder = string.Equals(enteredShots, defaultShotsFolder, StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : enteredShots;
         s.DefaultSearchEngine    = TagOf(DefaultSearchEngineBox) ?? "google";
         s.CustomDefaultSearchUrl = CustomDefaultSearchUrlBox.Text.Trim();
 

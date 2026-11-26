@@ -349,6 +349,19 @@ public sealed class WindowIslandSettings
     /// <summary>Show developer frame-stats overlay on the island.</summary>
     public bool ShowFrameStats { get; set; } = false;
 
+    /// <summary>Custom folder path for saving screenshots (empty = default Pictures\Screenshots).</summary>
+    public string ScreenshotsFolder { get; set; } = string.Empty;
+
+    public string GetEffectiveScreenshotsFolder()
+    {
+        if (!string.IsNullOrWhiteSpace(ScreenshotsFolder))
+        {
+            try { return System.IO.Path.GetFullPath(ScreenshotsFolder.Trim()); } catch { }
+        }
+        return System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Screenshots");
+    }
+
     public WindowIslandSettings Clone()
     {
         var clone = (WindowIslandSettings)MemberwiseClone();
