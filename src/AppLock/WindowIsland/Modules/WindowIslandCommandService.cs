@@ -379,7 +379,7 @@ public sealed class WindowIslandCommandService
             results.Add(new CommandBarItem
             {
                 Title = f.Name,
-                Subtitle = f.Path,
+                Subtitle = f.Path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ? "Windows App" : f.Path,
                 IconGlyph = f.IsApp ? "\uE71D" : (f.IsDirectory ? "\uE8B7" : "\uE756"),
                 AccentHex = f.IsApp ? "#60CDFF" : (f.IsDirectory ? "#FFD700" : "#C0FFFFFF"),
                 Kind = f.IsApp ? CommandItemKind.Application : CommandItemKind.FileOrFolder,
@@ -444,7 +444,10 @@ public sealed class WindowIslandCommandService
                 case CommandItemKind.Application:
                 case CommandItemKind.FileOrFolder:
                 case CommandItemKind.LauncherShortcut:
-                    Process.Start(new ProcessStartInfo(item.ActionData) { UseShellExecute = true });
+                    if (item.ActionData.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+                        Process.Start(new ProcessStartInfo("explorer.exe", item.ActionData) { UseShellExecute = true });
+                    else
+                        Process.Start(new ProcessStartInfo(item.ActionData) { UseShellExecute = true });
                     break;
 
                 case CommandItemKind.WebSearch:

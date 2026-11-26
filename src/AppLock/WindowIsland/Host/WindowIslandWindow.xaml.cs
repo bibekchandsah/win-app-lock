@@ -4441,6 +4441,8 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private readonly Dictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _commandAppIconCache = new(StringComparer.OrdinalIgnoreCase);
+
     private Border BuildCommandResultRow(CommandBarItem item, bool isSelected, int index)
     {
         var accent = GetSystemAccentColor();
@@ -4467,10 +4469,47 @@ public sealed partial class WindowIslandWindow : Window
             FontSize = 13,
             Foreground = new SolidColorBrush(HexToColor(item.AccentHex)),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(2, 0, 8, 0)
+            HorizontalAlignment = HorizontalAlignment.Center
         };
-        Grid.SetColumn(icon, 0);
-        grid.Children.Add(icon);
+
+        if ((item.Kind == CommandItemKind.Application || item.Kind == CommandItemKind.LauncherShortcut) &&
+            !string.IsNullOrWhiteSpace(item.ActionData))
+        {
+            var iconHost = new Grid
+            {
+                Width = 20,
+                Height = 20,
+                Margin = new Thickness(2, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var img = new Image
+            {
+                Width = 20,
+                Height = 20,
+                Stretch = Stretch.Uniform
+            };
+            iconHost.Children.Add(icon);
+            iconHost.Children.Add(img);
+
+            if (_commandAppIconCache.TryGetValue(item.ActionData, out var cached))
+            {
+                img.Source = cached;
+                icon.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                _ = LoadCommandAppIconAsync(item.ActionData, img, icon);
+            }
+
+            Grid.SetColumn(iconHost, 0);
+            grid.Children.Add(iconHost);
+        }
+        else
+        {
+            icon.Margin = new Thickness(2, 0, 8, 0);
+            Grid.SetColumn(icon, 0);
+            grid.Children.Add(icon);
+        }
 
         var stack = new StackPanel { Spacing = 1 };
         var title = new TextBlock
@@ -4513,6 +4552,72 @@ public sealed partial class WindowIslandWindow : Window
         };
 
         return border;
+    }
+
+    private async Task LoadCommandAppIconAsync(string actionData, Image targetImage, FontIcon fallbackIcon)
+    {
+        try
+        {
+            byte[]? pngBytes = await Task.Run(async () =>
+            {
+                if (actionData.StartsWith("shell:AppsFolder\\", StringComparison.OrdinalIgnoreCase))
+                {
+                    string aumid = actionData["shell:AppsFolder\\".Length..];
+                    var pm = new Windows.Management.Deployment.PackageManager();
+                    foreach (var pkg in pm.FindPackagesForUser(string.Empty))
+                    {
+                        try
+                        {
+                            if (pkg.IsFramework || pkg.IsResourcePackage || pkg.IsBundle) continue;
+                            var entries = await pkg.GetAppListEntriesAsync();
+                            if (entries == null) continue;
+                            foreach (var entry in entries)
+                            {
+                                if (!string.Equals(entry.AppUserModelId, aumid, StringComparison.OrdinalIgnoreCase)) continue;
+                                var logoRef = entry.DisplayInfo?.GetLogo(new Windows.Foundation.Size(32, 32));
+                                if (logoRef == null) return null;
+                                using var stream = await logoRef.OpenReadAsync();
+                                using var netStream = stream.AsStreamForRead();
+                                using var ms = new MemoryStream();
+                                await netStream.CopyToAsync(ms);
+                                return ms.ToArray();
+                            }
+                        }
+                        catch { }
+                    }
+                    return null;
+                }
+
+                if (File.Exists(actionData))
+                {
+                    using var sysIcon = System.Drawing.Icon.ExtractAssociatedIcon(actionData);
+                    if (sysIcon == null) return null;
+                    using var bmp = sysIcon.ToBitmap();
+                    using var ms = new MemoryStream();
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    return ms.ToArray();
+                }
+
+                return null;
+            });
+
+            if (pngBytes == null || pngBytes.Length == 0) return;
+
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    using var ms = new MemoryStream(pngBytes);
+                    var bmpImg = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                    await bmpImg.SetSourceAsync(ms.AsRandomAccessStream());
+                    _commandAppIconCache[actionData] = bmpImg;
+                    targetImage.Source = bmpImg;
+                    fallbackIcon.Visibility = Visibility.Collapsed;
+                }
+                catch { }
+            });
+        }
+        catch { }
     }
 
     private void UpdateCommandSelectionVisuals(bool scrollIntoView)

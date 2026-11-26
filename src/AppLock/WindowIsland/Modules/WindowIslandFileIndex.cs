@@ -72,6 +72,9 @@ public sealed class WindowIslandFileIndex : IDisposable
                 ScanDirectory(folder, isAppFolder: true, maxDepth: 4, collected);
             }
 
+            // 1b. Index Microsoft Store / UWP / Windows built-in apps (Calculator, Camera, Terminal, etc.)
+            IndexInstalledWindowsApps(collected);
+
             // 2. Index User Folders
             foreach (var folder in targetFolders)
             {
@@ -97,6 +100,47 @@ public sealed class WindowIslandFileIndex : IDisposable
         {
             Debug.WriteLine($"[WindowIslandFileIndex] Indexing error: {ex.Message}");
         }
+    }
+
+    private static void IndexInstalledWindowsApps(List<IndexedItem> collected)
+    {
+        try
+        {
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in collected)
+            {
+                if (item.IsApp && !string.IsNullOrEmpty(item.Name))
+                    seenNames.Add(item.Name);
+            }
+
+            var pm = new Windows.Management.Deployment.PackageManager();
+            foreach (var pkg in pm.FindPackagesForUser(string.Empty))
+            {
+                try
+                {
+                    if (pkg.IsFramework || pkg.IsResourcePackage || pkg.IsBundle) continue;
+                    var entries = pkg.GetAppListEntries();
+                    if (entries == null) continue;
+
+                    foreach (var entry in entries)
+                    {
+                        string? name = entry.DisplayInfo?.DisplayName;
+                        string? aumid = entry.AppUserModelId;
+                        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(aumid)) continue;
+                        if (!seenNames.Add(name)) continue;
+
+                        collected.Add(new IndexedItem(
+                            Name: name,
+                            Path: $"shell:AppsFolder\\{aumid}",
+                            IsDirectory: false,
+                            IsApp: true,
+                            Ext: ".app"));
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     private static void AddIfExists(List<string> list, string path)
