@@ -11772,10 +11772,14 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Date & Calendar Tab ──────────────────────────────────────────────────
 
+    private enum CalendarViewMode { Days, Months, Years }
+
+    private CalendarViewMode _calendarViewMode = CalendarViewMode.Days;
     private DateTime _calendarViewMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _calendarSelectedDate = DateTime.Today;
     private readonly List<(TextBlock TimeBlock, CustomWorldClock Clock)> _worldClockBindings = new();
     private IReadOnlyList<TimeZoneInfo>? _systemTimeZones;
+    private bool? _analogDialLightTheme;
 
     private bool CalendarShowSeconds =>
         string.Equals(_settings.CalendarClockStyle, "DigitalSeconds", StringComparison.OrdinalIgnoreCase) ||
@@ -11788,9 +11792,50 @@ public sealed partial class WindowIslandWindow : Window
     private void RefreshCalendarTabUI()
     {
         if (ContentCalendar == null) return;
+        EnsureAnalogDialTicks();
         UpdateCalendarClockOnly();
         RebuildWorldClockPills();
-        RenderCalendarDays();
+        RenderCalendarView();
+    }
+
+    private void EnsureAnalogDialTicks()
+    {
+        if (CalendarAnalogTicksCanvas == null) return;
+        if (_analogDialLightTheme == _isLightSurfaceActive && CalendarAnalogTicksCanvas.Children.Count > 0)
+            return;
+
+        _analogDialLightTheme = _isLightSurfaceActive;
+        CalendarAnalogTicksCanvas.Children.Clear();
+
+        var majorBrush = new SolidColorBrush(AdaptiveInkColor(215));
+        var minorBrush = new SolidColorBrush(AdaptiveInkColor(115));
+
+        const double cx = 58.0;
+        const double cy = 58.0;
+        for (int i = 0; i < 12; i++)
+        {
+            bool isQuarter = (i % 3) == 0;
+            double w = isQuarter ? 2.2 : 1.4;
+            double h = isQuarter ? 7.5 : 4.5;
+            double radius = 50.0 - h / 2.0;
+            double angleDeg = i * 30.0;
+            double rad = (angleDeg - 90.0) * Math.PI / 180.0;
+            double x = cx + radius * Math.Cos(rad) - w / 2.0;
+            double y = cy + radius * Math.Sin(rad) - h / 2.0;
+
+            var tick = new Border
+            {
+                Width = w,
+                Height = h,
+                CornerRadius = new CornerRadius(w / 2.0),
+                Background = isQuarter ? majorBrush : minorBrush,
+                RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+                RenderTransform = new RotateTransform { Angle = angleDeg }
+            };
+            Canvas.SetLeft(tick, x);
+            Canvas.SetTop(tick, y);
+            CalendarAnalogTicksCanvas.Children.Add(tick);
+        }
     }
 
     private void UpdateCalendarClockOnly()
@@ -12008,24 +12053,191 @@ public sealed partial class WindowIslandWindow : Window
         RebuildWorldClockPills();
     }
 
+    private void CalendarHeaderBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _calendarViewMode = _calendarViewMode switch
+        {
+            CalendarViewMode.Days   => CalendarViewMode.Months,
+            CalendarViewMode.Months => CalendarViewMode.Years,
+            _                       => CalendarViewMode.Days
+        };
+        RenderCalendarView();
+    }
+
     private void CalendarPrevMonth_Click(object sender, RoutedEventArgs e)
     {
-        _calendarViewMonth = _calendarViewMonth.AddMonths(-1);
-        RenderCalendarDays();
+        _calendarViewMonth = _calendarViewMode switch
+        {
+            CalendarViewMode.Months => _calendarViewMonth.AddYears(-1),
+            CalendarViewMode.Years  => _calendarViewMonth.AddYears(-10),
+            _                       => _calendarViewMonth.AddMonths(-1)
+        };
+        RenderCalendarView();
     }
 
     private void CalendarNextMonth_Click(object sender, RoutedEventArgs e)
     {
-        _calendarViewMonth = _calendarViewMonth.AddMonths(1);
-        RenderCalendarDays();
+        _calendarViewMonth = _calendarViewMode switch
+        {
+            CalendarViewMode.Months => _calendarViewMonth.AddYears(1),
+            CalendarViewMode.Years  => _calendarViewMonth.AddYears(10),
+            _                       => _calendarViewMonth.AddMonths(1)
+        };
+        RenderCalendarView();
     }
 
     private void CalendarToday_Click(object sender, RoutedEventArgs e)
     {
         var today = DateTime.Today;
+        _calendarViewMode = CalendarViewMode.Days;
         _calendarViewMonth = new DateTime(today.Year, today.Month, 1);
         _calendarSelectedDate = today;
-        RenderCalendarDays();
+        RenderCalendarView();
+    }
+
+    private void RenderCalendarView()
+    {
+        if (CalendarWeekdayHeader != null)
+            CalendarWeekdayHeader.Visibility = _calendarViewMode == CalendarViewMode.Days ? Visibility.Visible : Visibility.Collapsed;
+        if (CalendarDaysGrid != null)
+            CalendarDaysGrid.Visibility = _calendarViewMode == CalendarViewMode.Days ? Visibility.Visible : Visibility.Collapsed;
+        if (CalendarMonthsYearsGrid != null)
+            CalendarMonthsYearsGrid.Visibility = _calendarViewMode == CalendarViewMode.Days ? Visibility.Collapsed : Visibility.Visible;
+
+        if (CalendarHeaderChevron != null)
+            CalendarHeaderChevron.Glyph = _calendarViewMode == CalendarViewMode.Years ? "\uE70E" : "\uE70D";
+
+        switch (_calendarViewMode)
+        {
+            case CalendarViewMode.Months:
+                RenderCalendarMonths();
+                break;
+            case CalendarViewMode.Years:
+                RenderCalendarYears();
+                break;
+            default:
+                RenderCalendarDays();
+                break;
+        }
+    }
+
+    private void RenderCalendarMonths()
+    {
+        if (CalendarMonthsYearsGrid == null || CalendarMonthLabel == null) return;
+        CalendarMonthLabel.Text = _calendarViewMonth.Year.ToString();
+        CalendarMonthsYearsGrid.Children.Clear();
+
+        var today = DateTime.Today;
+        var accent = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accent);
+        var accentFgBrush = new SolidColorBrush(GetContrastingForeground(accent));
+        var primaryBrush = new SolidColorBrush(AdaptiveInkColor(235));
+        var selectedBgBrush = new SolidColorBrush(AdaptiveSurfaceColor(34));
+        var clearBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+        for (int m = 1; m <= 12; m++)
+        {
+            bool isCurrentMonth = _calendarViewMonth.Year == today.Year && m == today.Month;
+            bool isSelectedMonth = m == _calendarViewMonth.Month;
+            string label = new DateTime(_calendarViewMonth.Year, m, 1).ToString("MMM");
+
+            var btn = new Button
+            {
+                Content = label,
+                FontSize = 12.5,
+                FontWeight = isCurrentMonth ? FontWeights.Bold : (isSelectedMonth ? FontWeights.SemiBold : FontWeights.Normal),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(12),
+                Background = isCurrentMonth ? accentBrush : (isSelectedMonth ? selectedBgBrush : clearBrush),
+                Foreground = isCurrentMonth ? accentFgBrush : primaryBrush,
+                BorderBrush = (!isCurrentMonth && isSelectedMonth) ? accentBrush : clearBrush,
+                BorderThickness = new Thickness((!isCurrentMonth && isSelectedMonth) ? 1.5 : 0)
+            };
+
+            int targetMonth = m;
+            btn.Click += (_, _) =>
+            {
+                _calendarViewMonth = new DateTime(_calendarViewMonth.Year, targetMonth, 1);
+                _calendarViewMode = CalendarViewMode.Days;
+                RenderCalendarView();
+            };
+
+            Grid.SetRow(btn, (m - 1) / 4);
+            Grid.SetColumn(btn, (m - 1) % 4);
+            CalendarMonthsYearsGrid.Children.Add(btn);
+        }
+
+        UpdateCalendarFooter();
+    }
+
+    private void RenderCalendarYears()
+    {
+        if (CalendarMonthsYearsGrid == null || CalendarMonthLabel == null) return;
+        int decadeStart = (_calendarViewMonth.Year / 10) * 10;
+        CalendarMonthLabel.Text = $"{decadeStart} - {decadeStart + 9}";
+        CalendarMonthsYearsGrid.Children.Clear();
+
+        var today = DateTime.Today;
+        var accent = GetSystemAccentColor();
+        var accentBrush = new SolidColorBrush(accent);
+        var accentFgBrush = new SolidColorBrush(GetContrastingForeground(accent));
+        var primaryBrush = new SolidColorBrush(AdaptiveInkColor(235));
+        var mutedBrush = new SolidColorBrush(AdaptiveInkColor(115));
+        var selectedBgBrush = new SolidColorBrush(AdaptiveSurfaceColor(34));
+        var clearBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+        int startYear = decadeStart - 1;
+        for (int i = 0; i < 12; i++)
+        {
+            int y = startYear + i;
+            bool inDecade = y >= decadeStart && y <= decadeStart + 9;
+            bool isCurrentYear = y == today.Year;
+            bool isSelectedYear = y == _calendarViewMonth.Year;
+
+            var btn = new Button
+            {
+                Content = y.ToString(),
+                FontSize = 12.5,
+                FontWeight = isCurrentYear ? FontWeights.Bold : (isSelectedYear ? FontWeights.SemiBold : FontWeights.Normal),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(12),
+                Background = isCurrentYear ? accentBrush : (isSelectedYear ? selectedBgBrush : clearBrush),
+                Foreground = isCurrentYear ? accentFgBrush : (inDecade ? primaryBrush : mutedBrush),
+                BorderBrush = (!isCurrentYear && isSelectedYear) ? accentBrush : clearBrush,
+                BorderThickness = new Thickness((!isCurrentYear && isSelectedYear) ? 1.5 : 0)
+            };
+
+            int targetYear = Math.Clamp(y, 1, 9999);
+            btn.Click += (_, _) =>
+            {
+                _calendarViewMonth = new DateTime(targetYear, _calendarViewMonth.Month, 1);
+                _calendarViewMode = CalendarViewMode.Months;
+                RenderCalendarView();
+            };
+
+            Grid.SetRow(btn, i / 4);
+            Grid.SetColumn(btn, i % 4);
+            CalendarMonthsYearsGrid.Children.Add(btn);
+        }
+
+        UpdateCalendarFooter();
+    }
+
+    private void UpdateCalendarFooter()
+    {
+        if (CalendarSelectedFooter == null) return;
+        var today = DateTime.Today;
+        CalendarSelectedFooter.Text = _calendarSelectedDate == today
+            ? $"Today · {today:dddd, MMM d, yyyy}"
+            : $"Selected · {_calendarSelectedDate:dddd, MMM d, yyyy}";
     }
 
     private void RenderCalendarDays()
@@ -12078,7 +12290,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     _calendarViewMonth = new DateTime(captured.Year, captured.Month, 1);
                 }
-                RenderCalendarDays();
+                RenderCalendarView();
             };
 
             Grid.SetRow(btn, i / 7);
@@ -12086,11 +12298,6 @@ public sealed partial class WindowIslandWindow : Window
             CalendarDaysGrid.Children.Add(btn);
         }
 
-        if (CalendarSelectedFooter != null)
-        {
-            CalendarSelectedFooter.Text = _calendarSelectedDate == today
-                ? $"Today · {today:dddd, MMM d, yyyy}"
-                : $"Selected · {_calendarSelectedDate:dddd, MMM d, yyyy}";
-        }
+        UpdateCalendarFooter();
     }
 }

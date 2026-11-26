@@ -2960,21 +2960,21 @@
 
                                         <!-- Analog Clock -->
                                         <StackPanel x:Name="CalendarAnalogPanel" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
-                                            <Grid Width="108" Height="108" HorizontalAlignment="Center">
-                                                <Border Width="108" Height="108" CornerRadius="54"
+                                            <Grid Width="116" Height="116" HorizontalAlignment="Center">
+                                                <Border Width="116" Height="116" CornerRadius="58"
                                                         Background="{ThemeResource IslandSurfaceCard}"
                                                         BorderBrush="{ThemeResource IslandBorderSubtle}"
                                                         BorderThickness="1.5" />
-                                                <Canvas x:Name="CalendarAnalogCanvas" Width="108" Height="108">
-                                                    <Ellipse Canvas.Left="52.5" Canvas.Top="6" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
-                                                    <Ellipse Canvas.Left="99" Canvas.Top="52.5" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
-                                                    <Ellipse Canvas.Left="52.5" Canvas.Top="99" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
-                                                    <Ellipse Canvas.Left="6" Canvas.Top="52.5" Width="3" Height="3" Fill="{ThemeResource IslandTextSubtle}" />
-
+                                                <Border Width="106" Height="106" CornerRadius="53"
+                                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
+                                                        BorderThickness="0.5"
+                                                        Opacity="0.45" />
+                                                <Canvas x:Name="CalendarAnalogTicksCanvas" Width="116" Height="116" />
+                                                <Canvas x:Name="CalendarAnalogCanvas" Width="116" Height="116">
                                                     <!-- Hour Hand -->
                                                     <Border x:Name="CalendarAnalogHourHand"
-                                                            Canvas.Left="52.5" Canvas.Top="26"
-                                                            Width="3" Height="28" CornerRadius="1.5"
+                                                            Canvas.Left="56.25" Canvas.Top="28"
+                                                            Width="3.5" Height="30" CornerRadius="1.75"
                                                             Background="{ThemeResource IslandTextPrimary}"
                                                             RenderTransformOrigin="0.5,1.0">
                                                         <Border.RenderTransform>
@@ -2984,8 +2984,8 @@
 
                                                     <!-- Minute Hand -->
                                                     <Border x:Name="CalendarAnalogMinuteHand"
-                                                            Canvas.Left="53" Canvas.Top="16"
-                                                            Width="2" Height="38" CornerRadius="1"
+                                                            Canvas.Left="56.75" Canvas.Top="17"
+                                                            Width="2.5" Height="41" CornerRadius="1.25"
                                                             Background="{ThemeResource IslandTextPrimary}"
                                                             RenderTransformOrigin="0.5,1.0">
                                                         <Border.RenderTransform>
@@ -2993,12 +2993,12 @@
                                                         </Border.RenderTransform>
                                                     </Border>
 
-                                                    <!-- Second Hand -->
+                                                    <!-- Second Hand (with counterweight tail) -->
                                                     <Border x:Name="CalendarAnalogSecondHand"
-                                                            Canvas.Left="53.25" Canvas.Top="12"
-                                                            Width="1.5" Height="42" CornerRadius="0.75"
+                                                            Canvas.Left="57.25" Canvas.Top="13"
+                                                            Width="1.5" Height="52" CornerRadius="0.75"
                                                             Background="{ThemeResource IslandCyanAccent}"
-                                                            RenderTransformOrigin="0.5,1.0">
+                                                            RenderTransformOrigin="0.5,0.865">
                                                         <Border.RenderTransform>
                                                             <RotateTransform x:Name="CalendarAnalogSecondRotate" Angle="0" />
                                                         </Border.RenderTransform>
@@ -3006,9 +3006,12 @@
 
                                                     <!-- Center Cap -->
                                                     <Ellipse x:Name="CalendarAnalogCenterDot"
-                                                             Canvas.Left="50.5" Canvas.Top="50.5"
-                                                             Width="7" Height="7"
+                                                             Canvas.Left="53.5" Canvas.Top="53.5"
+                                                             Width="9" Height="9"
                                                              Fill="{ThemeResource IslandCyanAccent}" />
+                                                    <Ellipse Canvas.Left="56" Canvas.Top="56"
+                                                             Width="4" Height="4"
+                                                             Fill="{ThemeResource IslandSurfaceCard}" />
                                                 </Canvas>
                                             </Grid>
                                             <TextBlock x:Name="CalendarAnalogDate"
@@ -3103,15 +3106,22 @@
                                     <!-- Month Navigation -->
                                     <Grid Grid.Row="0">
                                         <Button x:Name="CalendarMonthBtn"
-                                                Click="CalendarToday_Click"
+                                                Click="CalendarHeaderBtn_Click"
                                                 Style="{StaticResource TabButtonStyle}"
                                                 HorizontalAlignment="Left"
-                                                Padding="4,2">
-                                            <TextBlock x:Name="CalendarMonthLabel"
-                                                       Text="November 2026"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource IslandTextPrimary}" />
+                                                Padding="6,2">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <TextBlock x:Name="CalendarMonthLabel"
+                                                           Text="November 2026"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource IslandTextPrimary}" />
+                                                <FontIcon x:Name="CalendarHeaderChevron"
+                                                          Glyph="&#xE70D;"
+                                                          FontSize="9"
+                                                          Foreground="{ThemeResource IslandTextSubtle}"
+                                                          VerticalAlignment="Center" />
+                                            </StackPanel>
                                         </Button>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
                                             <Button x:Name="CalendarTodayBtn"
@@ -3135,7 +3145,7 @@
                                     </Grid>
 
                                     <!-- Weekday Headers -->
-                                    <Grid Grid.Row="1">
+                                    <Grid x:Name="CalendarWeekdayHeader" Grid.Row="1">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
@@ -3162,6 +3172,22 @@
                                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                    </Grid>
+
+                                    <!-- 4x3 Months / Years Grid -->
+                                    <Grid x:Name="CalendarMonthsYearsGrid" Grid.Row="1" Grid.RowSpan="2"
+                                          RowSpacing="6" ColumnSpacing="6" Visibility="Collapsed">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                     </Grid>
