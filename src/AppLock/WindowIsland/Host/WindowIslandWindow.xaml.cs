@@ -49,10 +49,14 @@ public sealed partial class WindowIslandWindow : Window
     private const nint  WS_EX_TOPMOST     = 0x0000_0008;
     private const nint  WS_EX_TOOLWINDOW  = 0x0000_0080;
     private const nint  WS_EX_TRANSPARENT = 0x0000_0020;
-    private const uint  SWP_NOMOVE       = 0x0002;
-    private const uint  SWP_NOSIZE       = 0x0001;
-    private const uint  SWP_NOACTIVATE   = 0x0010;
-    private const uint  SWP_SHOWWINDOW   = 0x0040;
+    private const nint  WS_EX_LAYERED     = 0x0008_0000;
+    private const uint  LWA_ALPHA         = 0x0000_0002;
+    private const uint  SWP_NOMOVE        = 0x0002;
+    private const uint  SWP_NOSIZE        = 0x0001;
+    private const uint  SWP_NOZORDER      = 0x0004;
+    private const uint  SWP_NOACTIVATE    = 0x0010;
+    private const uint  SWP_FRAMECHANGED  = 0x0020;
+    private const uint  SWP_SHOWWINDOW    = 0x0040;
     private const uint  WM_ERASEBKGND    = 0x0014;
     private const uint  WM_MOUSEACTIVATE   = 0x0021;
     private const uint  WM_POWERBROADCAST  = 0x0218;
@@ -73,6 +77,8 @@ public sealed partial class WindowIslandWindow : Window
     private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")]
+    private static extern bool SetLayeredWindowAttributes(nint hWnd, uint crKey, byte bAlpha, uint dwFlags);
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(nint hWnd, int nCmdShow);
     [DllImport("user32.dll")]
@@ -1623,12 +1629,19 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_hwnd == nint.Zero) return;
         nint style = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
+        nint flags = WS_EX_TRANSPARENT | WS_EX_LAYERED;
         nint updated = clickThrough
-            ? (style | WS_EX_TRANSPARENT)
-            : (style & ~WS_EX_TRANSPARENT);
+            ? (style | flags)
+            : (style & ~flags);
         if (updated != style)
         {
             SetWindowLongPtr(_hwnd, GWL_EXSTYLE, updated);
+            if (clickThrough)
+            {
+                SetLayeredWindowAttributes(_hwnd, 0, 255, LWA_ALPHA);
+            }
+            SetWindowPos(_hwnd, nint.Zero, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
         }
     }
 
