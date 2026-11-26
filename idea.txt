@@ -509,6 +509,7 @@ when remove highlight is used then it shows black background on text
 Reminders understand a date in words ("November 19 at 4 pm"), for a day of the week they offer this one, the next one or every week, and the time read can be moved by a day or 15 minutes with buttons.
 in weather tab of left side card of right side "down arrow" isn't working
 screenshot folder 
+in setting page can we add the screenshot and user can set the path for storing screenshot which user takes from hometab "full screen", show the default path and if user don't like it then they can set their own
 
 
 the pills while music plays 

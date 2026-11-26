@@ -1058,6 +1058,7 @@ public sealed partial class WindowIslandWindow : Window
         ApplyTextTabAccent(accentColor);
         UpdateQuietButtonVisual();
         UpdatePinButtonVisual();
+        UpdateNoteSaveStatusVisual(_noteSavePending == false);
     }
 
     private void ApplyTextTabAccent(Windows.UI.Color accent)
@@ -5326,6 +5327,22 @@ public sealed partial class WindowIslandWindow : Window
 
     // ── Milestone 9: Note & Timer & Reminders ─────────────────────────────────
 
+    private bool _noteSavePending;
+
+    private void UpdateNoteSaveStatusVisual(bool saved)
+    {
+        if (NoteSaveStatusBadge == null || NoteSaveStatusIcon == null) return;
+        bool hasNote = !string.IsNullOrEmpty(_activeNoteId) && (_notesStore?.Notes.Count ?? 0) > 0;
+        if (!hasNote || !saved)
+        {
+            NoteSaveStatusBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        NoteSaveStatusIcon.Foreground = new SolidColorBrush(GetSystemAccentColor());
+        NoteSaveStatusBadge.Visibility = Visibility.Visible;
+    }
+
     private void FlushPendingNoteSave()
     {
         if (_noteSaveTimer != null)
@@ -5333,15 +5350,27 @@ public sealed partial class WindowIslandWindow : Window
             _noteSaveTimer.Stop();
             if (NoteContentBox != null && NoteContentBox.IsLoaded && !string.IsNullOrEmpty(_activeNoteId))
             {
-                NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
-                rtf = (rtf ?? string.Empty).TrimEnd('\0');
-                if (!string.Equals(rtf, _editorBaselineRtf, StringComparison.Ordinal))
+                NoteContentBox.Document.GetText(TextGetOptions.None, out string plainText);
+                string contentToSave;
+                if (string.IsNullOrEmpty((plainText ?? string.Empty).TrimEnd('\r', '\n')))
                 {
-                    _notesStore?.UpdateNote(_activeNoteId, rtf);
-                    _editorBaselineRtf = rtf;
+                    contentToSave = string.Empty;
+                }
+                else
+                {
+                    NoteContentBox.Document.GetText(TextGetOptions.FormatRtf, out string rtf);
+                    contentToSave = (rtf ?? string.Empty).TrimEnd('\0');
+                }
+
+                if (!string.Equals(contentToSave, _editorBaselineRtf, StringComparison.Ordinal))
+                {
+                    _notesStore?.UpdateNote(_activeNoteId, contentToSave);
+                    _editorBaselineRtf = contentToSave;
                 }
             }
         }
+        _noteSavePending = false;
+        UpdateNoteSaveStatusVisual(true);
     }
 
     private void RefreshNotesUI()
@@ -5417,6 +5446,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 CaptureEditorBaseline();
                 _noteUpdating = false;
+                _noteSavePending = false;
+                UpdateNoteSaveStatusVisual(true);
                 UpdateFormattingToolbarUI();
             });
         }
@@ -5427,6 +5458,7 @@ public sealed partial class WindowIslandWindow : Window
         if (string.IsNullOrEmpty(content))
         {
             NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+            NoteContentBox.Document.Selection.SetRange(0, 0);
             CaptureEditorBaseline();
             UpdateFormattingToolbarUI();
             return;
@@ -5438,6 +5470,12 @@ public sealed partial class WindowIslandWindow : Window
             try
             {
                 NoteContentBox.Document.SetText(TextSetOptions.FormatRtf, clean);
+                NoteContentBox.Document.GetText(TextGetOptions.None, out string loadedPlain);
+                if (string.IsNullOrEmpty((loadedPlain ?? string.Empty).TrimEnd('\r', '\n')))
+                {
+                    NoteContentBox.Document.SetText(TextSetOptions.None, string.Empty);
+                    NoteContentBox.Document.Selection.SetRange(0, 0);
+                }
             }
             catch
             {
@@ -5616,6 +5654,8 @@ public sealed partial class WindowIslandWindow : Window
     private void NoteContentBox_TextChanged(object sender, RoutedEventArgs e)
     {
         if (_noteUpdating || string.IsNullOrEmpty(_activeNoteId) || !NoteContentBox.IsLoaded) return;
+        _noteSavePending = true;
+        UpdateNoteSaveStatusVisual(false);
         _noteSaveTimer?.Stop();
         _noteSaveTimer = DispatcherQueue.CreateTimer();
         _noteSaveTimer.Interval = TimeSpan.FromMilliseconds(400);
@@ -5974,10 +6014,11 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (sender is Button b && b.Tag is string hex)
         {
-            var fmt = NoteContentBox.Document.Selection.CharacterFormat;
+            var sel = NoteContentBox.Document.Selection;
+            var fmt = sel.CharacterFormat;
             if (hex == "none")
             {
-                fmt.BackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+                ClearSelectionHighlight(sel);
             }
             else
             {
@@ -5991,7 +6032,7 @@ public sealed partial class WindowIslandWindow : Window
                 };
                 if (fmt.BackgroundColor == color)
                 {
-                    fmt.BackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+                    ClearSelectionHighlight(sel);
                 }
                 else
                 {
@@ -6001,6 +6042,37 @@ public sealed partial class WindowIslandWindow : Window
         }
         NoteContentBox.Focus(FocusState.Programmatic);
         UpdateFormattingToolbarUI();
+    }
+
+    private void ClearSelectionHighlight(Microsoft.UI.Text.ITextSelection sel)
+    {
+        if (sel.Length == 0)
+        {
+            var fmt = sel.CharacterFormat;
+            var bold = fmt.Bold;
+            var italic = fmt.Italic;
+            var underline = fmt.Underline;
+            var strike = fmt.Strikethrough;
+            // Resetting to default format restores CFE_AUTOBACKCOLOR instead of RGB(0,0,0)
+            sel.CharacterFormat = NoteContentBox.Document.GetDefaultCharacterFormat();
+            fmt = sel.CharacterFormat;
+            fmt.Bold = bold;
+            fmt.Italic = italic;
+            fmt.Underline = underline;
+            fmt.Strikethrough = strike;
+            return;
+        }
+
+        int start = sel.StartPosition;
+        int end = sel.EndPosition;
+        sel.GetText(TextGetOptions.FormatRtf, out string selRtf);
+        if (!string.IsNullOrEmpty(selRtf))
+        {
+            // Strip RTF highlight/background tags so RichEdit restores transparent (auto) background
+            string stripped = System.Text.RegularExpressions.Regex.Replace(selRtf, @"\\(highlight|cb|chcbpat)\d+\s?", string.Empty);
+            sel.SetText(TextSetOptions.FormatRtf, stripped);
+            sel.SetRange(start, Math.Min(end, start + sel.StoryLength));
+        }
     }
 
     private void NoteContentBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
