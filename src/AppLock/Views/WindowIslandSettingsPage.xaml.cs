@@ -174,6 +174,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         AutoHideStayOnDesktopToggle.IsOn        = s.AutoHideStayOnDesktop;
         AutoHideOnlyWhenOverlappedToggle.IsOn   = s.AutoHideOnlyWhenOverlapped;
         UnderTopTaskbarToggle.IsOn              = s.UnderTopTaskbar;
+        ThroughModeToggle.IsOn                  = s.ThroughMode;
+        ThroughModeHotkeyBox.Text               = s.ThroughModeHotkey ?? string.Empty;
         SelectComboItem(TargetMonitorBox,  s.TargetMonitorMode);
         SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
         ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());
@@ -465,6 +467,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.AutoHideStayOnDesktop      = AutoHideStayOnDesktopToggle.IsOn;
         s.AutoHideOnlyWhenOverlapped = AutoHideOnlyWhenOverlappedToggle.IsOn;
         s.UnderTopTaskbar            = UnderTopTaskbarToggle.IsOn;
+        s.ThroughMode                = ThroughModeToggle.IsOn;
+        s.ThroughModeHotkey          = ThroughModeHotkeyBox?.Text?.Trim() ?? string.Empty;
         s.TargetMonitorMode          = TagOf(TargetMonitorBox)  ?? s.TargetMonitorMode;
         s.ChosenAppsMode             = TagOf(ChosenAppsModeBox) ?? s.ChosenAppsMode;
         s.ChosenApps                 = ChosenAppsBox.Text

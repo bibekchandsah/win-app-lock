@@ -29,6 +29,7 @@ public sealed class WindowIslandHost
     private bool _started;
     private int _hotkeyId = -1;
     private int _cmdHotkeyId = -1;
+    private int _throughHotkeyId = -1;
 
     private WindowIslandHost() { }
 
@@ -88,7 +89,7 @@ public sealed class WindowIslandHost
             App.MainWindowInstance?.DispatcherQueue.TryEnqueue(CreateWindow);
         }
 
-        RegisterHotkey(settings.Hotkey);
+        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey);
     }
 
     public void Stop()
@@ -122,7 +123,25 @@ public sealed class WindowIslandHost
             App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
         }
 
-        RegisterHotkey(settings.Hotkey);
+        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey);
+    }
+
+    public void ToggleThroughMode()
+    {
+        var settings = ServiceContainer.Settings.WindowIsland;
+        settings.ThroughMode = !settings.ThroughMode;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        Log($"Through mode toggled -> {settings.ThroughMode}");
+
+        void Do() => _window?.ApplySettings(settings);
+        if (_uiQueue != null)
+        {
+            _uiQueue.TryEnqueue(Do);
+        }
+        else
+        {
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
+        }
     }
 
     public void ToggleVisibility()
@@ -208,7 +227,7 @@ public sealed class WindowIslandHost
 
     // ── Hotkey ─────────────────────────────────────────────────────────────────
 
-    private void RegisterHotkey(string hotkey)
+    private void RegisterHotkey(string hotkey, string? throughHotkey = null)
     {
         UnregisterHotkey();
 
@@ -222,6 +241,23 @@ public sealed class WindowIslandHost
         catch (Exception ex)
         {
             Log($"Command Bar hotkey registration failed: {ex}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(throughHotkey))
+        {
+            try
+            {
+                var (tMods, tKey) = HotkeyService.ParseHotkey(throughHotkey);
+                if (tKey != 0)
+                {
+                    _throughHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(tMods, tKey, ToggleThroughMode);
+                    Log($"Registered Through mode hotkey {throughHotkey} id={_throughHotkeyId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Through mode hotkey registration failed: {ex}");
+            }
         }
 
         if (string.IsNullOrWhiteSpace(hotkey)) return;
@@ -252,6 +288,12 @@ public sealed class WindowIslandHost
         {
             try { ServiceContainer.HotkeyService.UnregisterHotkey(_cmdHotkeyId); } catch { }
             _cmdHotkeyId = -1;
+        }
+
+        if (_throughHotkeyId > 0)
+        {
+            try { ServiceContainer.HotkeyService.UnregisterHotkey(_throughHotkeyId); } catch { }
+            _throughHotkeyId = -1;
         }
     }
 }

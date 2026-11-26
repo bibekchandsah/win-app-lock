@@ -353,6 +353,26 @@ public sealed class WindowIslandCommandService
                 ActionData = "settings"
             });
         }
+        else if (qLower == "-through" || qLower == "-th" || qLower == "through" || qLower == "through mode")
+        {
+            bool isOn = _settings.ThroughMode;
+            results.Add(new CommandBarItem
+            {
+                Title = isOn ? "Through Mode: Turn Off" : "Through Mode: Turn On",
+                Subtitle = isOn
+                    ? "Currently ON — folded island ignores clicks & hover (Enter to disable)"
+                    : "Currently OFF — folded island lets clicks through & ignores hover (Enter to enable)",
+                IconGlyph = "\uE7C1",
+                AccentHex = isOn ? "#FFB900" : "#60CDFF",
+                Kind = CommandItemKind.SystemCommand,
+                ActionData = "through"
+            });
+            if (qLower.StartsWith("-"))
+            {
+                results[0].IsSelected = true;
+                return results;
+            }
+        }
 
         // 3. Check Launcher shortcuts
         foreach (var sc in _launcher.Items)
@@ -427,7 +447,7 @@ public sealed class WindowIslandCommandService
         return results;
     }
 
-    public async Task ExecuteAsync(CommandBarItem item, Action<int>? switchTabAction = null, Action? openSettingsAction = null)
+    public async Task ExecuteAsync(CommandBarItem item, Action<int>? switchTabAction = null, Action? openSettingsAction = null, Action? toggleThroughAction = null)
     {
         try
         {
@@ -438,7 +458,7 @@ public sealed class WindowIslandCommandService
                     break;
 
                 case CommandItemKind.SystemCommand:
-                    HandleSystemCommand(item.ActionData, switchTabAction, openSettingsAction);
+                    HandleSystemCommand(item.ActionData, switchTabAction, openSettingsAction, toggleThroughAction);
                     break;
 
                 case CommandItemKind.Application:
@@ -484,11 +504,15 @@ public sealed class WindowIslandCommandService
         SetClipboard(item.ActionData);
     }
 
-    private void HandleSystemCommand(string cmd, Action<int>? switchTabAction, Action? openSettingsAction)
+    private void HandleSystemCommand(string cmd, Action<int>? switchTabAction, Action? openSettingsAction, Action? toggleThroughAction)
     {
         if (cmd == "lock")
         {
             LockWorkStation();
+        }
+        else if (cmd == "through")
+        {
+            toggleThroughAction?.Invoke();
         }
         else if (cmd == "sleep")
         {

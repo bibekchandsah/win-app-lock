@@ -45,9 +45,10 @@ namespace AppLock.WindowIsland.Host;
 public sealed partial class WindowIslandWindow : Window
 {
     // ── Win32 constants ────────────────────────────────────────────────────────
-    private const int   GWL_EXSTYLE      = -20;
-    private const nint  WS_EX_TOPMOST    = 0x0000_0008;
-    private const nint  WS_EX_TOOLWINDOW = 0x0000_0080;
+    private const int   GWL_EXSTYLE       = -20;
+    private const nint  WS_EX_TOPMOST     = 0x0000_0008;
+    private const nint  WS_EX_TOOLWINDOW  = 0x0000_0080;
+    private const nint  WS_EX_TRANSPARENT = 0x0000_0020;
     private const uint  SWP_NOMOVE       = 0x0002;
     private const uint  SWP_NOSIZE       = 0x0001;
     private const uint  SWP_NOACTIVATE   = 0x0010;
@@ -1413,7 +1414,7 @@ public sealed partial class WindowIslandWindow : Window
             int openDelay = _settings.OpenDelayMs > 0 ? _settings.OpenDelayMs : IslandMotion.HoverOpenDelayMs;
             int closeDelay = _settings.CloseDelayMs > 0 ? _settings.CloseDelayMs : IslandMotion.HoverCloseDelayMs;
             bool hasInteractiveCard = !string.IsNullOrEmpty(_eventQueue?.CurrentCard?.PrimaryActionLabel);
-            if (_hoverInside && !_compositor.IsOpen && !hasInteractiveCard && elapsed >= openDelay)
+            if (_hoverInside && !_compositor.IsOpen && !hasInteractiveCard && !_settings.ThroughMode && elapsed >= openDelay)
             {
                 if (_eventQueue?.HasVisibleCard == true)
                 {
@@ -1611,6 +1612,23 @@ public sealed partial class WindowIslandWindow : Window
         if (rgn != nint.Zero && !SetWindowRgn(_hwnd, rgn, false))
         {
             DeleteObject(rgn);
+        }
+
+        bool shouldClickThrough = _settings.ThroughMode && !open && !isCommand &&
+            (!isCard || string.IsNullOrEmpty(_eventQueue?.CurrentCard?.PrimaryActionLabel));
+        UpdateClickThroughStyle(shouldClickThrough);
+    }
+
+    private void UpdateClickThroughStyle(bool clickThrough)
+    {
+        if (_hwnd == nint.Zero) return;
+        nint style = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
+        nint updated = clickThrough
+            ? (style | WS_EX_TRANSPARENT)
+            : (style & ~WS_EX_TRANSPARENT);
+        if (updated != style)
+        {
+            SetWindowLongPtr(_hwnd, GWL_EXSTYLE, updated);
         }
     }
 
@@ -5244,7 +5262,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 switchedTab = true;
                 OpenTabFromCommandBar(idx);
-            }, () => OnIslandSettingsClick(this, new RoutedEventArgs())) ?? Task.CompletedTask);
+            }, () => OnIslandSettingsClick(this, new RoutedEventArgs()),
+            () => WindowIslandHost.Instance.ToggleThroughMode()) ?? Task.CompletedTask);
 
             if (switchedTab) return;
         }

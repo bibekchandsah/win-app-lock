@@ -303,6 +303,21 @@
                         <ToggleSwitch x:Name="UnderTopTaskbarToggle"
                                       Header="Place under the taskbar when it is docked at the top"
                                       Toggled="OnSettingChanged" />
+                        <StackPanel Spacing="6" Margin="0,4,0,4">
+                            <ToggleSwitch x:Name="ThroughModeToggle"
+                                          Header="Through mode"
+                                          Toggled="OnSettingChanged" />
+                            <TextBlock Text="The folded island lets clicks through and does not open under the cursor: it is in sight and in nobody's way. Hotkeys open it. Turn the mode on and off here, with its own hotkey, or with -through in Alt+Space."
+                                       FontSize="12"
+                                       Opacity="0.72"
+                                       TextWrapping="Wrap" />
+                            <TextBox x:Name="ThroughModeHotkeyBox"
+                                     Header="Through mode hotkey"
+                                     PlaceholderText="e.g. Ctrl+Shift+T (optional)"
+                                     Width="260"
+                                     HorizontalAlignment="Left"
+                                     TextChanged="OnHotkeyChanged" />
+                        </StackPanel>
                         <ComboBox x:Name="TargetMonitorBox" Header="Show on monitor" SelectionChanged="OnSelectionChanged" Width="260">
                             <ComboBoxItem Content="Primary monitor" Tag="Primary" />
                             <ComboBoxItem Content="Monitor with cursor" Tag="Cursor" />

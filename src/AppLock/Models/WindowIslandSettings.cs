@@ -321,6 +321,12 @@ public sealed class WindowIslandSettings
     /// <summary>Position island under top taskbar if taskbar is docked at top.</summary>
     public bool UnderTopTaskbar { get; set; } = true;
 
+    /// <summary>Through mode: folded island lets clicks pass through and ignores hover; hotkeys still open it.</summary>
+    public bool ThroughMode { get; set; } = false;
+
+    /// <summary>Optional global hotkey to toggle Through mode (e.g. "Ctrl+Shift+T").</summary>
+    public string ThroughModeHotkey { get; set; } = string.Empty;
+
     // ── Milestone 16: Settings Completion & Polish ───────────────────────────
     /// <summary>Lite mode: disable shadow, 100% opacity, 120ms transitions, 30 fps equalizer, 1 min clock.</summary>
     public bool LiteMode { get; set; } = false;
