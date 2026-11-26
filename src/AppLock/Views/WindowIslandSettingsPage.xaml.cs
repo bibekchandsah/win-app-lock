@@ -147,6 +147,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardCamToggle.IsOn        = s.CardCamEnabled;
         MicDotToggle.IsOn         = s.MicDotEnabled;
         CamDotToggle.IsOn         = s.CamDotEnabled;
+        ShowCpuNotchToggle.IsOn   = s.ShowCpuInNotch;
+        ShowRamNotchToggle.IsOn   = s.ShowRamInNotch;
+        ShowDiskNotchToggle.IsOn  = s.ShowDiskInNotch;
+        ShowGpuNotchToggle.IsOn   = s.ShowGpuInNotch;
         SelectComboItem(MediaPlayerStyleBox, s.MediaPlayerStyle);
         _mediaPillMode = string.IsNullOrWhiteSpace(s.MediaPillMode) ? "Usual" : s.MediaPillMode;
         UpdateMediaPillModeButtons();
@@ -475,6 +479,10 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardCamEnabled        = CardCamToggle.IsOn;
         s.MicDotEnabled         = MicDotToggle.IsOn;
         s.CamDotEnabled         = CamDotToggle.IsOn;
+        s.ShowCpuInNotch        = ShowCpuNotchToggle.IsOn;
+        s.ShowRamInNotch        = ShowRamNotchToggle.IsOn;
+        s.ShowDiskInNotch       = ShowDiskNotchToggle.IsOn;
+        s.ShowGpuInNotch        = ShowGpuNotchToggle.IsOn;
         s.MicCamDotsEnabled     = s.MicDotEnabled || s.CamDotEnabled;
         s.MediaPlayerStyle      = TagOf(MediaPlayerStyleBox) ?? s.MediaPlayerStyle;
         s.MediaPillMode         = _mediaPillMode;

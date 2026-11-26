@@ -13,7 +13,9 @@ public sealed record HomeSnapshot(
     double CpuPercent,
     double RamPercent,
     double DownBytesPerSec,
-    double UpBytesPerSec);
+    double UpBytesPerSec,
+    double? DiskPercent = null,
+    double? GpuPercent = null);
 
 /// <summary>
 /// Runs entirely on a background Task while the Home tab is visible.
@@ -40,6 +42,12 @@ public sealed class WindowIslandHomeState : IDisposable
     public WindowIslandHomeState(Microsoft.UI.Dispatching.DispatcherQueue dq)
     {
         _dq = dq;
+    }
+
+    public void SetTrackDiskGpu(bool trackDisk, bool trackGpu)
+    {
+        _system.TrackDisk = trackDisk;
+        _system.TrackGpu = trackGpu;
     }
 
     public void Start()
@@ -90,7 +98,8 @@ public sealed class WindowIslandHomeState : IDisposable
             if (sys.CpuPercent is double cpu && !token.IsCancellationRequested)
             {
                 var snap = new HomeSnapshot(cpu, sys.RamPercent ?? 0,
-                    net.BytesDownPerSec, net.BytesUpPerSec);
+                    net.BytesDownPerSec, net.BytesUpPerSec,
+                    sys.DiskPercent, sys.GpuPercent);
                 _dq.TryEnqueue(() => StatsUpdated?.Invoke(snap));
             }
 

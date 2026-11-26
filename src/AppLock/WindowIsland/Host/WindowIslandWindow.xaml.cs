@@ -1356,6 +1356,12 @@ public sealed partial class WindowIslandWindow : Window
     {
         ClockContainer.Visibility   = _settings.ShowClock   ? Visibility.Visible : Visibility.Collapsed;
         BatteryContainer.Visibility = _settings.ShowBattery ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedCpuMini != null)  FoldedCpuMini.Visibility  = _settings.ShowCpuInNotch  ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedRamMini != null)  FoldedRamMini.Visibility  = _settings.ShowRamInNotch  ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedDiskMini != null) FoldedDiskMini.Visibility = _settings.ShowDiskInNotch ? Visibility.Visible : Visibility.Collapsed;
+        if (FoldedGpuMini != null)  FoldedGpuMini.Visibility  = _settings.ShowGpuInNotch  ? Visibility.Visible : Visibility.Collapsed;
+        _homeState?.SetTrackDiskGpu(_settings.ShowDiskInNotch, _settings.ShowGpuInNotch);
+        UpdateDynamicFoldedWidth();
     }
 
     private void UpdateClock()
@@ -2690,6 +2696,7 @@ public sealed partial class WindowIslandWindow : Window
         _homeState = new WindowIslandHomeState(DispatcherQueue);
         _homeState.MediaUpdated += OnMediaUpdated;
         _homeState.StatsUpdated += OnStatsUpdated;
+        _homeState.SetTrackDiskGpu(_settings.ShowDiskInNotch, _settings.ShowGpuInNotch);
         _homeState.Start();
         StartVolumeUi();
         StartEqTimer();
@@ -3578,6 +3585,16 @@ public sealed partial class WindowIslandWindow : Window
             // CPU & RAM tile
             TileCpuText.Text = $"CPU {snap.CpuPercent:F0}%";
             TileRamText.Text = $"RAM {snap.RamPercent:F0}%";
+
+            // Folded notch usage indicators
+            if (FoldedCpuText != null && _settings.ShowCpuInNotch)
+                FoldedCpuText.Text = $"{snap.CpuPercent:F0}%";
+            if (FoldedRamText != null && _settings.ShowRamInNotch)
+                FoldedRamText.Text = $"{snap.RamPercent:F0}%";
+            if (FoldedDiskText != null && _settings.ShowDiskInNotch && snap.DiskPercent is double diskPct)
+                FoldedDiskText.Text = $"{diskPct:F0}%";
+            if (FoldedGpuText != null && _settings.ShowGpuInNotch && snap.GpuPercent is double gpuPct)
+                FoldedGpuText.Text = $"{gpuPct:F0}%";
 
             // Network tile
             TileNetDown.Text = $"↓ {FormatSpeed(snap.DownBytesPerSec)}";
@@ -12006,18 +12023,19 @@ public sealed partial class WindowIslandWindow : Window
         var primaryBrush = new SolidColorBrush(AdaptiveInkColor(240));
         var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(175));
 
-        foreach (var wc in clocks)
+        for (int idx = 0; idx < clocks.Count; idx++)
         {
+            var wc = clocks[idx];
             var pill = new Border
             {
                 CornerRadius = new CornerRadius(18),
                 Background = surfaceBrush,
                 BorderBrush = borderBrush,
                 BorderThickness = new Thickness(1),
-                Padding = new Thickness(12, 6, 8, 6)
+                Padding = new Thickness(12, 6, 6, 6)
             };
 
-            var row = new Grid { ColumnSpacing = 8 };
+            var row = new Grid { ColumnSpacing = 4 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -12041,28 +12059,73 @@ public sealed partial class WindowIslandWindow : Window
             Grid.SetColumn(textStack, 0);
             row.Children.Add(textStack);
 
+            var actionStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+            if (clocks.Count > 1)
+            {
+                int capturedIdx = idx;
+                var upBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE70E", FontSize = 8.5, Foreground = secondaryBrush },
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                    BorderThickness = new Thickness(0),
+                    Width = 20, Height = 20, MinWidth = 20, Padding = new Thickness(0),
+                    CornerRadius = new CornerRadius(10),
+                    IsEnabled = idx > 0,
+                    Opacity = idx > 0 ? 1.0 : 0.28
+                };
+                ToolTipService.SetToolTip(upBtn, "Move up");
+                upBtn.Click += (_, _) => MoveWorldClock(capturedIdx, -1);
+                actionStack.Children.Add(upBtn);
+
+                var downBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE70D", FontSize = 8.5, Foreground = secondaryBrush },
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                    BorderThickness = new Thickness(0),
+                    Width = 20, Height = 20, MinWidth = 20, Padding = new Thickness(0),
+                    CornerRadius = new CornerRadius(10),
+                    IsEnabled = idx < clocks.Count - 1,
+                    Opacity = idx < clocks.Count - 1 ? 1.0 : 0.28
+                };
+                ToolTipService.SetToolTip(downBtn, "Move down");
+                downBtn.Click += (_, _) => MoveWorldClock(capturedIdx, 1);
+                actionStack.Children.Add(downBtn);
+            }
+
             var removeBtn = new Button
             {
                 Content = new FontIcon { Glyph = "\uE711", FontSize = 9.5, Foreground = secondaryBrush },
                 Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
                 BorderThickness = new Thickness(0),
-                Width = 22,
-                Height = 22,
-                MinWidth = 22,
-                Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(11),
+                Width = 20, Height = 20, MinWidth = 20, Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(10),
                 VerticalAlignment = VerticalAlignment.Center
             };
             ToolTipService.SetToolTip(removeBtn, "Remove clock");
             var targetClock = wc;
             removeBtn.Click += (_, _) => RemoveWorldClock(targetClock);
-            Grid.SetColumn(removeBtn, 1);
-            row.Children.Add(removeBtn);
+            actionStack.Children.Add(removeBtn);
+
+            Grid.SetColumn(actionStack, 1);
+            row.Children.Add(actionStack);
 
             pill.Child = row;
             CalendarWorldClocksList.Children.Add(pill);
             _worldClockBindings.Add((timeTb, wc));
         }
+    }
+
+    private void MoveWorldClock(int index, int delta)
+    {
+        var s = ServiceContainer.Settings.WindowIsland;
+        int target = index + delta;
+        if (index < 0 || index >= s.CustomClocks.Count || target < 0 || target >= s.CustomClocks.Count)
+            return;
+
+        (s.CustomClocks[index], s.CustomClocks[target]) = (s.CustomClocks[target], s.CustomClocks[index]);
+        _settings.CustomClocks = new List<CustomWorldClock>(s.CustomClocks);
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        RebuildWorldClockPills();
     }
 
     private void RemoveWorldClock(CustomWorldClock clock)

@@ -384,6 +384,28 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
 
+                <!-- Optional Notch System Usage Indicators (CPU, RAM, Disk, GPU) -->
+                <StackPanel x:Name="FoldedCpuMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE950;" FontSize="11" Foreground="{ThemeResource IslandTextSubtle}" />
+                    <TextBlock x:Name="FoldedCpuText" Text="0%" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel x:Name="FoldedRamMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE964;" FontSize="11" Foreground="{ThemeResource IslandTextSubtle}" />
+                    <TextBlock x:Name="FoldedRamText" Text="0%" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel x:Name="FoldedDiskMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xEDA2;" FontSize="11" Foreground="{ThemeResource IslandTextSubtle}" />
+                    <TextBlock x:Name="FoldedDiskText" Text="0%" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel x:Name="FoldedGpuMini" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE7F4;" FontSize="11" Foreground="{ThemeResource IslandTextSubtle}" />
+                    <TextBlock x:Name="FoldedGpuText" Text="0%" FontFamily="Segoe UI Variable Small" FontSize="11"
+                               Foreground="{ThemeResource IslandTextSecondary}" VerticalAlignment="Center" />
+                </StackPanel>
+
                 <!-- Connected Bluetooth device battery pill(s) -->
                 <StackPanel x:Name="FoldedBtBatteryPanel"
                             Orientation="Horizontal"

@@ -45,6 +45,14 @@ public sealed class WindowIslandSettings
     /// <summary>Show battery in folded notch.</summary>
     public bool ShowBattery { get; set; } = true;
 
+    /// <summary>Show system stats (icon + %) in folded notch.</summary>
+    public bool ShowCpuInNotch  { get; set; } = false;
+    public bool ShowRamInNotch  { get; set; } = false;
+    public bool ShowDiskInNotch { get; set; } = false;
+    public bool ShowGpuInNotch  { get; set; } = false;
+    public bool ShowDownSpeedInNotch { get; set; } = false;
+    public bool ShowUpSpeedInNotch   { get; set; } = false;
+
     /// <summary>Vertical offset in DIPs from top of screen.</summary>
     public int YOffsetDip { get; set; } = 0;
 
