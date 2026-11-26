@@ -201,17 +201,72 @@ namespace AppLock.Views
         }
     }
 
-    // Custom transparent backdrop for overlay window
+    // Custom transparent backdrop for overlay windows: binds a genuine Windows.UI.Composition
+    // transparent ColorBrush to ICompositionSupportsSystemBackdrop.SystemBackdrop so WinUI 3 never
+    // falls back to painting the opaque Light (#FFFFFF) / Dark window surface on resize, tab switch,
+    // or focus changes.
     public class TransparentBackdrop : SystemBackdrop
     {
+        private static nint _wuiDispatcherQueueController;
+        private Windows.UI.Composition.Compositor? _wuiCompositor;
+        private Windows.UI.Composition.CompositionColorBrush? _transparentBrush;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DispatcherQueueOptions
+        {
+            public int dwSize;
+            public int threadType;
+            public int apartmentType;
+        }
+
+        [DllImport("CoreMessaging.dll")]
+        private static extern int CreateDispatcherQueueController(
+            DispatcherQueueOptions options,
+            out nint dispatcherQueueController);
+
+        private static void EnsureWindowsDispatcherQueue()
+        {
+            if (Windows.System.DispatcherQueue.GetForCurrentThread() != null) return;
+            if (_wuiDispatcherQueueController != nint.Zero) return;
+
+            var options = new DispatcherQueueOptions
+            {
+                dwSize = Marshal.SizeOf<DispatcherQueueOptions>(),
+                threadType = 2,    // DQTYPE_THREAD_CURRENT
+                apartmentType = 0  // DQTAT_COM_NONE (UI thread is already STA)
+            };
+            CreateDispatcherQueueController(options, out _wuiDispatcherQueueController);
+        }
+
         protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop connectedTarget, Microsoft.UI.Xaml.XamlRoot xamlRoot)
         {
             base.OnTargetConnected(connectedTarget, xamlRoot);
+            try
+            {
+                EnsureWindowsDispatcherQueue();
+                _wuiCompositor ??= new Windows.UI.Composition.Compositor();
+                _transparentBrush ??= _wuiCompositor.CreateColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                connectedTarget.SystemBackdrop = _transparentBrush;
+            }
+            catch { }
         }
 
         protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop disconnectedTarget)
         {
+            try { disconnectedTarget.SystemBackdrop = null; } catch { }
+            _transparentBrush?.Dispose();
+            _transparentBrush = null;
+            _wuiCompositor?.Dispose();
+            _wuiCompositor = null;
             base.OnTargetDisconnected(disconnectedTarget);
+        }
+
+        protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target, Microsoft.UI.Xaml.XamlRoot xamlRoot)
+        {
+            if (_transparentBrush != null)
+            {
+                target.SystemBackdrop = _transparentBrush;
+            }
         }
     }
 }

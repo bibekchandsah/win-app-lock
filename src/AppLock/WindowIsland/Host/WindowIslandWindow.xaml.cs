@@ -872,9 +872,8 @@ public sealed partial class WindowIslandWindow : Window
             _tabContents[_previousTab].Visibility = Visibility.Collapsed;
         }
 
-        // Spring the shape to the new tab's size
+        // Shape morph to the new tab's size (PositionAndSize syncs scaled compositor width)
         _compositor?.AnimateToTab(_activeTab);
-        _compositor?.UpdateWindowWidth(WindowWidthDip, _settings);
         PositionAndSize();
         UpdateHitRegion(open: true);
     }
@@ -950,9 +949,11 @@ public sealed partial class WindowIslandWindow : Window
         => !WindowIslandColorHelper.IsDarkColor(WindowIslandColorHelper.ResolveBaseColor(_settings));
 
     private static Windows.UI.Color AdaptiveInkColor(byte alpha = 255)
-        => _isLightSurfaceActive
-            ? Windows.UI.Color.FromArgb(alpha, 24, 24, 28)
-            : Windows.UI.Color.FromArgb(alpha, 255, 255, 255);
+    {
+        if (!_isLightSurfaceActive) return Windows.UI.Color.FromArgb(alpha, 255, 255, 255);
+        byte minAlpha = alpha >= 200 ? alpha : (byte)Math.Clamp(alpha + 65, 170, 255);
+        return Windows.UI.Color.FromArgb(minAlpha, 20, 20, 24);
+    }
 
     private static Windows.UI.Color AdaptiveInverseInkColor(byte alpha = 255)
         => _isLightSurfaceActive
@@ -960,15 +961,16 @@ public sealed partial class WindowIslandWindow : Window
             : Windows.UI.Color.FromArgb(alpha, 17, 17, 17);
 
     private static Windows.UI.Color AdaptiveSurfaceColor(byte darkAlpha)
-        => darkAlpha == 0
-            ? Windows.UI.Color.FromArgb(0, 0, 0, 0)
-            : (_isLightSurfaceActive
-                ? Windows.UI.Color.FromArgb((byte)Math.Clamp((int)darkAlpha, 12, 46), 0, 0, 0)
-                : Windows.UI.Color.FromArgb(darkAlpha, 255, 255, 255));
+    {
+        if (darkAlpha == 0) return Windows.UI.Color.FromArgb(0, 0, 0, 0);
+        if (!_isLightSurfaceActive) return Windows.UI.Color.FromArgb(darkAlpha, 255, 255, 255);
+        byte lightAlpha = (byte)Math.Clamp(52 + darkAlpha * 2, 60, 128);
+        return Windows.UI.Color.FromArgb(lightAlpha, 255, 255, 255);
+    }
 
     private static Windows.UI.Color AdaptiveBorderColor(byte darkAlpha)
         => _isLightSurfaceActive
-            ? Windows.UI.Color.FromArgb((byte)Math.Clamp((int)darkAlpha, 20, 64), 0, 0, 0)
+            ? Windows.UI.Color.FromArgb((byte)Math.Clamp((int)darkAlpha + 12, 28, 72), 0, 0, 0)
             : Windows.UI.Color.FromArgb(darkAlpha, 255, 255, 255);
 
     private static Windows.UI.Color AdaptiveCyanColor(byte alpha = 255)
@@ -1011,14 +1013,17 @@ public sealed partial class WindowIslandWindow : Window
             RootGrid.RequestedTheme = desired;
         }
         try { UpdateTabHighlight(animate: false); } catch { }
+        try { UpdateClock(); } catch { }
+        try { UpdateBattery(); } catch { }
+        try { UpdateFoldedWeatherMini(); } catch { }
         try { if (_currentClipboardRows != null) OnClipboardItemsLoaded(_currentClipboardRows); } catch { }
-        try { if (_activeTab == 2) RefreshShelfUI(); } catch { }
-        try { if (_activeTab == 0) RefreshLauncherUI(); } catch { }
-        try { if (_activeTab == 5) { RefreshNotesUI(); RefreshRemindersUI(); } } catch { }
-        try { if (_activeTab == 6) RefreshWeatherUI(); } catch { }
-        try { if (_activeTab == 7) { RefreshControlsUI(); RenderQuickCardsGrid(); } } catch { }
-        try { if (_activeTab == 4) RefreshChatUI(); } catch { }
-        try { if (_activeTab == 3) RefreshTextUI(); } catch { }
+        try { RefreshShelfUI(); } catch { }
+        try { RefreshLauncherUI(); } catch { }
+        try { RefreshNotesUI(); RefreshRemindersUI(); } catch { }
+        try { RefreshWeatherUI(); } catch { }
+        try { RefreshControlsUI(); RenderQuickCardsGrid(); } catch { }
+        try { RefreshChatUI(); } catch { }
+        try { RefreshTextUI(); } catch { }
     }
 
     private void UpdateTabHighlight(bool animate)
@@ -1372,8 +1377,7 @@ public sealed partial class WindowIslandWindow : Window
             _eventQueue.Clear();
         }
 
-        // Update window size BEFORE animation (must be large enough to show open state)
-        _compositor.UpdateWindowWidth(WindowWidthDip, _settings);
+        // Update window size BEFORE animation (PositionAndSize syncs scaled compositor width)
         PositionAndSize();
         UpdateHitRegion(open: true);
         OpenLayer.IsHitTestVisible = true;

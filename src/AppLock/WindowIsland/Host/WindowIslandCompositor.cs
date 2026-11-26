@@ -319,12 +319,25 @@ public sealed class WindowIslandCompositor : IDisposable
     public void UpdateWindowWidth(float windowWidthDip, WindowIslandSettings settings)
     {
         if (_disposed) return;
+        float nextSizeFactor = (float)(settings.SizePercent / 100.0);
+        float maskH = MathF.Max(OpenHeightDip + 40f, (IslandMotion.ChatHeightDip + 40f) * nextSizeFactor);
+        bool widthChanged = Math.Abs(_windowWidthDip - windowWidthDip) > 0.5f;
+        bool scaleChanged = Math.Abs(_sizeFactor - nextSizeFactor) > 0.001f;
+        bool shapeChanged = !string.Equals(_lastShape, settings.Shape, StringComparison.Ordinal);
+
         _windowWidthDip = windowWidthDip;
-        _sizeFactor = (float)(settings.SizePercent / 100.0);
-        float maskH = MathF.Max(OpenHeightDip + 40f, (IslandMotion.ChatHeightDip + 40f) * _sizeFactor);
-        _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
-        _maskSurface.SourceSize = new Vector2(_windowWidthDip, maskH);
-        RefreshCenterAnimation(settings.Shape);
+        _sizeFactor = nextSizeFactor;
+
+        if (widthChanged || scaleChanged || Math.Abs(_shapeVisual.Size.Y - maskH) > 0.5f)
+        {
+            _shapeVisual.Size = new Vector2(_windowWidthDip, maskH);
+            _maskSurface.SourceSize = new Vector2(_windowWidthDip, maskH);
+        }
+        if (widthChanged || shapeChanged)
+        {
+            _lastShape = settings.Shape;
+            RefreshCenterAnimation(settings.Shape);
+        }
     }
 
     public void ApplySettings(WindowIslandSettings settings)
@@ -333,16 +346,14 @@ public sealed class WindowIslandCompositor : IDisposable
         _settings = settings;
         _sizeFactor = (float)(settings.SizePercent / 100.0);
 
-        // Apply opacity linearly via _outputVisual.Opacity (10..100%) only when changed
+        // Apply opacity linearly via _outputVisual.Opacity (10..100%) immediately when changed
         int clampedOpacityPct = Math.Clamp(settings.OpacityPercent, 10, 100);
         if (clampedOpacityPct != _lastOpacityPercent)
         {
             _lastOpacityPercent = clampedOpacityPct;
             float opacity = clampedOpacityPct / 100f;
-            var opacityAnim = _compositor.CreateScalarKeyFrameAnimation();
-            opacityAnim.InsertKeyFrame(1f, opacity);
-            opacityAnim.Duration = TimeSpan.FromMilliseconds(80);
-            _outputVisual.StartAnimation("Opacity", opacityAnim);
+            _outputVisual.StopAnimation("Opacity");
+            _outputVisual.Opacity = opacity;
         }
 
         Color baseColor = WindowIslandColorHelper.ResolveBaseColor(settings);

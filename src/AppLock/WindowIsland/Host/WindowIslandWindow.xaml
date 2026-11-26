@@ -34,24 +34,29 @@
                         <SolidColorBrush x:Key="IslandGoldAccent" Color="#FFFFD700" />
                         <SolidColorBrush x:Key="IslandGreenAccent" Color="#FF4CAF50" />
                         <SolidColorBrush x:Key="IslandRedAccent" Color="#FFFF6B6B" />
+                        <SolidColorBrush x:Key="IslandHeaderBarBg" Color="Transparent" />
+                        <SolidColorBrush x:Key="IslandHeaderBarBorder" Color="Transparent" />
+                        <SolidColorBrush x:Key="TextControlBackground" Color="#14FFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1CFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#22FFFFFF" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Light">
-                        <SolidColorBrush x:Key="IslandTextStrong" Color="#FF141418" />
-                        <SolidColorBrush x:Key="IslandTextPrimary" Color="#F018181C" />
-                        <SolidColorBrush x:Key="IslandTextHigh" Color="#E01F1F26" />
-                        <SolidColorBrush x:Key="IslandTextSecondary" Color="#C827272E" />
-                        <SolidColorBrush x:Key="IslandTextBody" Color="#BD32323A" />
-                        <SolidColorBrush x:Key="IslandTextSubtle" Color="#BA3F3F48" />
-                        <SolidColorBrush x:Key="IslandTextMuted" Color="#AE4E4E58" />
-                        <SolidColorBrush x:Key="IslandTextHint" Color="#925E5E68" />
-                        <SolidColorBrush x:Key="IslandSurfaceSubtle" Color="#0F000000" />
-                        <SolidColorBrush x:Key="IslandSurfaceCard" Color="#16000000" />
-                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#1F000000" />
-                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#2C000000" />
-                        <SolidColorBrush x:Key="IslandBorderSubtle" Color="#1E000000" />
-                        <SolidColorBrush x:Key="IslandBorderDefault" Color="#28000000" />
-                        <SolidColorBrush x:Key="IslandBorderStrong" Color="#38000000" />
-                        <SolidColorBrush x:Key="IslandPopupOverlayBg" Color="#FAF4F5F7" />
+                        <SolidColorBrush x:Key="IslandTextStrong" Color="#FF111115" />
+                        <SolidColorBrush x:Key="IslandTextPrimary" Color="#FF16161B" />
+                        <SolidColorBrush x:Key="IslandTextHigh" Color="#F21E1E24" />
+                        <SolidColorBrush x:Key="IslandTextSecondary" Color="#E627272F" />
+                        <SolidColorBrush x:Key="IslandTextBody" Color="#DB303038" />
+                        <SolidColorBrush x:Key="IslandTextSubtle" Color="#D4383842" />
+                        <SolidColorBrush x:Key="IslandTextMuted" Color="#C442424E" />
+                        <SolidColorBrush x:Key="IslandTextHint" Color="#B04E4E5A" />
+                        <SolidColorBrush x:Key="IslandSurfaceSubtle" Color="#44FFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfaceCard" Color="#5CFFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#78FFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#90FFFFFF" />
+                        <SolidColorBrush x:Key="IslandBorderSubtle" Color="#24000000" />
+                        <SolidColorBrush x:Key="IslandBorderDefault" Color="#32000000" />
+                        <SolidColorBrush x:Key="IslandBorderStrong" Color="#44000000" />
+                        <SolidColorBrush x:Key="IslandPopupOverlayBg" Color="#F2F4F5F7" />
                         <SolidColorBrush x:Key="IslandPanelBg" Color="#FFFDFDFF" />
                         <SolidColorBrush x:Key="IslandSubPanelBg" Color="#FFEBECEF" />
                         <SolidColorBrush x:Key="IslandPlayBtnBg" Color="#F218181C" />
@@ -62,6 +67,11 @@
                         <SolidColorBrush x:Key="IslandGoldAccent" Color="#FFB45309" />
                         <SolidColorBrush x:Key="IslandGreenAccent" Color="#FF15803D" />
                         <SolidColorBrush x:Key="IslandRedAccent" Color="#FFDC2626" />
+                        <SolidColorBrush x:Key="IslandHeaderBarBg" Color="Transparent" />
+                        <SolidColorBrush x:Key="IslandHeaderBarBorder" Color="Transparent" />
+                        <SolidColorBrush x:Key="TextControlBackground" Color="#44FFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#5CFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#74FFFFFF" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
 
@@ -614,7 +624,9 @@
                 <!-- Footer Hints -->
                 <Border Grid.Row="2"
                         Margin="0,2,0,0"
-                        Padding="0,6,0,0"
+                        Padding="8,4"
+                        Background="{ThemeResource IslandHeaderBarBg}"
+                        CornerRadius="6"
                         BorderBrush="{ThemeResource IslandBorderSubtle}"
                         BorderThickness="0,1,0,0">
                     <TextBlock Text="↵ Open  ·  Tab Auto-fill  ·  Ctrl+↵ In folder  ·  Alt+↵ Copy  ·  Type @ for web searches  ·  Esc Close"
