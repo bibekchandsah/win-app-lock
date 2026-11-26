@@ -446,6 +446,10 @@
                             <ToggleSwitch x:Name="CardDownloadsToggle" Header="Downloads" Toggled="OnSettingChanged" />
                             <TextBlock Text="Progress and a card with the finished file" FontSize="12" Opacity="0.6" Margin="0,-4,0,0" />
                         </StackPanel>
+                        <StackPanel Spacing="2">
+                            <ToggleSwitch x:Name="CardFileCopyToggle" Header="File copy progress" Toggled="OnSettingChanged" />
+                            <TextBlock Text="Live progress bar while Windows Explorer copies or moves files" FontSize="12" Opacity="0.6" Margin="0,-4,0,0" />
+                        </StackPanel>
                         <ToggleSwitch x:Name="CardVpnToggle" Header="VPN connect / disconnect" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardBatteryLowToggle" Header="Low battery alert (20 %, 10 %, 5 %)" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardChargingToggle" Header="Charger plugged / unplugged" Toggled="OnSettingChanged" />

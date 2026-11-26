@@ -1011,6 +1011,215 @@ public sealed class DownloadCardSource : IDisposable
     }
 }
 
+/// <summary>
+/// Polls Windows Explorer file operation windows (class "OperationStatusWindow")
+/// to report live copy/move progress percentage and completion to the island.
+/// </summary>
+public sealed class FileCopyCardSource : IDisposable
+{
+    private delegate bool EnumWindowsProc(nint hWnd, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(nint hWndParent, EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(nint hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(nint hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessageTimeout(
+        nint hWnd, uint msg, nint wParam, nint lParam,
+        uint fuFlags, uint uTimeout, out nint lpdwResult);
+
+    private const uint PBM_GETPOS = 0x0408;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+    private static readonly Regex PercentRegex = new(@"(\d{1,3})\s*%", RegexOptions.Compiled);
+
+    private readonly DispatcherQueue _queue;
+    private readonly DispatcherQueueTimer _timer;
+    private bool _enabled = true;
+    private nint _activeHwnd;
+    private int _lastPercent;
+    private string _lastOpTitle = "Copying files...";
+    private long _startTickMs;
+    private bool _polling;
+
+    public event Action<string, string, int>? Progress;
+    public event Action<string>? Completed;
+    public event Action? Cancelled;
+
+    public FileCopyCardSource(DispatcherQueue queue)
+    {
+        _queue = queue;
+        _timer = queue.CreateTimer();
+        _timer.Interval = TimeSpan.FromMilliseconds(550);
+        _timer.IsRepeating = true;
+        _timer.Tick += (_, _) => _ = PollAsync();
+    }
+
+    public void Start(bool enabled)
+    {
+        _enabled = enabled;
+        if (enabled && !_timer.IsRunning) _timer.Start();
+        else if (!enabled) Stop();
+    }
+
+    public void SetEnabled(bool enabled)
+    {
+        _enabled = enabled;
+        if (enabled)
+        {
+            if (!_timer.IsRunning) _timer.Start();
+        }
+        else
+        {
+            _timer.Stop();
+            _activeHwnd = nint.Zero;
+        }
+    }
+
+    public void Stop()
+    {
+        _timer.Stop();
+        _activeHwnd = nint.Zero;
+    }
+
+    private async Task PollAsync()
+    {
+        if (!_enabled || _polling) return;
+        _polling = true;
+        try
+        {
+            var result = await Task.Run(ScanOperationWindow).ConfigureAwait(false);
+            _queue.TryEnqueue(() => ApplyScanResult(result));
+        }
+        catch { }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    private (nint Hwnd, string Title, string Detail, int Percent) ScanOperationWindow()
+    {
+        nint foundHwnd = nint.Zero;
+        string foundTitle = string.Empty;
+        var sbClass = new StringBuilder(64);
+        var sbText = new StringBuilder(256);
+
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindowVisible(hwnd)) return true;
+            sbClass.Clear();
+            GetClassName(hwnd, sbClass, sbClass.Capacity);
+            if (sbClass.ToString() == "OperationStatusWindow")
+            {
+                sbText.Clear();
+                GetWindowText(hwnd, sbText, sbText.Capacity);
+                foundHwnd = hwnd;
+                foundTitle = sbText.ToString();
+                return false;
+            }
+            return true;
+        }, nint.Zero);
+
+        if (foundHwnd == nint.Zero)
+            return (nint.Zero, string.Empty, string.Empty, -1);
+
+        int pct = -1;
+        var m = PercentRegex.Match(foundTitle);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out int parsed))
+        {
+            pct = Math.Clamp(parsed, 0, 100);
+        }
+
+        string opLabel = "Copying...";
+        string detail = string.Empty;
+        if (foundTitle.Contains("Moving", StringComparison.OrdinalIgnoreCase)) opLabel = "Moving...";
+        else if (foundTitle.Contains("Deleting", StringComparison.OrdinalIgnoreCase)) opLabel = "Deleting...";
+        else if (foundTitle.Contains("Paused", StringComparison.OrdinalIgnoreCase)) opLabel = "Paused";
+
+        // Inspect child controls for progress bar or descriptive text
+        EnumChildWindows(foundHwnd, (child, _) =>
+        {
+            sbClass.Clear();
+            GetClassName(child, sbClass, sbClass.Capacity);
+            string cls = sbClass.ToString();
+            if (cls == "msctls_progress32" && pct < 0)
+            {
+                if (SendMessageTimeout(child, PBM_GETPOS, nint.Zero, nint.Zero, SMTO_ABORTIFHUNG, 40, out nint pos) != nint.Zero)
+                {
+                    pct = Math.Clamp((int)pos, 0, 100);
+                }
+            }
+            else if (cls == "Static" || cls == "DirectUIHWND")
+            {
+                sbText.Clear();
+                GetWindowText(child, sbText, sbText.Capacity);
+                string txt = sbText.ToString().Trim();
+                if (!string.IsNullOrEmpty(txt))
+                {
+                    if (txt.Contains("Moving", StringComparison.OrdinalIgnoreCase)) opLabel = "Moving...";
+                    else if (txt.Contains("Copying", StringComparison.OrdinalIgnoreCase)) opLabel = "Copying...";
+                    else if (detail.Length == 0 && txt.Length > 2 && !txt.Contains("complete", StringComparison.OrdinalIgnoreCase))
+                    {
+                        detail = txt;
+                    }
+                }
+            }
+            return true;
+        }, nint.Zero);
+
+        if (pct < 0) pct = 0;
+        return (foundHwnd, opLabel, detail, pct);
+    }
+
+    private void ApplyScanResult((nint Hwnd, string Title, string Detail, int Percent) res)
+    {
+        if (!_enabled) return;
+
+        if (res.Hwnd != nint.Zero)
+        {
+            if (_activeHwnd != res.Hwnd)
+            {
+                _activeHwnd = res.Hwnd;
+                _startTickMs = Environment.TickCount64;
+            }
+            _lastPercent = res.Percent;
+            _lastOpTitle = res.Title;
+            Progress?.Invoke(res.Title, res.Detail, res.Percent);
+        }
+        else if (_activeHwnd != nint.Zero)
+        {
+            long elapsed = Environment.TickCount64 - _startTickMs;
+            bool finished = _lastPercent >= 90 || elapsed >= 1200;
+            string doneTitle = _lastOpTitle.StartsWith("Moving", StringComparison.OrdinalIgnoreCase)
+                ? "Move complete"
+                : "Copy complete";
+            _activeHwnd = nint.Zero;
+            _lastPercent = 0;
+
+            if (finished)
+                Completed?.Invoke(doneTitle);
+            else
+                Cancelled?.Invoke();
+        }
+    }
+
+    public void Dispose()
+    {
+        Stop();
+    }
+}
+
 /// <summary>System volume through the existing NAudio wrapper, one default-device call at a time.</summary>
 public sealed class IslandVolumeController : IDisposable
 {

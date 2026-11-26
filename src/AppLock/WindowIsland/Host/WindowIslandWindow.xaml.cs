@@ -200,6 +200,7 @@ public sealed partial class WindowIslandWindow : Window
     private ClipboardCardSource?    _clipboardSource;
     private ScreenshotCardSource?   _screenshotSource;
     private DownloadCardSource?     _downloadSource;
+    private FileCopyCardSource?     _fileCopySource;
     private string?                 _lastDownloadPath;
     private Microsoft.UI.Xaml.Media.Imaging.BitmapImage? _lastDownloadThumb;
 
@@ -424,6 +425,12 @@ public sealed partial class WindowIslandWindow : Window
         _downloadSource.Cancelled += OnDownloadCancelled;
         _downloadSource.Start();
 
+        _fileCopySource = new FileCopyCardSource(DispatcherQueue);
+        _fileCopySource.Progress += OnFileCopyProgress;
+        _fileCopySource.Completed += OnFileCopyCompleted;
+        _fileCopySource.Cancelled += OnFileCopyCancelled;
+        _fileCopySource.Start(_settings.CardFileCopyEnabled);
+
         // Keyboard navigation
         RootGrid.KeyDown += OnKeyDown;
 
@@ -573,6 +580,7 @@ public sealed partial class WindowIslandWindow : Window
         ApplyContentVisibility();
         UpdateTabHighlight(animate: false);
         _screenshotSource?.Start(settings.GetEffectiveScreenshotsFolder());
+        _fileCopySource?.SetEnabled(settings.CardFileCopyEnabled);
 
         // Size and position the window BEFORE Activate() so WinUI builds the initial surface
         // at its final dimensions instead of resizing right after Activate() (resizing triggers
@@ -664,6 +672,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateMicCamDots();
         ApplyMediaPlayerStyle();
         _screenshotSource?.Start(settings.GetEffectiveScreenshotsFolder());
+        _fileCopySource?.SetEnabled(settings.CardFileCopyEnabled);
 
         // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
         // switching it back on refetches for the song that is playing).
@@ -758,6 +767,8 @@ public sealed partial class WindowIslandWindow : Window
         _screenshotSource = null;
         _downloadSource?.Dispose();
         _downloadSource = null;
+        _fileCopySource?.Dispose();
+        _fileCopySource = null;
         _volumeController?.Dispose();
         _volumeController = null;
         StopVolumeUi();
@@ -2199,6 +2210,43 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private void OnFileCopyProgress(string title, string detail, int percent)
+    {
+        if (!_settings.CardFileCopyEnabled) return;
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "file-copy-progress",
+            Icon: "\uE8C8",
+            Title: title,
+            Detail: detail,
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.FileCopy,
+            StayMs: 3000,
+            Value: percent,
+            IsStacked: false));
+    }
+
+    private void OnFileCopyCompleted(string title)
+    {
+        if (!_settings.CardFileCopyEnabled) return;
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "file-copy-done",
+            Icon: "\uE73E",
+            Title: title,
+            Detail: string.Empty,
+            AccentHex: "#4ADE80",
+            Priority: WindowIslandCardPriority.FileCopy,
+            StayMs: Math.Min(_settings.GetCardStayMs(), 3500),
+            IsStacked: false));
+    }
+
+    private void OnFileCopyCancelled()
+    {
+        if (_eventQueue?.CurrentCard?.Kind == "file-copy-progress")
+        {
+            _eventQueue.Clear();
+        }
+    }
+
     private async void OnDownloadCompleted(string path, long bytes)
     {
         if (!_settings.CardDownloadsEnabled) return;
@@ -2492,6 +2540,11 @@ public sealed partial class WindowIslandWindow : Window
             }
             else if (card.Value >= 0)
             {
+                if (card.Kind == "file-copy-progress")
+                {
+                    _activeCardW = 340f;
+                    CardLayer.Width = _activeCardW;
+                }
                 CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
                 CardProgressBar.Foreground = cardAccentBrush;
                 CardProgressBar.Value = card.Value;

@@ -15,6 +15,7 @@ public enum WindowIslandCardPriority
     Clipboard = 30,
     Screenshot = 30,
     DownloadProgress = 25,
+    FileCopy = 28,
     Download = 35,
     Battery = 40,
     Rain = 50,
