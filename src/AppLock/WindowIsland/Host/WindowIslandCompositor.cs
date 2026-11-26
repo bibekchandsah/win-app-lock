@@ -288,7 +288,8 @@ public sealed class WindowIslandCompositor : IDisposable
             new Vector2(targetRadius, targetRadius),
             dampingRatio: IslandMotion.CloseDampingRatio,
             periodMs:     IslandMotion.ClosePeriodMs,
-            onCompleted);
+            onCompleted,
+            isClosing: true);
     }
 
     /// <summary>
@@ -402,7 +403,7 @@ public sealed class WindowIslandCompositor : IDisposable
 
     // ── Internal helpers ───────────────────────────────────────────────────────
 
-    private void AnimateShape(Vector2 targetSize, Vector2 targetRadius, float dampingRatio, int periodMs, Action? onCompleted)
+    private void AnimateShape(Vector2 targetSize, Vector2 targetRadius, float dampingRatio, int periodMs, Action? onCompleted, bool isClosing = false)
     {
         bool reducedMotion = _settings.ReducedMotion;
         try
@@ -412,9 +413,11 @@ public sealed class WindowIslandCompositor : IDisposable
         }
         catch { }
 
-        int configuredMs = _settings.AnimationDurationMs > 0
-            ? Math.Clamp(_settings.AnimationDurationMs, IslandMotion.MinAnimationDurationMs, IslandMotion.MaxAnimationDurationMs)
-            : IslandMotion.DefaultAnimationDurationMs;
+        int rawConfiguredMs = isClosing ? _settings.CloseAnimationDurationMs : _settings.AnimationDurationMs;
+        int fallbackMs = isClosing ? IslandMotion.DefaultCloseAnimationDurationMs : IslandMotion.DefaultAnimationDurationMs;
+        int configuredMs = rawConfiguredMs > 0
+            ? Math.Clamp(rawConfiguredMs, IslandMotion.MinAnimationDurationMs, IslandMotion.MaxAnimationDurationMs)
+            : fallbackMs;
 
         if (_settings.LiteMode)
         {

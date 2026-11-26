@@ -547,11 +547,18 @@
                                       Header="Reduced motion (80 ms fast transitions, skip equalizers)"
                                       Toggled="OnSettingChanged" />
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Animation Duration (ms)" Opacity="0.7" FontSize="12"/>
+                            <TextBlock Text="Opening Animation Duration (ms)" Opacity="0.7" FontSize="12"/>
                             <Slider x:Name="AnimationDurationSlider" Width="320" HorizontalAlignment="Left"
                                     Minimum="80" Maximum="1000" StepFrequency="20" TickFrequency="100"
                                     ValueChanged="OnDelaySliderChanged" />
                             <TextBlock x:Name="AnimationDurationLabelText" FontSize="12" Opacity="0.6"/>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Closing Animation Duration (ms)" Opacity="0.7" FontSize="12"/>
+                            <Slider x:Name="CloseAnimationDurationSlider" Width="320" HorizontalAlignment="Left"
+                                    Minimum="80" Maximum="1000" StepFrequency="20" TickFrequency="100"
+                                    ValueChanged="OnDelaySliderChanged" />
+                            <TextBlock x:Name="CloseAnimationDurationLabelText" FontSize="12" Opacity="0.6"/>
                         </StackPanel>
                         <ToggleSwitch x:Name="ExcludeFromCaptureToggle"
                                       Header="Hide island from screenshots and screen recordings"

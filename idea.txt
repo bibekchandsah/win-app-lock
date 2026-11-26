@@ -489,8 +489,8 @@ fixed - full screen screenshot [open] preview
 fixed - music background blur effect
 fixed - speaker/microphone changed notification
 fixed - command navigation
+fixed - custom color theme 
 setting page optimization with description 
-custom color theme 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
 
 general:

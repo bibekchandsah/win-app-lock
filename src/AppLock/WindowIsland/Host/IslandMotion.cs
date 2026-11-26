@@ -9,15 +9,25 @@ namespace AppLock.WindowIsland.Host;
 public static class IslandMotion
 {
     // ── Configurable animation duration ───────────────────────────────────────
-    public const int   DefaultAnimationDurationMs = 240;
-    public const int   MinAnimationDurationMs     = 80;
-    public const int   MaxAnimationDurationMs     = 1200;
+    public const int   DefaultAnimationDurationMs      = 240;
+    public const int   DefaultCloseAnimationDurationMs = 220;
+    public const int   MinAnimationDurationMs          = 80;
+    public const int   MaxAnimationDurationMs          = 1200;
 
     public static int ResolveDurationMs(AppLock.Models.WindowIslandSettings? settings)
     {
         if (settings == null) return DefaultAnimationDurationMs;
         if (settings.ReducedMotion) return ReducedMotionFadeMs;
         int raw = settings.AnimationDurationMs > 0 ? settings.AnimationDurationMs : DefaultAnimationDurationMs;
+        int clamped = Math.Clamp(raw, MinAnimationDurationMs, MaxAnimationDurationMs);
+        return settings.LiteMode ? Math.Min(clamped, 120) : clamped;
+    }
+
+    public static int ResolveCloseDurationMs(AppLock.Models.WindowIslandSettings? settings)
+    {
+        if (settings == null) return DefaultCloseAnimationDurationMs;
+        if (settings.ReducedMotion) return ReducedMotionFadeMs;
+        int raw = settings.CloseAnimationDurationMs > 0 ? settings.CloseAnimationDurationMs : DefaultCloseAnimationDurationMs;
         int clamped = Math.Clamp(raw, MinAnimationDurationMs, MaxAnimationDurationMs);
         return settings.LiteMode ? Math.Min(clamped, 120) : clamped;
     }

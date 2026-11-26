@@ -313,8 +313,11 @@ public sealed class WindowIslandSettings
     /// <summary>Force reduced motion (80ms transitions, skip staggers & equalizer animations).</summary>
     public bool ReducedMotion { get; set; } = false;
 
-    /// <summary>Notch open/close/tab animation duration in milliseconds (80..1200 ms, default: 240 ms).</summary>
+    /// <summary>Notch open/tab animation duration in milliseconds (80..1200 ms, default: 240 ms).</summary>
     public int AnimationDurationMs { get; set; } = 240;
+
+    /// <summary>Notch close animation duration in milliseconds (80..1200 ms, default: 220 ms).</summary>
+    public int CloseAnimationDurationMs { get; set; } = 220;
 
     /// <summary>Exclude the island window from screenshots and screen recordings (WDA_EXCLUDEFROMCAPTURE).</summary>
     public bool ExcludeFromCapture { get; set; } = false;

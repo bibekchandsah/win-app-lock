@@ -173,7 +173,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         ExcludeFromCaptureToggle.IsOn = s.ExcludeFromCapture;
         OpenDelaySlider.Value         = s.OpenDelayMs;
         CloseDelaySlider.Value        = s.CloseDelayMs;
-        AnimationDurationSlider.Value = Math.Clamp(s.AnimationDurationMs > 0 ? s.AnimationDurationMs : 240, 80, 1000);
+        AnimationDurationSlider.Value      = Math.Clamp(s.AnimationDurationMs > 0 ? s.AnimationDurationMs : 240, 80, 1000);
+        CloseAnimationDurationSlider.Value = Math.Clamp(s.CloseAnimationDurationMs > 0 ? s.CloseAnimationDurationMs : 220, 80, 1000);
         FrameStatsToggle.IsOn         = s.ShowFrameStats;
         UpdateDelayLabels();
         SelectComboItem(DefaultSearchEngineBox, s.DefaultSearchEngine);
@@ -417,7 +418,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         // Milestone 16: Polish, Lite mode, Delays, Frame Stats
         s.LiteMode            = LiteModeToggle.IsOn;
         s.ReducedMotion       = ReducedMotionToggle.IsOn;
-        s.AnimationDurationMs = (int)AnimationDurationSlider.Value;
+        s.AnimationDurationMs      = (int)AnimationDurationSlider.Value;
+        s.CloseAnimationDurationMs = (int)CloseAnimationDurationSlider.Value;
         s.ExcludeFromCapture  = ExcludeFromCaptureToggle.IsOn;
         s.OpenDelayMs         = (int)OpenDelaySlider.Value;
         s.CloseDelayMs        = (int)CloseDelaySlider.Value;
@@ -690,6 +692,8 @@ public sealed partial class WindowIslandSettingsPage : Page
     {
         if (AnimationDurationLabelText != null && AnimationDurationSlider != null)
             AnimationDurationLabelText.Text = $"{(int)AnimationDurationSlider.Value} ms";
+        if (CloseAnimationDurationLabelText != null && CloseAnimationDurationSlider != null)
+            CloseAnimationDurationLabelText.Text = $"{(int)CloseAnimationDurationSlider.Value} ms";
         if (OpenDelayLabelText != null && OpenDelaySlider != null)
             OpenDelayLabelText.Text = $"{(int)OpenDelaySlider.Value} ms";
         if (CloseDelayLabelText != null && CloseDelaySlider != null)

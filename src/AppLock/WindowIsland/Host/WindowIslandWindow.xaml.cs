@@ -1428,10 +1428,10 @@ public sealed partial class WindowIslandWindow : Window
 
         _measuringFrames = true;
         OpenLayer.IsHitTestVisible = false;
-        _eventQueue?.HoldForMotion(EffectiveAnimMs);
+        _eventQueue?.HoldForMotion(EffectiveCloseAnimMs);
 
-        FadeVisual(_openVisual,   0f, EffectiveFadeOutMs);
-        FadeVisual(_foldedVisual, 1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
+        FadeVisual(_openVisual,   0f, EffectiveCloseFadeOutMs);
+        FadeVisual(_foldedVisual, 1f, EffectiveCloseFadeInMs, EffectiveCloseFadeInDelayMs);
 
         _compositor.AnimateToFolded(() =>
         {
@@ -1451,13 +1451,16 @@ public sealed partial class WindowIslandWindow : Window
                 }
             });
         });
-        UpdateHitRegion(open: false, isCard: false);
     }
 
     private int EffectiveAnimMs => IslandMotion.ResolveDurationMs(_settings);
+    private int EffectiveCloseAnimMs => IslandMotion.ResolveCloseDurationMs(_settings);
     private int EffectiveFadeInMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.72), 60, 500);
     private int EffectiveFadeInDelayMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.12), 0, 80);
     private int EffectiveFadeOutMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.45), 40, 300);
+    private int EffectiveCloseFadeInMs => Math.Clamp((int)Math.Round(EffectiveCloseAnimMs * 0.72), 60, 500);
+    private int EffectiveCloseFadeInDelayMs => Math.Clamp((int)Math.Round(EffectiveCloseAnimMs * 0.12), 0, 80);
+    private int EffectiveCloseFadeOutMs => Math.Clamp((int)Math.Round(EffectiveCloseAnimMs * 0.45), 40, 300);
     private int EffectiveTabSwitchMs => Math.Clamp((int)Math.Round(EffectiveAnimMs * 0.65), 60, 450);
 
     private void FadeVisual(Visual? visual, float targetOpacity, int durationMs, int delayMs = 0)
@@ -2258,7 +2261,6 @@ public sealed partial class WindowIslandWindow : Window
                 }
             });
         });
-        UpdateHitRegion(open: false, isCard: false);
     }
 
     private static Windows.UI.Color HexToColor(string hex)
@@ -4583,8 +4585,8 @@ public sealed partial class WindowIslandWindow : Window
         if (_compositor == null || !_compositor.IsCommand) return;
 
         CommandLayer.IsHitTestVisible = false;
-        FadeVisual(_commandVisual, 0f, EffectiveFadeOutMs);
-        FadeVisual(_foldedVisual,  1f, EffectiveFadeInMs, EffectiveFadeInDelayMs);
+        FadeVisual(_commandVisual, 0f, EffectiveCloseFadeOutMs);
+        FadeVisual(_foldedVisual,  1f, EffectiveCloseFadeInMs, EffectiveCloseFadeInDelayMs);
 
         _compositor.AnimateToFolded(() =>
         {
@@ -4601,7 +4603,6 @@ public sealed partial class WindowIslandWindow : Window
                 }
             });
         });
-        UpdateHitRegion(open: false, isCard: false, isCommand: false);
     }
 
     private void CommandInput_TextChanged(object sender, TextChangedEventArgs e)
