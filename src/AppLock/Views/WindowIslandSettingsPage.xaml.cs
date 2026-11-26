@@ -13,6 +13,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     private bool _loading = true;
     private bool _updatingCustomColor;
     private string _customIslandHex = "#1E293B";
+    private string _mediaPillMode = "Usual";
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _diskSaveTimer;
 
     public WindowIslandSettingsPage()
@@ -144,6 +145,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         MicDotToggle.IsOn         = s.MicDotEnabled;
         CamDotToggle.IsOn         = s.CamDotEnabled;
         SelectComboItem(MediaPlayerStyleBox, s.MediaPlayerStyle);
+        _mediaPillMode = string.IsNullOrWhiteSpace(s.MediaPillMode) ? "Usual" : s.MediaPillMode;
+        UpdateMediaPillModeButtons();
         LyricsToggle.IsOn         = s.LyricsEnabled;
         SelectComboItem(CardStayBox, s.CardStayDuration);
 
@@ -352,6 +355,30 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnCheckChanged(object sender, RoutedEventArgs e) => Save();
 
+    private void OnMediaPillModeClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string tag)
+        {
+            _mediaPillMode = tag;
+            UpdateMediaPillModeButtons();
+            Save();
+        }
+    }
+
+    private void UpdateMediaPillModeButtons()
+    {
+        var activeBg = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(46, 255, 255, 255));
+        var clearBg  = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        Button?[] btns = { MediaPillUsualBtn, MediaPillWithNameBtn, MediaPillMiniPlayerBtn, MediaPillWithWordsBtn };
+        foreach (var b in btns)
+        {
+            if (b == null) continue;
+            bool selected = string.Equals(b.Tag as string, _mediaPillMode, StringComparison.OrdinalIgnoreCase);
+            b.Background = selected ? activeBg : clearBg;
+            b.FontWeight = selected ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+        }
+    }
+
     private void OnHotkeyChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnScreenshotsFolderChanged(object sender, TextChangedEventArgs e) => Save(debounceDisk: true);
@@ -445,6 +472,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CamDotEnabled         = CamDotToggle.IsOn;
         s.MicCamDotsEnabled     = s.MicDotEnabled || s.CamDotEnabled;
         s.MediaPlayerStyle      = TagOf(MediaPlayerStyleBox) ?? s.MediaPlayerStyle;
+        s.MediaPillMode         = _mediaPillMode;
         s.LyricsEnabled         = LyricsToggle.IsOn;
         s.WeatherUnits          = TagOf(WeatherUnitsBox) ?? s.WeatherUnits;
         s.WeatherTempOnIsland   = WeatherTempOnIslandToggle.IsOn;

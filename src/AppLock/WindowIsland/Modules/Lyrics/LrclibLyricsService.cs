@@ -9,24 +9,83 @@ using System.Threading.Tasks;
 
 namespace AppLock.WindowIsland.Modules.Lyrics;
 
+public sealed record SyncedLyricLine(double TimeSeconds, string Text);
+
 /// <summary>
-/// Lyrics for one track, already reduced to plain display lines (timestamps stripped).
+/// Lyrics for one track, with both plain display lines and optional timestamped lines.
 /// </summary>
 public sealed class LyricsResult
 {
     public string TrackName { get; }
     public string ArtistName { get; }
     public IReadOnlyList<string> Lines { get; }
+    public IReadOnlyList<SyncedLyricLine> SyncedLines { get; }
 
     public LyricsResult(string? plain, string? synced, string trackName, string artistName)
     {
-        TrackName  = trackName;
-        ArtistName = artistName;
-        Lines      = BuildLines(plain, synced);
+        TrackName   = trackName;
+        ArtistName  = artistName;
+        Lines       = BuildLines(plain, synced);
+        SyncedLines = BuildSyncedLines(synced);
+    }
+
+    public int GetCurrentLineIndex(double positionSeconds)
+    {
+        if (SyncedLines.Count == 0) return -1;
+        double pos = positionSeconds + 0.25;
+        int best = -1;
+        for (int i = 0; i < SyncedLines.Count; i++)
+        {
+            if (SyncedLines[i].TimeSeconds <= pos)
+                best = i;
+            else
+                break;
+        }
+        return best;
+    }
+
+    public string? GetCurrentLine(double positionSeconds)
+    {
+        int idx = GetCurrentLineIndex(positionSeconds);
+        return idx >= 0 ? SyncedLines[idx].Text : null;
     }
 
     private static readonly Regex TimestampRegex =
         new(@"^\s*\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]\s*", RegexOptions.Compiled);
+
+    private static readonly Regex SyncedLineRegex =
+        new(@"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]", RegexOptions.Compiled);
+
+    private static IReadOnlyList<SyncedLyricLine> BuildSyncedLines(string? synced)
+    {
+        if (string.IsNullOrWhiteSpace(synced)) return Array.Empty<SyncedLyricLine>();
+        var list = new List<SyncedLyricLine>();
+        foreach (var raw in synced.Replace("\r", string.Empty).Split('\n'))
+        {
+            var matches = SyncedLineRegex.Matches(raw);
+            if (matches.Count == 0) continue;
+            var text = SyncedLineRegex.Replace(raw, string.Empty).Trim();
+            if (text.Length == 0) continue;
+
+            foreach (Match m in matches)
+            {
+                if (!int.TryParse(m.Groups[1].Value, out int min)) continue;
+                if (!int.TryParse(m.Groups[2].Value, out int sec)) continue;
+                double frac = 0;
+                if (m.Groups[3].Success)
+                {
+                    string f = m.Groups[3].Value;
+                    if (int.TryParse(f, out int fVal))
+                    {
+                        frac = f.Length == 3 ? fVal / 1000.0 : (f.Length == 2 ? fVal / 100.0 : fVal / 10.0);
+                    }
+                }
+                list.Add(new SyncedLyricLine(min * 60.0 + sec + frac, text));
+            }
+        }
+        list.Sort((a, b) => a.TimeSeconds.CompareTo(b.TimeSeconds));
+        return list;
+    }
 
     private static IReadOnlyList<string> BuildLines(string? plain, string? synced)
     {

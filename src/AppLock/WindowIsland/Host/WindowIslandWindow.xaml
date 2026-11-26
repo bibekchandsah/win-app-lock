@@ -265,8 +265,8 @@
         <Grid x:Name="FoldedLayer"
               HorizontalAlignment="Center"
               VerticalAlignment="Top"
-              Height="32"
               IsHitTestVisible="False">
+            <Grid x:Name="FoldedStandardPill" Height="32">
             <StackPanel x:Name="FoldedContentStack"
                         Orientation="Horizontal"
                         HorizontalAlignment="Center"
@@ -282,6 +282,37 @@
                     <Border x:Name="FoldedArtBorder" Width="20" Height="20" CornerRadius="5" Background="{ThemeResource IslandSurfaceCard}">
                         <FontIcon x:Name="FoldedArtFallback" Glyph="&#xEC4F;" FontSize="11" Foreground="{ThemeResource IslandTextHigh}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
+                </StackPanel>
+
+                <!-- Track name / synced lyrics line (when MediaPillMode is WithName or WithWords) -->
+                <StackPanel x:Name="FoldedTrackInfoPanel"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <FontIcon x:Name="FoldedTrackNoteIcon"
+                              Glyph="&#xE8D6;"
+                              FontSize="10"
+                              Foreground="{ThemeResource IslandTextSubtle}"
+                              Visibility="Collapsed"
+                              VerticalAlignment="Center" />
+                    <TextBlock x:Name="FoldedTrackTitle"
+                               Text=""
+                               FontFamily="Segoe UI Variable Small"
+                               FontWeight="SemiBold"
+                               FontSize="11.5"
+                               Foreground="{ThemeResource IslandTextPrimary}"
+                               MaxWidth="210"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="FoldedTrackArtist"
+                               Text=""
+                               FontFamily="Segoe UI Variable Small"
+                               FontSize="11"
+                               Foreground="{ThemeResource IslandTextSubtle}"
+                               MaxWidth="110"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Folded timer mini (shows ring + countdown when timer is running) -->
@@ -403,6 +434,118 @@
                             VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
+                <ProgressBar x:Name="FoldedTrackProgressBar"
+                             VerticalAlignment="Bottom"
+                             HorizontalAlignment="Stretch"
+                             Height="2.5"
+                             MinHeight="2.5"
+                             Margin="10,0,10,2"
+                             Minimum="0"
+                             Maximum="1"
+                             Value="0"
+                             CornerRadius="1.5"
+                             Background="#28FFFFFF"
+                             Visibility="Collapsed" />
+            </Grid>
+
+            <!-- Mini player pill (when MediaPillMode == MiniPlayer and music is playing) -->
+            <Grid x:Name="FoldedMiniPlayer"
+                  Visibility="Collapsed"
+                  Padding="14,10,14,10"
+                  ColumnSpacing="14"
+                  Background="#01000000"
+                  PointerPressed="MiniPlayer_PointerPressed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="270" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Spacing="7">
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="MiniArtBorder" Grid.Column="0" Width="44" Height="44" CornerRadius="9"
+                                Background="{ThemeResource IslandSurfaceCard}">
+                            <FontIcon x:Name="MiniArtFallback" Glyph="&#xEC4F;" FontSize="18"
+                                      Foreground="{ThemeResource IslandTextHigh}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                            <TextBlock x:Name="MiniTitle" Text="Track" FontWeight="SemiBold" FontSize="12.5"
+                                       Foreground="{ThemeResource IslandTextPrimary}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="MiniArtist" Text="Artist" FontSize="11"
+                                       Foreground="{ThemeResource IslandTextSecondary}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="MiniApp" Text="" FontSize="9.5"
+                                       Foreground="{ThemeResource IslandTextSubtle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Top" HorizontalAlignment="Right" Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                <StackPanel x:Name="MiniEqMini" Orientation="Horizontal" Spacing="1.5" VerticalAlignment="Center">
+                                    <Border x:Name="MiniEqBar0" Width="2" Height="5" Background="#60CDFF" CornerRadius="1" VerticalAlignment="Center" />
+                                    <Border x:Name="MiniEqBar1" Width="2" Height="10" Background="#60CDFF" CornerRadius="1" VerticalAlignment="Center" />
+                                    <Border x:Name="MiniEqBar2" Width="2" Height="7" Background="#60CDFF" CornerRadius="1" VerticalAlignment="Center" />
+                                    <Border x:Name="MiniEqBar3" Width="2" Height="4" Background="#60CDFF" CornerRadius="1" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock x:Name="MiniClockText" Text="12:45" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource IslandTextPrimary}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="MiniStatusText" Text="" FontSize="10" HorizontalAlignment="Right"
+                                       Foreground="{ThemeResource IslandTextSecondary}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Progress & Seek -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MiniElapsed" Grid.Column="0" Text="0:00" FontSize="10"
+                                   Foreground="{ThemeResource IslandTextSubtle}" VerticalAlignment="Center" />
+                        <Grid x:Name="MiniSeekArea" Grid.Column="1" Height="14" Background="#01000000"
+                              VerticalAlignment="Center"
+                              PointerPressed="MiniSeek_PointerPressed"
+                              PointerMoved="MiniSeek_PointerMoved"
+                              PointerReleased="MiniSeek_PointerReleased">
+                            <ProgressBar x:Name="MiniProgressBar" VerticalAlignment="Center" Height="3.5" MinHeight="3.5"
+                                         Minimum="0" Maximum="1" Value="0" CornerRadius="2" Background="#2EFFFFFF" />
+                        </Grid>
+                        <TextBlock x:Name="MiniRemaining" Grid.Column="2" Text="-0:00" FontSize="10"
+                                   Foreground="{ThemeResource IslandTextSubtle}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Playback controls -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="18">
+                        <Button x:Name="MiniPrevBtn" Click="MediaPrev_Click"
+                                Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
+                            <FontIcon Glyph="&#xE892;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
+                        </Button>
+                        <Button x:Name="MiniPlayPauseBtn" Click="MediaPlayPause_Click"
+                                Width="30" Height="30" Padding="0" CornerRadius="15" BorderThickness="0"
+                                Background="#F2FFFFFF">
+                            <FontIcon x:Name="MiniPlayPauseIcon" Glyph="&#xE769;" FontSize="12" Foreground="#FF141414" />
+                        </Button>
+                        <Button x:Name="MiniNextBtn" Click="MediaNext_Click"
+                                Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
+                            <FontIcon Glyph="&#xE893;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Optional live lyrics on the right -->
+                <StackPanel x:Name="MiniLyricsCol" Grid.Column="1" Width="210" VerticalAlignment="Center" Spacing="4" Visibility="Collapsed">
+                    <TextBlock x:Name="MiniLyricsPrev" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                               Opacity="0.45" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="MiniLyricsCurr" Text="" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{ThemeResource IslandTextPrimary}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="MiniLyricsNext" Text="" FontSize="11" Foreground="{ThemeResource IslandTextSecondary}"
+                               Opacity="0.45" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
         </Grid>
 
         <!-- Foreground layers clipped to the animated notch/capsule shape -->

@@ -226,6 +226,13 @@ public sealed partial class WindowIslandWindow : Window
     // Home tab lyrics: one lookup per track, shown beside the player when a lyric sheet exists.
     private readonly LrclibLyricsService _lyricsService = new();
     private string _lyricsKey = string.Empty;
+    private LyricsResult? _currentLyrics;
+    private string _lastMediaTitle = string.Empty;
+    private string _lastMediaArtist = string.Empty;
+    private double _lastMediaPositionSeconds;
+    private bool _miniSeekPointerDown;
+    private bool IsMiniPlayerPillActive =>
+        _isMediaPlaying && string.Equals(_settings.MediaPillMode, "MiniPlayer", StringComparison.OrdinalIgnoreCase);
 
     // Milestone 7: Launcher
     private WindowIslandLauncher?             _launcher;
@@ -641,6 +648,7 @@ public sealed partial class WindowIslandWindow : Window
         // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
         // switching it back on refetches for the song that is playing).
         if (!settings.LyricsEnabled) ClearLyrics();
+        UpdateFoldedMediaPillMode();
 
         _ = UpdateFoldedBtBatteriesAsync();
 
@@ -1420,7 +1428,7 @@ public sealed partial class WindowIslandWindow : Window
             int openDelay = _settings.OpenDelayMs > 0 ? _settings.OpenDelayMs : IslandMotion.HoverOpenDelayMs;
             int closeDelay = _settings.CloseDelayMs > 0 ? _settings.CloseDelayMs : IslandMotion.HoverCloseDelayMs;
             bool hasInteractiveCard = !string.IsNullOrEmpty(_eventQueue?.CurrentCard?.PrimaryActionLabel);
-            if (_hoverInside && !_compositor.IsOpen && !hasInteractiveCard && !_settings.ThroughMode && elapsed >= openDelay)
+            if (_hoverInside && !_compositor.IsOpen && !hasInteractiveCard && !_settings.ThroughMode && !IsMiniPlayerPillActive && elapsed >= openDelay)
             {
                 if (_eventQueue?.HasVisibleCard == true)
                 {
@@ -1586,9 +1594,12 @@ public sealed partial class WindowIslandWindow : Window
         float factor  = (float)(_settings.SizePercent / 100.0);
 
         float foldedW = _compositor?.CurrentFoldedWidthDip ?? WindowIslandCompositor.FoldedWidthDip;
-        float foldedR = _settings.Shape == "Capsule" ? WindowIslandCompositor.FoldedRadiusDip : WindowIslandCompositor.FoldedNotchRadiusDip;
+        float foldedH = _compositor?.CurrentFoldedHeightDip ?? WindowIslandCompositor.FoldedHeightDip;
+        float foldedR = foldedH > WindowIslandCompositor.FoldedHeightDip + 8f
+            ? WindowIslandCompositor.OpenRadiusDip
+            : (_settings.Shape == "Capsule" ? WindowIslandCompositor.FoldedRadiusDip : WindowIslandCompositor.FoldedNotchRadiusDip);
         float widthDip  = isCommand ? IslandMotion.CommandBarSize.W * factor : (open ? IslandMotion.TabSize(_activeTab).W : (isCard ? _activeCardW : foldedW)) * factor;
-        float heightDip = isCommand ? IslandMotion.CommandBarSize.H * factor : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? _activeCardH : WindowIslandCompositor.FoldedHeightDip)) * factor;
+        float heightDip = isCommand ? IslandMotion.CommandBarSize.H * factor : (open ? IslandMotion.TabSize(_activeTab).H : (isCard ? _activeCardH : foldedH)) * factor;
         float radiusDip = (open || isCommand) ? WindowIslandCompositor.OpenRadiusDip * factor : (isCard ? MathF.Min(19f, _activeCardH / 2f) : foldedR) * factor;
         float scaledWindowW = (isCommand ? IslandMotion.WindowWidthForCommand : WindowWidthDip) * factor;
         float leftDip   = (scaledWindowW - widthDip) / 2f;
@@ -2485,8 +2496,11 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     _lastFoldedMediaVisible = false;
                     UpdateFoldedWeatherMini();
-                    UpdateDynamicFoldedWidth();
                 }
+                _lastMediaTitle = string.Empty;
+                _lastMediaArtist = string.Empty;
+                _lastMediaPositionSeconds = 0;
+                UpdateFoldedMediaPillMode();
                 MediaArtFallback.Visibility = Visibility.Collapsed;
                 _lastMediaArtPath = null;
                 ResetMediaCardAppearance();
@@ -2505,6 +2519,14 @@ public sealed partial class WindowIslandWindow : Window
             MediaApp.Text    = snap.App.ToUpperInvariant();
             MediaPlayPauseIcon.Glyph = snap.Playing ? "\uE769" : "\uE768"; // Pause : Play
 
+            _lastMediaTitle = snap.Title;
+            _lastMediaArtist = snap.Artist;
+            _lastMediaPositionSeconds = snap.PositionSeconds;
+            if (MiniTitle != null) MiniTitle.Text = snap.Title;
+            if (MiniArtist != null) MiniArtist.Text = snap.Artist;
+            if (MiniApp != null) MiniApp.Text = snap.App.ToUpperInvariant();
+            if (MiniPlayPauseIcon != null) MiniPlayPauseIcon.Glyph = snap.Playing ? "\uE769" : "\uE768";
+
             // Progress line with elapsed / remaining times, like a phone-style player card
             _mediaDuration = snap.DurationSeconds;
 
@@ -2512,16 +2534,23 @@ public sealed partial class WindowIslandWindow : Window
             MediaRemaining.Text = snap.DurationSeconds > 0
                 ? "-" + FormatTime(Math.Max(0, snap.DurationSeconds - snap.PositionSeconds))
                 : string.Empty;
+            if (MiniElapsed != null) MiniElapsed.Text = MediaElapsed.Text;
+            if (MiniRemaining != null) MiniRemaining.Text = MediaRemaining.Text;
 
             if (snap.DurationSeconds > 0)
             {
                 double ratio = Math.Clamp(snap.PositionSeconds / snap.DurationSeconds, 0, 1);
                 MediaProgress.Value = ratio;
                 MediaProgress.Visibility = Visibility.Visible;
+                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Value = ratio;
+                if (MiniProgressBar != null) MiniProgressBar.Value = ratio;
+                if (MiniSeekArea != null) MiniSeekArea.Visibility = Visibility.Visible;
             }
             else
             {
                 MediaProgress.Visibility = Visibility.Collapsed;
+                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Value = 0;
+                if (MiniSeekArea != null) MiniSeekArea.Visibility = Visibility.Collapsed;
             }
 
             // Album art — only reload BitmapImage when the file or its write timestamp changes
@@ -2559,6 +2588,8 @@ public sealed partial class WindowIslandWindow : Window
                         MediaArtFallback.Visibility = Visibility.Collapsed;
                         FoldedArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
                         FoldedArtFallback.Visibility = Visibility.Collapsed;
+                        if (MiniArtBorder != null) MiniArtBorder.Background = new ImageBrush { ImageSource = bmp, Stretch = Stretch.UniformToFill };
+                        if (MiniArtFallback != null) MiniArtFallback.Visibility = Visibility.Collapsed;
                         hasArt = true;
                         _lastMediaArtPath = artPath;
                         _ = ApplyMediaAlbumGlowAsync(artPath, artKey);
@@ -2574,6 +2605,8 @@ public sealed partial class WindowIslandWindow : Window
                     ResetMediaCardAppearance();
                     FoldedArtBorder.Background = new SolidColorBrush(AdaptiveSurfaceColor(40));
                     FoldedArtFallback.Visibility = Visibility.Visible;
+                    if (MiniArtBorder != null) MiniArtBorder.Background = new SolidColorBrush(AdaptiveSurfaceColor(40));
+                    if (MiniArtFallback != null) MiniArtFallback.Visibility = Visibility.Visible;
                 }
             }
 
@@ -2592,6 +2625,12 @@ public sealed partial class WindowIslandWindow : Window
                 EqBar2.Background = eqBrush;
                 EqBar3.Background = eqBrush;
                 FoldedArtFallback.Foreground = eqBrush;
+                if (MiniEqBar0 != null) MiniEqBar0.Background = eqBrush;
+                if (MiniEqBar1 != null) MiniEqBar1.Background = eqBrush;
+                if (MiniEqBar2 != null) MiniEqBar2.Background = eqBrush;
+                if (MiniEqBar3 != null) MiniEqBar3.Background = eqBrush;
+                if (MiniArtFallback != null) MiniArtFallback.Foreground = eqBrush;
+                if (MiniProgressBar != null) MiniProgressBar.Foreground = eqBrush;
                 StartEqTimer();
             }
             else
@@ -2603,8 +2642,8 @@ public sealed partial class WindowIslandWindow : Window
             {
                 _lastFoldedMediaVisible = showFoldedMedia;
                 UpdateFoldedWeatherMini();
-                UpdateDynamicFoldedWidth();
             }
+            UpdateFoldedMediaPillMode();
 
             // Lyrics follow the track: fetched once per title/artist pair.
             _ = UpdateLyricsAsync(snap);
@@ -2944,6 +2983,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
+            _currentLyrics = lyrics;
             StopLyricsDragScroll();
             LyricsStack.Children.Clear();
 
@@ -3020,6 +3060,7 @@ public sealed partial class WindowIslandWindow : Window
             // With lyrics the player card shares the row with the lyrics card; without them it
             // spans the whole width again.
             Grid.SetColumnSpan(MediaCard, show ? 1 : 2);
+            UpdateFoldedMediaPillMode();
         }
         catch (Exception ex) { WindowIslandHost.Log("ShowLyrics: " + ex.Message); }
     }
@@ -3595,6 +3636,7 @@ public sealed partial class WindowIslandWindow : Window
                 : Math.Clamp((float)((20.0 * Math.Log10(peak) + 60.0) / 50.0), 0f, 1f);
 
             var bars = new[] { EqBar0, EqBar1, EqBar2, EqBar3 };
+            var miniBars = new[] { MiniEqBar0, MiniEqBar1, MiniEqBar2, MiniEqBar3 };
             for (int i = 0; i < 4; i++)
             {
                 double target = level <= 0f
@@ -3603,6 +3645,7 @@ public sealed partial class WindowIslandWindow : Window
                 target = Math.Clamp(target, 3.0, 17.0);
                 _eqHeights[i] += (target - _eqHeights[i]) * 0.65;
                 bars[i].Height = _eqHeights[i];
+                if (miniBars[i] != null) miniBars[i].Height = Math.Clamp(_eqHeights[i] * 0.72, 2.5, 12.0);
             }
         }
         catch { }
@@ -3671,6 +3714,62 @@ public sealed partial class WindowIslandWindow : Window
 
     private void MediaNext_Click(object sender, RoutedEventArgs e)
         => _ = _homeState?.MediaCommandAsync("next");
+
+    private void MiniPlayer_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.Handled || _settings.ThroughMode) return;
+        if (_compositor != null && !_compositor.IsOpen)
+        {
+            Expand();
+        }
+    }
+
+    private void MiniSeek_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (MiniSeekArea == null) return;
+        e.Handled = true;
+        _miniSeekPointerDown = true;
+        MiniSeekArea.CapturePointer(e.Pointer);
+        _ = SeekMiniToPointerAsync(e.GetCurrentPoint(MiniSeekArea).Position.X, throttle: false);
+    }
+
+    private void MiniSeek_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_miniSeekPointerDown || MiniSeekArea == null) return;
+        e.Handled = true;
+        _ = SeekMiniToPointerAsync(e.GetCurrentPoint(MiniSeekArea).Position.X, throttle: true);
+    }
+
+    private void MiniSeek_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (MiniSeekArea == null) return;
+        if (_miniSeekPointerDown)
+        {
+            e.Handled = true;
+            _ = SeekMiniToPointerAsync(e.GetCurrentPoint(MiniSeekArea).Position.X, throttle: false);
+        }
+        _miniSeekPointerDown = false;
+        MiniSeekArea.ReleasePointerCapture(e.Pointer);
+    }
+
+    private async Task SeekMiniToPointerAsync(double x, bool throttle)
+    {
+        if (_homeState == null || _mediaDuration <= 0 || MiniSeekArea == null) return;
+        double width = MiniSeekArea.ActualWidth;
+        if (width <= 0) return;
+
+        long now = Environment.TickCount64;
+        if (throttle && now - _lastSeekMs < 120) return;
+        _lastSeekMs = now;
+
+        double ratio = Math.Clamp(x / width, 0, 1);
+        double target = ratio * _mediaDuration;
+        if (MiniProgressBar != null) MiniProgressBar.Value = ratio;
+        if (MiniElapsed != null) MiniElapsed.Text = FormatTime(target);
+        if (MiniRemaining != null) MiniRemaining.Text = "-" + FormatTime(Math.Max(0, _mediaDuration - target));
+
+        await _homeState.SeekMediaAsync(target);
+    }
 
     // ── Volume slider ─────────────────────────────────────────────────────────
 
@@ -8197,13 +8296,119 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private void UpdateFoldedMediaPillMode()
+    {
+        if (FoldedStandardPill == null || FoldedMiniPlayer == null || FoldedLayer == null) return;
+
+        string mode = _isMediaPlaying && !string.IsNullOrWhiteSpace(_settings.MediaPillMode)
+            ? _settings.MediaPillMode
+            : "Usual";
+
+        if (string.Equals(mode, "MiniPlayer", StringComparison.OrdinalIgnoreCase))
+        {
+            FoldedStandardPill.Visibility = Visibility.Collapsed;
+            FoldedMiniPlayer.Visibility = Visibility.Visible;
+            FoldedLayer.IsHitTestVisible = !_settings.ThroughMode;
+
+            if (MiniClockText != null && FoldedClockText != null)
+                MiniClockText.Text = FoldedClockText.Text;
+
+            if (MiniStatusText != null)
+            {
+                var parts = new List<string>();
+                if (_settings.WeatherTempOnIsland && FoldedWeatherMini?.Visibility == Visibility.Visible && FoldedWeatherTemp != null)
+                    parts.Add(FoldedWeatherTemp.Text);
+                if (_settings.ShowBattery && FoldedBatteryText != null)
+                    parts.Add(FoldedBatteryText.Text);
+                MiniStatusText.Text = string.Join(" · ", parts);
+            }
+
+            if (MiniLyricsCol != null)
+            {
+                bool hasLyrics = _settings.LyricsEnabled && _currentLyrics != null &&
+                                 (_currentLyrics.SyncedLines.Count > 0 || _currentLyrics.Lines.Count > 0);
+                MiniLyricsCol.Visibility = hasLyrics ? Visibility.Visible : Visibility.Collapsed;
+                if (hasLyrics && _currentLyrics != null)
+                {
+                    if (_currentLyrics.SyncedLines.Count > 0)
+                    {
+                        int idx = _currentLyrics.GetCurrentLineIndex(_lastMediaPositionSeconds);
+                        if (idx < 0) idx = 0;
+                        MiniLyricsPrev.Text = idx > 0 ? _currentLyrics.SyncedLines[idx - 1].Text : string.Empty;
+                        MiniLyricsCurr.Text = _currentLyrics.SyncedLines[idx].Text;
+                        MiniLyricsNext.Text = idx + 1 < _currentLyrics.SyncedLines.Count ? _currentLyrics.SyncedLines[idx + 1].Text : string.Empty;
+                    }
+                    else
+                    {
+                        MiniLyricsPrev.Text = string.Empty;
+                        MiniLyricsCurr.Text = _currentLyrics.Lines[0];
+                        MiniLyricsNext.Text = _currentLyrics.Lines.Count > 1 ? _currentLyrics.Lines[1] : string.Empty;
+                    }
+                }
+            }
+        }
+        else
+        {
+            FoldedStandardPill.Visibility = Visibility.Visible;
+            FoldedMiniPlayer.Visibility = Visibility.Collapsed;
+            FoldedLayer.IsHitTestVisible = false;
+
+            if (string.Equals(mode, "WithName", StringComparison.OrdinalIgnoreCase))
+            {
+                if (FoldedTrackInfoPanel != null) FoldedTrackInfoPanel.Visibility = Visibility.Visible;
+                if (FoldedTrackNoteIcon != null) FoldedTrackNoteIcon.Visibility = Visibility.Collapsed;
+                if (FoldedTrackTitle != null) FoldedTrackTitle.Text = _lastMediaTitle;
+                if (FoldedTrackArtist != null)
+                {
+                    FoldedTrackArtist.Text = string.IsNullOrWhiteSpace(_lastMediaArtist) ? string.Empty : $"· {_lastMediaArtist}";
+                    FoldedTrackArtist.Visibility = string.IsNullOrWhiteSpace(_lastMediaArtist) ? Visibility.Collapsed : Visibility.Visible;
+                }
+                if (FoldedTrackProgressBar != null)
+                {
+                    FoldedTrackProgressBar.Visibility = _mediaDuration > 0 ? Visibility.Visible : Visibility.Collapsed;
+                    FoldedTrackProgressBar.Foreground = new SolidColorBrush(GetSystemAccentColor());
+                }
+            }
+            else if (string.Equals(mode, "WithWords", StringComparison.OrdinalIgnoreCase))
+            {
+                if (FoldedTrackInfoPanel != null) FoldedTrackInfoPanel.Visibility = Visibility.Visible;
+                if (FoldedTrackNoteIcon != null) FoldedTrackNoteIcon.Visibility = Visibility.Visible;
+                string? line = _settings.LyricsEnabled ? _currentLyrics?.GetCurrentLine(_lastMediaPositionSeconds) : null;
+                if (FoldedTrackTitle != null)
+                    FoldedTrackTitle.Text = !string.IsNullOrWhiteSpace(line) ? line : _lastMediaTitle;
+                if (FoldedTrackArtist != null) FoldedTrackArtist.Visibility = Visibility.Collapsed;
+                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                if (FoldedTrackInfoPanel != null) FoldedTrackInfoPanel.Visibility = Visibility.Collapsed;
+                if (FoldedTrackProgressBar != null) FoldedTrackProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        UpdateDynamicFoldedWidth();
+    }
+
     private void UpdateDynamicFoldedWidth()
     {
         if (_compositor == null || FoldedContentStack == null) return;
-        FoldedContentStack.InvalidateMeasure();
-        FoldedContentStack.Measure(new Windows.Foundation.Size(double.PositiveInfinity, 32));
-        float desiredWidth = MathF.Max(WindowIslandCompositor.FoldedWidthDip, (float)FoldedContentStack.DesiredSize.Width + 32f);
-        _compositor.SetFoldedWidth(desiredWidth, animate: true);
+        float desiredWidth;
+        float desiredHeight;
+        if (FoldedMiniPlayer != null && FoldedMiniPlayer.Visibility == Visibility.Visible)
+        {
+            FoldedMiniPlayer.InvalidateMeasure();
+            FoldedMiniPlayer.Measure(new Windows.Foundation.Size(560, 180));
+            desiredWidth = MathF.Max(300f, (float)FoldedMiniPlayer.DesiredSize.Width + 12f);
+            desiredHeight = MathF.Max(126f, (float)FoldedMiniPlayer.DesiredSize.Height + 6f);
+        }
+        else
+        {
+            FoldedContentStack.InvalidateMeasure();
+            FoldedContentStack.Measure(new Windows.Foundation.Size(double.PositiveInfinity, 32));
+            desiredWidth = MathF.Max(WindowIslandCompositor.FoldedWidthDip, (float)FoldedContentStack.DesiredSize.Width + 32f);
+            desiredHeight = WindowIslandCompositor.FoldedHeightDip;
+        }
+        _compositor.SetFoldedSize(desiredWidth, desiredHeight, animate: true);
         if (!_compositor.IsOpen && !_compositor.IsCard && !_compositor.IsCommand)
         {
             UpdateHitRegion(open: false, isCard: false, isCommand: false);

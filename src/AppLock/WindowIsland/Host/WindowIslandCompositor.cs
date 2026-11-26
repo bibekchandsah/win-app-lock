@@ -75,20 +75,30 @@ public sealed class WindowIslandCompositor : IDisposable
     public bool IsCard => _isCard;
     public bool IsCommand => _isCommand;
     public float CurrentFoldedWidthDip { get; private set; } = FoldedWidthDip;
+    public float CurrentFoldedHeightDip { get; private set; } = FoldedHeightDip;
 
-    public void SetFoldedWidth(float widthDip, bool animate = true)
+    private float GetEffectiveFoldedRadius() =>
+        CurrentFoldedHeightDip > FoldedHeightDip + 8f
+            ? OpenRadiusDip
+            : (_settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip);
+
+    public void SetFoldedWidth(float widthDip, bool animate = true) =>
+        SetFoldedSize(widthDip, FoldedHeightDip, animate);
+
+    public void SetFoldedSize(float widthDip, float heightDip, bool animate = true)
     {
         if (_disposed) return;
-        float clamped = Math.Clamp(widthDip, FoldedWidthDip, 560f);
-        if (Math.Abs(clamped - CurrentFoldedWidthDip) < 1f) return;
-        CurrentFoldedWidthDip = clamped;
+        float clampedW = Math.Clamp(widthDip, FoldedWidthDip, 560f);
+        float clampedH = Math.Clamp(heightDip, FoldedHeightDip, 200f);
+        if (Math.Abs(clampedW - CurrentFoldedWidthDip) < 1f && Math.Abs(clampedH - CurrentFoldedHeightDip) < 1f) return;
+        CurrentFoldedWidthDip = clampedW;
+        CurrentFoldedHeightDip = clampedH;
 
         if (!_isOpen && !_isCard && !_isCommand)
         {
             float targetWidth = CurrentFoldedWidthDip * _sizeFactor;
-            float targetHeight = FoldedHeightDip * _sizeFactor;
-            float baseRadius = _settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip;
-            float targetRadius = baseRadius * _sizeFactor;
+            float targetHeight = CurrentFoldedHeightDip * _sizeFactor;
+            float targetRadius = GetEffectiveFoldedRadius() * _sizeFactor;
             if (animate)
             {
                 AnimateShape(
@@ -279,9 +289,8 @@ public sealed class WindowIslandCompositor : IDisposable
         _isCommand = false;
 
         float targetWidth  = CurrentFoldedWidthDip * _sizeFactor;
-        float targetHeight = FoldedHeightDip * _sizeFactor;
-        float baseRadius   = _settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip;
-        float targetRadius = baseRadius * _sizeFactor;
+        float targetHeight = CurrentFoldedHeightDip * _sizeFactor;
+        float targetRadius = GetEffectiveFoldedRadius() * _sizeFactor;
 
         AnimateShape(
             new Vector2(targetWidth, targetHeight),
@@ -372,9 +381,9 @@ public sealed class WindowIslandCompositor : IDisposable
         {
             _lastSizePercent = settings.SizePercent;
             // Snap to current logical state (no animation for settings change)
-            float foldedRadius = settings.Shape == "Capsule" ? FoldedRadiusDip : FoldedNotchRadiusDip;
+            float foldedRadius = GetEffectiveFoldedRadius();
             float width  = (_isOpen ? _openTargetW : (_isCard ? _cardTargetW : CurrentFoldedWidthDip))  * _sizeFactor;
-            float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : FoldedHeightDip)) * _sizeFactor;
+            float height = (_isOpen ? _openTargetH : (_isCard ? _cardTargetH : CurrentFoldedHeightDip)) * _sizeFactor;
             float radius = (_isOpen ? OpenRadiusDip : (_isCard ? MathF.Min(CardDefaultRadiusDip, _cardTargetH / 2f) : foldedRadius)) * _sizeFactor;
             _bodyGeometry.Size         = new Vector2(width, height);
             _bodyGeometry.CornerRadius = new Vector2(radius, radius);

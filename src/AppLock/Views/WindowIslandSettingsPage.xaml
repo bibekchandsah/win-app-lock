@@ -358,6 +358,28 @@
                             <ComboBoxItem Content="Fill (whole player in album colors)" Tag="Fill" />
                             <ComboBoxItem Content="Soft mirror (centered art + blurred sides)" Tag="SoftMirror" />
                         </ComboBox>
+                        <StackPanel Spacing="6" Margin="0,4,0,4">
+                            <TextBlock Text="The pill while music plays" FontWeight="SemiBold" FontSize="14" />
+                            <TextBlock Text="&quot;With the name&quot;: the track and a bar of its time. &quot;Mini player&quot;: the cover, the bar and the buttons; a click opens the island, not the cursor. &quot;With the words&quot;: the line being sung (needs &quot;Show lyrics beside the player&quot; below)."
+                                       FontSize="12" Opacity="0.65" TextWrapping="Wrap" MaxWidth="560" />
+                            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="4"
+                                    HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button x:Name="MediaPillUsualBtn" Content="Usual" Tag="Usual"
+                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                    <Button x:Name="MediaPillWithNameBtn" Content="With the name" Tag="WithName"
+                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                    <Button x:Name="MediaPillMiniPlayerBtn" Content="Mini player" Tag="MiniPlayer"
+                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                    <Button x:Name="MediaPillWithWordsBtn" Content="With the words" Tag="WithWords"
+                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         <ToggleSwitch x:Name="LyricsToggle"
                                       Header="Show lyrics beside the player"
                                       Toggled="OnSettingChanged" />

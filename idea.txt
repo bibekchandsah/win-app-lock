@@ -506,13 +506,13 @@ fixed - Reminders understand a date in words ("November 19 at 4 pm"), for a day 
 fixed - in setting page can we add the screenshot and user can set the path for storing screenshot which user takes from hometab "full screen", show the default path and if user don't like it then they can set their own
 fixed - in weather tab of left side card of right side "down arrow" isn't working
 fixed - visibility page toggles settings aren't working 
+fixed - through mode 
 
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 
 the pills while music plays 
-through mode 
 the song's words
 the words in the player on home
 downloads on live cards

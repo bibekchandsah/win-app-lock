@@ -266,6 +266,7 @@ public sealed class WindowIslandSettings
 
     /// <summary>Home tab player visual style: "Compact", "Fill", or "SoftMirror".</summary>
     public string MediaPlayerStyle    { get; set; } = "Compact";
+    public string MediaPillMode       { get; set; } = "Usual";
 
     // ── Milestone 13: Chat Tab (WebView2) ────────────────────────────────────
     /// <summary>List of AI chat sites available as sub-tabs (defaults: Gemini, DeepSeek, ChatGPT; max 6).</summary>
