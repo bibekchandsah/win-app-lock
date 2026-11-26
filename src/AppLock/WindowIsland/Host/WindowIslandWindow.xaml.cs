@@ -2138,7 +2138,7 @@ public sealed partial class WindowIslandWindow : Window
             PrimaryActionLabel: "Open"));
     }
 
-    private void OnDownloadProgress(long bytes, double speedBytesPerSec)
+    private void OnDownloadProgress(string fileName, long bytes, double speedBytesPerSec)
     {
         if (!_settings.CardDownloadsEnabled) return;
         string sizeText = FormatDownloadSize(bytes);
@@ -2150,11 +2150,12 @@ public sealed partial class WindowIslandWindow : Window
             Kind: "download-progress",
             Icon: "\uE896",
             Title: "Downloading...",
-            Detail: statusText,
+            Detail: fileName,
             AccentHex: "#8C9EFF",
             Priority: WindowIslandCardPriority.DownloadProgress,
             StayMs: 3500,
-            IsStacked: false));
+            IsStacked: true,
+            TagId: statusText));
     }
 
     private void OnDownloadCancelled()
@@ -2308,7 +2309,8 @@ public sealed partial class WindowIslandWindow : Window
 
         if (card.IsStacked)
         {
-            _activeCardW = hasActions ? 400f : 330f;
+            bool isDownloadProgress = card.Kind == "download-progress";
+            _activeCardW = (hasActions || isDownloadProgress) ? 400f : 330f;
             _activeCardH = 58f;
             CardLayer.Width = _activeCardW;
             CardLayer.Height = _activeCardH;
@@ -2317,13 +2319,24 @@ public sealed partial class WindowIslandWindow : Window
             CardTitle.Visibility = Visibility.Collapsed;
             CardDetail.Visibility = Visibility.Collapsed;
             CardProgressBar.Visibility = Visibility.Collapsed;
-            CardValueText.Visibility = Visibility.Collapsed;
+            if (isDownloadProgress)
+            {
+                CardValueText.Text = card.TagId ?? string.Empty;
+                CardValueText.Foreground = new SolidColorBrush(AdaptiveInkColor(175));
+                CardValueText.FontWeight = FontWeights.Normal;
+                CardValueText.MinWidth = 70;
+                CardValueText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CardValueText.Visibility = Visibility.Collapsed;
+            }
 
             CardStackedTitle.Text = card.Title;
             CardStackedDetail.Text = card.Detail;
             CardStackedDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
             bool isMicWarnCard = card.Kind == "mic-in-use";
-            double maxTextW = hasActions ? (isMicWarnCard ? 245.0 : 200.0) : 250.0;
+            double maxTextW = isDownloadProgress ? 200.0 : (hasActions ? (isMicWarnCard ? 245.0 : 200.0) : 250.0);
             CardStackedTitle.MaxWidth = maxTextW;
             CardStackedDetail.MaxWidth = maxTextW;
             CardStackedTextPanel.Visibility = Visibility.Visible;
@@ -2398,10 +2411,10 @@ public sealed partial class WindowIslandWindow : Window
                 CardIconBadge.Width = 34;
                 CardIconBadge.Height = 34;
                 CardIconBadge.CornerRadius = new CornerRadius(17);
-                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use" || card.Kind == "audio-output-changed" || card.Kind == "audio-input-changed")
+                CardIconBadge.Background = (hasActions || card.Kind == "bt-battery" || card.Kind == "weather-rain" || card.Kind == "cam-in-use" || card.Kind == "audio-output-changed" || card.Kind == "audio-input-changed" || card.Kind == "download-progress" || card.Kind == "download-done")
                     ? new SolidColorBrush(Windows.UI.Color.FromArgb(42, accentColor.R, accentColor.G, accentColor.B))
                     : new SolidColorBrush(AdaptiveSurfaceColor(34));
-                CardIcon.FontSize = 15;
+                CardIcon.FontSize = card.Kind == "download-progress" ? 12 : 15;
             }
         }
         else
@@ -2476,6 +2489,11 @@ public sealed partial class WindowIslandWindow : Window
             _compositor?.AnimateToCard(_activeCardW, _activeCardH);
             FadeVisual(_foldedVisual, 0f, 100);
             FadeVisual(_cardVisual, 1f, 160, delayMs: 40);
+            UpdateHitRegion(open: false, isCard: true);
+        }
+        else
+        {
+            _compositor?.AnimateToCard(_activeCardW, _activeCardH);
             UpdateHitRegion(open: false, isCard: true);
         }
     }

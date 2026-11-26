@@ -5,7 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.UI.Dispatching;
 using AppLock.Services;
 using AppLock.Services.Audio;
@@ -658,8 +661,12 @@ public sealed class DownloadCardSource : IDisposable
     private double _smoothedSpeed;
     private string _lastCompletedPath = string.Empty;
     private long _lastCompletedTickMs;
+    private string _resolvedTempPath = string.Empty;
+    private string _resolvedRealName = string.Empty;
+    private bool _resolvingName;
+    private static readonly Regex UnconfirmedRegex = new(@"^Unconfirmed\s+\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public event Action<long, double>? Progress;
+    public event Action<string, long, double>? Progress;
     public event Action<string, long>? Completed;
     public event Action? Cancelled;
 
@@ -825,6 +832,8 @@ public sealed class DownloadCardSource : IDisposable
         _activeTempPath = null;
         _lastBytes = -1;
         _smoothedSpeed = 0;
+        _resolvedTempPath = string.Empty;
+        _resolvedRealName = string.Empty;
     }
 
     private void PollActiveTemp()
@@ -856,9 +865,110 @@ public sealed class DownloadCardSource : IDisposable
             }
             _lastBytes = bytes;
             _lastTickMs = now;
-            Progress?.Invoke(bytes, _smoothedSpeed);
+            string displayName = Path.GetFileNameWithoutExtension(_activeTempPath);
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = Path.GetFileName(_activeTempPath);
+
+            if (UnconfirmedRegex.IsMatch(displayName))
+            {
+                if (string.Equals(_resolvedTempPath, _activeTempPath, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(_resolvedRealName))
+                {
+                    displayName = _resolvedRealName;
+                }
+                else
+                {
+                    string tempPath = _activeTempPath;
+                    if (!_resolvingName)
+                    {
+                        _resolvingName = true;
+                        _ = Task.Run(() =>
+                        {
+                            string? resolved = TryResolveChromiumTargetName(tempPath);
+                            _queue.TryEnqueue(() =>
+                            {
+                                if (string.Equals(_activeTempPath, tempPath, StringComparison.OrdinalIgnoreCase) &&
+                                    !string.IsNullOrWhiteSpace(resolved))
+                                {
+                                    _resolvedTempPath = tempPath;
+                                    _resolvedRealName = resolved;
+                                }
+                                _resolvingName = false;
+                            });
+                        });
+                    }
+                    displayName = string.Empty;
+                }
+            }
+
+            Progress?.Invoke(displayName, bytes, _smoothedSpeed);
         }
         catch { }
+    }
+
+    private static string? TryResolveChromiumTargetName(string tempPath)
+    {
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string[] userDataRoots =
+        {
+            Path.Combine(localAppData, "Google", "Chrome", "User Data"),
+            Path.Combine(localAppData, "Microsoft", "Edge", "User Data"),
+            Path.Combine(localAppData, "BraveSoftware", "Brave-Browser", "User Data"),
+            Path.Combine(localAppData, "Vivaldi", "User Data"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Opera Software", "Opera Stable")
+        };
+
+        var historyFiles = new List<FileInfo>();
+        foreach (string root in userDataRoots)
+        {
+            if (!Directory.Exists(root)) continue;
+            string direct = Path.Combine(root, "History");
+            if (File.Exists(direct)) historyFiles.Add(new FileInfo(direct));
+            string def = Path.Combine(root, "Default", "History");
+            if (File.Exists(def)) historyFiles.Add(new FileInfo(def));
+            try
+            {
+                foreach (string dir in Directory.GetDirectories(root, "Profile *"))
+                {
+                    string pHist = Path.Combine(dir, "History");
+                    if (File.Exists(pHist)) historyFiles.Add(new FileInfo(pHist));
+                }
+            }
+            catch { }
+        }
+
+        string tempFileName = Path.GetFileName(tempPath);
+        string tmpCopy = Path.Combine(Path.GetTempPath(), $"applock_dl_{Guid.NewGuid():N}.db");
+        foreach (var hf in historyFiles.OrderByDescending(f => f.LastWriteTimeUtc))
+        {
+            try
+            {
+                using (var src = new FileStream(hf.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var dst = new FileStream(tmpCopy, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    src.CopyTo(dst);
+                }
+
+                using var conn = new SqliteConnection($"Data Source={tmpCopy};Mode=ReadOnly");
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT target_path FROM downloads WHERE current_path = @p OR current_path LIKE @like ORDER BY id DESC LIMIT 1;";
+                cmd.Parameters.AddWithValue("@p", tempPath);
+                cmd.Parameters.AddWithValue("@like", "%" + tempFileName);
+                var result = cmd.ExecuteScalar() as string;
+                if (!string.IsNullOrWhiteSpace(result))
+                {
+                    string name = Path.GetFileName(result);
+                    if (!string.IsNullOrWhiteSpace(name)) return name;
+                }
+            }
+            catch { }
+            finally
+            {
+                try { if (File.Exists(tmpCopy)) File.Delete(tmpCopy); } catch { }
+            }
+        }
+        return null;
     }
 
     private void ReportCompleted(string path)
