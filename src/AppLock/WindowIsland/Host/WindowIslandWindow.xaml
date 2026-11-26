@@ -625,12 +625,21 @@
                             CornerRadius="17"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                        <FontIcon x:Name="CardIcon"
-                                  Glyph="&#xE7BA;"
-                                  FontSize="14"
-                                  Foreground="{ThemeResource IslandCyanAccent}"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center" />
+                        <Grid>
+                            <ProgressRing x:Name="CardDownloadRing"
+                                          Width="24" Height="24"
+                                          IsActive="True"
+                                          Foreground="#FF8C9EFF"
+                                          Visibility="Collapsed"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            <FontIcon x:Name="CardIcon"
+                                      Glyph="&#xE7BA;"
+                                      FontSize="14"
+                                      Foreground="{ThemeResource IslandCyanAccent}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <Border x:Name="CardThumbBorder"
                             Width="44"

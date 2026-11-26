@@ -508,13 +508,13 @@ fixed - in weather tab of left side card of right side "down arrow" isn't workin
 fixed - visibility page toggles settings aren't working 
 fixed - through mode 
 fixed - the pills while music plays 
+fixed - downloads on live cards
 
 setting page optimization with description 
 theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 
-downloads on live cards
-
+when another microphone is in use other than system microphone like earbud microphone then in notch and before 'quiet" it don't show microphone icon with active app tooltip and 
 
 
 

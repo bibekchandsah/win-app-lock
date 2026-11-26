@@ -61,6 +61,7 @@ public sealed class WindowIslandSettings
     public bool CardBrightnessEnabled { get; set; } = true;
     public bool CardClipboardEnabled  { get; set; } = true;
     public bool CardScreenshotEnabled { get; set; } = true;
+    public bool CardDownloadsEnabled  { get; set; } = true;
 
     public static System.Collections.Generic.List<string> ParseCustomKeyWarnings(string? raw)
     {

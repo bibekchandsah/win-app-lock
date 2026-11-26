@@ -137,6 +137,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardVolumeToggle.IsOn     = s.CardVolumeEnabled;
         CardClipboardToggle.IsOn  = s.CardClipboardEnabled;
         CardScreenshotToggle.IsOn = s.CardScreenshotEnabled;
+        CardDownloadsToggle.IsOn  = s.CardDownloadsEnabled;
         CardVpnToggle.IsOn        = s.CardVpnEnabled;
         CardBatteryLowToggle.IsOn = s.CardBatteryLowEnabled;
         CardChargingToggle.IsOn   = s.CardChargingEnabled;
@@ -462,6 +463,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.CardVolumeEnabled     = CardVolumeToggle.IsOn;
         s.CardClipboardEnabled  = CardClipboardToggle.IsOn;
         s.CardScreenshotEnabled = CardScreenshotToggle.IsOn;
+        s.CardDownloadsEnabled  = CardDownloadsToggle.IsOn;
         s.CardStayDuration      = TagOf(CardStayBox) ?? s.CardStayDuration;
         s.CardVpnEnabled        = CardVpnToggle.IsOn;
         s.CardBatteryLowEnabled = CardBatteryLowToggle.IsOn;

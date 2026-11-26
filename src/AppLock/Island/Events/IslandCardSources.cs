@@ -633,6 +633,262 @@ public sealed class ScreenshotCardSource : IDisposable
     }
 }
 
+/// <summary>
+/// Watches the user's Downloads folder for in-progress browser/app downloads (.crdownload, .part, etc.)
+/// and completed downloads, reporting live size/speed and finished file details.
+/// </summary>
+public sealed class DownloadCardSource : IDisposable
+{
+    private static readonly Guid FolderIdDownloads = new("374DE290-123F-4565-9164-39C4925E467B");
+    private static readonly HashSet<string> TempExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".crdownload", ".part", ".opdownload", ".download", ".tmp", ".partial", ".aria2", ".!ut"
+    };
+
+    [DllImport("shell32.dll")]
+    private static extern int SHGetKnownFolderPath(ref Guid rfid, uint dwFlags, nint hToken, out nint ppszPath);
+
+    private readonly DispatcherQueue _queue;
+    private readonly DispatcherQueueTimer _pollTimer;
+    private FileSystemWatcher? _watcher;
+    private string _folder = string.Empty;
+    private string? _activeTempPath;
+    private long _lastBytes = -1;
+    private long _lastTickMs;
+    private double _smoothedSpeed;
+    private string _lastCompletedPath = string.Empty;
+    private long _lastCompletedTickMs;
+
+    public event Action<long, double>? Progress;
+    public event Action<string, long>? Completed;
+    public event Action? Cancelled;
+
+    public DownloadCardSource(DispatcherQueue queue)
+    {
+        _queue = queue;
+        _pollTimer = queue.CreateTimer();
+        _pollTimer.Interval = TimeSpan.FromMilliseconds(650);
+        _pollTimer.IsRepeating = true;
+        _pollTimer.Tick += (_, _) => PollActiveTemp();
+    }
+
+    public static string GetDefaultDownloadsFolder()
+    {
+        try
+        {
+            Guid g = FolderIdDownloads;
+            if (SHGetKnownFolderPath(ref g, 0, nint.Zero, out nint pPath) == 0 && pPath != nint.Zero)
+            {
+                try
+                {
+                    string? path = Marshal.PtrToStringUni(pPath);
+                    if (!string.IsNullOrWhiteSpace(path)) return path;
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(pPath);
+                }
+            }
+        }
+        catch { }
+
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+    }
+
+    public void Start()
+    {
+        Stop();
+        try
+        {
+            _folder = GetDefaultDownloadsFolder();
+            if (!Directory.Exists(_folder)) return;
+
+            _watcher = new FileSystemWatcher(_folder)
+            {
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
+                IncludeSubdirectories = false,
+                EnableRaisingEvents = true
+            };
+            _watcher.Created += (_, e) => OnFsEvent(e.FullPath, isDelete: false);
+            _watcher.Changed += (_, e) => OnFsEvent(e.FullPath, isDelete: false);
+            _watcher.Renamed += (_, e) => OnRenamedEvent(e.OldFullPath, e.FullPath);
+            _watcher.Deleted += (_, e) => OnFsEvent(e.FullPath, isDelete: true);
+            _watcher.Error += (_, _) => _queue.TryEnqueue(Start);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] downloads watcher failed: {ex.Message}");
+        }
+    }
+
+    public void Stop()
+    {
+        _pollTimer.Stop();
+        _activeTempPath = null;
+        if (_watcher == null) return;
+        _watcher.EnableRaisingEvents = false;
+        _watcher.Dispose();
+        _watcher = null;
+    }
+
+    private static bool IsTempFile(string path) =>
+        TempExtensions.Contains(Path.GetExtension(path));
+
+    private static bool IsIgnoredFile(string path)
+    {
+        string name = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(name)) return true;
+        if (name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return true;
+        if (name.StartsWith("~$", StringComparison.Ordinal)) return true;
+        try
+        {
+            if (Directory.Exists(path)) return true;
+            if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.Hidden) != 0) return true;
+        }
+        catch { }
+        return false;
+    }
+
+    private void OnRenamedEvent(string oldPath, string newPath)
+    {
+        _queue.TryEnqueue(() =>
+        {
+            if (IsIgnoredFile(newPath)) return;
+            if (IsTempFile(newPath))
+            {
+                TrackTemp(newPath);
+                return;
+            }
+
+            // Browser renamed temp file -> final file, or new completed file appeared
+            if (string.Equals(_activeTempPath, oldPath, StringComparison.OrdinalIgnoreCase) || IsTempFile(oldPath))
+            {
+                ClearTempTracking();
+            }
+            ReportCompleted(newPath);
+        });
+    }
+
+    private void OnFsEvent(string path, bool isDelete)
+    {
+        _queue.TryEnqueue(() =>
+        {
+            if (isDelete)
+            {
+                if (!string.IsNullOrEmpty(_activeTempPath) &&
+                    string.Equals(_activeTempPath, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    ClearTempTracking();
+                    Cancelled?.Invoke();
+                }
+                return;
+            }
+
+            if (IsIgnoredFile(path)) return;
+
+            if (IsTempFile(path))
+            {
+                TrackTemp(path);
+                return;
+            }
+
+            // Firefox creates a 0-byte target file alongside <name>.part; wait for .part to finish.
+            if (File.Exists(path + ".part")) return;
+
+            if (!string.IsNullOrEmpty(_activeTempPath) &&
+                !File.Exists(_activeTempPath))
+            {
+                ClearTempTracking();
+            }
+
+            ReportCompleted(path);
+        });
+    }
+
+    private void TrackTemp(string path)
+    {
+        bool isNew = !string.Equals(_activeTempPath, path, StringComparison.OrdinalIgnoreCase);
+        _activeTempPath = path;
+        if (isNew)
+        {
+            _lastBytes = -1;
+            _lastTickMs = Environment.TickCount64;
+            _smoothedSpeed = 0;
+        }
+        if (!_pollTimer.IsRunning) _pollTimer.Start();
+        if (isNew) PollActiveTemp();
+    }
+
+    private void ClearTempTracking()
+    {
+        _pollTimer.Stop();
+        _activeTempPath = null;
+        _lastBytes = -1;
+        _smoothedSpeed = 0;
+    }
+
+    private void PollActiveTemp()
+    {
+        if (string.IsNullOrEmpty(_activeTempPath))
+        {
+            _pollTimer.Stop();
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(_activeTempPath))
+            {
+                ClearTempTracking();
+                return;
+            }
+
+            long bytes = new FileInfo(_activeTempPath).Length;
+            long now = Environment.TickCount64;
+            if (_lastBytes >= 0)
+            {
+                double dt = (now - _lastTickMs) / 1000.0;
+                if (dt >= 0.2 && bytes >= _lastBytes)
+                {
+                    double instant = (bytes - _lastBytes) / dt;
+                    _smoothedSpeed = _smoothedSpeed <= 0 ? instant : (_smoothedSpeed * 0.55 + instant * 0.45);
+                }
+            }
+            _lastBytes = bytes;
+            _lastTickMs = now;
+            Progress?.Invoke(bytes, _smoothedSpeed);
+        }
+        catch { }
+    }
+
+    private void ReportCompleted(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            long now = Environment.TickCount64;
+            if (string.Equals(_lastCompletedPath, path, StringComparison.OrdinalIgnoreCase) &&
+                now - _lastCompletedTickMs < 2500)
+            {
+                return;
+            }
+
+            long bytes = new FileInfo(path).Length;
+            if (bytes <= 0) return;
+
+            _lastCompletedPath = path;
+            _lastCompletedTickMs = now;
+            Completed?.Invoke(path, bytes);
+        }
+        catch { }
+    }
+
+    public void Dispose()
+    {
+        Stop();
+    }
+}
+
 /// <summary>System volume through the existing NAudio wrapper, one default-device call at a time.</summary>
 public sealed class IslandVolumeController : IDisposable
 {

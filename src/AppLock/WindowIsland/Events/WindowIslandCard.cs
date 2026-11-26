@@ -14,6 +14,8 @@ public enum WindowIslandCardPriority
     CapsLock = 20,
     Clipboard = 30,
     Screenshot = 30,
+    DownloadProgress = 25,
+    Download = 35,
     Battery = 40,
     Rain = 50,
     Vpn = 60,

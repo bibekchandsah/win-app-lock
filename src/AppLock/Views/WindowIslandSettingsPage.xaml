@@ -401,6 +401,10 @@
                         <ToggleSwitch x:Name="CardVolumeToggle" Header="Volume adjustments (+ mouse wheel)" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardClipboardToggle" Header="Clipboard copy (text and images)" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardScreenshotToggle" Header="Screenshot saved alert" Toggled="OnSettingChanged" />
+                        <StackPanel Spacing="2">
+                            <ToggleSwitch x:Name="CardDownloadsToggle" Header="Downloads" Toggled="OnSettingChanged" />
+                            <TextBlock Text="Progress and a card with the finished file" FontSize="12" Opacity="0.6" Margin="0,-4,0,0" />
+                        </StackPanel>
                         <ToggleSwitch x:Name="CardVpnToggle" Header="VPN connect / disconnect" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardBatteryLowToggle" Header="Low battery alert (20 %, 10 %, 5 %)" Toggled="OnSettingChanged" />
                         <ToggleSwitch x:Name="CardChargingToggle" Header="Charger plugged / unplugged" Toggled="OnSettingChanged" />

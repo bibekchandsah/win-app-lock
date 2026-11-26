@@ -195,6 +195,9 @@ public sealed partial class WindowIslandWindow : Window
     private IslandVolumeController? _volumeController;
     private ClipboardCardSource?    _clipboardSource;
     private ScreenshotCardSource?   _screenshotSource;
+    private DownloadCardSource?     _downloadSource;
+    private string?                 _lastDownloadPath;
+    private Microsoft.UI.Xaml.Media.Imaging.BitmapImage? _lastDownloadThumb;
 
     // Milestone 5: Home tab
     private WindowIslandHomeState?  _homeState;
@@ -408,6 +411,12 @@ public sealed partial class WindowIslandWindow : Window
         _screenshotSource = new ScreenshotCardSource(DispatcherQueue);
         _screenshotSource.Saved += OnScreenshotSaved;
         _screenshotSource.Start(null);
+
+        _downloadSource = new DownloadCardSource(DispatcherQueue);
+        _downloadSource.Progress += OnDownloadProgress;
+        _downloadSource.Completed += OnDownloadCompleted;
+        _downloadSource.Cancelled += OnDownloadCancelled;
+        _downloadSource.Start();
 
         // Keyboard navigation
         RootGrid.KeyDown += OnKeyDown;
@@ -739,6 +748,8 @@ public sealed partial class WindowIslandWindow : Window
         _clipboardSource = null;
         _screenshotSource?.Dispose();
         _screenshotSource = null;
+        _downloadSource?.Dispose();
+        _downloadSource = null;
         _volumeController?.Dispose();
         _volumeController = null;
         StopVolumeUi();
@@ -2127,6 +2138,127 @@ public sealed partial class WindowIslandWindow : Window
             PrimaryActionLabel: "Open"));
     }
 
+    private void OnDownloadProgress(long bytes, double speedBytesPerSec)
+    {
+        if (!_settings.CardDownloadsEnabled) return;
+        string sizeText = FormatDownloadSize(bytes);
+        string statusText = speedBytesPerSec >= 1024
+            ? $"{sizeText} · {FormatDownloadSize((long)speedBytesPerSec)}/s"
+            : sizeText;
+
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "download-progress",
+            Icon: "\uE896",
+            Title: "Downloading...",
+            Detail: statusText,
+            AccentHex: "#8C9EFF",
+            Priority: WindowIslandCardPriority.DownloadProgress,
+            StayMs: 3500,
+            IsStacked: false));
+    }
+
+    private void OnDownloadCancelled()
+    {
+        if (_eventQueue?.CurrentCard?.Kind == "download-progress")
+        {
+            _eventQueue.Clear();
+        }
+    }
+
+    private async void OnDownloadCompleted(string path, long bytes)
+    {
+        if (!_settings.CardDownloadsEnabled) return;
+
+        _lastDownloadPath = path;
+        _lastDownloadThumb = await LoadShellFileIconAsync(path);
+
+        int stay = Math.Max(_settings.GetCardStayMs(), 6000);
+        string name = Path.GetFileName(path);
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "download-done",
+            Icon: "\uE896",
+            Title: "Downloaded",
+            Detail: $"{name} · {FormatDownloadSize(bytes)}",
+            AccentHex: "#60CDFF",
+            Priority: WindowIslandCardPriority.Download,
+            StayMs: stay,
+            IsStacked: true,
+            PrimaryActionLabel: "__open_folder__"));
+    }
+
+    private static string FormatDownloadSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        double kb = bytes / 1024.0;
+        if (kb < 1024) return $"{kb:F0} KB";
+        double mb = kb / 1024.0;
+        if (mb < 10) return $"{mb:F1} MB";
+        if (mb < 1024) return $"{mb:F0} MB";
+        double gb = mb / 1024.0;
+        return $"{gb:F2} GB";
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHFILEINFO
+    {
+        public nint hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(nint hIcon);
+
+    private static async Task<Microsoft.UI.Xaml.Media.Imaging.BitmapImage?> LoadShellFileIconAsync(string path)
+    {
+        try
+        {
+            byte[]? pngBytes = await Task.Run(() =>
+            {
+                var shfi = new SHFILEINFO();
+                const uint SHGFI_ICON = 0x100;
+                const uint SHGFI_LARGEICON = 0x0;
+                nint res = SHGetFileInfo(path, 0, ref shfi, (uint)Marshal.SizeOf<SHFILEINFO>(), SHGFI_ICON | SHGFI_LARGEICON);
+                if (res == nint.Zero || shfi.hIcon == nint.Zero) return null;
+                try
+                {
+                    using var icon = System.Drawing.Icon.FromHandle(shfi.hIcon);
+                    using var bmp = icon.ToBitmap();
+                    using var ms = new MemoryStream();
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    return ms.ToArray();
+                }
+                finally
+                {
+                    DestroyIcon(shfi.hIcon);
+                }
+            });
+
+            if (pngBytes == null || pngBytes.Length == 0) return null;
+            using var ras = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using (var writer = new Windows.Storage.Streams.DataWriter(ras.GetOutputStreamAt(0)))
+            {
+                writer.WriteBytes(pngBytes);
+                await writer.StoreAsync();
+            }
+            ras.Seek(0);
+            var img = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            await img.SetSourceAsync(ras);
+            return img;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Thumbnail for a file on disk. The screenshot watcher can fire while the encoder is still
     /// flushing, so a few short retries are worth it before giving up on the preview.
@@ -2166,6 +2298,10 @@ public sealed partial class WindowIslandWindow : Window
             : new FontFamily("Segoe Fluent Icons");
         CardIcon.Glyph = card.Icon;
         CardIcon.Foreground = cardAccentBrush;
+        if (CardDownloadRing != null)
+        {
+            CardDownloadRing.Visibility = card.Kind == "download-progress" ? Visibility.Visible : Visibility.Collapsed;
+        }
 
         bool hasActions = !string.IsNullOrEmpty(card.PrimaryActionLabel);
         CardLayer.IsHitTestVisible = hasActions;
@@ -2203,10 +2339,32 @@ public sealed partial class WindowIslandWindow : Window
                     CardDismissActionIcon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x11, 0x11, 0x11));
                     ToolTipService.SetToolTip(CardDismissActionBtn, micMuted ? "Unmute microphone" : "Mute microphone system-wide");
                 }
+                else if (card.PrimaryActionLabel == "__open_folder__")
+                {
+                    CardPrimaryActionBtn.Visibility = Visibility.Visible;
+                    CardPrimaryActionBtn.Content = new FontIcon
+                    {
+                        Glyph = "\uE8B7",
+                        FontSize = 13,
+                        Foreground = new SolidColorBrush(AdaptiveInkColor(255))
+                    };
+                    CardPrimaryActionBtn.Width = 30;
+                    CardPrimaryActionBtn.Height = 30;
+                    CardPrimaryActionBtn.Padding = new Thickness(0);
+                    CardPrimaryActionBtn.CornerRadius = new CornerRadius(15);
+                    ToolTipService.SetToolTip(CardPrimaryActionBtn, "Show in folder");
+                    CardDismissActionBtn.Visibility = Visibility.Collapsed;
+                }
                 else
                 {
                     CardPrimaryActionBtn.Visibility = Visibility.Visible;
+                    CardPrimaryActionBtn.Width = double.NaN;
+                    CardPrimaryActionBtn.Height = 28;
+                    CardPrimaryActionBtn.Padding = new Thickness(12, 0, 12, 0);
+                    CardPrimaryActionBtn.CornerRadius = new CornerRadius(14);
                     CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
+                    ToolTipService.SetToolTip(CardPrimaryActionBtn, null);
+                    CardDismissActionBtn.Visibility = Visibility.Visible;
                     CardDismissActionBtn.Background = new SolidColorBrush(AdaptiveInkColor(255));
                     CardDismissActionIcon.Glyph = "\uE73E";
                     CardDismissActionIcon.Foreground = new SolidColorBrush(AdaptiveInverseInkColor(255));
@@ -2218,6 +2376,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 "clipboard" when card.Icon == "\uEB9F" => _lastCopiedThumb,
                 "screenshot" => _lastScreenshotThumb,
+                "download-done" => _lastDownloadThumb,
                 _ => null
             };
 
@@ -2268,12 +2427,32 @@ public sealed partial class WindowIslandWindow : Window
             CardDetail.Text = card.Detail;
             CardDetail.Visibility = string.IsNullOrEmpty(card.Detail) ? Visibility.Collapsed : Visibility.Visible;
 
-            if (card.Value >= 0)
+            if (card.Kind == "download-progress")
+            {
+                _activeCardW = 340f;
+                CardLayer.Width = _activeCardW;
+                CardIconBadge.Width = 26;
+                CardIconBadge.Height = 26;
+                CardIcon.FontSize = 11;
+                CardIcon.Foreground = new SolidColorBrush(AdaptiveInkColor(255));
+                CardDetail.Visibility = Visibility.Collapsed;
+                CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+                CardProgressBar.Visibility = Visibility.Collapsed;
+                CardValueText.Text = card.Detail;
+                CardValueText.Foreground = new SolidColorBrush(AdaptiveInkColor(175));
+                CardValueText.FontWeight = FontWeights.Normal;
+                CardValueText.MinWidth = 70;
+                CardValueText.Visibility = Visibility.Visible;
+            }
+            else if (card.Value >= 0)
             {
                 CardContentGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
                 CardProgressBar.Foreground = cardAccentBrush;
                 CardProgressBar.Value = card.Value;
                 CardProgressBar.Visibility = Visibility.Visible;
+                CardValueText.Foreground = new SolidColorBrush(AdaptiveInkColor(255));
+                CardValueText.FontWeight = FontWeights.SemiBold;
+                CardValueText.MinWidth = 34;
                 CardValueText.Text = $"{card.Value}%";
                 CardValueText.Visibility = Visibility.Visible;
             }
@@ -2316,6 +2495,18 @@ public sealed partial class WindowIslandWindow : Window
         else if (_activeCardKind == "screenshot" && !string.IsNullOrEmpty(_lastScreenshotPath))
         {
             OpenScreenshot(_lastScreenshotPath);
+        }
+        else if (_activeCardKind == "download-done" && !string.IsNullOrEmpty(_lastDownloadPath))
+        {
+            try
+            {
+                if (File.Exists(_lastDownloadPath))
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        "explorer.exe", $"/select,\"{_lastDownloadPath}\"") { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex) { WindowIslandHost.Log("OpenDownloadFolder: " + ex.Message); }
         }
         _eventQueue?.Clear();
     }
