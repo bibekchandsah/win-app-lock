@@ -206,12 +206,7 @@
                                                     <Setter Target="Root.Background" Value="{ThemeResource IslandSurfaceHover}" />
                                                 </VisualState.Setters>
                                             </VisualState>
-                                            <VisualState x:Name="Checked">
-                                                <VisualState.Setters>
-                                                    <Setter Target="Root.Background" Value="{ThemeResource IslandSurfacePressed}" />
-                                                    <Setter Target="Root.BorderBrush" Value="{ThemeResource IslandCyanAccent}" />
-                                                </VisualState.Setters>
-                                            </VisualState>
+                                            <VisualState x:Name="Checked" />
                                         </VisualStateGroup>
                                     </VisualStateManager.VisualStateGroups>
                                 </Border>
@@ -791,8 +786,8 @@
                                       ToolTipService.ToolTip="Quiet — pause live cards"
                                       Click="OnQuietClick">
                             <StackPanel Orientation="Horizontal" Spacing="3">
-                                <FontIcon Glyph="&#xE74F;" FontSize="11" />
-                                <TextBlock Text="Quiet" FontSize="10" />
+                                <FontIcon x:Name="QuietButtonIcon" Glyph="&#xE74F;" FontSize="11" />
+                                <TextBlock x:Name="QuietButtonText" Text="Quiet" FontSize="10" />
                             </StackPanel>
                         </ToggleButton>
 

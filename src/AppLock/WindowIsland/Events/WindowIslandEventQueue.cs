@@ -30,10 +30,18 @@ public sealed class WindowIslandEventQueue : IDisposable
     private WindowIslandCard? _visible;
     private int _remainingMs;
     private long _holdUntilTicks;
+    private bool _isQuiet;
     private bool _disposed;
 
     public bool HasVisibleCard => _visible != null;
     public WindowIslandCard? CurrentCard => _visible;
+    public bool IsQuiet => _isQuiet;
+
+    public void SetQuiet(bool quiet)
+    {
+        _isQuiet = quiet;
+        if (quiet) Clear();
+    }
 
     public WindowIslandEventQueue(
         DispatcherQueue queue,
@@ -63,7 +71,7 @@ public sealed class WindowIslandEventQueue : IDisposable
 
     public void Push(WindowIslandCard card)
     {
-        if (_disposed) return;
+        if (_disposed || _isQuiet) return;
 
         if (_visible != null)
         {

@@ -371,7 +371,7 @@ public sealed partial class WindowIslandWindow : Window
             onShow: OnShowCard,
             onClear: OnClearCard,
             isHovered: () => _hoverInside,
-            canShow: () => _compositor?.IsOpen != true && _compositor?.IsCommand != true);
+            canShow: () => !_isQuiet && _compositor?.IsOpen != true && _compositor?.IsCommand != true);
 
         _volumeController = new IslandVolumeController();
         InitAudioListener();
@@ -1055,6 +1055,7 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         ApplyTextTabAccent(accentColor);
+        UpdateQuietButtonVisual();
     }
 
     private void ApplyTextTabAccent(Windows.UI.Color accent)
@@ -1119,7 +1120,34 @@ public sealed partial class WindowIslandWindow : Window
     private void OnQuietClick(object sender, RoutedEventArgs e)
     {
         _isQuiet = QuietButton.IsChecked == true;
+        _eventQueue?.SetQuiet(_isQuiet);
+        UpdateQuietButtonVisual();
         WindowIslandHost.Log($"Quiet = {_isQuiet}");
+    }
+
+    private void UpdateQuietButtonVisual()
+    {
+        if (QuietButton == null) return;
+        if (_isQuiet)
+        {
+            var accent = GetSystemAccentColor();
+            var accentBrush = new SolidColorBrush(accent);
+            QuietButton.Background = new SolidColorBrush(ColorHelper.FromArgb(0x28, accent.R, accent.G, accent.B));
+            QuietButton.BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0x90, accent.R, accent.G, accent.B));
+            QuietButton.Foreground = accentBrush;
+            if (QuietButtonIcon != null) QuietButtonIcon.Foreground = accentBrush;
+            if (QuietButtonText != null) QuietButtonText.Foreground = accentBrush;
+            ToolTipService.SetToolTip(QuietButton, "Quiet mode active — live cards paused");
+        }
+        else
+        {
+            QuietButton.ClearValue(Control.BackgroundProperty);
+            QuietButton.ClearValue(Control.BorderBrushProperty);
+            QuietButton.ClearValue(Control.ForegroundProperty);
+            QuietButtonIcon?.ClearValue(IconElement.ForegroundProperty);
+            QuietButtonText?.ClearValue(TextBlock.ForegroundProperty);
+            ToolTipService.SetToolTip(QuietButton, "Quiet — pause live cards");
+        }
     }
 
     private void OnIslandSettingsClick(object sender, RoutedEventArgs e)
