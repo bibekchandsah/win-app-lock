@@ -342,7 +342,7 @@ public sealed partial class WindowIslandWindow : Window
             onShow: OnShowCard,
             onClear: OnClearCard,
             isHovered: () => _hoverInside,
-            canShow: () => _compositor?.IsOpen != true);
+            canShow: () => _compositor?.IsOpen != true && _compositor?.IsCommand != true);
 
         _volumeController = new IslandVolumeController();
         InitAudioListener();
@@ -1269,6 +1269,8 @@ public sealed partial class WindowIslandWindow : Window
 
         FadeVisual(_cardVisual,   0f, IslandMotion.ContentFadeOutMs);
         FadeVisual(_foldedVisual, 0f, IslandMotion.ContentFadeOutMs);
+        FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
+        CommandLayer.IsHitTestVisible = false;
         FadeVisual(_openVisual,   1f, IslandMotion.ContentFadeInMs, IslandMotion.ContentFadeInDelayMs);
 
         _compositor.AnimateToOpen(_activeTab, () =>
@@ -2000,6 +2002,10 @@ public sealed partial class WindowIslandWindow : Window
 
         if (animate)
         {
+            OpenLayer.IsHitTestVisible = false;
+            CommandLayer.IsHitTestVisible = false;
+            FadeVisual(_openVisual, 0f, 80);
+            FadeVisual(_commandVisual, 0f, 80);
             _compositor?.AnimateToCard(_activeCardW, _activeCardH);
             FadeVisual(_foldedVisual, 0f, 100);
             FadeVisual(_cardVisual, 1f, 160, delayMs: 40);
@@ -4333,6 +4339,7 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_compositor == null) return;
         if (!_isVisible) SetIslandVisible(true);
+        if (_eventQueue?.HasVisibleCard == true) _eventQueue.Clear();
 
         _previousForegroundWindow = GetForegroundWindow();
         SetForegroundWindow(_hwnd);
