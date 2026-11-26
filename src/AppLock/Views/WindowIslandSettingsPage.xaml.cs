@@ -150,6 +150,11 @@ public sealed partial class WindowIslandSettingsPage : Page
         CloseDelaySlider.Value        = s.CloseDelayMs;
         FrameStatsToggle.IsOn         = s.ShowFrameStats;
         UpdateDelayLabels();
+        SelectComboItem(DefaultSearchEngineBox, s.DefaultSearchEngine);
+        CustomDefaultSearchUrlBox.Text = s.CustomDefaultSearchUrl ?? string.Empty;
+        CustomDefaultSearchUrlBox.Visibility = string.Equals(s.DefaultSearchEngine, "custom", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         RefreshSearchCommandsList();
 
         _loading = false;
@@ -172,6 +177,19 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnSettingChanged(object sender, RoutedEventArgs e) => Save();
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => Save();
+
+    private void OnDefaultSearchEngineChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CustomDefaultSearchUrlBox != null)
+        {
+            CustomDefaultSearchUrlBox.Visibility = string.Equals(TagOf(DefaultSearchEngineBox), "custom", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        Save();
+    }
+
+    private void OnCustomDefaultSearchUrlChanged(object sender, TextChangedEventArgs e) => Save();
 
     private void OnCheckChanged(object sender, RoutedEventArgs e) => Save();
 
@@ -233,6 +251,8 @@ public sealed partial class WindowIslandSettingsPage : Page
             s.ChatIdleMinutes = AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.ClampIdleMinutes(idleMin);
         }
         s.Hotkey        = HotkeyBox.Text.Trim();
+        s.DefaultSearchEngine    = TagOf(DefaultSearchEngineBox) ?? "google";
+        s.CustomDefaultSearchUrl = CustomDefaultSearchUrlBox.Text.Trim();
 
         // Controls Tab Add-on
         s.Controls.CloseIslandAfterCard            = ControlsCloseAfterCardToggle.IsOn;

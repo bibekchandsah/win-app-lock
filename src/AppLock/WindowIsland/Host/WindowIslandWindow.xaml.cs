@@ -4555,10 +4555,25 @@ public sealed partial class WindowIslandWindow : Window
         }
         else
         {
-            await (_commandService?.ExecuteAsync(item, idx => SwitchTab(idx), () => OnIslandSettingsClick(this, new RoutedEventArgs())) ?? Task.CompletedTask);
+            bool switchedTab = false;
+            await (_commandService?.ExecuteAsync(item, idx =>
+            {
+                switchedTab = true;
+                OpenTabFromCommandBar(idx);
+            }, () => OnIslandSettingsClick(this, new RoutedEventArgs())) ?? Task.CompletedTask);
+
+            if (switchedTab) return;
         }
 
         CloseCommandBar();
+    }
+
+    private void OpenTabFromCommandBar(int tabIndex)
+    {
+        CommandLayer.IsHitTestVisible = false;
+        FadeVisual(_commandVisual, 0f, IslandMotion.ContentFadeOutMs);
+        SwitchTab(tabIndex, animate: false);
+        Expand();
     }
 
     private async void CommandInput_KeyDown(object sender, KeyRoutedEventArgs e)

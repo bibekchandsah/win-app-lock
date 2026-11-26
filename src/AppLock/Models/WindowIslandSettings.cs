@@ -126,6 +126,33 @@ public sealed class WindowIslandSettings
     }
 
     // ── Milestone 8: Command Bar & Web Searches (@) ──────────────────────────
+    /// <summary>Default search engine used for plain web searches in the Command Bar ("google", "bing", "duckduckgo", "custom").</summary>
+    public string DefaultSearchEngine { get; set; } = "google";
+
+    /// <summary>Custom search URL template (e.g. "https://example.com/search?q={query}") when DefaultSearchEngine is "custom".</summary>
+    public string CustomDefaultSearchUrl { get; set; } = string.Empty;
+
+    public (string Name, string Url, string AccentHex) ResolveDefaultSearchEngine()
+    {
+        return (DefaultSearchEngine ?? "google").ToLowerInvariant() switch
+        {
+            "bing"       => ("Bing",       "https://www.bing.com/search?q=",   "#008373"),
+            "duckduckgo" => ("DuckDuckGo", "https://duckduckgo.com/?q=",        "#DE5833"),
+            "custom" when !string.IsNullOrWhiteSpace(CustomDefaultSearchUrl)
+                         => ("Custom",     CustomDefaultSearchUrl.Trim(),      "#60CDFF"),
+            _            => ("Google",     "https://www.google.com/search?q=", "#4285F4")
+        };
+    }
+
+    public string BuildDefaultSearchUrl(string query)
+    {
+        var (_, baseUrl, _) = ResolveDefaultSearchEngine();
+        string encoded = Uri.EscapeDataString(query);
+        if (baseUrl.Contains("{query}", StringComparison.OrdinalIgnoreCase))
+            return baseUrl.Replace("{query}", encoded, StringComparison.OrdinalIgnoreCase);
+        return baseUrl + encoded;
+    }
+
     /// <summary>Configurable list of search engine shortcuts in the Command Bar (e.g. "@youtube nepali music").</summary>
     public System.Collections.Generic.List<CustomSearchCommand> CustomSearches { get; set; } = DefaultCustomSearches();
 

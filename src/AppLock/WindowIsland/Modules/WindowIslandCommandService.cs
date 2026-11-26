@@ -117,16 +117,18 @@ public sealed class WindowIslandCommandService
                         ActionData = exactMatch.IsIncognito ? $"incognito:{targetUrl}" : targetUrl
                     });
 
-                    if (!exactMatch.Command.Equals("@google", StringComparison.OrdinalIgnoreCase))
+                    var (defName, _, defAccent) = _settings.ResolveDefaultSearchEngine();
+                    if (!exactMatch.Command.Equals("@google", StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(defName, "Google", StringComparison.OrdinalIgnoreCase))
                     {
                         results.Add(new CommandBarItem
                         {
-                            Title = $"Search Google: \"{searchTerm}\"",
-                            Subtitle = "Search with default browser on Google",
+                            Title = $"Search {defName}: \"{searchTerm}\"",
+                            Subtitle = $"Search with default browser on {defName}",
                             IconGlyph = "\uE721",
-                            AccentHex = "#4285F4",
+                            AccentHex = defAccent,
                             Kind = CommandItemKind.WebSearch,
-                            ActionData = $"https://www.google.com/search?q={Uri.EscapeDataString(searchTerm)}"
+                            ActionData = _settings.BuildDefaultSearchUrl(searchTerm)
                         });
                     }
 
@@ -385,15 +387,16 @@ public sealed class WindowIslandCommandService
             });
         }
 
-        // 5. Fallback: Search across web engines
+        // 5. Fallback: Search across configured default web engine
+        var (engineName, _, engineAccent) = _settings.ResolveDefaultSearchEngine();
         results.Add(new CommandBarItem
         {
-            Title = $"Search Google: \"{query}\"",
-            Subtitle = "Search with default browser on Google",
+            Title = $"Search {engineName}: \"{query}\"",
+            Subtitle = $"Search with default browser on {engineName}",
             IconGlyph = "\uE774",
-            AccentHex = "#4285F4",
+            AccentHex = engineAccent,
             Kind = CommandItemKind.WebSearch,
-            ActionData = $"https://www.google.com/search?q={Uri.EscapeDataString(query)}"
+            ActionData = _settings.BuildDefaultSearchUrl(query)
         });
 
         results.Add(new CommandBarItem

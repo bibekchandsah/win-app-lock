@@ -408,6 +408,32 @@
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="16">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Default Command Search Engine" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="Choose which search engine opens when you type a plain query in the Command Bar."
+                                           FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
+                                <ComboBox x:Name="DefaultSearchEngineBox"
+                                          Header="Search engine"
+                                          Width="220"
+                                          SelectionChanged="OnDefaultSearchEngineChanged">
+                                    <ComboBoxItem Content="Google" Tag="google" />
+                                    <ComboBoxItem Content="Bing" Tag="bing" />
+                                    <ComboBoxItem Content="DuckDuckGo" Tag="duckduckgo" />
+                                    <ComboBoxItem Content="Custom" Tag="custom" />
+                                </ComboBox>
+                                <TextBox x:Name="CustomDefaultSearchUrlBox"
+                                         Header="Custom search URL"
+                                         PlaceholderText="https://example.com/search?q={query}"
+                                         Visibility="Collapsed"
+                                         TextChanged="OnCustomDefaultSearchUrlChanged" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="Quick Web Searches in Command Bar" FontWeight="SemiBold" FontSize="13" />
                                 <TextBlock Text="Type @command followed by your search term in the Command Bar (e.g. @youtube nepali music, @github winui, @amazon laptop). You can add custom searches or reset to defaults below."
