@@ -95,11 +95,17 @@ public sealed class WindowIslandCommandService
                 }
             }
 
+            var searches = _settings.GetCustomSearches();
+            if (TryBuildMultiAtCommandResults(query, searches, results))
+            {
+                if (results.Count > 0) results[0].IsSelected = true;
+                return results;
+            }
+
             int spaceIndex = query.IndexOf(' ');
             string cmdTag = (spaceIndex > 0 ? query[..spaceIndex] : query).Trim();
             string searchTerm = (spaceIndex > 0 ? query[(spaceIndex + 1)..].Trim() : string.Empty);
 
-            var searches = _settings.GetCustomSearches();
             var exactMatch = searches.FirstOrDefault(s => MatchesCommand(s, cmdTag));
 
             if (exactMatch != null)
@@ -569,6 +575,14 @@ public sealed class WindowIslandCommandService
     {
         if (string.IsNullOrWhiteSpace(actionData)) return;
 
+        if (actionData.StartsWith("multi:", StringComparison.OrdinalIgnoreCase))
+        {
+            var entries = actionData[6..].Split("|||", StringSplitOptions.RemoveEmptyEntries);
+            foreach (var entry in entries)
+                ExecuteWebSearch(entry);
+            return;
+        }
+
         if (actionData.StartsWith("incognito:", StringComparison.OrdinalIgnoreCase))
         {
             string url = actionData[10..];
@@ -607,6 +621,123 @@ public sealed class WindowIslandCommandService
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch { }
+    }
+
+    private static bool IsIncognitoCommand(CustomSearchCommand c) =>
+        c.IsIncognito || c.Command.Equals("@incognito", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBareIncognitoCommand(CustomSearchCommand c) =>
+        c.Command.Equals("@incognito", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryBuildMultiAtCommandResults(
+        string query,
+        IReadOnlyList<CustomSearchCommand> searches,
+        List<CommandBarItem> results)
+    {
+        var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var leadingTags = new List<string>();
+        int idx = 0;
+        while (idx < tokens.Length && tokens[idx].StartsWith('@'))
+        {
+            leadingTags.Add(tokens[idx]);
+            idx++;
+        }
+
+        if (leadingTags.Count < 2) return false;
+
+        string searchTerm = idx < tokens.Length
+            ? string.Join(" ", tokens.Skip(idx)).Trim()
+            : string.Empty;
+
+        // If user is still typing the last @tag (no search term yet and no exact match on last tag), show autocomplete suggestions
+        string lastTag = leadingTags[^1];
+        var lastExact = searches.FirstOrDefault(s => MatchesCommand(s, lastTag));
+        if (lastExact == null && string.IsNullOrEmpty(searchTerm))
+        {
+            var prefixMatched = leadingTags
+                .Take(leadingTags.Count - 1)
+                .Select(t => searches.FirstOrDefault(s => MatchesCommand(s, t)))
+                .Where(c => c != null)
+                .Cast<CustomSearchCommand>()
+                .Distinct()
+                .ToList();
+
+            if (prefixMatched.Count == 0) return false;
+
+            string filter = lastTag.TrimStart('@');
+            var candidates = searches.Where(s =>
+                !prefixMatched.Contains(s) &&
+                (string.IsNullOrEmpty(filter) ||
+                 s.Command.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                 s.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))).ToList();
+
+            foreach (var eng in candidates)
+            {
+                var combined = prefixMatched.Concat(new[] { eng }).ToList();
+                results.Add(BuildCombinedCommandItem(combined, searchTerm));
+            }
+            return results.Count > 0;
+        }
+
+        var matched = leadingTags
+            .Select(t => searches.FirstOrDefault(s => MatchesCommand(s, t)))
+            .Where(c => c != null)
+            .Cast<CustomSearchCommand>()
+            .Distinct()
+            .ToList();
+
+        if (matched.Count < 2) return false;
+
+        results.Add(BuildCombinedCommandItem(matched, searchTerm));
+        return true;
+    }
+
+    private static CommandBarItem BuildCombinedCommandItem(IReadOnlyList<CustomSearchCommand> commands, string searchTerm)
+    {
+        bool isIncognito = commands.Any(IsIncognitoCommand);
+        var targets = commands.Where(c => !IsBareIncognitoCommand(c)).ToList();
+        if (targets.Count == 0) targets = commands.ToList();
+
+        string cmdTags = string.Join(" ", commands.Select(c => c.Command));
+        string incLabel = isIncognito ? " (Incognito)" : string.Empty;
+        var primary = targets[0];
+
+        if (targets.Count == 1)
+        {
+            string url = !string.IsNullOrEmpty(searchTerm) ? primary.BuildUrl(searchTerm) : primary.BaseUrl;
+            return new CommandBarItem
+            {
+                Title = !string.IsNullOrEmpty(searchTerm)
+                    ? $"Search {primary.Name}{incLabel}: \"{searchTerm}\""
+                    : $"{cmdTags}  ·  Search {primary.Name}{incLabel}",
+                Subtitle = !string.IsNullOrEmpty(searchTerm)
+                    ? $"{url} (Enter to {(isIncognito ? "open in incognito" : "search")})"
+                    : $"Type \"{cmdTags} <query>\" to search {primary.Name}",
+                IconGlyph = primary.IconGlyph,
+                AccentHex = primary.AccentHex,
+                Kind = CommandItemKind.WebSearch,
+                ActionData = isIncognito ? $"incognito:{url}" : url
+            };
+        }
+
+        var urls = targets.Select(t =>
+        {
+            string u = !string.IsNullOrEmpty(searchTerm) ? t.BuildUrl(searchTerm) : t.BaseUrl;
+            return (isIncognito || t.IsIncognito) ? $"incognito:{u}" : u;
+        });
+
+        string names = string.Join(" + ", targets.Select(t => t.Name));
+        return new CommandBarItem
+        {
+            Title = !string.IsNullOrEmpty(searchTerm)
+                ? $"Search {names}{incLabel}: \"{searchTerm}\""
+                : $"{cmdTags}  ·  Search {names}{incLabel}",
+            Subtitle = $"{targets.Count} commands: {string.Join(", ", targets.Select(t => t.Command))} (Enter to open all)",
+            IconGlyph = primary.IconGlyph,
+            AccentHex = primary.AccentHex,
+            Kind = CommandItemKind.WebSearch,
+            ActionData = "multi:" + string.Join("|||", urls)
+        };
     }
 
     private static bool MatchesCommand(CustomSearchCommand c, string cmd)

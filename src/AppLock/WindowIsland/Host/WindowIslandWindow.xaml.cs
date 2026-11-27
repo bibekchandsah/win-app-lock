@@ -5963,8 +5963,10 @@ public sealed partial class WindowIslandWindow : Window
                 var sel = _currentCommandItems[_selectedCommandIndex];
                 if (sel.Title.StartsWith("@"))
                 {
-                    int spaceIdx = sel.Title.IndexOf(' ');
-                    string cmd = spaceIdx > 0 ? sel.Title[..spaceIdx] : sel.Title;
+                    int sepIdx = sel.Title.IndexOf("  ·  ", StringComparison.Ordinal);
+                    string cmd = sepIdx > 0
+                        ? sel.Title[..sepIdx]
+                        : (sel.Title.IndexOf(' ') is int spaceIdx && spaceIdx > 0 ? sel.Title[..spaceIdx] : sel.Title);
                     CommandInput.Text = $"{cmd} ";
                     CommandInput.SelectionStart = CommandInput.Text.Length;
                     e.Handled = true;
