@@ -742,14 +742,16 @@ public sealed partial class WindowIslandWindow : Window
             PositionAndSize();
             UpdateHitRegion(open: _compositor?.IsOpen ?? false);
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            if (_chatWebView != null && _activeTab == 4)
+            if (_chatWebView != null)
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (_chatWebView == null || !_isVisible) return;
-                    _chatWebView.Visibility = Visibility.Collapsed;
                     _chatWebView.Visibility = Visibility.Visible;
-                    ChatWebViewHost?.UpdateLayout();
+                    if (_activeTab == 4 && _compositor?.IsOpen == true)
+                    {
+                        ResumeChatWebView();
+                    }
                 });
             }
         }
@@ -11374,6 +11376,11 @@ public sealed partial class WindowIslandWindow : Window
             }
             else
             {
+                try { _chatWebView.CoreWebView2.Resume(); } catch { }
+                _chatWebView.Visibility = Visibility.Collapsed;
+                _chatWebView.Visibility = Visibility.Visible;
+                ChatWebViewHost.UpdateLayout();
+                _chatWebView.InvalidateMeasure();
                 if (_chatLastNavigatedUrl != activeSite.Url)
                 {
                     _chatLastNavigatedUrl = activeSite.Url;
