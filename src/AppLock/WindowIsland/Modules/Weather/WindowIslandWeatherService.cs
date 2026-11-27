@@ -36,6 +36,7 @@ public sealed class WindowIslandWeatherService
     private readonly Dictionary<string, (WeatherForecastData Data, DateTime FetchedUtc)> _memoryCaches = new();
 
     public event EventHandler<WeatherForecastData?>? WeatherUpdated;
+    public event EventHandler? WeatherCitiesChanged;
     public event EventHandler<WindowIslandCard>? RainWarningTriggered;
 
     public WeatherForecastData? CurrentWeather
@@ -176,6 +177,7 @@ public sealed class WindowIslandWeatherService
         SettingsSaver?.Invoke(s);
 
         _ = TryFetchCityUtcOffsetAsync(active);
+        WeatherCitiesChanged?.Invoke(this, EventArgs.Empty);
 
         await RefreshAsync(force: true).ConfigureAwait(false);
     }
@@ -230,6 +232,7 @@ public sealed class WindowIslandWeatherService
         s.WeatherLatitude = active.Latitude;
         s.WeatherLongitude = active.Longitude;
         SettingsSaver?.Invoke(s);
+        WeatherCitiesChanged?.Invoke(this, EventArgs.Empty);
 
         await RefreshAsync(force: false).ConfigureAwait(false);
     }
@@ -250,6 +253,7 @@ public sealed class WindowIslandWeatherService
         s.WeatherLatitude = active.Latitude;
         s.WeatherLongitude = active.Longitude;
         SettingsSaver?.Invoke(s);
+        WeatherCitiesChanged?.Invoke(this, EventArgs.Empty);
 
         await RefreshAsync(force: false).ConfigureAwait(false);
     }

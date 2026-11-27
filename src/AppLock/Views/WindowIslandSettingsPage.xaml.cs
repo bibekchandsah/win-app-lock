@@ -36,6 +36,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     {
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
+        AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.WeatherCitiesChanged -= OnExternalWeatherCitiesChanged;
         _worldClockTimer?.Stop();
         FlushPendingDiskSave();
     }
@@ -414,8 +415,14 @@ public sealed partial class WindowIslandSettingsPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        WeatherCityBox.Text = s.WeatherCity;
-        WeatherCityStatus.Text = string.IsNullOrEmpty(s.WeatherCity) ? "No city configured (Weather tab is dormant)" : $"Saved: {s.WeatherCity} ({s.WeatherLatitude:F2}, {s.WeatherLongitude:F2})";
+        var activeCity = s.GetActiveCity();
+        WeatherCityBox.Text = activeCity?.Name ?? s.WeatherCity;
+        WeatherCityStatus.Text = activeCity != null
+            ? $"Active: {activeCity.Name} ({activeCity.Latitude:F2}, {activeCity.Longitude:F2})"
+            : (string.IsNullOrEmpty(s.WeatherCity) ? "No city configured" : $"Saved: {s.WeatherCity} ({s.WeatherLatitude:F2}, {s.WeatherLongitude:F2})");
+        RefreshSettingsWeatherCitiesList();
+        AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.WeatherCitiesChanged -= OnExternalWeatherCitiesChanged;
+        AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.WeatherCitiesChanged += OnExternalWeatherCitiesChanged;
         SelectComboItem(WeatherUnitsBox, s.WeatherUnits);
         WeatherTempOnIslandToggle.IsOn = s.WeatherTempOnIsland;
         WeatherRainWarningToggle.IsOn  = s.WeatherRainWarning;
@@ -866,6 +873,140 @@ public sealed partial class WindowIslandSettingsPage : Page
         return t;
     }
 
+    private void OnExternalWeatherCitiesChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            var s = ServiceContainer.Settings.WindowIsland;
+            var active = s.GetActiveCity();
+            if (active != null && WeatherCityStatus != null)
+            {
+                WeatherCityStatus.Text = $"Active: {active.Name} ({active.Latitude:F2}, {active.Longitude:F2})";
+            }
+            RefreshSettingsWeatherCitiesList();
+        });
+    }
+
+    private void RefreshSettingsWeatherCitiesList()
+    {
+        if (SettingsWeatherCitiesList == null) return;
+        SettingsWeatherCitiesList.Children.Clear();
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        var cities = s.GetWeatherCities();
+        int activeIdx = Math.Clamp(s.ActiveWeatherCityIndex, 0, Math.Max(0, cities.Count - 1));
+
+        for (int i = 0; i < cities.Count; i++)
+        {
+            int idx = i;
+            var city = cities[i];
+            bool isActive = (i == activeIdx);
+
+            var row = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
+                BorderBrush = isActive
+                    ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
+                    : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 8, 12, 8)
+            };
+
+            var grid = new Grid { ColumnSpacing = 10 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+            string title = string.IsNullOrWhiteSpace(city.Country) ? city.Name : $"{city.Name}, {city.Country}";
+            info.Children.Add(new TextBlock
+            {
+                Text = title,
+                FontWeight = isActive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                FontSize = 13,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            info.Children.Add(new TextBlock
+            {
+                Text = isActive
+                    ? $"Active · {city.Latitude:F2}, {city.Longitude:F2}"
+                    : $"{city.Latitude:F2}, {city.Longitude:F2}",
+                FontSize = 11,
+                Opacity = 0.65
+            });
+            Grid.SetColumn(info, 0);
+            grid.Children.Add(info);
+
+            if (isActive)
+            {
+                var badge = new Border
+                {
+                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Child = new TextBlock
+                    {
+                        Text = "Active",
+                        FontSize = 11,
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
+                    }
+                };
+                Grid.SetColumn(badge, 1);
+                grid.Children.Add(badge);
+            }
+            else
+            {
+                var selectBtn = new Button
+                {
+                    Content = "Set Active",
+                    Padding = new Thickness(10, 4, 10, 4),
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                selectBtn.Click += async (_, _) =>
+                {
+                    selectBtn.IsEnabled = false;
+                    await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.SelectCityAsync(idx);
+                };
+                Grid.SetColumn(selectBtn, 1);
+                grid.Children.Add(selectBtn);
+            }
+
+            if (cities.Count > 1)
+            {
+                var removeBtn = new Button
+                {
+                    Padding = new Thickness(8, 6, 8, 6),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Content = new FontIcon { Glyph = "\uE74D", FontSize = 12 }
+                };
+                ToolTipService.SetToolTip(removeBtn, "Remove city");
+                removeBtn.Click += async (_, _) =>
+                {
+                    removeBtn.IsEnabled = false;
+                    await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.RemoveCityAsync(idx);
+                };
+                Grid.SetColumn(removeBtn, 2);
+                grid.Children.Add(removeBtn);
+            }
+
+            row.Child = grid;
+            SettingsWeatherCitiesList.Children.Add(row);
+        }
+    }
+
+    private void WeatherCityBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            WeatherSearchBtn_Click(sender, e);
+        }
+    }
+
     private async void WeatherSearchBtn_Click(object sender, RoutedEventArgs e)
     {
         string query = WeatherCityBox.Text.Trim();
@@ -873,16 +1014,70 @@ public sealed partial class WindowIslandSettingsPage : Page
 
         WeatherSearchBtn.IsEnabled = false;
         WeatherCityStatus.Text = "Searching...";
+        if (WeatherSearchResultsList != null)
+        {
+            WeatherSearchResultsList.Children.Clear();
+            WeatherSearchResultsList.Visibility = Visibility.Collapsed;
+        }
 
         try
         {
             var results = await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.SearchCitiesAsync(query);
             if (results != null && results.Count > 0)
             {
-                var first = results[0];
-                await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.SetLocationAsync(first.DisplayName, first.Latitude, first.Longitude);
-                WeatherCityStatus.Text = $"Saved: {first.DisplayName} ({first.Latitude:F2}, {first.Longitude:F2})";
-                WeatherCityBox.Text = first.DisplayName;
+                WeatherCityStatus.Text = $"Found {results.Count} match(es) — select one to add & activate:";
+                if (WeatherSearchResultsList != null)
+                {
+                    foreach (var match in results.Take(5))
+                    {
+                        var r = match;
+                        var itemBorder = new Border
+                        {
+                            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
+                            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                            BorderThickness = new Thickness(1),
+                            CornerRadius = new CornerRadius(6),
+                            Padding = new Thickness(12, 8, 12, 8)
+                        };
+
+                        var rowGrid = new Grid { ColumnSpacing = 12 };
+                        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                        var txt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+                        txt.Children.Add(new TextBlock { Text = r.DisplayName, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+                        txt.Children.Add(new TextBlock { Text = $"{r.Latitude:F2}, {r.Longitude:F2}", FontSize = 11, Opacity = 0.65 });
+                        Grid.SetColumn(txt, 0);
+                        rowGrid.Children.Add(txt);
+
+                        var addBtn = new Button
+                        {
+                            Content = "Set & Add",
+                            Padding = new Thickness(10, 4, 10, 4),
+                            FontSize = 12,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        addBtn.Click += async (_, _) =>
+                        {
+                            addBtn.IsEnabled = false;
+                            await AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.AddCityAsync(
+                                r.DisplayName, r.Latitude, r.Longitude, r.Country ?? string.Empty);
+                            WeatherCityBox.Text = r.DisplayName;
+                            WeatherCityStatus.Text = $"Active: {r.DisplayName} ({r.Latitude:F2}, {r.Longitude:F2})";
+                            if (WeatherSearchResultsList != null)
+                            {
+                                WeatherSearchResultsList.Children.Clear();
+                                WeatherSearchResultsList.Visibility = Visibility.Collapsed;
+                            }
+                        };
+                        Grid.SetColumn(addBtn, 1);
+                        rowGrid.Children.Add(addBtn);
+
+                        itemBorder.Child = rowGrid;
+                        WeatherSearchResultsList.Children.Add(itemBorder);
+                    }
+                    WeatherSearchResultsList.Visibility = Visibility.Visible;
+                }
             }
             else
             {

@@ -104,43 +104,82 @@
                                   ItemContainerStyle="{StaticResource CategoryListItemStyle}"
                                   AutomationProperties.Name="Window Island settings categories">
                             <ListViewItem Tag="general">
-                                <TextBlock Text="General" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE713;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="General" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="appearance">
-                                <TextBlock Text="Appearance" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE790;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Appearance" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="visibility">
-                                <TextBlock Text="Visibility" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE890;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Visibility" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="indicators">
-                                <TextBlock Text="Notch Indicators" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Notch Indicators" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="clock">
-                                <TextBlock Text="Clock &amp; Calendar" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE823;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Clock &amp; Calendar" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="media">
-                                <TextBlock Text="Media &amp; Lyrics" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8D6;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Media &amp; Lyrics" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="cards">
-                                <TextBlock Text="Event Cards" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE7E7;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Event Cards" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="controls">
-                                <TextBlock Text="Controls Tab" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE9E9;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Controls Tab" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="weather">
-                                <TextBlock Text="Weather" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE753;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Weather" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="chat">
-                                <TextBlock Text="Chat" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8BD;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Chat" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="search">
-                                <TextBlock Text="Search Commands" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE721;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Search Commands" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="performance">
-                                <TextBlock Text="Performance" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE945;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="Performance" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="about">
-                                <TextBlock Text="About &amp; Developer" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE946;" FontSize="14" Opacity="0.85" />
+                                    <TextBlock Text="About &amp; Developer" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
                             </ListViewItem>
                         </ListView>
                     </ScrollViewer>
@@ -518,6 +557,47 @@
                             </Grid>
                         </Border>
 
+                        <!-- Chosen apps rule -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Chosen apps rule" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Automatically hide the island—or show it exclusively—whenever one of your listed apps below becomes the active foreground window."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="ChosenAppsModeBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Disabled" Tag="Disabled" />
+                                    <ComboBoxItem Content="Hide while one is in front" Tag="Hide" />
+                                    <ComboBoxItem Content="Only show while one is in front (Keep)" Tag="Keep" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Chosen process names -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Chosen process names" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Enter executable names without .exe, separated by commas (e.g. chrome, notepad). Used by the Chosen apps rule above."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <TextBox x:Name="ChosenAppsBox"
+                                         Grid.Column="1"
+                                         PlaceholderText="e.g. chrome, notepad"
+                                         Width="260"
+                                         VerticalAlignment="Center"
+                                         TextChanged="OnChosenAppsChanged" />
+                            </Grid>
+                        </Border>
+
                         <!-- Place under top taskbar -->
                         <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <Grid ColumnSpacing="16">
@@ -597,47 +677,6 @@
                                     <ComboBoxItem Content="Primary monitor" Tag="Primary" />
                                     <ComboBoxItem Content="Monitor with cursor" Tag="Cursor" />
                                 </ComboBox>
-                            </Grid>
-                        </Border>
-
-                        <!-- Chosen apps rule -->
-                        <Border Style="{StaticResource IslandSettingsCardStyle}">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Chosen apps rule" Style="{StaticResource IslandSettingTitleStyle}" />
-                                    <TextBlock Text="Automatically hide the island—or show it exclusively—whenever one of your listed apps below becomes the active foreground window."
-                                               Style="{StaticResource IslandSettingDescStyle}" />
-                                </StackPanel>
-                                <ComboBox x:Name="ChosenAppsModeBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
-                                    <ComboBoxItem Content="Disabled" Tag="Disabled" />
-                                    <ComboBoxItem Content="Hide while one is in front" Tag="Hide" />
-                                    <ComboBoxItem Content="Only show while one is in front (Keep)" Tag="Keep" />
-                                </ComboBox>
-                            </Grid>
-                        </Border>
-
-                        <!-- Chosen process names -->
-                        <Border Style="{StaticResource IslandSettingsCardStyle}">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Chosen process names" Style="{StaticResource IslandSettingTitleStyle}" />
-                                    <TextBlock Text="Enter executable names without .exe, separated by commas (e.g. chrome, notepad). Used by the Chosen apps rule above."
-                                               Style="{StaticResource IslandSettingDescStyle}" />
-                                </StackPanel>
-                                <TextBox x:Name="ChosenAppsBox"
-                                         Grid.Column="1"
-                                         PlaceholderText="e.g. chrome, notepad"
-                                         Width="260"
-                                         VerticalAlignment="Center"
-                                         TextChanged="OnChosenAppsChanged" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -1406,23 +1445,35 @@
                     <!-- ░░ Weather ░░ -->
                     <StackPanel x:Name="SectionWeather" Spacing="8" Visibility="Collapsed">
                         <Border Style="{StaticResource IslandSettingsCardStyle}">
-                            <StackPanel Spacing="6">
+                            <StackPanel Spacing="8">
                                 <Grid ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                        <TextBlock Text="Configured City" Style="{StaticResource IslandSettingTitleStyle}" />
-                                        <TextBlock Text="Enter a city name to fetch local forecasts and current temperature for the Weather tab and folded indicator."
+                                        <TextBlock Text="Search &amp; Set City" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Search for a city and pick a result to add it and make it your active weather location."
                                                    Style="{StaticResource IslandSettingDescStyle}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <TextBox x:Name="WeatherCityBox" Width="200" PlaceholderText="e.g. London, Tokyo" />
-                                        <Button x:Name="WeatherSearchBtn" Content="Set City" Click="WeatherSearchBtn_Click" />
+                                        <TextBox x:Name="WeatherCityBox" Width="210" PlaceholderText="e.g. London, Tokyo" KeyDown="WeatherCityBox_KeyDown" />
+                                        <Button x:Name="WeatherSearchBtn" Content="Search" Style="{StaticResource AccentButtonStyle}" Click="WeatherSearchBtn_Click" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock x:Name="WeatherCityStatus" FontSize="11" Opacity="0.65" />
+                                <TextBlock x:Name="WeatherCityStatus" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                                <StackPanel x:Name="WeatherSearchResultsList" Spacing="6" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Saved Cities" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Switch your active weather city or remove cities you no longer need. Changes sync in real time with Window Island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="SettingsWeatherCitiesList" Spacing="6" />
                             </StackPanel>
                         </Border>
 

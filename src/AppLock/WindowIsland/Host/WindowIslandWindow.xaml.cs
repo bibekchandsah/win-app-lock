@@ -485,6 +485,7 @@ public sealed partial class WindowIslandWindow : Window
 
         // Milestone 10: Weather
         WindowIslandWeatherService.Instance.WeatherUpdated += OnWeatherUpdated;
+        WindowIslandWeatherService.Instance.WeatherCitiesChanged += OnWeatherCitiesChanged;
         WindowIslandWeatherService.Instance.RainWarningTriggered += OnRainWarningTriggered;
         UpdateFoldedWeatherMini();
 
@@ -791,6 +792,9 @@ public sealed partial class WindowIslandWindow : Window
         }
 
         // Milestone 12
+        WindowIslandWeatherService.Instance.WeatherUpdated -= OnWeatherUpdated;
+        WindowIslandWeatherService.Instance.WeatherCitiesChanged -= OnWeatherCitiesChanged;
+        WindowIslandWeatherService.Instance.RainWarningTriggered -= OnRainWarningTriggered;
         WindowIslandNotificationService.Instance.VpnStateChanged     -= OnVpnStateChanged;
         WindowIslandNotificationService.Instance.BatteryLowCard      -= OnBatteryLowCard;
         WindowIslandNotificationService.Instance.BatteryChargingCard -= OnBatteryChargingCard;
@@ -7238,6 +7242,15 @@ public sealed partial class WindowIslandWindow : Window
     }
 
     // ── Milestone 10: Weather Tab & Indicators ─────────────────────────────────
+
+    private void OnWeatherCitiesChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RefreshWeatherUI();
+            UpdateFoldedWeatherMini();
+        });
+    }
 
     private void OnWeatherUpdated(object? sender, WeatherForecastData? data)
     {
