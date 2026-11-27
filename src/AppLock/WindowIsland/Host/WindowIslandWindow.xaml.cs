@@ -316,6 +316,7 @@ public sealed partial class WindowIslandWindow : Window
 
     // Milestone 13: Chat (WebView2)
     private WebView2?                         _chatWebView;
+    private CoreWebView2Environment?          _chatEnv;
     private bool                              _chatInitializing;
     private bool                              _chatInitialized;
     private DQTimer?                          _chatIdleTimer;
@@ -11433,9 +11434,9 @@ public sealed partial class WindowIslandWindow : Window
             }
 
             string userDataFolder = WindowIslandChatManager.GetUserDataFolder();
-            var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, null);
+            _chatEnv ??= await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, null);
             if (_chatWebView == null) return;
-            await _chatWebView.EnsureCoreWebView2Async(env);
+            await _chatWebView.EnsureCoreWebView2Async(_chatEnv);
             if (_chatWebView?.CoreWebView2 is not { } core) return;
 
             core.Settings.IsStatusBarEnabled = false;
@@ -11516,6 +11517,20 @@ public sealed partial class WindowIslandWindow : Window
         catch { }
     }
 
+    private async void UnloadChatPageToIdle()
+    {
+        try
+        {
+            if (_chatWebView?.CoreWebView2 != null)
+            {
+                _chatLastNavigatedUrl = null;
+                _chatWebView.CoreWebView2.Navigate("about:blank");
+                await _chatWebView.CoreWebView2.TrySuspendAsync();
+            }
+        }
+        catch { }
+    }
+
     private void StartChatIdleTimer()
     {
         if (_chatIdleTimer == null)
@@ -11526,7 +11541,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 if (!_compositor?.IsOpen == true || _activeTab != 4)
                 {
-                    DisposeChatWebView();
+                    UnloadChatPageToIdle();
                 }
             };
         }

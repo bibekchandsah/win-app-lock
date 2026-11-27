@@ -413,6 +413,12 @@ implemented - when notification is shown black window border flashes everytime w
 speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
 font weight has no effect
 implemented - make network access toast notificaton as default custom notification and user can customize it in setting page
+transparent has no opacity effect
+glass has only effect when it's getting dragged
+window effect only shows when it's in focus
+add touch guesture for dragging
+remove the font size as scaling is doing same 
+
 
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
 
