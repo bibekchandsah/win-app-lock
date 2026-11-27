@@ -63,5 +63,14 @@ public class AppBandwidthProviderTests
         var (sStart, sEnd, _) = AppBandwidthProvider.ResolveRange(BandwidthPeriod.SpecificDate, new DateTime(2026, 11, 20), now);
         Assert.Equal(new DateTimeOffset(2026, 11, 20, 0, 0, 0, TimeSpan.FromHours(5)), sStart);
         Assert.Equal(new DateTimeOffset(2026, 11, 21, 0, 0, 0, TimeSpan.FromHours(5)), sEnd);
+
+        // DateRange swaps reversed dates automatically and caps end at now when end == today.
+        var (rStart, rEnd, _) = AppBandwidthProvider.ResolveRange(
+            BandwidthPeriod.DateRange,
+            new DateTime(2026, 11, 27),
+            now,
+            new DateTime(2026, 11, 22));
+        Assert.Equal(new DateTimeOffset(2026, 11, 22, 0, 0, 0, TimeSpan.FromHours(5)), rStart);
+        Assert.Equal(now, rEnd);
     }
 }

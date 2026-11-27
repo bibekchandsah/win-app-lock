@@ -34,6 +34,7 @@ public sealed partial class SpeedMeterPage : Page
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _previewTimer;
     private CancellationTokenSource? _appBandwidthCts;
+    private IReadOnlyList<AppBandwidthUsage> _lastAppBandwidthItems = Array.Empty<AppBandwidthUsage>();
 
     private static SpeedMeterSettings Settings => ServiceContainer.Settings.SpeedMeter;
 
@@ -115,6 +116,8 @@ public sealed partial class SpeedMeterPage : Page
 
             AppBandwidthDatePicker.MaxDate = DateTimeOffset.Now;
             AppBandwidthDatePicker.Date = DateTimeOffset.Now;
+            AppBandwidthToDatePicker.MaxDate = DateTimeOffset.Now;
+            AppBandwidthToDatePicker.Date = DateTimeOffset.Now;
             if (AppBandwidthPeriodCombo.SelectedIndex < 0)
             {
                 AppBandwidthPeriodCombo.SelectedIndex = 0;
@@ -967,7 +970,11 @@ public sealed partial class SpeedMeterPage : Page
         if (_loading) return;
 
         var period = GetSelectedBandwidthPeriod();
-        AppBandwidthDatePicker.Visibility = period == BandwidthPeriod.SpecificDate
+        AppBandwidthDatePicker.Visibility = period is BandwidthPeriod.SpecificDate or BandwidthPeriod.DateRange
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        AppBandwidthDatePicker.PlaceholderText = period == BandwidthPeriod.DateRange ? "From date" : "Pick a date";
+        AppBandwidthToDatePicker.Visibility = period == BandwidthPeriod.DateRange
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -976,8 +983,14 @@ public sealed partial class SpeedMeterPage : Page
 
     private void AppBandwidthDatePicker_DateChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
     {
-        if (_loading || GetSelectedBandwidthPeriod() != BandwidthPeriod.SpecificDate) return;
+        if (_loading || GetSelectedBandwidthPeriod() is not (BandwidthPeriod.SpecificDate or BandwidthPeriod.DateRange)) return;
         _ = RefreshAppBandwidthAsync();
+    }
+
+    private void AppBandwidthSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (_loading) return;
+        RenderAppBandwidthList();
     }
 
     private void RefreshAppBandwidth_Click(object sender, RoutedEventArgs e)
@@ -1000,7 +1013,8 @@ public sealed partial class SpeedMeterPage : Page
 
         var period = GetSelectedBandwidthPeriod();
         DateTime? specificDate = AppBandwidthDatePicker.Date?.DateTime;
-        var (start, end, label) = AppBandwidthProvider.ResolveRange(period, specificDate);
+        DateTime? toDate = AppBandwidthToDatePicker.Date?.DateTime;
+        var (start, end, label) = AppBandwidthProvider.ResolveRange(period, specificDate, rangeEndDate: toDate);
 
         AppBandwidthRangeText.Text = label;
         AppBandwidthLoadingRing.IsActive = true;
@@ -1011,33 +1025,8 @@ public sealed partial class SpeedMeterPage : Page
             var items = await AppBandwidthProvider.QueryAsync(start, end, cts.Token);
             if (cts.IsCancellationRequested) return;
 
-            AppBandwidthList.Children.Clear();
-
-            if (items.Count == 0)
-            {
-                AppBandwidthSummaryText.Text = "0 apps";
-                AppBandwidthEmptyText.Visibility = Visibility.Visible;
-                return;
-            }
-
-            AppBandwidthEmptyText.Visibility = Visibility.Collapsed;
-
-            ulong totalRx = 0, totalTx = 0;
-            foreach (var item in items)
-            {
-                totalRx += item.BytesReceived;
-                totalTx += item.BytesSent;
-            }
-
-            var totalAll = totalRx + totalTx;
-            AppBandwidthSummaryText.Text =
-                $"{items.Count} {(items.Count == 1 ? "app" : "apps")} · ↓ {FormatBytes((long)Math.Min(totalRx, long.MaxValue))} · ↑ {FormatBytes((long)Math.Min(totalTx, long.MaxValue))} · {FormatBytes((long)Math.Min(totalAll, long.MaxValue))} total";
-
-            var maxBytes = Math.Max(1UL, items[0].TotalBytes);
-            foreach (var item in items)
-            {
-                AppBandwidthList.Children.Add(BuildAppBandwidthRow(item, maxBytes));
-            }
+            _lastAppBandwidthItems = items;
+            RenderAppBandwidthList();
         }
         catch (OperationCanceledException)
         {
@@ -1045,6 +1034,8 @@ public sealed partial class SpeedMeterPage : Page
         }
         catch (Exception ex)
         {
+            _lastAppBandwidthItems = Array.Empty<AppBandwidthUsage>();
+            AppBandwidthList.Children.Clear();
             AppBandwidthSummaryText.Text = $"Could not load per-app usage: {ex.Message}";
             AppBandwidthEmptyText.Visibility = Visibility.Collapsed;
         }
@@ -1055,6 +1046,59 @@ public sealed partial class SpeedMeterPage : Page
                 AppBandwidthLoadingRing.IsActive = false;
                 AppBandwidthLoadingRing.Visibility = Visibility.Collapsed;
             }
+        }
+    }
+
+    private void RenderAppBandwidthList()
+    {
+        AppBandwidthList.Children.Clear();
+
+        if (_lastAppBandwidthItems.Count == 0)
+        {
+            AppBandwidthSummaryText.Text = "0 apps";
+            AppBandwidthEmptyText.Text = "No per-app bandwidth recorded for this period.";
+            AppBandwidthEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var query = AppBandwidthSearchBox.Text?.Trim();
+        var filtered = string.IsNullOrEmpty(query)
+            ? _lastAppBandwidthItems
+            : _lastAppBandwidthItems
+                .Where(item =>
+                    item.AppName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    item.AttributionId.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        if (filtered.Count == 0)
+        {
+            AppBandwidthSummaryText.Text = $"0 of {_lastAppBandwidthItems.Count} apps match \"{query}\"";
+            AppBandwidthEmptyText.Text = $"No apps matching \"{query}\".";
+            AppBandwidthEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        AppBandwidthEmptyText.Visibility = Visibility.Collapsed;
+
+        ulong totalRx = 0, totalTx = 0;
+        foreach (var item in filtered)
+        {
+            totalRx += item.BytesReceived;
+            totalTx += item.BytesSent;
+        }
+
+        var totalAll = totalRx + totalTx;
+        var countLabel = string.IsNullOrEmpty(query)
+            ? $"{filtered.Count} {(filtered.Count == 1 ? "app" : "apps")}"
+            : $"{filtered.Count} of {_lastAppBandwidthItems.Count} apps";
+
+        AppBandwidthSummaryText.Text =
+            $"{countLabel} · ↓ {FormatBytes((long)Math.Min(totalRx, long.MaxValue))} · ↑ {FormatBytes((long)Math.Min(totalTx, long.MaxValue))} · {FormatBytes((long)Math.Min(totalAll, long.MaxValue))} total";
+
+        var maxBytes = Math.Max(1UL, filtered[0].TotalBytes);
+        foreach (var item in filtered)
+        {
+            AppBandwidthList.Children.Add(BuildAppBandwidthRow(item, maxBytes));
         }
     }
 

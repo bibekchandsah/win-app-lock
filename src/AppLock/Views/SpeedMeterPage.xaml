@@ -1344,10 +1344,16 @@
                                     <ComboBoxItem Content="This month" Tag="ThisMonth"/>
                                     <ComboBoxItem Content="Last 30 days" Tag="Last30Days"/>
                                     <ComboBoxItem Content="Specific date" Tag="SpecificDate"/>
+                                    <ComboBoxItem Content="Date range" Tag="DateRange"/>
                                 </ComboBox>
 
                                 <CalendarDatePicker x:Name="AppBandwidthDatePicker"
                                                     PlaceholderText="Pick a date"
+                                                    Visibility="Collapsed"
+                                                    DateChanged="AppBandwidthDatePicker_DateChanged"/>
+
+                                <CalendarDatePicker x:Name="AppBandwidthToDatePicker"
+                                                    PlaceholderText="To date"
                                                     Visibility="Collapsed"
                                                     DateChanged="AppBandwidthDatePicker_DateChanged"/>
 
@@ -1357,6 +1363,11 @@
                                     <FontIcon Glyph="&#xE72C;" FontSize="13"/>
                                 </Button>
                             </StackPanel>
+
+                            <AutoSuggestBox x:Name="AppBandwidthSearchBox"
+                                            PlaceholderText="Search apps..."
+                                            QueryIcon="Find"
+                                            TextChanged="AppBandwidthSearchBox_TextChanged"/>
 
                             <TextBlock x:Name="AppBandwidthSummaryText"
                                        FontSize="12"
