@@ -245,6 +245,7 @@ public sealed partial class SpeedMeterPage : Page
         CapActiveToggle.IsOn = !string.IsNullOrEmpty(Settings.CapAdapterId);
         UsageSummaryText.Text = BuildUsageSummary();
 
+        AlwaysOnTopToggle.IsOn = Settings.AlwaysOnTop;
         LockPositionToggle.IsOn = Settings.LockPosition;
         SnapToggle.IsOn = Settings.SnapToEdges;
         ClickThroughToggle.IsOn = Settings.ClickThrough;
@@ -1005,6 +1006,13 @@ public sealed partial class SpeedMeterPage : Page
     {
         ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         ServiceContainer.SpeedMeterService?.ApplySettings();
+    }
+
+    private void AlwaysOnTopToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
+        SaveBehavior();
     }
 
     private void LockPositionToggle_Toggled(object sender, RoutedEventArgs e)

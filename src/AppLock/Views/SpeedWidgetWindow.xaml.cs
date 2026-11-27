@@ -24,6 +24,7 @@ public sealed partial class SpeedWidgetWindow : Window
 
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TRANSPARENT = 0x00000020;
+    private const int WS_EX_LAYERED = 0x00080000;
     private const int WS_EX_NOACTIVATE = 0x08000000;
 
     private const uint WDA_NONE = 0x00000000;
@@ -76,6 +77,9 @@ public sealed partial class SpeedWidgetWindow : Window
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowDisplayAffinity(nint hWnd, uint dwAffinity);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetLayeredWindowAttributes(nint hWnd, uint crKey, byte bAlpha, uint dwFlags);
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _altTimer;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _tapTimer;
@@ -146,7 +150,7 @@ public sealed partial class SpeedWidgetWindow : Window
                 appWindow.IsShownInSwitchers = false;
 
                 var presenter = OverlappedPresenter.Create();
-                presenter.IsAlwaysOnTop = true;
+                presenter.IsAlwaysOnTop = ServiceContainer.Settings.SpeedMeter.AlwaysOnTop;
                 presenter.IsResizable = false;
                 presenter.IsMinimizable = false;
                 presenter.IsMaximizable = false;
@@ -211,8 +215,12 @@ public sealed partial class SpeedWidgetWindow : Window
                     Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20));
                 float opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100f;
                 float blur = Math.Clamp(settings.BlurAmountPercent, 0, 40) / 40f;
-                float tintOpacity = preset == "Glass" ? opacity * 0.65f : opacity;
-                float luminosity = preset == "Glass" ? opacity * 0.85f : blur * 0.9f;
+                float tintOpacity = preset == "Glass"
+                    ? opacity * 0.65f
+                    : opacity * Math.Clamp(0.15f + 0.85f * blur, 0f, 1f);
+                float luminosity = preset == "Glass"
+                    ? opacity * 0.85f
+                    : MathF.Pow(blur, 1.5f) * 0.85f;
                 _acrylicBackdrop.Update(tint, tintOpacity, luminosity);
 
                 if (!ReferenceEquals(SystemBackdrop, _acrylicBackdrop))
@@ -367,11 +375,51 @@ public sealed partial class SpeedWidgetWindow : Window
             SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle);
 
             ApplyCaptureAffinity();
+
+            if (_subclassProc == null)
+            {
+                _subclassProc = OnSubclassProc;
+                SetWindowSubclass(hWnd, _subclassProc, 1, nint.Zero);
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Chrome error: {ex.Message}");
         }
+    }
+
+    private delegate nint SubclassProc(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data);
+    private SubclassProc? _subclassProc;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved;
+        public POINT ptMaxSize;
+        public POINT ptMaxPosition;
+        public POINT ptMinTrackSize;
+        public POINT ptMaxTrackSize;
+    }
+
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern bool SetWindowSubclass(nint hWnd, SubclassProc proc, nint id, nint data);
+
+    [DllImport("comctl32.dll")]
+    private static extern nint DefSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam);
+
+    private static nint OnSubclassProc(nint hWnd, uint msg, nint wParam, nint lParam, nint id, nint data)
+    {
+        const uint WM_GETMINMAXINFO = 0x0024;
+        if (msg == WM_GETMINMAXINFO && lParam != nint.Zero)
+        {
+            nint result = DefSubclassProc(hWnd, msg, wParam, lParam);
+            var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+            mmi.ptMinTrackSize.x = 40;
+            mmi.ptMinTrackSize.y = 30;
+            Marshal.StructureToPtr(mmi, lParam, false);
+            return result;
+        }
+        return DefSubclassProc(hWnd, msg, wParam, lParam);
     }
 
     /// <summary>Keeps the widget out of screenshots and screen sharing when the setting is on.</summary>
@@ -403,12 +451,6 @@ public sealed partial class SpeedWidgetWindow : Window
             Widget.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
             var size = Widget.DesiredSize;
 
-            // The window's current size constrains the control, so the intrinsic size wins: that
-            // is what keeps a newly enabled top-app line or a longer process name from clipping.
-            size = new Windows.Foundation.Size(
-                Math.Max(size.Width, Widget.ActualWidth),
-                Math.Max(size.Height, Widget.ActualHeight));
-
             // AppWindow sizes are physical pixels, DesiredSize is DIPs.
             var scale = Content?.XamlRoot?.RasterizationScale ?? 1.0;
 
@@ -421,13 +463,6 @@ public sealed partial class SpeedWidgetWindow : Window
 
             var width = Math.Max(1, (int)Math.Ceiling(size.Width * scale));
             var height = Math.Max(1, (int)Math.Ceiling(size.Height * scale));
-
-            // "CPU · process 12%" needs more room than the plain speed row; without this the
-            // top-app lines were cut at the window edge.
-            if (ServiceContainer.Settings.SpeedMeter.ShowTopApps)
-            {
-                width = Math.Max(width, (int)Math.Ceiling(210 * scale));
-            }
 
             if (AppWindow is not { } appWindow) return;
             if (appWindow.Size.Width == width && appWindow.Size.Height == height) return;
@@ -534,6 +569,7 @@ public sealed partial class SpeedWidgetWindow : Window
         PositionOnScreen();
         ApplyCaptureAffinity();
         ApplyClickThrough();
+        ApplyAlwaysOnTop();
     }
 
     /// <summary>Writes one reading into the widget with the configured units and decimals.</summary>
@@ -642,8 +678,35 @@ public sealed partial class SpeedWidgetWindow : Window
         }
     }
 
+    private void ApplyAlwaysOnTop()
+    {
+        try
+        {
+            bool alwaysOnTop = ServiceContainer.Settings.SpeedMeter.AlwaysOnTop;
+            if (AppWindow?.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.IsAlwaysOnTop = alwaysOnTop;
+            }
+
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            const uint SWP_NOMOVE = 0x0002;
+            const uint SWP_NOSIZE = 0x0001;
+            const uint SWP_NOACTIVATE = 0x0010;
+            nint insertAfter = alwaysOnTop ? (nint)(-1) /* HWND_TOPMOST */ : (nint)(-2) /* HWND_NOTOPMOST */;
+            SetWindowPos(hWnd, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] AlwaysOnTop error: {ex.Message}");
+        }
+    }
+
     private void KeepOnTop()
     {
+        if (!ServiceContainer.Settings.SpeedMeter.AlwaysOnTop) return;
+
         try
         {
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -808,30 +871,51 @@ public sealed partial class SpeedWidgetWindow : Window
 
     // ── Click-through ────────────────────────────────────────────────────────
 
-    /// <summary>Applies WS_EX_TRANSPARENT so clicks pass through, unless Alt is held.</summary>
+    /// <summary>Applies WS_EX_TRANSPARENT | WS_EX_LAYERED so clicks pass through, unless Alt is held.</summary>
     private void ApplyClickThrough(bool forceOff = false)
     {
-        var want = !forceOff && ServiceContainer.Settings.SpeedMeter.ClickThrough;
+        bool clickThroughSetting = ServiceContainer.Settings.SpeedMeter.ClickThrough;
+        var want = !forceOff && clickThroughSetting;
 
         try
         {
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             if (hWnd == nint.Zero) return;
 
+            const int flags = WS_EX_TRANSPARENT | WS_EX_LAYERED;
             var exStyle = (int)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
             var updated = want
-                ? exStyle | WS_EX_TRANSPARENT
-                : exStyle & ~WS_EX_TRANSPARENT;
+                ? exStyle | flags
+                : exStyle & ~flags;
 
             if (updated != exStyle)
             {
                 SetWindowLongPtr(hWnd, GWL_EXSTYLE, updated);
+                if (want)
+                {
+                    SetLayeredWindowAttributes(hWnd, 0, 255, 0x02 /* LWA_ALPHA */);
+                }
+                const uint SWP_NOSIZE = 0x0001;
+                const uint SWP_NOMOVE = 0x0002;
+                const uint SWP_NOZORDER = 0x0004;
+                const uint SWP_NOACTIVATE = 0x0010;
+                const uint SWP_FRAMECHANGED = 0x0020;
+                SetWindowPos(hWnd, nint.Zero, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
             }
 
             _clickThroughActive = want;
 
-            if (want) _altTimer?.Start();
-            else _altTimer?.Stop();
+            // Keep the Alt poll timer running whenever ClickThrough is enabled in settings,
+            // so releasing Alt restores click-through instead of leaving it permanently off.
+            if (clickThroughSetting)
+            {
+                if (_altTimer != null && !_altTimer.IsRunning) _altTimer.Start();
+            }
+            else
+            {
+                _altTimer?.Stop();
+            }
         }
         catch (Exception ex)
         {

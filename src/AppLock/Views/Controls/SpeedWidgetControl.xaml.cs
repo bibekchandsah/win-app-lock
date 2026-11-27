@@ -473,6 +473,7 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         MeteredBadge.Visibility = metered ? Visibility.Visible : Visibility.Collapsed;
         VpnBadge.Visibility = vpn ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBadgesVisibility();
         UpdateHeaderDivider();
         ApplyStatsValues();
     }

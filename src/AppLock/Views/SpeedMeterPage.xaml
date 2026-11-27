@@ -549,6 +549,24 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Always on top" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Keep the widget floating above all other application windows"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="AlwaysOnTopToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
+                                          Toggled="AlwaysOnTopToggle_Toggled"/>
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="Lock position" FontSize="13"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                 <TextBlock Text="The widget cannot be dragged while locked"
