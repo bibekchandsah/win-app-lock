@@ -288,6 +288,11 @@ public sealed partial class SpeedMeterPage : Page
         _loading = false;
 
         ApplyAppearance();
+
+        // Sync conditional sub-panels after all values are loaded
+        ClockSubOptions.Visibility = ShowClockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        TopAppsSubOptions.Visibility = ShowTopAppsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BuildComboItems()
@@ -446,6 +451,11 @@ public sealed partial class SpeedMeterPage : Page
         _loading = false;
 
         ApplyAppearance();
+
+        // Sync conditional sub-panels after all values are loaded
+        ClockSubOptions.Visibility = ShowClockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        TopAppsSubOptions.Visibility = ShowTopAppsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BackgroundColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
@@ -777,6 +787,9 @@ public sealed partial class SpeedMeterPage : Page
         Settings.ShowClockDate = ShowClockDateToggle.IsOn;
         Settings.ShowClockSeconds = ShowClockSecondsToggle.IsOn;
 
+        // Keep clock sub-options in sync with the parent toggle
+        ClockSubOptions.Visibility = ShowClockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+
         if (Settings.RowOrder.Count == 0) Settings.RowOrder = EffectiveRowOrder();
 
         SaveExtraStats();
@@ -844,6 +857,9 @@ public sealed partial class SpeedMeterPage : Page
         Settings.WarnNotifications = WarnToastsToggle.IsOn;
         Settings.BatteryAlerts = BatteryAlertsToggle.IsOn;
 
+        // Show battery threshold inputs only when battery alerts are enabled
+        BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+
         SaveExtraStats();
     }
 
@@ -852,6 +868,10 @@ public sealed partial class SpeedMeterPage : Page
         if (_loading) return;
 
         Settings.ShowTopApps = ShowTopAppsToggle.IsOn;
+
+        // Show metric sub-toggles only when Top apps line is enabled
+        TopAppsSubOptions.Visibility = ShowTopAppsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+
         SaveExtraStats();
     }
 

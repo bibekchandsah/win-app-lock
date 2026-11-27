@@ -740,8 +740,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="CPU usage" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="CPU usage" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show real-time CPU utilisation as an extra row in the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowCpuToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -750,8 +756,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="RAM usage" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="RAM usage" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show real-time memory usage as an extra row in the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowRamToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -760,8 +772,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Disk activity" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Disk activity" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show real-time disk read/write speed as an extra row in the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowDiskToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -770,8 +788,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="GPU usage" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="GPU usage" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show real-time GPU utilisation as an extra row in the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowGpuToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -780,8 +804,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Battery" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Battery" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show the current battery level and charging state in the widget"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -806,8 +836,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Total data used today" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Total data used today" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show cumulative download and upload since midnight"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ShowTodayTotalToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
@@ -827,32 +863,41 @@
                                 <ToggleSwitch x:Name="ShowClockToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
                             </Grid>
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Show the date" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                <ToggleSwitch x:Name="ShowClockDateToggle" Grid.Column="1" MinWidth="0"
-                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
-                            </Grid>
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Seconds" FontSize="13"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="Ticks every second instead of every minute"
-                                               FontSize="11"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <ToggleSwitch x:Name="ShowClockSecondsToggle" Grid.Column="1" MinWidth="0"
-                                              OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
-                            </Grid>
+                            <!-- Sub-options shown only when Date and time is ON -->
+                            <StackPanel x:Name="ClockSubOptions" Spacing="8" Visibility="Collapsed">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Show the date" FontSize="13"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Adds the day and date alongside the time"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ShowClockDateToggle" Grid.Column="1" MinWidth="0"
+                                                  OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                                </Grid>
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Seconds" FontSize="13"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Ticks every second instead of every minute"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ShowClockSecondsToggle" Grid.Column="1" MinWidth="0"
+                                                  OffContent="" OnContent="" Toggled="ExtraStatToggle_Toggled"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Warning thresholds -->
@@ -860,6 +905,24 @@
                             <TextBlock Text="Warnings"
                                        FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Notify when a warning is crossed" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="A toast names the app that is using the most CPU, RAM, disk, download or upload"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="WarnToastsToggle" Grid.Column="1" MinWidth="0"
+                                              OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
+                            </Grid>
+
                             <Grid ColumnSpacing="12" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -898,23 +961,6 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Notify when a warning is crossed" FontSize="13"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <TextBlock Text="A toast names the app that is using the most CPU, RAM or disk"
-                                               FontSize="11"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <ToggleSwitch x:Name="WarnToastsToggle" Grid.Column="1" MinWidth="0"
-                                              OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
-                            </Grid>
-
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2" VerticalAlignment="Center">
                                     <TextBlock Text="Battery alerts" FontSize="13"
                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                     <TextBlock Text="Charging, discharging and plug in / unplug toasts, in the speed meter toast style"
@@ -926,7 +972,8 @@
                                               OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
                             </Grid>
 
-                            <StackPanel Spacing="6">
+                            <!-- Sub-options shown only when Battery alerts is ON -->
+                            <StackPanel x:Name="BatteryAlertsSubOptions" Spacing="6" Visibility="Collapsed">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -967,67 +1014,76 @@
                                               OffContent="" OnContent="" Toggled="TopAppsToggle_Toggled"/>
                             </Grid>
 
-                            <Grid ColumnSpacing="24" RowSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                            <!-- Sub-options shown only when Top apps line is ON -->
+                            <StackPanel x:Name="TopAppsSubOptions" Spacing="8" Visibility="Collapsed">
+                                <Grid ColumnSpacing="24" RowSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                <Grid Grid.Row="0" Grid.Column="0" ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Top CPU app" FontSize="13" VerticalAlignment="Center"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <ToggleSwitch x:Name="TopCpuToggle" Grid.Column="1" HorizontalAlignment="Right"
-                                                  MinWidth="0" OffContent="" OnContent=""
-                                                  Toggled="TopAppsMetric_Toggled"/>
+                                    <Grid Grid.Row="0" Grid.Column="0" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Top CPU app" FontSize="13" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <ToggleSwitch x:Name="TopCpuToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                      MinWidth="0" OffContent="" OnContent=""
+                                                      Toggled="TopAppsMetric_Toggled"/>
+                                    </Grid>
+                                    <Grid Grid.Row="0" Grid.Column="1" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Top RAM app" FontSize="13" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <ToggleSwitch x:Name="TopRamToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                      MinWidth="0" OffContent="" OnContent=""
+                                                      Toggled="TopAppsMetric_Toggled"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Top disk app" FontSize="13" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <ToggleSwitch x:Name="TopDiskToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                      MinWidth="0" OffContent="" OnContent=""
+                                                      Toggled="TopAppsMetric_Toggled"/>
+                                    </Grid>
+                                    <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Top GPU app" FontSize="13" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                        <ToggleSwitch x:Name="TopGpuToggle" Grid.Column="1" HorizontalAlignment="Right"
+                                                      MinWidth="0" OffContent="" OnContent=""
+                                                      Toggled="TopAppsMetric_Toggled"/>
+                                    </Grid>
                                 </Grid>
-                                <Grid Grid.Row="0" Grid.Column="1" ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Top RAM app" FontSize="13" VerticalAlignment="Center"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <ToggleSwitch x:Name="TopRamToggle" Grid.Column="1" HorizontalAlignment="Right"
-                                                  MinWidth="0" OffContent="" OnContent=""
-                                                  Toggled="TopAppsMetric_Toggled"/>
-                                </Grid>
-                                <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Top disk app" FontSize="13" VerticalAlignment="Center"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <ToggleSwitch x:Name="TopDiskToggle" Grid.Column="1" HorizontalAlignment="Right"
-                                                  MinWidth="0" OffContent="" OnContent=""
-                                                  Toggled="TopAppsMetric_Toggled"/>
-                                </Grid>
-                                <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Top GPU app" FontSize="13" VerticalAlignment="Center"
-                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                                    <ToggleSwitch x:Name="TopGpuToggle" Grid.Column="1" HorizontalAlignment="Right"
-                                                  MinWidth="0" OffContent="" OnContent=""
-                                                  Toggled="TopAppsMetric_Toggled"/>
-                                </Grid>
-                            </Grid>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Row order"
-                                       FontSize="12"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Row order"
+                                           FontSize="12"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="Drag to change the display order of CPU, RAM, disk, GPU, battery, and total rows in the widget"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
                             <StackPanel x:Name="RowOrderPanel" Spacing="4"/>
                         </StackPanel>
                     </StackPanel>
@@ -1070,8 +1126,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Notify when the connection is lost" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Notify when the connection is lost" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show an alert when the internet connection drops"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="NotifyLostToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
@@ -1080,8 +1142,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Notify when it comes back" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Notify when it comes back" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Show an alert when connectivity is restored"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="NotifyRestoredToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
@@ -1090,8 +1158,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Sound" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Sound" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Play a system sound with each connection alert"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="AlertSoundToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
@@ -1100,8 +1174,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Stay quiet in full-screen apps" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Stay quiet in full-screen apps" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Suppress alerts while a full-screen app or video is active"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="SuppressFullscreenToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
@@ -1110,8 +1190,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Check for real internet access" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Check for real internet access" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="Verify actual internet reachability, not just local network connectivity"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="RealInternetToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
@@ -1120,8 +1206,14 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Active probe (opt-in, sends requests)" FontSize="13" VerticalAlignment="Center"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap"/>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Active probe (opt-in, sends requests)" FontSize="13"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="Sends a lightweight HTTP request to confirm connectivity; uses a small amount of data"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                                 <ToggleSwitch x:Name="ActiveProbeToggle" Grid.Column="1" MinWidth="0"
                                               OffContent="" OnContent="" Toggled="AlertToggle_Toggled"/>
                             </Grid>
