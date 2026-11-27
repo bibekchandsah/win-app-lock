@@ -1,0 +1,220 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid && auth.token.email_verified == true",
+        ".write": "auth != null && auth.uid == $uid && auth.token.email_verified == true",
+        "crypto": {
+          "kdf": {
+            ".validate": "newData.hasChildren(['alg','m','t','p','salt']) && newData.child('alg').val() == 'argon2id' && newData.child('m').isNumber() && newData.child('m').val() >= 65536 && newData.child('t').isNumber() && newData.child('t').val() >= 3 && newData.child('p').isNumber() && newData.child('p').val() == 1 && newData.child('salt').isString() && newData.child('salt').val().length >= 16 && newData.child('salt').val().length <= 64"
+          },
+          "slots": {
+            "pass": {
+              ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 512"
+            },
+            "recovery": {
+              ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 512"
+            }
+          },
+          "verifier": {
+            ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 512"
+          },
+          "v": {
+            ".validate": "newData.isNumber() && newData.val() == 1"
+          }
+        },
+        "devices": {
+          "$deviceId": {
+            ".validate": "$deviceId.matches(/^[0-9a-f]{32}$/)",
+            "meta": {
+              "app": {
+                ".validate": "newData.isString() && newData.val().length <= 16"
+              },
+              "os": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "platform": {
+                ".validate": "newData.isString() && newData.val().length <= 16"
+              },
+              "createdAt": {
+                ".validate": "newData.isNumber() && newData.val() > 0"
+              },
+              "nameEnc": {
+                ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 2048"
+              }
+            },
+            "presence": {
+              "online": {
+                ".validate": "newData.isBoolean()"
+              },
+              "lastSeen": {
+                ".validate": "newData.isNumber() && newData.val() > 0"
+              }
+            },
+            "live": {
+              "battery": {
+                "percent": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "charging": {
+                  ".validate": "newData.isBoolean()"
+                },
+                "pluggedIn": {
+                  ".validate": "newData.isBoolean()"
+                },
+                "saver": {
+                  ".validate": "newData.isBoolean()"
+                },
+                "remainingMinutes": {
+                  ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() <= 100000"
+                }
+              },
+              "radios": {
+                "wifi": {
+                  ".validate": "newData.isBoolean()"
+                },
+                "bluetooth": {
+                  ".validate": "newData.isBoolean()"
+                }
+              },
+              "audio": {
+                "muted": {
+                  ".validate": "newData.isBoolean()"
+                },
+                "volume": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                }
+              },
+              "display": {
+                "brightness": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "blur": {
+                  ".validate": "newData.isBoolean()"
+                }
+              },
+              "perf": {
+                "cpu": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "ram": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "disk": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "gpu": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+                },
+                "netDown": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+                },
+                "netUp": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
+                }
+              },
+              "keyboard": {
+                "enabled": {
+                  ".validate": "newData.isBoolean()"
+                }
+              }
+            },
+            "data": {
+              "$category": {
+                ".validate": "$category.matches(/^(apps|devices|media|audio|protected|screentime|usage|bitlocker|netrules|lan|ports|webfilter|wifischedule|wifipasswords|notes|reminders|clipboard)$/) && newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 200000"
+              }
+            },
+            "history": {
+              "$kind": {
+                ".validate": "$kind.matches(/^(screentime|usage)$/)",
+                "$day": {
+                  ".validate": "$day.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 200000"
+                }
+              }
+            },
+            "commands": {
+              "$cmdId": {
+                ".validate": "$cmdId.matches(/^[A-Za-z0-9_-]{8,64}$/) && newData.hasChildren(['type','createdAt','expiresAt','nonce','status','tier','session']) && newData.child('type').isString() && newData.child('type').val().length <= 40 && newData.child('type').val().matches(/^[a-z]+(\\.[a-z]+)+$/) && newData.child('createdAt').isNumber() && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > newData.child('createdAt').val() && newData.child('expiresAt').val() <= now + 600000 && newData.child('nonce').isString() && newData.child('nonce').val().length == 16 && newData.child('session').isString() && newData.child('session').val().length <= 64 && newData.child('tier').isNumber() && newData.child('tier').val() >= 1 && newData.child('tier').val() <= 3 && newData.child('status').val() == 'pending' && (!newData.hasChild('proof') || (newData.child('proof').isString() && newData.child('proof').val().length <= 128)) && (!newData.hasChild('stepUpAt') || newData.child('stepUpAt').isNumber()) && (!newData.hasChild('payload') || (newData.child('payload').isString() && newData.child('payload').val().length <= 8192))"
+              }
+            },
+            "results": {
+              "$cmdId": {
+                ".validate": "$cmdId.matches(/^[A-Za-z0-9_-]{8,64}$/) && newData.hasChildren(['status','at']) && newData.child('status').val().matches(/^(ok|failed|rejected|expired|needs_elevation|needs_local_approval|cancelled)$/) && newData.child('at').isNumber() && newData.child('at').val() > 0 && (!newData.hasChild('message') || (newData.child('message').isString() && newData.child('message').val().length <= 400))"
+              }
+            },
+            "audit": {
+              "$id": {
+                ".validate": "$id.matches(/^[A-Za-z0-9_-]{8,64}$/) && newData.hasChildren(['type','tier','status','at']) && newData.child('type').isString() && newData.child('type').val().length <= 40 && newData.child('tier').isNumber() && newData.child('tier').val() >= 1 && newData.child('tier').val() <= 3 && newData.child('status').val().matches(/^(ok|failed|rejected|expired|needs_elevation|needs_local_approval|cancelled)$/) && newData.child('at').isNumber() && newData.child('at').val() > 0 && (!newData.hasChild('session') || (newData.child('session').isString() && newData.child('session').val().length <= 64))"
+              }
+            },
+            "viewers": {
+              "$sessionId": {
+                ".validate": "$sessionId.matches(/^[A-Za-z0-9_-]{8,64}$/) && newData.hasChildren(['ts','ua']) && newData.child('ts').isNumber() && newData.child('ts').val() > 0 && newData.child('ua').isString() && newData.child('ua').val().length <= 200 && (!newData.hasChild('tab') || (newData.child('tab').isString() && newData.child('tab').val().length <= 64))"
+              }
+            }
+          }
+        },
+        "sync": {
+          "notes": {
+            "$noteId": {
+              ".validate": "$noteId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.hasChildren(['updatedAt','deviceId','deleted']) && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() > 0 && newData.child('deviceId').isString() && newData.child('deviceId').val().matches(/^[0-9a-f]{32}$/) && newData.child('deleted').isBoolean() && (newData.child('deleted').val() == true || newData.hasChild('envelope'))",
+              "envelope": {
+                ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 200000"
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber() && newData.val() > 0"
+              },
+              "deviceId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)"
+              },
+              "deleted": {
+                ".validate": "newData.isBoolean()"
+              }
+            }
+          },
+          "reminders": {
+            "$reminderId": {
+              ".validate": "$reminderId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.hasChildren(['updatedAt','deviceId','deleted']) && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() > 0 && newData.child('deviceId').isString() && newData.child('deviceId').val().matches(/^[0-9a-f]{32}$/) && newData.child('deleted').isBoolean() && (newData.child('deleted').val() == true || newData.hasChild('envelope'))",
+              "envelope": {
+                ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 200000"
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber() && newData.val() > 0"
+              },
+              "deviceId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)"
+              },
+              "deleted": {
+                ".validate": "newData.isBoolean()"
+              }
+            }
+          },
+          "clipboard": {
+            "$itemId": {
+              ".validate": "$itemId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.hasChildren(['createdAt','deviceId','envelope']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() > 0 && newData.child('deviceId').isString() && newData.child('deviceId').val().matches(/^[0-9a-f]{32}$/) && newData.child('envelope').hasChildren(['v','n','c'])",
+              "envelope": {
+                ".validate": "newData.hasChildren(['v','n','c']) && newData.child('v').val() == 1 && newData.child('n').isString() && newData.child('n').val().length == 16 && newData.child('c').isString() && newData.child('c').val().length > 0 && newData.child('c').val().length <= 200000"
+              },
+              "createdAt": {
+                ".validate": "newData.isNumber() && newData.val() > 0"
+              },
+              "deviceId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)"
+              },
+              "deleted": {
+                ".validate": "newData.isBoolean()"
+              }
+            }
+          }
+        },
+        "sessions": {
+          "$sessionId": {
+            ".validate": "$sessionId.matches(/^[A-Za-z0-9_-]{8,64}$/) && newData.hasChildren(['createdAt','ua']) && newData.child('createdAt').isNumber() && newData.child('createdAt').val() > 0 && newData.child('ua').isString() && newData.child('ua').val().length <= 200 && (!newData.hasChild('lastSeen') || (newData.child('lastSeen').isNumber() && newData.child('lastSeen').val() > 0))"
+          }
+        }
+      }
+    }
+  }
+}

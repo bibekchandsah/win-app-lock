@@ -1,0 +1,18 @@
+{
+  "name": "applock-sync-firebase",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Realtime Database rules, emulator config and rules tests for AppLock Sync",
+  "scripts": {
+    "test": "firebase --config firebase.json emulators:exec --only database --project demo-applock \"vitest run\"",
+    "test:watch": "firebase --config firebase.json emulators:exec --only database --project demo-applock \"vitest\"",
+    "emulators": "firebase --config firebase.json emulators:start --only database,auth",
+    "deploy:rules": "firebase --config firebase.json deploy --only database"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
+    "vitest": "^3.2.4"
+  }
+}
