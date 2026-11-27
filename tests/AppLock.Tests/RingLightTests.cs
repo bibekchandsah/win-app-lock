@@ -273,6 +273,37 @@ public class RingLightTests
         Assert.NotNull(active);
     }
 
+    [Fact]
+    public void CameraUsageMonitor_LifecycleAndDetails_AreSafeAndIdempotent()
+    {
+        using var monitor = new CameraUsageMonitor();
+        Assert.False(monitor.IsMonitoring);
+
+        monitor.Start();
+        Assert.True(monitor.IsMonitoring);
+        monitor.Start(); // idempotent
+
+        var details = monitor.GetActiveCameraDetails();
+        Assert.NotNull(details);
+
+        monitor.Stop();
+        Assert.False(monitor.IsMonitoring);
+        monitor.Stop(); // idempotent
+
+        monitor.Dispose();
+        monitor.Dispose();
+    }
+
+    [Theory]
+    [InlineData(@"C:#Program Files#Google#Chrome#Application#chrome.exe", true, "Google Chrome")]
+    [InlineData(@"C:#Program Files (x86)#Microsoft#Edge#Application#msedge.exe", true, "Microsoft Edge")]
+    [InlineData("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", false, "WhatsApp")]
+    [InlineData("Microsoft.WindowsCamera_8wekyb3d8bbwe", false, "Windows Camera")]
+    public void CameraUsageMonitor_FriendlyAppName_MapsKnownApps(string rawKey, bool nonPackaged, string expected)
+    {
+        Assert.Equal(expected, CameraUsageMonitor.FriendlyAppName(rawKey, nonPackaged));
+    }
+
     // ── 5. Settings Serialization & Migration ────────────────────────────────
 
     [Fact]
