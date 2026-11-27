@@ -9,6 +9,9 @@ public sealed class WindowIslandSettings
     /// <summary>Whether Window Island is enabled.</summary>
     public bool Enabled { get; set; } = false;
 
+    /// <summary>Last active category tag in WindowIslandSettingsPage so it persists across reload/restart.</summary>
+    public string LastSettingsTab { get; set; } = "general";
+
     /// <summary>Global hotkey to toggle Window Island, e.g. "Ctrl+Alt+W" or "Ctrl+Shift+I".</summary>
     public string Hotkey { get; set; } = "Ctrl+Shift+W";
 

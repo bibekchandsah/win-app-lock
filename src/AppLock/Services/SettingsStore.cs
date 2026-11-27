@@ -12,7 +12,9 @@ public class SettingsStore
         "AppLock");
     
     private static readonly string SettingsFilePath = Path.Combine(AppDataPath, "settings.json");
+    private static readonly string SettingsBackupPath = Path.Combine(AppDataPath, "settings.json.bak");
     private static readonly string LogsPath = Path.Combine(AppDataPath, "logs");
+    private static readonly object _ioLock = new();
 
     /// <summary>The AppLock data directory (e.g. %APPDATA%\AppLock).</summary>
     public string SettingsDirectory => AppDataPath;
@@ -30,32 +32,48 @@ public class SettingsStore
 
     public AppSettings Load()
     {
-        try
+        lock (_ioLock)
         {
-            if (!File.Exists(SettingsFilePath))
+            var primary = TryLoadFromFile(SettingsFilePath);
+            if (primary != null)
             {
-                return new AppSettings { IsFirstRun = true };
+                return primary;
             }
 
-            var json = File.ReadAllText(SettingsFilePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json);
-            
-            if (settings != null)
+            // If primary settings.json was missing or corrupted mid-write, recover from backup.
+            var backup = TryLoadFromFile(SettingsBackupPath);
+            if (backup != null)
             {
-                bool hadSelfDisciplineInJson = json.Contains("\"SelfDiscipline\"");
-                bool hadBatteryLevelsInJson = json.Contains("\"BatteryLowPercents\"")
-                    || json.Contains("\"BatteryHighPercents\"");
-                bool hadWebFilterInJson = json.Contains("\"WebFilter\"");
-                MigrateSettings(settings, !hadSelfDisciplineInJson, hadBatteryLevelsInJson, hadWebFilterInJson);
-                return settings;
+                try { Save(backup); } catch { }
+                return backup;
             }
 
             return new AppSettings { IsFirstRun = true };
         }
+    }
+
+    private AppSettings? TryLoadFromFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var json = File.ReadAllText(path);
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            var settings = JsonSerializer.Deserialize<AppSettings>(json);
+            if (settings == null) return null;
+
+            bool hadSelfDisciplineInJson = json.Contains("\"SelfDiscipline\"");
+            bool hadBatteryLevelsInJson = json.Contains("\"BatteryLowPercents\"")
+                || json.Contains("\"BatteryHighPercents\"");
+            bool hadWebFilterInJson = json.Contains("\"WebFilter\"");
+            MigrateSettings(settings, !hadSelfDisciplineInJson, hadBatteryLevelsInJson, hadWebFilterInJson);
+            return settings;
+        }
         catch (Exception ex)
         {
-            LogError("Failed to load settings", ex);
-            return new AppSettings { IsFirstRun = true };
+            LogError($"Failed to load settings from {Path.GetFileName(path)}", ex);
+            return null;
         }
     }
 
@@ -210,7 +228,32 @@ public class SettingsStore
                 WriteIndented = true
             });
 
-            File.WriteAllText(SettingsFilePath, json);
+            lock (_ioLock)
+            {
+                EnsureDirectoriesExist();
+                string tempPath = SettingsFilePath + ".tmp";
+
+                for (int attempt = 0; attempt < 4; attempt++)
+                {
+                    try
+                    {
+                        File.WriteAllText(tempPath, json);
+                        if (File.Exists(SettingsFilePath))
+                        {
+                            File.Replace(tempPath, SettingsFilePath, SettingsBackupPath, ignoreMetadataErrors: true);
+                        }
+                        else
+                        {
+                            File.Move(tempPath, SettingsFilePath, overwrite: true);
+                        }
+                        return;
+                    }
+                    catch (IOException) when (attempt < 3)
+                    {
+                        Thread.Sleep(25);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {

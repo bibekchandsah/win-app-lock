@@ -21,9 +21,15 @@ public sealed partial class WindowIslandSettingsPage : Page
     public WindowIslandSettingsPage()
     {
         InitializeComponent();
-        CategoryList.SelectedIndex = 0;
+        SelectCategoryByTag(ServiceContainer.Settings.WindowIsland.LastSettingsTab);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        FlushPendingDiskSave();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -31,11 +37,32 @@ public sealed partial class WindowIslandSettingsPage : Page
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
         _worldClockTimer?.Stop();
+        FlushPendingDiskSave();
+    }
+
+    private void FlushPendingDiskSave()
+    {
         if (_diskSaveTimer != null && _diskSaveTimer.IsRunning)
         {
             _diskSaveTimer.Stop();
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
+    }
+
+    private void SelectCategoryByTag(string? tag)
+    {
+        if (CategoryList == null) return;
+        string target = string.IsNullOrWhiteSpace(tag) ? "general" : tag;
+        for (int i = 0; i < CategoryList.Items.Count; i++)
+        {
+            if (CategoryList.Items[i] is ListViewItem item &&
+                string.Equals(item.Tag as string, target, StringComparison.OrdinalIgnoreCase))
+            {
+                CategoryList.SelectedIndex = i;
+                return;
+            }
+        }
+        if (CategoryList.Items.Count > 0) CategoryList.SelectedIndex = 0;
     }
 
     private void OnExternalThroughModeChanged(bool enabled)
@@ -264,6 +291,18 @@ public sealed partial class WindowIslandSettingsPage : Page
 
         string category = (CategoryList.SelectedItem as ListViewItem)?.Tag as string ?? "general";
 
+        if (!_loading)
+        {
+            var s = ServiceContainer.Settings.WindowIsland;
+            if (!string.Equals(s.LastSettingsTab, category, StringComparison.OrdinalIgnoreCase))
+            {
+                s.LastSettingsTab = category;
+                _diskSaveTimer ??= CreateDiskSaveTimer();
+                _diskSaveTimer.Stop();
+                _diskSaveTimer.Start();
+            }
+        }
+
         SectionGeneral.Visibility = ShowSection(category, "general");
         SectionAppearance.Visibility = ShowSection(category, "appearance");
         SectionVisibility.Visibility = ShowSection(category, "visibility");
@@ -288,7 +327,11 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _loading = true;
+        try
+        {
         var s = ServiceContainer.Settings.WindowIsland;
+        SelectCategoryByTag(s.LastSettingsTab);
 
         EnabledToggle.IsOn = s.Enabled;
 
@@ -444,8 +487,11 @@ public sealed partial class WindowIslandSettingsPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
         RefreshSearchCommandsList();
-
-        _loading = false;
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     // ── Event handlers ─────────────────────────────────────────────────────────
@@ -799,7 +845,11 @@ public sealed partial class WindowIslandSettingsPage : Page
             _diskSaveTimer?.Stop();
             ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
         }
-        ServiceContainer.SetWindowIslandEnabled(s.Enabled);
+
+        if (s.Enabled != prevEnabled)
+        {
+            ServiceContainer.SetWindowIslandEnabled(s.Enabled);
+        }
 
         if (s.Enabled)
         {

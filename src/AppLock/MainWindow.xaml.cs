@@ -2444,6 +2444,8 @@ public sealed partial class MainWindow : Window
         // animation keeps the shared window hidden/transparent after we exit.
         ServiceContainer.ShutdownNotificationCustomizer();
 
+        try { ServiceContainer.SettingsStore.Save(ServiceContainer.Settings); } catch { }
+
         try
         {
             if (ServiceContainer.Settings.WebFilter.Enabled)
