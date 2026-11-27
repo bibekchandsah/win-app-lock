@@ -31,8 +31,24 @@
                 BorderBrush="{ThemeResource FlyoutStrokeBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
-                Padding="16">
-            <StackPanel Spacing="12" Width="340">
+                Padding="16,10,16,16">
+            <StackPanel Spacing="10" Width="340">
+
+                <!-- Centered drag handle pill -->
+                <Grid Background="Transparent"
+                      Padding="0,0,0,2"
+                      PointerPressed="HeaderArea_PointerPressed"
+                      PointerMoved="HeaderArea_PointerMoved"
+                      PointerReleased="HeaderArea_PointerReleased"
+                      PointerCaptureLost="HeaderArea_PointerCaptureLost"
+                      ToolTipService.ToolTip="Drag to move this window">
+                    <Border Width="36"
+                            Height="4"
+                            CornerRadius="2"
+                            HorizontalAlignment="Center"
+                            Background="{ThemeResource TextFillColorTertiaryBrush}"
+                            Opacity="0.55" />
+                </Grid>
 
                 <Grid x:Name="HeaderArea"
                       ColumnSpacing="8"
