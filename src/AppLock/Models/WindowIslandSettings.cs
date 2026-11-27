@@ -59,6 +59,9 @@ public sealed class WindowIslandSettings
     /// <summary>Vertical offset in DIPs from top of screen.</summary>
     public int YOffsetDip { get; set; } = 0;
 
+    /// <summary>Horizontal offset in DIPs from the configured edge/center.</summary>
+    public int XOffsetDip { get; set; } = 0;
+
     // ── Milestone 4: Live Card Settings ───────────────────────────────────────
     /// <summary>Card stay duration: "1s" (1000ms), "Shorter" (2000ms), "Usual" (3500ms), "Longer" (6000ms), "Custom".</summary>
     public string CardStayDuration { get; set; } = "Usual";
@@ -266,16 +269,29 @@ public sealed class WindowIslandSettings
     /// <summary>Push cards at 20 %, 10 %, 5 % battery while discharging.</summary>
     public bool CardBatteryLowEnabled { get; set; } = true;
 
+    /// <summary>Custom battery percentage thresholds (1..99, descending) that trigger low battery alerts.</summary>
+    public List<int> LowBatteryThresholds { get; set; } = new() { 20, 10, 5 };
+
+    public List<int> GetEffectiveLowBatteryThresholds()
+    {
+        var list = (LowBatteryThresholds ?? new List<int> { 20, 10, 5 })
+            .Where(p => p >= 1 && p <= 99)
+            .Distinct()
+            .OrderByDescending(p => p)
+            .ToList();
+        return list.Count > 0 ? list : new List<int> { 20, 10, 5 };
+    }
+
     /// <summary>Push a card when charging starts or finishes.</summary>
     public bool CardChargingEnabled   { get; set; } = true;
 
     /// <summary>Show orange/green mic/camera indicator dots on the folded island.</summary>
     public bool MicCamDotsEnabled     { get; set; } = true;
 
-    /// <summary>Show microphone indicator dot on the folded island.</summary>
+    /// <summary>Show microphone indicator on the folded island.</summary>
     public bool MicDotEnabled         { get; set; } = true;
 
-    /// <summary>Show camera indicator dot on the folded island.</summary>
+    /// <summary>Show camera indicator on the folded island.</summary>
     public bool CamDotEnabled         { get; set; } = true;
 
     /// <summary>Push a live card when an app starts using the microphone.</summary>

@@ -443,6 +443,23 @@
                                 <Slider x:Name="YOffsetSlider" Grid.Column="1" Width="240" VerticalAlignment="Center" ValueChanged="OnSliderChanged" />
                             </Grid>
                         </Border>
+
+                        <!-- Horizontal Offset -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Horizontal Offset (DIPs)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Nudge the island left or right horizontally in device-independent pixels."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="XOffsetLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="XOffsetSlider" Grid.Column="1" Width="240" VerticalAlignment="Center" ValueChanged="OnSliderChanged" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Visibility ░░ -->
@@ -745,7 +762,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Microphone indicator dot on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Microphone indicator on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
                                     <TextBlock Text="Show a privacy indicator dot whenever an application is actively recording from your microphone."
                                                Style="{StaticResource IslandSettingDescStyle}" />
                                 </StackPanel>
@@ -761,7 +778,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Camera indicator dot on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Camera indicator on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
                                     <TextBlock Text="Show a green privacy indicator dot whenever an application is using your webcam."
                                                Style="{StaticResource IslandSettingDescStyle}" />
                                 </StackPanel>
@@ -1144,17 +1161,43 @@
 
                         <!-- Low battery -->
                         <Border Style="{StaticResource IslandSettingsCardStyle}">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Low battery alert (20 %, 10 %, 5 %)" Style="{StaticResource IslandSettingTitleStyle}" />
-                                    <TextBlock Text="Display an urgent battery warning card when charge drops to 20%, 10%, or 5%." Style="{StaticResource IslandSettingDescStyle}" />
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Low battery alert (20 %, 10 %, 5 % + custom)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Display an urgent battery warning card when charge drops to any of the configured percentage thresholds." Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="CardBatteryLowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBox x:Name="NewBatteryThresholdBox"
+                                             Width="130"
+                                             PlaceholderText="Add % (1–99)"
+                                             KeyDown="NewBatteryThresholdBox_KeyDown" />
+                                    <Button x:Name="AddBatteryThresholdBtn"
+                                            Click="AddBatteryThresholdBtn_Click"
+                                            ToolTipService.ToolTip="Add custom battery percentage alert">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE710;" FontSize="11" />
+                                            <TextBlock Text="Add %" FontSize="12" />
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock x:Name="BatteryThresholdValidationText"
+                                               FontSize="11"
+                                               Foreground="#FF6B6B"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
                                 </StackPanel>
-                                <ToggleSwitch x:Name="CardBatteryLowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                            </Grid>
+
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                    <StackPanel x:Name="BatteryThresholdsPanel" Orientation="Horizontal" Spacing="6" />
+                                </ScrollViewer>
+                            </StackPanel>
                         </Border>
 
                         <!-- Charger plugged/unplugged -->
@@ -1542,6 +1585,56 @@
                                     </ComboBox>
                                 </Grid>
                                 <TextBlock x:Name="ChatRuntimeStatusText" FontSize="11" Opacity="0.65" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="10">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Custom AI Assistants" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Add up to 6 AI web assistants (default: Gemini, DeepSeek, ChatGPT). Changes sync with Window Island in real time."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="160" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="NewChatNameBox"
+                                             Grid.Column="0"
+                                             PlaceholderText="Name (e.g. Claude)" />
+                                    <TextBox x:Name="NewChatUrlBox"
+                                             Grid.Column="1"
+                                             PlaceholderText="URL (e.g. https://claude.ai)" />
+                                    <Button x:Name="AddChatSiteBtn"
+                                            Grid.Column="2"
+                                            Click="AddChatSiteBtn_Click"
+                                            ToolTipService.ToolTip="Add or save Custom AI Assistant">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon x:Name="AddChatSiteBtnIcon" Glyph="&#xE710;" FontSize="11" />
+                                            <TextBlock x:Name="AddChatSiteBtnText" Text="Add" FontSize="12" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="CancelEditChatSiteBtn"
+                                            Grid.Column="3"
+                                            Content="Cancel"
+                                            Click="CancelEditChatSiteBtn_Click"
+                                            Visibility="Collapsed" />
+                                </Grid>
+                                <TextBlock x:Name="ChatSiteValidationText" FontSize="11" Foreground="#FF6B6B" Visibility="Collapsed" />
+
+                                <Border BorderThickness="1"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        CornerRadius="6"
+                                        MaxHeight="220"
+                                        Padding="6">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel x:Name="SettingsChatSitesPanel" Spacing="4" />
+                                    </ScrollViewer>
+                                </Border>
                             </StackPanel>
                         </Border>
                     </StackPanel>

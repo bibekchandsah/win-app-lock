@@ -36,6 +36,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     {
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
+        WindowIslandHost.Instance.ChatSitesChanged -= OnExternalChatSitesChanged;
         AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.WeatherCitiesChanged -= OnExternalWeatherCitiesChanged;
         _worldClockTimer?.Stop();
         FlushPendingDiskSave();
@@ -371,9 +372,16 @@ public sealed partial class WindowIslandSettingsPage : Page
         YOffsetSlider.TickFrequency = 2;
         YOffsetSlider.Value      = s.YOffsetDip;
 
+        XOffsetSlider.Minimum    = -200;
+        XOffsetSlider.Maximum    = 200;
+        XOffsetSlider.StepFrequency = 2;
+        XOffsetSlider.TickFrequency = 2;
+        XOffsetSlider.Value      = s.XOffsetDip;
+
         UpdateSizeLabel();
         UpdateOpacityLabel();
         UpdateYOffsetLabel();
+        UpdateXOffsetLabel();
 
         ShowClockToggle.IsOn   = s.ShowClock;
         TimeFormat24HCheck.IsChecked = s.TimeFormat24H;
@@ -392,6 +400,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         CardFileCopyToggle.IsOn   = s.CardFileCopyEnabled;
         CardVpnToggle.IsOn        = s.CardVpnEnabled;
         CardBatteryLowToggle.IsOn = s.CardBatteryLowEnabled;
+        RefreshBatteryThresholdsUI();
         CardChargingToggle.IsOn   = s.CardChargingEnabled;
         CardMicToggle.IsOn        = s.CardMicEnabled;
         CardCamToggle.IsOn        = s.CardCamEnabled;
@@ -473,8 +482,11 @@ public sealed partial class WindowIslandSettingsPage : Page
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.ThroughModeChanged += OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
+        WindowIslandHost.Instance.ChatSitesChanged -= OnExternalChatSitesChanged;
         WindowIslandHost.Instance.CustomClocksChanged += OnExternalCustomClocksChanged;
+        WindowIslandHost.Instance.ChatSitesChanged += OnExternalChatSitesChanged;
         InitSettingsWorldClocks();
+        InitSettingsChatSites();
         SelectComboItem(TargetMonitorBox,  s.TargetMonitorMode);
         SelectComboItem(ChosenAppsModeBox, s.ChosenAppsMode);
         ChosenAppsBox.Text = string.Join(", ", s.ChosenApps ?? new());
@@ -724,6 +736,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         UpdateSizeLabel();
         UpdateOpacityLabel();
         UpdateYOffsetLabel();
+        UpdateXOffsetLabel();
         Save(debounceDisk: true);
     }
 
@@ -749,6 +762,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.SizePercent   = (int)SizeSlider.Value;
         s.OpacityPercent = (int)OpacitySlider.Value;
         s.YOffsetDip    = (int)YOffsetSlider.Value;
+        s.XOffsetDip    = (int)XOffsetSlider.Value;
         s.ShowClock     = ShowClockToggle.IsOn;
         s.TimeFormat24H = TimeFormat24HCheck.IsChecked ?? true;
         s.ShowSeconds   = ShowSecondsCheck.IsChecked ?? false;
@@ -1253,6 +1267,191 @@ public sealed partial class WindowIslandSettingsPage : Page
         RefreshSearchCommandsList();
     }
 
+    // ── Custom AI Assistants (Chat Tab) ────────────────────────────────────────
+
+    private int _editingChatSiteIndex = -1;
+
+    private void OnExternalChatSitesChanged()
+    {
+        DispatcherQueue.TryEnqueue(InitSettingsChatSites);
+    }
+
+    private void InitSettingsChatSites()
+    {
+        if (SettingsChatSitesPanel == null) return;
+        SettingsChatSitesPanel.Children.Clear();
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        s.ChatSites ??= WindowIslandSettings.DefaultChatSites();
+        var sites = s.ChatSites;
+
+        for (int i = 0; i < sites.Count; i++)
+        {
+            int index = i;
+            var site = sites[i];
+            bool isBuiltIn = i < 3;
+
+            var row = new Grid
+            {
+                ColumnSpacing = 10,
+                Padding = new Thickness(8, 6, 8, 6),
+                CornerRadius = new CornerRadius(6)
+            };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var icon = new FontIcon
+            {
+                Glyph = string.IsNullOrWhiteSpace(site.Icon) ? "\uE8BD" : site.Icon,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(icon, 0);
+            row.Children.Add(icon);
+
+            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+            textStack.Children.Add(new TextBlock
+            {
+                Text = site.Name,
+                FontSize = 12.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            });
+            textStack.Children.Add(new TextBlock
+            {
+                Text = site.Url,
+                FontSize = 11,
+                Opacity = 0.65,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            Grid.SetColumn(textStack, 1);
+            row.Children.Add(textStack);
+
+            if (isBuiltIn)
+            {
+                var badge = new TextBlock
+                {
+                    Text = "Default",
+                    FontSize = 11,
+                    Opacity = 0.55,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(4, 0, 4, 0)
+                };
+                Grid.SetColumn(badge, 2);
+                row.Children.Add(badge);
+            }
+            else
+            {
+                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+
+                var editBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE70F", FontSize = 12 },
+                    Padding = new Thickness(6),
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    BorderThickness = new Thickness(0)
+                };
+                ToolTipService.SetToolTip(editBtn, $"Edit {site.Name}");
+                editBtn.Click += (_, _) =>
+                {
+                    _editingChatSiteIndex = index;
+                    if (NewChatNameBox != null) NewChatNameBox.Text = site.Name;
+                    if (NewChatUrlBox != null) NewChatUrlBox.Text = site.Url;
+                    if (AddChatSiteBtnIcon != null) AddChatSiteBtnIcon.Glyph = "\uE73E";
+                    if (AddChatSiteBtnText != null) AddChatSiteBtnText.Text = "Save";
+                    if (CancelEditChatSiteBtn != null) CancelEditChatSiteBtn.Visibility = Visibility.Visible;
+                    if (ChatSiteValidationText != null) ChatSiteValidationText.Visibility = Visibility.Collapsed;
+                    NewChatNameBox?.Focus(FocusState.Programmatic);
+                };
+                actions.Children.Add(editBtn);
+
+                var removeBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE74D", FontSize = 12 },
+                    Padding = new Thickness(6),
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    BorderThickness = new Thickness(0)
+                };
+                ToolTipService.SetToolTip(removeBtn, $"Remove {site.Name}");
+                removeBtn.Click += (_, _) =>
+                {
+                    var settings = ServiceContainer.Settings.WindowIsland;
+                    if (AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.RemoveChatSite(settings, index))
+                    {
+                        if (_editingChatSiteIndex == index) ResetChatSiteEditState();
+                        else if (_editingChatSiteIndex > index) _editingChatSiteIndex--;
+                        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                        WindowIslandHost.Instance.ApplySettings(settings);
+                        InitSettingsChatSites();
+                    }
+                };
+                actions.Children.Add(removeBtn);
+
+                Grid.SetColumn(actions, 2);
+                row.Children.Add(actions);
+            }
+
+            SettingsChatSitesPanel.Children.Add(row);
+        }
+    }
+
+    private void ResetChatSiteEditState()
+    {
+        _editingChatSiteIndex = -1;
+        if (NewChatNameBox != null) NewChatNameBox.Text = string.Empty;
+        if (NewChatUrlBox != null) NewChatUrlBox.Text = string.Empty;
+        if (AddChatSiteBtnIcon != null) AddChatSiteBtnIcon.Glyph = "\uE710";
+        if (AddChatSiteBtnText != null) AddChatSiteBtnText.Text = "Add";
+        if (CancelEditChatSiteBtn != null) CancelEditChatSiteBtn.Visibility = Visibility.Collapsed;
+        if (ChatSiteValidationText != null) ChatSiteValidationText.Visibility = Visibility.Collapsed;
+    }
+
+    private void CancelEditChatSiteBtn_Click(object sender, RoutedEventArgs e)
+        => ResetChatSiteEditState();
+
+    private void AddChatSiteBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (ChatSiteValidationText != null) ChatSiteValidationText.Visibility = Visibility.Collapsed;
+
+        string name = NewChatNameBox?.Text?.Trim() ?? string.Empty;
+        string url = NewChatUrlBox?.Text?.Trim() ?? string.Empty;
+        var s = ServiceContainer.Settings.WindowIsland;
+
+        if (_editingChatSiteIndex >= 0)
+        {
+            if (!AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.UpdateChatSite(s, _editingChatSiteIndex, name, url))
+            {
+                if (ChatSiteValidationText != null)
+                {
+                    ChatSiteValidationText.Text = "Enter a valid assistant name and http/https URL.";
+                    ChatSiteValidationText.Visibility = Visibility.Visible;
+                }
+                return;
+            }
+            ResetChatSiteEditState();
+        }
+        else
+        {
+            if (!AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.AddChatSite(s, name, url))
+            {
+                if (ChatSiteValidationText != null)
+                {
+                    ChatSiteValidationText.Text = (s.ChatSites?.Count ?? 0) >= AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.MaxChatSites
+                        ? $"Maximum of {AppLock.WindowIsland.Modules.Chat.WindowIslandChatManager.MaxChatSites} AI assistants reached."
+                        : "Enter a valid assistant name and http/https URL.";
+                    ChatSiteValidationText.Visibility = Visibility.Visible;
+                }
+                return;
+            }
+            if (NewChatNameBox != null) NewChatNameBox.Text = string.Empty;
+            if (NewChatUrlBox != null) NewChatUrlBox.Text = string.Empty;
+        }
+
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+        WindowIslandHost.Instance.ApplySettings(s);
+        InitSettingsChatSites();
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static void SelectComboItem(ComboBox box, string tag)
@@ -1284,6 +1483,107 @@ public sealed partial class WindowIslandSettingsPage : Page
 
     private void UpdateYOffsetLabel()
         => YOffsetLabelText.Text = $"{(int)YOffsetSlider.Value} DIPs";
+
+    private void UpdateXOffsetLabel()
+        => XOffsetLabelText.Text = $"{(int)XOffsetSlider.Value} DIPs";
+
+    private void RefreshBatteryThresholdsUI()
+    {
+        if (BatteryThresholdsPanel == null) return;
+        BatteryThresholdsPanel.Children.Clear();
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        var list = s.GetEffectiveLowBatteryThresholds();
+
+        foreach (int pct in list)
+        {
+            int captured = pct;
+            var pill = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlStrokeColorDefaultBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 4, 6, 4)
+            };
+
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            sp.Children.Add(new TextBlock
+            {
+                Text = $"{pct}%",
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            if (list.Count > 1)
+            {
+                var delBtn = new Button
+                {
+                    Content = new FontIcon { Glyph = "\uE711", FontSize = 9 },
+                    Padding = new Thickness(3),
+                    MinWidth = 0,
+                    MinHeight = 0,
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    BorderThickness = new Thickness(0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                ToolTipService.SetToolTip(delBtn, $"Remove {pct}% alert");
+                delBtn.Click += (_, _) =>
+                {
+                    var settings = ServiceContainer.Settings.WindowIsland;
+                    var updated = settings.GetEffectiveLowBatteryThresholds();
+                    updated.Remove(captured);
+                    if (updated.Count == 0) return;
+                    settings.LowBatteryThresholds = updated;
+                    ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+                    WindowIslandHost.Instance.ApplySettings(settings);
+                    RefreshBatteryThresholdsUI();
+                };
+                sp.Children.Add(delBtn);
+            }
+
+            pill.Child = sp;
+            BatteryThresholdsPanel.Children.Add(pill);
+        }
+    }
+
+    private void NewBatteryThresholdBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            AddBatteryThresholdBtn_Click(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void AddBatteryThresholdBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (BatteryThresholdValidationText != null) BatteryThresholdValidationText.Visibility = Visibility.Collapsed;
+        string raw = (NewBatteryThresholdBox?.Text ?? string.Empty).Trim().TrimEnd('%');
+        if (!int.TryParse(raw, out int pct) || pct < 1 || pct > 99)
+        {
+            if (BatteryThresholdValidationText != null)
+            {
+                BatteryThresholdValidationText.Text = "Enter a number from 1 to 99.";
+                BatteryThresholdValidationText.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
+        var s = ServiceContainer.Settings.WindowIsland;
+        var list = s.GetEffectiveLowBatteryThresholds();
+        if (!list.Contains(pct))
+        {
+            list.Add(pct);
+            s.LowBatteryThresholds = list.OrderByDescending(x => x).ToList();
+            ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+            WindowIslandHost.Instance.ApplySettings(s);
+        }
+
+        if (NewBatteryThresholdBox != null) NewBatteryThresholdBox.Text = string.Empty;
+        RefreshBatteryThresholdsUI();
+    }
 
     private void ControlsResetCardsBtn_Click(object sender, RoutedEventArgs e)
     {

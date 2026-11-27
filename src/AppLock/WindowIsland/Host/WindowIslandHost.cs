@@ -33,8 +33,10 @@ public sealed class WindowIslandHost
 
     public event Action<bool>? ThroughModeChanged;
     public event Action? CustomClocksChanged;
+    public event Action? ChatSitesChanged;
 
     public void NotifyCustomClocksChanged() => CustomClocksChanged?.Invoke();
+    public void NotifyChatSitesChanged() => ChatSitesChanged?.Invoke();
 
     private WindowIslandHost() { }
 

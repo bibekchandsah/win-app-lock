@@ -528,6 +528,7 @@ public sealed partial class WindowIslandWindow : Window
         _clockTimer.Start();
         UpdateClock();
         RefreshCalendarTabUI();
+        RenderChatSubTabs();
 
         _batteryTimer = DispatcherQueue.CreateTimer();
         _batteryTimer.Interval = TimeSpan.FromSeconds(15);
@@ -615,6 +616,7 @@ public sealed partial class WindowIslandWindow : Window
 
         WindowIslandNotificationService.CaptureSessionFallback = IsCaptureAudioSessionActive;
         WindowIslandNotificationService.CameraFallback = () => (_cameraMonitorInUse, _cameraMonitorApp ?? string.Empty);
+        WindowIslandNotificationService.Instance.SetLowBatteryThresholds(settings.GetEffectiveLowBatteryThresholds());
         if (_cameraMonitor == null)
         {
             _cameraMonitor = new AppLock.Services.RingLight.CameraUsageMonitor(
@@ -672,6 +674,7 @@ public sealed partial class WindowIslandWindow : Window
         PositionAndSize();
         _compositor?.ApplySettings(settings);
         ApplyThemeColors(settings);
+        WindowIslandNotificationService.Instance.SetLowBatteryThresholds(settings.GetEffectiveLowBatteryThresholds());
         UpdateHitRegion(_compositor?.IsOpen ?? false);
         UpdateShapeContentOffset();
         SyncWatchedKeys();
@@ -679,6 +682,7 @@ public sealed partial class WindowIslandWindow : Window
         UpdateTabHighlight(animate: false);
         UpdateClock();
         RefreshCalendarTabUI();
+        RenderChatSubTabs();
         UpdateBattery();
         UpdateFoldedWeatherMini();
         UpdateMicCamDots();
@@ -1121,6 +1125,7 @@ public sealed partial class WindowIslandWindow : Window
         try { UpdateClock(); } catch { }
         try { UpdateBattery(); } catch { }
         try { UpdateFoldedWeatherMini(); } catch { }
+        try { RenderChatSubTabs(); } catch { }
         try { if (_currentClipboardRows != null) OnClipboardItemsLoaded(_currentClipboardRows); } catch { }
         try { RefreshShelfUI(); } catch { }
         try { RefreshLauncherUI(); } catch { }
@@ -10727,6 +10732,7 @@ public sealed partial class WindowIslandWindow : Window
                 cards.Remove(card);
                 cards.Insert(0, card);
                 ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
                 RenderQuickCardsGrid();
             };
             var removeMenu = new MenuFlyoutItem { Text = "Remove", Icon = new FontIcon { Glyph = "\uE74D" } };
@@ -10734,6 +10740,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 cards.Remove(card);
                 ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
                 RenderQuickCardsGrid();
             };
             flyout.Items.Add(editMenu);
@@ -10763,6 +10770,7 @@ public sealed partial class WindowIslandWindow : Window
                 {
                     cards.Remove(card);
                     ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
                     RenderQuickCardsGrid();
                 };
                 cardContainer.Children.Add(delBtn);
@@ -11014,6 +11022,7 @@ public sealed partial class WindowIslandWindow : Window
                     };
                     currentCards.Add(newCard);
                     ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
                     RenderQuickCardsGrid();
                     CloseControlsAddCardOverlay();
                 };
@@ -11287,10 +11296,10 @@ public sealed partial class WindowIslandWindow : Window
                 CornerRadius = new CornerRadius(14),
                 Background = new SolidColorBrush(isActive
                     ? ColorHelper.FromArgb(0x40, accent.R, accent.G, accent.B)
-                    : AdaptiveInkColor(0x15)),
+                    : AdaptiveSurfaceColor(0x18)),
                 BorderBrush = new SolidColorBrush(isActive
                     ? ColorHelper.FromArgb(0x80, accent.R, accent.G, accent.B)
-                    : AdaptiveInkColor(0x20)),
+                    : AdaptiveBorderColor(0x28)),
                 BorderThickness = new Thickness(1)
             };
 
@@ -11313,7 +11322,7 @@ public sealed partial class WindowIslandWindow : Window
                 FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal,
                 Foreground = new SolidColorBrush(isActive
                     ? AdaptiveInkColor(0xFF)
-                    : AdaptiveInkColor(0xD0)),
+                    : AdaptiveInkColor(0xD8)),
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -11344,6 +11353,8 @@ public sealed partial class WindowIslandWindow : Window
                     {
                         WindowIslandChatManager.RemoveChatSite(_settings, index);
                         ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
+                        WindowIslandHost.Instance.NotifyChatSitesChanged();
                         RenderChatSubTabs();
                         _ = EnsureChatWebViewAsync();
                     };
@@ -11626,6 +11637,7 @@ public sealed partial class WindowIslandWindow : Window
                     ChatWebViewHost.Visibility = Visibility.Visible;
                 }
                 ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+                WindowIslandHost.Instance.NotifyChatSitesChanged();
 
                 if (_settings.ActiveChatIndex == editedIndex)
                 {
@@ -11652,6 +11664,7 @@ public sealed partial class WindowIslandWindow : Window
                 ChatWebViewHost.Visibility = Visibility.Visible;
             }
             ServiceContainer.SettingsStore?.Save(ServiceContainer.Settings);
+            WindowIslandHost.Instance.NotifyChatSitesChanged();
             RenderChatSubTabs();
             _ = EnsureChatWebViewAsync();
         }

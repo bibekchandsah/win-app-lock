@@ -72,6 +72,9 @@ public static class WindowIslandPositioner
             _          => outer.X + ((outer.Width - widthPx) / 2) // TopCenter
         };
 
+        int customXOffsetPx = (int)Math.Round(settings.XOffsetDip * dpiScale);
+        x += customXOffsetPx;
+
         // If taskbar is docked at the top of this monitor, WorkArea.Y will be below OuterBounds.Y
         int topEdgePx = settings.UnderTopTaskbar
             ? Math.Max(outer.Y, work.Y)

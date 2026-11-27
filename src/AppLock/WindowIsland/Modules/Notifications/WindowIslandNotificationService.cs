@@ -49,8 +49,24 @@ public sealed class WindowIslandNotificationService : IDisposable
         "Open Windows Settings › System › Notifications to manage app notifications.";
 
     // ── Battery threshold state ────────────────────────────────────────────────
-    private static readonly int[] LowThresholds = { 20, 10, 5 };
+    private int[] _lowThresholds = { 20, 10, 5 };
     private readonly HashSet<int> _crossedThresholds = new();
+
+    public void SetLowBatteryThresholds(IEnumerable<int>? thresholds)
+    {
+        var list = (thresholds ?? Array.Empty<int>())
+            .Where(p => p >= 1 && p <= 99)
+            .Distinct()
+            .OrderByDescending(p => p)
+            .ToArray();
+        if (list.Length == 0) list = new[] { 20, 10, 5 };
+
+        lock (_batteryLock)
+        {
+            _lowThresholds = list;
+            _crossedThresholds.RemoveWhere(t => !list.Contains(t));
+        }
+    }
     private bool _wasCharging;
     private bool _wasPluggedIn;
     private bool _batteryInitialized;
@@ -185,7 +201,7 @@ public sealed class WindowIslandNotificationService : IDisposable
             bool discharging = !isPluggedIn && !isCharging;
             if (discharging)
             {
-                foreach (int threshold in LowThresholds)
+                foreach (int threshold in _lowThresholds)
                 {
                     if (pct <= threshold && !_crossedThresholds.Contains(threshold))
                     {
@@ -198,7 +214,7 @@ public sealed class WindowIslandNotificationService : IDisposable
             else
             {
                 // Reset thresholds when charging so they can fire again next time
-                foreach (int t in LowThresholds)
+                foreach (int t in _lowThresholds)
                     if (pct > t + 5) _crossedThresholds.Remove(t);
             }
 
