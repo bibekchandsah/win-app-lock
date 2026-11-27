@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     x:Class="AppLock.Views.SpeedMeterPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -336,6 +336,34 @@
                                     ValueChanged="OpacitySlider_ValueChanged"/>
 
                             <TextBlock x:Name="OpacityValueText"
+                                       Grid.Column="2"
+                                       Width="48"
+                                       FontSize="12"
+                                       TextAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </Grid>
+
+                        <!-- Blur (Custom preset only) -->
+                        <Grid x:Name="BlurRow" ColumnSpacing="12" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Background blur"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+
+                            <Slider x:Name="BlurSlider"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="BlurSlider_ValueChanged"/>
+
+                            <TextBlock x:Name="BlurValueText"
                                        Grid.Column="2"
                                        Width="48"
                                        FontSize="12"

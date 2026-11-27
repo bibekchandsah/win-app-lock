@@ -176,6 +176,7 @@ public sealed partial class SpeedMeterPage : Page
         MasterToggle.IsOn = Settings.Enabled;
 
         OpacitySlider.Value = Math.Clamp(Settings.BackgroundOpacityPercent, 0, 100);
+        BlurSlider.Value = Math.Clamp(Settings.BlurAmountPercent, 0, 100);
         ScaleSlider.Value = Math.Clamp(Settings.ScalePercent, 50, 250);
         FontSizeSlider.Value = Math.Clamp(Settings.FontSizePercent, 60, 200);
         RadiusSlider.Value = Math.Clamp(Settings.CornerRadiusPx, 0, 40);
@@ -374,6 +375,13 @@ public sealed partial class SpeedMeterPage : Page
         ScaleValueText.Text = $"{(int)Math.Round(ScaleSlider.Value)}%";
         FontSizeValueText.Text = $"{(int)Math.Round(FontSizeSlider.Value)}%";
         RadiusValueText.Text = $"{(int)Math.Round(RadiusSlider.Value)} px";
+        if (BlurValueText != null) BlurValueText.Text = $"{(int)Math.Round(BlurSlider.Value)}%";
+        if (BlurRow != null)
+        {
+            BlurRow.Visibility = string.Equals(Settings.ThemePreset, "Custom", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
 
         foreach (var button in PresetPanel.Children.OfType<ToggleButton>())
         {
@@ -384,6 +392,12 @@ public sealed partial class SpeedMeterPage : Page
     /// <summary>Pushes the current settings into the preview and the floating widget, then saves.</summary>
     private void ApplyAppearance()
     {
+        if (BlurRow != null)
+        {
+            BlurRow.Visibility = string.Equals(Settings.ThemePreset, "Custom", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
         PreviewWidget.ApplyAppearance(Settings);
         UpdatePreview();
 
@@ -526,6 +540,14 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         Settings.BackgroundOpacityPercent = (int)Math.Round(e.NewValue);
+        UpdateValueLabels();
+        ApplyAppearance();
+    }
+
+    private void BlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading) return;
+        Settings.BlurAmountPercent = (int)Math.Round(e.NewValue);
         UpdateValueLabels();
         ApplyAppearance();
     }

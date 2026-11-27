@@ -15,6 +15,7 @@ public class SpeedMeterSettings
     public string ThemePreset { get; set; } = "Glass";        // Transparent|Glass|Solid|FollowWindows|Custom
     public string BackgroundColor { get; set; } = "#202020";
     public int BackgroundOpacityPercent { get; set; } = 70;
+    public int BlurAmountPercent { get; set; } = 0;
     public string TextColor { get; set; } = "#FFFFFF";
     public string DownloadColor { get; set; } = "#4ADE80";
     public string UploadColor { get; set; } = "#60A5FA";

@@ -124,6 +124,7 @@ public static class SpeedMeterPresets
         to.ThemePreset = from.ThemePreset;
         to.BackgroundColor = from.BackgroundColor;
         to.BackgroundOpacityPercent = from.BackgroundOpacityPercent;
+        to.BlurAmountPercent = from.BlurAmountPercent;
         to.TextColor = from.TextColor;
         to.DownloadColor = from.DownloadColor;
         to.UploadColor = from.UploadColor;

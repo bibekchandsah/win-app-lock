@@ -115,6 +115,10 @@ public sealed partial class SpeedWidgetControl : UserControl
                 // keep the XAML card fill transparent so the blurred content below shows through.
                 opacity = _backdropAvailable ? 0.0 : opacity * 0.65;
                 break;
+            case "Custom":
+                // When Custom blur > 0 is active via ConfigurableAcrylicBackdrop, keep XAML card fill transparent.
+                if (_backdropAvailable) opacity = 0.0;
+                break;
             case "FollowWindows":
                 // Follow Windows is a Mica surface: the window paints the backdrop and the card only
                 // adds a faint theme tint. Filling it with #202020 is what made Mica look black.

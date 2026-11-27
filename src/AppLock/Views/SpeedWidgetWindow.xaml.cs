@@ -200,14 +200,20 @@ public sealed partial class SpeedWidgetWindow : Window
             var mica = MicaController.IsSupported();
             var acrylic = DesktopAcrylicController.IsSupported();
 
-            if (preset == "Glass" && acrylic)
+            bool useCustomBlur = string.Equals(preset, "Custom", StringComparison.OrdinalIgnoreCase)
+                && settings.BlurAmountPercent > 0;
+
+            if ((preset == "Glass" || useCustomBlur) && acrylic)
             {
                 _acrylicBackdrop ??= new ConfigurableAcrylicBackdrop();
                 var tint = Controls.SpeedWidgetControl.ParseColor(
                     settings.BackgroundColor,
                     Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20));
                 float opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100f;
-                _acrylicBackdrop.Update(tint, opacity);
+                float blur = Math.Clamp(settings.BlurAmountPercent, 0, 100) / 100f;
+                float tintOpacity = preset == "Glass" ? opacity * 0.65f : opacity;
+                float luminosity = preset == "Glass" ? opacity * 0.85f : blur * 0.9f;
+                _acrylicBackdrop.Update(tint, tintOpacity, luminosity);
 
                 if (!ReferenceEquals(SystemBackdrop, _acrylicBackdrop))
                 {
@@ -227,6 +233,7 @@ public sealed partial class SpeedWidgetWindow : Window
             Widget.SetBackdropAvailable(preset switch
             {
                 "Glass" => acrylic,
+                "Custom" => useCustomBlur && acrylic,
                 "FollowWindows" => mica,
                 _ => false
             });
@@ -303,12 +310,14 @@ public sealed partial class SpeedWidgetWindow : Window
     private sealed class ConfigurableAcrylicBackdrop : AlwaysActiveBackdropBase
     {
         private Windows.UI.Color _tintColor = Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20);
-        private float _opacity = 0.7f;
+        private float _tintOpacity = 0.45f;
+        private float _luminosityOpacity = 0.6f;
 
-        public void Update(Windows.UI.Color tintColor, float opacity)
+        public void Update(Windows.UI.Color tintColor, float tintOpacity, float luminosityOpacity)
         {
             _tintColor = tintColor;
-            _opacity = Math.Clamp(opacity, 0f, 1f);
+            _tintOpacity = Math.Clamp(tintOpacity, 0f, 1f);
+            _luminosityOpacity = Math.Clamp(luminosityOpacity, 0f, 1f);
             if (ActiveController is DesktopAcrylicController acrylic)
             {
                 ApplyToController(acrylic);
@@ -329,8 +338,8 @@ public sealed partial class SpeedWidgetWindow : Window
         {
             controller.TintColor = _tintColor;
             controller.FallbackColor = _tintColor;
-            controller.TintOpacity = _opacity * 0.65f;
-            controller.LuminosityOpacity = _opacity * 0.85f;
+            controller.TintOpacity = _tintOpacity;
+            controller.LuminosityOpacity = _luminosityOpacity;
         }
     }
 
@@ -660,6 +669,9 @@ public sealed partial class SpeedWidgetWindow : Window
     // ── Dragging ─────────────────────────────────────────────────────────────
 
     private Windows.Foundation.Point _dragStartPointDip;
+    private POINT _dragStartCursor;
+    private PointInt32 _dragStartWindow;
+    private bool _dragIsTouch;
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
@@ -670,7 +682,17 @@ public sealed partial class SpeedWidgetWindow : Window
         if (!point.Properties.IsLeftButtonPressed && !point.IsInContact) return;
         if (AppWindow is null) return;
 
-        _dragStartPointDip = point.Position;
+        _dragIsTouch = e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch;
+        if (_dragIsTouch)
+        {
+            _dragStartPointDip = point.Position;
+        }
+        else
+        {
+            if (!GetCursorPos(out _dragStartCursor)) return;
+            _dragStartWindow = AppWindow.Position;
+        }
+
         _dragging = Widget.CapturePointer(e.Pointer);
 
         // Not marked handled: a press-and-release without movement should still raise Tapped.
@@ -679,6 +701,16 @@ public sealed partial class SpeedWidgetWindow : Window
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!_dragging || AppWindow is null) return;
+
+        if (!_dragIsTouch)
+        {
+            if (!GetCursorPos(out var cursor)) return;
+            var target = new PointInt32(
+                _dragStartWindow.X + (cursor.x - _dragStartCursor.x),
+                _dragStartWindow.Y + (cursor.y - _dragStartCursor.y));
+            AppWindow.Move(target);
+            return;
+        }
 
         var point = e.GetCurrentPoint(Widget);
         double scale = Widget.XamlRoot?.RasterizationScale ?? 1.0;
