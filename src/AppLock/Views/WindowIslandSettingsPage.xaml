@@ -911,6 +911,33 @@
                         </Border>
 
                         <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Analog clock face" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Pick the face used by the Date &amp; Calendar tab when an analog clock style is selected."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="CalendarClockFaceBox"
+                                          Grid.Column="1"
+                                          MinWidth="240"
+                                          VerticalAlignment="Center"
+                                          SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Automatic (follow style)" Tag="Auto" />
+                                    <ComboBoxItem Content="Dial (theme circle)" Tag="Dial" />
+                                    <ComboBoxItem Content="Minimal (dark bars)" Tag="Minimal" />
+                                    <ComboBoxItem Content="Bold (dark, numbers)" Tag="Bold" />
+                                    <ComboBoxItem Content="Light (white, 12-3-6-9)" Tag="Light" />
+                                    <ComboBoxItem Content="Thin (fine ticks)" Tag="Thin" />
+                                    <ComboBoxItem Content="Classic (numbers &amp; ticks)" Tag="Classic" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="World clocks" Style="{StaticResource IslandSettingTitleStyle}" />
                                 <TextBlock Text="Add, reorder, or remove custom place clocks shown in the island's Date &amp; Calendar tab. Changes sync in real time and persist across restarts."

@@ -3007,11 +3007,13 @@
                                         <!-- Analog Clock -->
                                         <StackPanel x:Name="CalendarAnalogPanel" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
                                             <Grid Width="116" Height="116" HorizontalAlignment="Center">
-                                                <Border Width="116" Height="116" CornerRadius="58"
+                                                <Border x:Name="CalendarAnalogFace"
+                                                        Width="116" Height="116" CornerRadius="58"
                                                         Background="{ThemeResource IslandSurfaceCard}"
                                                         BorderBrush="{ThemeResource IslandBorderSubtle}"
                                                         BorderThickness="1.5" />
-                                                <Border Width="106" Height="106" CornerRadius="53"
+                                                <Border x:Name="CalendarAnalogInnerRing"
+                                                        Width="106" Height="106" CornerRadius="53"
                                                         BorderBrush="{ThemeResource IslandBorderSubtle}"
                                                         BorderThickness="0.5"
                                                         Opacity="0.45" />

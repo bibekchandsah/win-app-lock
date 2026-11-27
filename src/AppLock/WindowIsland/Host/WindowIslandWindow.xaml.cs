@@ -12168,6 +12168,56 @@ public sealed partial class WindowIslandWindow : Window
     private IReadOnlyList<TimeZoneInfo>? _systemTimeZones;
     private bool? _analogDialLightTheme;
     private string? _analogDialStyle;
+    private Microsoft.UI.Xaml.Media.Brush? _analogFaceDefaultFill;
+    private Microsoft.UI.Xaml.Media.Brush? _analogFaceDefaultRing;
+    private bool _analogFaceDefaultsCaptured;
+
+    /// <summary>Analog clock face chosen in Settings → Clock &amp; Calendar ("Auto" follows the clock style).</summary>
+    private string CalendarClockFace
+    {
+        get
+        {
+            string face = _settings.CalendarClockFace?.Trim() ?? string.Empty;
+            if (face.Length == 0 || string.Equals(face, "Auto", StringComparison.OrdinalIgnoreCase))
+                return CalendarIsClassicAnalog ? "Classic" : "Dial";
+            return face;
+        }
+    }
+
+    private readonly record struct AnalogFaceSpec(
+        bool DarkFace,
+        bool Numbers,
+        bool QuarterNumbersOnly,
+        bool MinuteTicks,
+        bool QuarterAccent,
+        double TickWidth,
+        double TickHeight,
+        double NumRadius,
+        double NumSize,
+        double SecondWidth,
+        Windows.UI.Color SecondColor);
+
+    private static AnalogFaceSpec AnalogFaceFor(string face) => face switch
+    {
+        // Dark rounded-square face with thick bars, no numbers, thin white second hand.
+        "Minimal" => new(true,  false, false, false, false, 3.0, 8.0,   0.0,  0.0, 1.0,
+                         Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+        // Dark face with all twelve numbers and a red second hand.
+        "Bold"    => new(true,  true,  false, true,  true,  1.1, 4.0,  35.0, 11.0, 1.4,
+                         Windows.UI.Color.FromArgb(255, 232, 80, 58)),
+        // White face with 12/3/6/9 and an orange second hand.
+        "Light"   => new(false, true,  true,  true,  true,  1.0, 4.0,  35.0, 13.0, 1.4,
+                         Windows.UI.Color.FromArgb(255, 240, 146, 30)),
+        // Borderless rimless face with fine minute ticks and tiny numbers.
+        "Thin"    => new(false, true,  false, true,  false, 0.9, 3.0,  38.0,  7.5, 1.0,
+                         Windows.UI.Color.FromArgb(255, 226, 85, 123)),
+        // Light face with numbers set inside a full ring of minute ticks.
+        "Classic" => new(false, true,  false, true,  true,  1.2, 4.0,  38.5, 10.5, 1.2,
+                         Windows.UI.Color.FromArgb(255, 217, 72, 59)),
+        // Default: the island's own theme circle with twelve ticks and no numbers.
+        _         => new(false, false, false, false, true,  1.4, 4.5,   0.0,  0.0, 1.5,
+                         Windows.UI.Color.FromArgb(255, 0, 0, 0)),
+    };
 
     private bool CalendarShowSeconds =>
         string.Equals(_settings.CalendarClockStyle, "DigitalSeconds", StringComparison.OrdinalIgnoreCase) ||
@@ -12185,6 +12235,7 @@ public sealed partial class WindowIslandWindow : Window
     private void RefreshCalendarTabUI()
     {
         if (ContentCalendar == null) return;
+        ApplyAnalogFaceVisuals();
         EnsureAnalogDialTicks();
         UpdateCalendarClockOnly();
         RebuildWorldClockPills();
@@ -12194,9 +12245,11 @@ public sealed partial class WindowIslandWindow : Window
     private void EnsureAnalogDialTicks()
     {
         if (CalendarAnalogTicksCanvas == null) return;
-        string styleKey = CalendarIsClassicAnalog ? "classic" : "modern";
-        if (_analogDialLightTheme == _isLightSurfaceActive &&
-            string.Equals(_analogDialStyle, styleKey, StringComparison.Ordinal) &&
+
+        string face = CalendarClockFace;
+        var spec = AnalogFaceFor(face);
+        string styleKey = face + "|" + (_isLightSurfaceActive ? "L" : "D");
+        if (string.Equals(_analogDialStyle, styleKey, StringComparison.Ordinal) &&
             CalendarAnalogTicksCanvas.Children.Count > 0)
         {
             return;
@@ -12206,90 +12259,149 @@ public sealed partial class WindowIslandWindow : Window
         _analogDialStyle = styleKey;
         CalendarAnalogTicksCanvas.Children.Clear();
 
-        var majorBrush = new SolidColorBrush(AdaptiveInkColor(235));
-        var minorBrush = new SolidColorBrush(AdaptiveInkColor(115));
+        var darkInk = Windows.UI.Color.FromArgb(255, 32, 33, 38);
+        var majorBrush = new SolidColorBrush(spec.DarkFace
+            ? Microsoft.UI.Colors.White
+            : (face == "Dial" ? AdaptiveInkColor(235) : darkInk));
+        var minorBrush = new SolidColorBrush(spec.DarkFace
+            ? Windows.UI.Color.FromArgb(150, 255, 255, 255)
+            : (face == "Dial" ? AdaptiveInkColor(115) : Windows.UI.Color.FromArgb(150, 32, 33, 38)));
 
         const double cx = 58.0;
         const double cy = 58.0;
 
-        if (CalendarIsClassicAnalog)
+        if (spec.MinuteTicks)
         {
-            // 60 outer ticks (every 5th is bright hour tick, others dimmed minute ticks)
+            // 60 ticks; every fifth is the hour tick.
             for (int i = 0; i < 60; i++)
             {
                 bool isHour = (i % 5) == 0;
-                double w = isHour ? 1.6 : 1.1;
-                double h = isHour ? 5.5 : 4.0;
-                double radius = 53.0 - h / 2.0;
-                double angleDeg = i * 6.0;
-                double rad = (angleDeg - 90.0) * Math.PI / 180.0;
-                double x = cx + radius * Math.Cos(rad) - w / 2.0;
-                double y = cy + radius * Math.Sin(rad) - h / 2.0;
-
-                var tick = new Border
-                {
-                    Width = w,
-                    Height = h,
-                    CornerRadius = new CornerRadius(w / 2.0),
-                    Background = isHour ? majorBrush : minorBrush,
-                    RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
-                    RenderTransform = new RotateTransform { Angle = angleDeg }
-                };
-                Canvas.SetLeft(tick, x);
-                Canvas.SetTop(tick, y);
-                CalendarAnalogTicksCanvas.Children.Add(tick);
+                double w = isHour ? Math.Max(1.7, spec.TickWidth * 1.4) : spec.TickWidth;
+                double h = isHour ? spec.TickHeight * 1.45 : spec.TickHeight;
+                AddDialTick(i, w, h, 53.0, isHour ? majorBrush : minorBrush);
             }
+        }
+        else
+        {
+            // 12 ticks, quarters emphasised on the default dial only.
+            for (int i = 0; i < 12; i++)
+            {
+                bool quarter = (i % 3) == 0;
+                double w = spec.QuarterAccent && quarter ? spec.TickWidth * 1.55 : spec.TickWidth;
+                double h = spec.QuarterAccent && quarter ? spec.TickHeight * 1.6 : spec.TickHeight;
+                AddDialTick(i * 5, w, h, 50.0,
+                    spec.QuarterAccent ? (quarter ? majorBrush : minorBrush) : majorBrush);
+            }
+        }
 
-            // Numbers 1..12 inside the tick ring
+        if (spec.Numbers)
+        {
+            var numberBrush = new SolidColorBrush(spec.DarkFace
+                ? Microsoft.UI.Colors.White
+                : (face == "Dial" ? AdaptiveInkColor(235) : darkInk));
             for (int num = 1; num <= 12; num++)
             {
+                if (spec.QuarterNumbersOnly && (num % 3) != 0) continue;
                 double rad = (num * 30.0 - 90.0) * Math.PI / 180.0;
-                double rNum = 39.5;
-                double x = cx + rNum * Math.Cos(rad) - 9.0;
-                double y = cy + rNum * Math.Sin(rad) - 8.0;
-
                 var lbl = new TextBlock
                 {
                     Text = num.ToString(),
                     Width = 18,
                     Height = 16,
-                    FontSize = 10.5,
+                    FontSize = spec.NumSize,
                     FontWeight = FontWeights.SemiBold,
                     TextAlignment = TextAlignment.Center,
-                    Foreground = majorBrush
+                    Foreground = numberBrush
                 };
-                Canvas.SetLeft(lbl, x);
-                Canvas.SetTop(lbl, y);
+                Canvas.SetLeft(lbl, cx + spec.NumRadius * Math.Cos(rad) - 9.0);
+                Canvas.SetTop(lbl, cy + spec.NumRadius * Math.Sin(rad) - 8.0);
                 CalendarAnalogTicksCanvas.Children.Add(lbl);
             }
         }
+    }
+
+    private void AddDialTick(int tickIndex, double width, double height, double radius, Brush brush)
+    {
+        double angleDeg = tickIndex * 6.0;
+        double rad = (angleDeg - 90.0) * Math.PI / 180.0;
+        const double cx = 58.0;
+        const double cy = 58.0;
+        double r = radius - height / 2.0;
+
+        var tick = new Border
+        {
+            Width = width,
+            Height = height,
+            CornerRadius = new CornerRadius(width / 2.0),
+            Background = brush,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+            RenderTransform = new RotateTransform { Angle = angleDeg }
+        };
+        Canvas.SetLeft(tick, cx + r * Math.Cos(rad) - width / 2.0);
+        Canvas.SetTop(tick, cy + r * Math.Sin(rad) - height / 2.0);
+        CalendarAnalogTicksCanvas.Children.Add(tick);
+    }
+
+    /// <summary>Applies the selected analog clock face's plate and hand styling.</summary>
+    private void ApplyAnalogFaceVisuals()
+    {
+        if (CalendarAnalogFace == null || CalendarAnalogHourHand == null || CalendarAnalogMinuteHand == null) return;
+
+        if (!_analogFaceDefaultsCaptured)
+        {
+            _analogFaceDefaultFill = CalendarAnalogFace.Background;
+            _analogFaceDefaultRing = CalendarAnalogFace.BorderBrush;
+            _analogFaceDefaultsCaptured = true;
+        }
+
+        string face = CalendarClockFace;
+        var spec = AnalogFaceFor(face);
+        var darkInk = Windows.UI.Color.FromArgb(255, 32, 33, 38);
+        var handBrush = new SolidColorBrush(spec.DarkFace
+            ? Microsoft.UI.Colors.White
+            : (face == "Dial" ? AdaptiveInkColor(235) : darkInk));
+
+        Windows.UI.Color plate = face switch
+        {
+            "Minimal" => Windows.UI.Color.FromArgb(255, 17, 17, 19),
+            "Bold"    => Windows.UI.Color.FromArgb(255, 14, 14, 16),
+            "Light"   => Windows.UI.Color.FromArgb(255, 255, 255, 255),
+            "Thin"    => Windows.UI.Color.FromArgb(0, 0, 0, 0),
+            "Classic" => Windows.UI.Color.FromArgb(255, 247, 247, 245),
+            _         => Windows.UI.Color.FromArgb(255, 0, 0, 0),
+        };
+
+        if (face == "Dial")
+        {
+            CalendarAnalogFace.Background = _analogFaceDefaultFill;
+            CalendarAnalogFace.BorderBrush = _analogFaceDefaultRing;
+            CalendarAnalogFace.BorderThickness = new Thickness(1.5);
+            CalendarAnalogFace.CornerRadius = new CornerRadius(58);
+        }
         else
         {
-            for (int i = 0; i < 12; i++)
-            {
-                bool isQuarter = (i % 3) == 0;
-                double w = isQuarter ? 2.2 : 1.4;
-                double h = isQuarter ? 7.5 : 4.5;
-                double radius = 50.0 - h / 2.0;
-                double angleDeg = i * 30.0;
-                double rad = (angleDeg - 90.0) * Math.PI / 180.0;
-                double x = cx + radius * Math.Cos(rad) - w / 2.0;
-                double y = cy + radius * Math.Sin(rad) - h / 2.0;
-
-                var tick = new Border
-                {
-                    Width = w,
-                    Height = h,
-                    CornerRadius = new CornerRadius(w / 2.0),
-                    Background = isQuarter ? majorBrush : minorBrush,
-                    RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
-                    RenderTransform = new RotateTransform { Angle = angleDeg }
-                };
-                Canvas.SetLeft(tick, x);
-                Canvas.SetTop(tick, y);
-                CalendarAnalogTicksCanvas.Children.Add(tick);
-            }
+            CalendarAnalogFace.Background = new SolidColorBrush(plate);
+            CalendarAnalogFace.BorderBrush = new SolidColorBrush(
+                face == "Minimal" ? Windows.UI.Color.FromArgb(0, 0, 0, 0)
+                                  : Windows.UI.Color.FromArgb(38, 120, 122, 130));
+            CalendarAnalogFace.BorderThickness = new Thickness(face == "Minimal" || face == "Thin" ? 0 : 1);
+            CalendarAnalogFace.CornerRadius = new CornerRadius(face is "Thin" or "Classic" ? 58 : 26);
         }
+
+        if (CalendarAnalogInnerRing != null)
+        {
+            CalendarAnalogInnerRing.Visibility =
+                face is "Dial" or "Classic" or "Light" or "Bold" ? Visibility.Visible : Visibility.Collapsed;
+            CalendarAnalogInnerRing.BorderBrush = new SolidColorBrush(
+                spec.DarkFace ? Windows.UI.Color.FromArgb(60, 255, 255, 255)
+                              : (face == "Dial" ? AdaptiveInkColor(115) : Windows.UI.Color.FromArgb(60, 32, 33, 38)));
+        }
+
+        CalendarAnalogHourHand.Background = handBrush;
+        CalendarAnalogMinuteHand.Background = handBrush;
+        CalendarAnalogHourHand.Width = face == "Minimal" ? 3.2 : 3.5;
+        CalendarAnalogMinuteHand.Width = face == "Minimal" ? 2.2 : 2.5;
+        if (CalendarAnalogSecondHand != null) CalendarAnalogSecondHand.Width = spec.SecondWidth;
     }
 
     private void UpdateCalendarClockOnly()
@@ -12331,12 +12443,16 @@ public sealed partial class WindowIslandWindow : Window
             if (CalendarAnalogHourRotate != null) CalendarAnalogHourRotate.Angle = hrAngle;
             if (CalendarAnalogMinuteRotate != null) CalendarAnalogMinuteRotate.Angle = minAngle;
             if (CalendarAnalogSecondRotate != null) CalendarAnalogSecondRotate.Angle = secAngle;
+            string analogFace = CalendarClockFace;
+            var analogSpec = AnalogFaceFor(analogFace);
+            var secondBrush = analogFace == "Dial" ? accentBrush : new SolidColorBrush(analogSpec.SecondColor);
             if (CalendarAnalogSecondHand != null)
             {
                 CalendarAnalogSecondHand.Visibility = showSec ? Visibility.Visible : Visibility.Collapsed;
-                CalendarAnalogSecondHand.Background = accentBrush;
+                CalendarAnalogSecondHand.Background = secondBrush;
+                CalendarAnalogSecondHand.Width = analogSpec.SecondWidth;
             }
-            if (CalendarAnalogCenterDot != null) CalendarAnalogCenterDot.Fill = accentBrush;
+            if (CalendarAnalogCenterDot != null) CalendarAnalogCenterDot.Fill = secondBrush;
         }
 
         // Update world clock pill times & dates live
