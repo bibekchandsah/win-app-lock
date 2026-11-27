@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Services;
@@ -200,10 +200,9 @@ public sealed partial class SpeedWidgetWindow : Window
 
             SystemBackdrop = preset switch
             {
-                "Glass" => acrylic ? new DesktopAcrylicBackdrop() : null,
-                "FollowWindows" => mica ? new MicaBackdrop() : null,
-                "Transparent" => new TransparentBackdrop(),
-                _ => null
+                "Glass" => acrylic ? new DesktopAcrylicBackdrop() : new TransparentBackdrop(),
+                "FollowWindows" => mica ? new MicaBackdrop() : new TransparentBackdrop(),
+                _ => new TransparentBackdrop()
             };
 
             Widget.SetBackdropAvailable(preset switch

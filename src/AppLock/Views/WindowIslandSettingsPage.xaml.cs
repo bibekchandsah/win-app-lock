@@ -340,11 +340,17 @@ public sealed partial class WindowIslandSettingsPage : Page
         SelectComboItem(PositionBox, s.Position);
         SelectComboItem(ShapeBox, s.Shape);
         SelectComboItem(ThemeBox, s.Theme);
+        if (TryParseHex6(s.LastCustomIslandColor, out var savedCustomColor))
+        {
+            _customIslandHex = FormatHex(savedCustomColor);
+        }
+
         if (!string.IsNullOrWhiteSpace(s.IslandColor) && s.IslandColor.StartsWith('#'))
         {
             if (TryParseHex6(s.IslandColor, out var customColor))
             {
                 _customIslandHex = FormatHex(customColor);
+                s.LastCustomIslandColor = _customIslandHex;
             }
             SelectComboItem(IslandColorBox, "Custom");
         }
@@ -756,6 +762,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Shape         = TagOf(ShapeBox)    ?? s.Shape;
         s.Theme         = TagOf(ThemeBox)    ?? s.Theme;
         var colorTag    = TagOf(IslandColorBox);
+        s.LastCustomIslandColor = _customIslandHex;
         s.IslandColor   = string.Equals(colorTag, "Custom", StringComparison.OrdinalIgnoreCase)
             ? _customIslandHex
             : (colorTag ?? s.IslandColor);

@@ -390,6 +390,9 @@ public sealed class WindowIslandSettings
     /// <summary>Island color swatch: "Default", "Navy", "Indigo", "Green", "Maroon", "Brown", "Cream", "Mint", "Lavender", or hex.</summary>
     public string IslandColor { get; set; } = "Default";
 
+    /// <summary>Last custom hex color chosen by the user, preserved even when switching to a preset swatch.</summary>
+    public string LastCustomIslandColor { get; set; } = "#1E293B";
+
     /// <summary>Hover open delay in milliseconds (default: 150 ms).</summary>
     public int OpenDelayMs { get; set; } = 150;
 

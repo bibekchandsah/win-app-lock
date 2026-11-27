@@ -107,13 +107,9 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         // Background: the preset decides the base color, the opacity setting decides its alpha.
         var background = ParseColor(settings.BackgroundColor, DefaultBackground);
-        var transparent = false;
 
         switch (preset)
         {
-            case "Transparent":
-                transparent = true;
-                break;
             case "FollowWindows":
                 // Follow Windows is a Mica surface: the window paints the backdrop and the card only
                 // adds a faint theme tint. Filling it with #202020 is what made Mica look black.
@@ -133,9 +129,7 @@ public sealed partial class SpeedWidgetControl : UserControl
                 break;
         }
 
-        Card.Background = transparent
-            ? new SolidColorBrush(Colors.Transparent)
-            : new SolidColorBrush(Color.FromArgb((byte)Math.Round(opacity * 255), background.R, background.G, background.B));
+        Card.Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(opacity * 255), background.R, background.G, background.B));
 
         var textColor = preset == "FollowWindows"
             ? (isDark ? Colors.White : Color.FromArgb(255, 0x1A, 0x1A, 0x1A))
@@ -150,7 +144,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         _textBrush = textBrush;
 
         // Border follows the appearance toggle, tinted from the text color so it stays visible.
-        var showBorder = settings.ShowBorder && !transparent;
+        var showBorder = settings.ShowBorder && !(preset == "Transparent" && opacity <= 0.01);
         Card.BorderThickness = showBorder ? new Thickness(1) : new Thickness(0);
         Card.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, textColor.R, textColor.G, textColor.B));
 
