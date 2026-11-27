@@ -154,52 +154,76 @@
                 <StackPanel Spacing="16">
 
                     <!-- ░░ General ░░ -->
-                    <StackPanel x:Name="SectionGeneral" Spacing="16">
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16">
-                            <Grid>
+                    <StackPanel x:Name="SectionGeneral" Spacing="8">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Enable Window Island" FontWeight="SemiBold" />
-                                    <TextBlock Text="Runs a hardware-accelerated dynamic bar pinned to the top of your screen"
-                                               FontSize="12" Opacity="0.6" />
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Enable Window Island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Runs a hardware-accelerated dynamic bar pinned to the top of your screen."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1"
-                                              x:Name="EnabledToggle"
+                                <ToggleSwitch x:Name="EnabledToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
                                               Toggled="OnSettingChanged" />
                             </Grid>
                         </Border>
 
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Global hotkey" Style="{StaticResource SubtitleTextBlockStyle}" />
-                            <TextBlock Text="Global hotkey to toggle Window Island" Opacity="0.7" FontSize="12"/>
-                            <TextBox x:Name="HotkeyBox" Width="260" HorizontalAlignment="Left" TextChanged="OnHotkeyChanged" />
-                            <TextBlock Text="Default: Ctrl+Shift+W" FontSize="11" Opacity="0.5" />
-                        </StackPanel>
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Global hotkey" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Keyboard shortcut to show or fold Window Island from anywhere. Default: Ctrl+Shift+W."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <TextBox x:Name="HotkeyBox"
+                                         Grid.Column="1"
+                                         Width="220"
+                                         VerticalAlignment="Center"
+                                         PlaceholderText="Ctrl+Shift+W"
+                                         TextChanged="OnHotkeyChanged" />
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Screenshot save folder" Style="{StaticResource SubtitleTextBlockStyle}" />
-                            <TextBlock Text="Folder where Home tab &quot;Full screen&quot; screenshots and saved QR codes are stored"
-                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox x:Name="ScreenshotsFolderBox"
-                                         Width="360"
-                                         TextChanged="OnScreenshotsFolderChanged" />
-                                <Button x:Name="ScreenshotsFolderBrowseBtn"
-                                        Content="Browse…"
-                                        Click="ScreenshotsFolderBrowseBtn_Click" />
-                                <Button x:Name="ScreenshotsFolderResetBtn"
-                                        Content="Reset"
-                                        Click="ScreenshotsFolderResetBtn_Click" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Screenshot save folder" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Folder where Home tab &quot;Full screen&quot; screenshots and saved QR codes are stored."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="ScreenshotsFolderBox"
+                                             Grid.Column="0"
+                                             TextChanged="OnScreenshotsFolderChanged" />
+                                    <Button x:Name="ScreenshotsFolderBrowseBtn"
+                                            Grid.Column="1"
+                                            Content="Browse…"
+                                            Click="ScreenshotsFolderBrowseBtn_Click" />
+                                    <Button x:Name="ScreenshotsFolderResetBtn"
+                                            Grid.Column="2"
+                                            Content="Reset"
+                                            Click="ScreenshotsFolderResetBtn_Click" />
+                                </Grid>
+                                <TextBlock x:Name="ScreenshotsDefaultPathText" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                             </StackPanel>
-                            <TextBlock x:Name="ScreenshotsDefaultPathText" FontSize="11" Opacity="0.5" TextWrapping="Wrap" />
-                        </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Appearance ░░ -->
