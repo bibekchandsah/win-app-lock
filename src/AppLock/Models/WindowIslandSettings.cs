@@ -45,6 +45,9 @@ public sealed class WindowIslandSettings
     /// <summary>Analog clock face in the Date & Calendar tab: "Auto" | "Dial" | "Minimal" | "Bold" | "Light" | "Thin" | "Classic".</summary>
     public string CalendarClockFace { get; set; } = "Auto";
 
+    /// <summary>Digital clock face in the Date & Calendar tab: "Classic" | "Neon" | "Dashed" | "BoldBlue" | "Flip" | "Led".</summary>
+    public string CalendarDigitalFace { get; set; } = "Classic";
+
     /// <summary>Custom world clocks displayed as scrollable pills in the Date & Calendar tab.</summary>
     public System.Collections.Generic.List<CustomWorldClock> CustomClocks { get; set; } = new();
 

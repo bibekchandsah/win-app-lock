@@ -12184,6 +12184,16 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    /// <summary>Digital clock face chosen in Settings → Clock &amp; Calendar.</summary>
+    private string CalendarDigitalFace
+    {
+        get
+        {
+            string face = _settings.CalendarDigitalFace?.Trim() ?? string.Empty;
+            return face.Length == 0 ? "Classic" : face;
+        }
+    }
+
     private readonly record struct AnalogFaceSpec(
         bool DarkFace,
         bool Numbers,
@@ -12235,6 +12245,7 @@ public sealed partial class WindowIslandWindow : Window
     private void RefreshCalendarTabUI()
     {
         if (ContentCalendar == null) return;
+        ApplyDigitalFaceVisuals();
         ApplyAnalogFaceVisuals();
         EnsureAnalogDialTicks();
         UpdateCalendarClockOnly();
@@ -12404,6 +12415,82 @@ public sealed partial class WindowIslandWindow : Window
         if (CalendarAnalogSecondHand != null) CalendarAnalogSecondHand.Width = spec.SecondWidth;
     }
 
+    /// <summary>Applies the selected digital face's plate, digits and decoration.</summary>
+    private void ApplyDigitalFaceVisuals()
+    {
+        if (CalendarDigitalPlate == null || CalendarDigitalTime == null || CalendarDigitalInner == null) return;
+
+        string face = CalendarDigitalFace;
+        var ink = Windows.UI.Color.FromArgb(255, 240, 242, 246);
+        var plate = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+        double radius = 0, marginX = 0, marginY = 0, fontSize = 30;
+        string fontFamily = "Segoe UI Variable Display";
+        bool showDate = true, dashRing = false, splitLine = false;
+
+        switch (face)
+        {
+            case "Neon":
+                plate = Windows.UI.Color.FromArgb(255, 9, 9, 12);
+                radius = 26; marginX = 22; marginY = 10; fontSize = 52;
+                ink = Windows.UI.Color.FromArgb(255, 79, 163, 255);
+                showDate = false;
+                break;
+            case "Dashed":
+                plate = Windows.UI.Color.FromArgb(255, 16, 16, 20);
+                radius = 22; marginX = 18; marginY = 14; fontSize = 30;
+                ink = Windows.UI.Color.FromArgb(255, 169, 167, 255);
+                dashRing = true;
+                break;
+            case "BoldBlue":
+                plate = Windows.UI.Color.FromArgb(255, 8, 8, 10);
+                radius = 20; marginX = 18; marginY = 14; fontSize = 44;
+                ink = Windows.UI.Color.FromArgb(255, 124, 192, 255);
+                showDate = false;
+                break;
+            case "Flip":
+                plate = Windows.UI.Color.FromArgb(255, 22, 22, 26);
+                radius = 16; marginX = 14; marginY = 16; fontSize = 46;
+                ink = Windows.UI.Color.FromArgb(255, 217, 217, 217);
+                showDate = false; splitLine = true;
+                break;
+            case "Led":
+                plate = Windows.UI.Color.FromArgb(255, 237, 237, 237);
+                radius = 18; marginX = 18; marginY = 14; fontSize = 42;
+                fontFamily = "Consolas";
+                ink = Windows.UI.Color.FromArgb(255, 26, 26, 26);
+                showDate = false;
+                break;
+            default: // Classic — the island's own surface, no plate
+                ink = AdaptiveInkColor(240);
+                break;
+        }
+
+        CalendarDigitalPlate.Background = new SolidColorBrush(plate);
+        CalendarDigitalPlate.CornerRadius = new CornerRadius(radius);
+        CalendarDigitalInner.Margin = new Thickness(marginX, marginY, marginX, marginY);
+
+        CalendarDigitalTime.FontSize = fontSize;
+        CalendarDigitalTime.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(fontFamily);
+        CalendarDigitalTime.FontWeight = FontWeights.Bold;
+        CalendarDigitalTime.Foreground = new SolidColorBrush(ink);
+
+        CalendarDigitalAmPm.Foreground = new SolidColorBrush(ink);
+        CalendarDigitalAmPm.FontSize = face == "Flip" ? 10 : 12;
+
+        CalendarDigitalDate.Visibility = showDate ? Visibility.Visible : Visibility.Collapsed;
+        CalendarDigitalDate.Foreground = new SolidColorBrush(face == "Classic"
+            ? AdaptiveInkColor(160)
+            : Windows.UI.Color.FromArgb(150, 255, 255, 255));
+
+        CalendarDigitalDashRing.Visibility = dashRing ? Visibility.Visible : Visibility.Collapsed;
+        if (dashRing)
+            CalendarDigitalDashRing.Stroke = new SolidColorBrush(Windows.UI.Color.FromArgb(190, 143, 141, 214));
+
+        CalendarDigitalSplitLine.Visibility = splitLine ? Visibility.Visible : Visibility.Collapsed;
+        if (splitLine)
+            CalendarDigitalSplitLine.Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 11, 11, 12));
+    }
+
     private void UpdateCalendarClockOnly()
     {
         if (CalendarDigitalPanel == null || CalendarAnalogPanel == null) return;
@@ -12420,7 +12507,20 @@ public sealed partial class WindowIslandWindow : Window
         string dateText = now.ToString("dddd, MMM d, yyyy");
         if (!analog)
         {
-            if (_settings.TimeFormat24H)
+            string digitalFace = CalendarDigitalFace;
+            if (digitalFace == "Neon")
+            {
+                // Overlapping big digits with a dot separator, minutes only.
+                CalendarDigitalTime.Text = now.ToString("HH") + "•" + now.ToString("mm");
+                CalendarDigitalAmPm.Visibility = Visibility.Collapsed;
+            }
+            else if (digitalFace == "Flip")
+            {
+                CalendarDigitalTime.Text = now.ToString(showSec ? "h:mm:ss" : "h:mm");
+                CalendarDigitalAmPm.Text = now.ToString("tt");
+                CalendarDigitalAmPm.Visibility = Visibility.Visible;
+            }
+            else if (_settings.TimeFormat24H)
             {
                 CalendarDigitalTime.Text = now.ToString(showSec ? "HH:mm:ss" : "HH:mm");
                 CalendarDigitalAmPm.Visibility = Visibility.Collapsed;
@@ -12431,6 +12531,11 @@ public sealed partial class WindowIslandWindow : Window
                 CalendarDigitalAmPm.Text = now.ToString("tt");
                 CalendarDigitalAmPm.Foreground = accentBrush;
                 CalendarDigitalAmPm.Visibility = Visibility.Visible;
+            }
+            if (digitalFace is "Neon" or "BoldBlue" or "Dashed" or "Led")
+            {
+                // These plates are sized for the digits only, so the meridiem badge would clip.
+                CalendarDigitalAmPm.Visibility = Visibility.Collapsed;
             }
             CalendarDigitalDate.Text = dateText;
         }

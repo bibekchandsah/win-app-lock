@@ -394,6 +394,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         ShowSecondsCheck.IsChecked = s.ShowSeconds;
         SelectComboItem(CalendarClockStyleBox, string.IsNullOrWhiteSpace(s.CalendarClockStyle) ? "DigitalSeconds" : s.CalendarClockStyle);
         SelectComboItem(CalendarClockFaceBox, string.IsNullOrWhiteSpace(s.CalendarClockFace) ? "Auto" : s.CalendarClockFace);
+        SelectComboItem(CalendarDigitalFaceBox, string.IsNullOrWhiteSpace(s.CalendarDigitalFace) ? "Classic" : s.CalendarDigitalFace);
         ShowBatteryToggle.IsOn = s.ShowBattery;
 
         CardCapsLockToggle.IsOn   = s.CardCapsLockEnabled;
@@ -776,6 +777,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.ShowSeconds   = ShowSecondsCheck.IsChecked ?? false;
         s.CalendarClockStyle = TagOf(CalendarClockStyleBox) ?? s.CalendarClockStyle;
         s.CalendarClockFace  = TagOf(CalendarClockFaceBox) ?? s.CalendarClockFace;
+        s.CalendarDigitalFace = TagOf(CalendarDigitalFaceBox) ?? s.CalendarDigitalFace;
         s.ShowBattery   = ShowBatteryToggle.IsOn;
         s.CardCapsLockEnabled   = CardCapsLockToggle.IsOn;
         s.CardNumLockEnabled    = CardNumLockToggle.IsOn;

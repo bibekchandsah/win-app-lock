@@ -2982,27 +2982,50 @@
                                         Padding="14,12">
                                     <Grid>
                                         <!-- Digital Clock -->
-                                        <StackPanel x:Name="CalendarDigitalPanel" Spacing="3">
-                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom">
-                                                <TextBlock x:Name="CalendarDigitalTime"
-                                                           Text="01:45:00"
-                                                           FontFamily="Segoe UI Variable Display"
-                                                           FontWeight="Bold"
-                                                           FontSize="30"
-                                                           Foreground="{ThemeResource IslandTextPrimary}" />
-                                                <TextBlock x:Name="CalendarDigitalAmPm"
-                                                           Text="AM"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Margin="0,0,0,5"
-                                                           VerticalAlignment="Bottom"
-                                                           Foreground="{ThemeResource IslandCyanAccent}" />
+                                        <Grid x:Name="CalendarDigitalPanel">
+                                            <Border x:Name="CalendarDigitalPlate"
+                                                    Background="Transparent"
+                                                    CornerRadius="0"
+                                                    BorderThickness="0" />
+                                            <Rectangle x:Name="CalendarDigitalDashRing"
+                                                       Margin="5"
+                                                       RadiusX="17" RadiusY="17"
+                                                       StrokeThickness="1"
+                                                       StrokeDashArray="2 3"
+                                                       Visibility="Collapsed" />
+                                            <StackPanel x:Name="CalendarDigitalInner"
+                                                        Spacing="3"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                                    <TextBlock x:Name="CalendarDigitalTime"
+                                                               Text="01:45:00"
+                                                               FontFamily="Segoe UI Variable Display"
+                                                               FontWeight="Bold"
+                                                               FontSize="30"
+                                                               TextAlignment="Center"
+                                                               Foreground="{ThemeResource IslandTextPrimary}" />
+                                                    <TextBlock x:Name="CalendarDigitalAmPm"
+                                                               Text="AM"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Margin="0,0,0,5"
+                                                               VerticalAlignment="Bottom"
+                                                               Foreground="{ThemeResource IslandCyanAccent}" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="CalendarDigitalDate"
+                                                           Text="Friday, Nov 27, 2026"
+                                                           FontSize="11.5"
+                                                           HorizontalAlignment="Center"
+                                                           TextAlignment="Center"
+                                                           Foreground="{ThemeResource IslandTextSecondary}" />
                                             </StackPanel>
-                                            <TextBlock x:Name="CalendarDigitalDate"
-                                                       Text="Friday, Nov 27, 2026"
-                                                       FontSize="11.5"
-                                                       Foreground="{ThemeResource IslandTextSecondary}" />
-                                        </StackPanel>
+                                            <Rectangle x:Name="CalendarDigitalSplitLine"
+                                                       Height="1"
+                                                       Margin="10,0"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="Collapsed" />
+                                        </Grid>
 
                                         <!-- Analog Clock -->
                                         <StackPanel x:Name="CalendarAnalogPanel" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
