@@ -1796,6 +1796,7 @@
                     <Grid x:Name="ContentShelf" Opacity="1" Visibility="Collapsed"
                           AllowDrop="True"
                           DragOver="ShelfGrid_DragOver"
+                          DragLeave="ShelfGrid_DragLeave"
                           Drop="ShelfGrid_Drop">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"    />
@@ -1805,16 +1806,18 @@
                         <!-- Drop hint overlay (shown when dragging over) -->
                         <Border x:Name="ShelfDropHint"
                                 Grid.RowSpan="2"
+                                Canvas.ZIndex="10"
                                 Background="{ThemeResource IslandSurfaceSubtle}"
-                                BorderBrush="{ThemeResource IslandCyanAccent}"
+                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
                                 BorderThickness="2"
                                 CornerRadius="8"
                                 Visibility="Collapsed"
                                 IsHitTestVisible="False">
-                            <TextBlock Text="Drop files here"
+                            <TextBlock x:Name="ShelfDropHintText"
+                                       Text="Drop files here"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{ThemeResource IslandCyanAccent}"
+                                       Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" />
                         </Border>
@@ -2297,7 +2300,7 @@
                                 CornerRadius="8">
                             <Grid>
                                 <!-- WebView2 Host -->
-                                <Grid x:Name="ChatWebViewHost" />
+                                <Grid x:Name="ChatWebViewHost" AllowDrop="True" />
 
                                 <!-- Loading / Skeleton overlay -->
                                 <StackPanel x:Name="ChatSkeletonPanel"

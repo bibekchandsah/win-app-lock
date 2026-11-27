@@ -520,7 +520,7 @@ fixed - though microphone is not muted it show muted
 fixed - notch mute icon isn't sync
 fixed - in weather tab while adding new place show that card above the right side cards so that user can see current place in left side card can select or add new places in right side 
 
-theme sync hover effect for play/pause icon, check icon for timer & remainder, microphone mute icon, screenshot check icon, 
+theme sync hover effect for play/pause icon, check icon for timer & remainder & screenshot captured, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 
 when remainder is still there of previous date and time then show the remainder so that user don't miss remainder 

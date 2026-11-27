@@ -5118,7 +5118,7 @@ public sealed partial class WindowIslandWindow : Window
 
         if (!loadedImage)
         {
-            iconBadge.Child = new FontIcon
+            var fallbackIcon = new FontIcon
             {
                 Glyph = iconGlyph,
                 FontSize = 15,
@@ -5128,6 +5128,64 @@ public sealed partial class WindowIslandWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
+
+            if (row.Exists && ext is ".exe" or ".lnk" or ".appref-ms" or ".msi" or ".url")
+            {
+                if (_commandAppIconCache.TryGetValue(row.Path, out var cachedImg))
+                {
+                    iconBadge.Child = new Image
+                    {
+                        Source = cachedImg,
+                        Width = 22,
+                        Height = 22,
+                        Stretch = Stretch.Uniform,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                }
+                else
+                {
+                    var appImg = new Image
+                    {
+                        Width = 22,
+                        Height = 22,
+                        Stretch = Stretch.Uniform,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Visibility = Visibility.Collapsed
+                    };
+                    var badgeGrid = new Grid();
+                    badgeGrid.Children.Add(fallbackIcon);
+                    badgeGrid.Children.Add(appImg);
+                    iconBadge.Child = badgeGrid;
+
+                    string pathCopy = row.Path;
+                    _ = Task.Run(() =>
+                    {
+                        var pngBytes = WindowIslandLauncher.ExtractShellIconPngBytes(pathCopy);
+                        if (pngBytes == null || pngBytes.Length == 0) return;
+
+                        DispatcherQueue.TryEnqueue(async () =>
+                        {
+                            try
+                            {
+                                using var ms = new MemoryStream(pngBytes);
+                                var bmpImg = new BitmapImage();
+                                await bmpImg.SetSourceAsync(ms.AsRandomAccessStream());
+                                _commandAppIconCache[pathCopy] = bmpImg;
+                                appImg.Source = bmpImg;
+                                appImg.Visibility = Visibility.Visible;
+                                fallbackIcon.Visibility = Visibility.Collapsed;
+                            }
+                            catch { }
+                        });
+                    });
+                }
+            }
+            else
+            {
+                iconBadge.Child = fallbackIcon;
+            }
         }
 
         // Text stack (Name + type/sub)
@@ -5280,7 +5338,15 @@ public sealed partial class WindowIslandWindow : Window
     private void ShelfGrid_DragOver(object sender, DragEventArgs e)
     {
         e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        var accentBrush = new SolidColorBrush(GetSystemAccentColor());
+        ShelfDropHint.BorderBrush = accentBrush;
+        if (ShelfDropHintText != null) ShelfDropHintText.Foreground = accentBrush;
         ShelfDropHint.Visibility = Visibility.Visible;
+    }
+
+    private void ShelfGrid_DragLeave(object sender, DragEventArgs e)
+    {
+        ShelfDropHint.Visibility = Visibility.Collapsed;
     }
 
     private async void ShelfGrid_Drop(object sender, DragEventArgs e)
@@ -11314,7 +11380,8 @@ public sealed partial class WindowIslandWindow : Window
                 _chatWebView = new WebView2
                 {
                     HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch
+                    VerticalAlignment = VerticalAlignment.Stretch,
+                    AllowDrop = true
                 };
                 _chatWebView.DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, 26, 26, 26);
                 _chatWebView.NavigationCompleted += (_, _) =>

@@ -334,6 +334,28 @@ public sealed class WindowIslandLauncher
             }
 
             // 2. Shell file / folder / app icon
+            byte[]? shellPng = ExtractShellIconPngBytes(target);
+            if (shellPng != null)
+            {
+                File.WriteAllBytes(iconPath, shellPng);
+                return iconPath;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[WindowIslandLauncher] ExtractOrFetchIcon failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts the shell icon (supports .exe, .lnk, .appref-ms, .msi, folders, etc.) as 64x64 PNG bytes.
+    /// </summary>
+    public static byte[]? ExtractShellIconPngBytes(string target)
+    {
+        try
+        {
             string clean = target.Trim('"', ' ');
             bool isDir = Directory.Exists(clean);
             bool exists = isDir || File.Exists(clean);
@@ -356,8 +378,9 @@ public sealed class WindowIslandLauncher
                         g.Clear(Color.Transparent);
                         g.DrawImage(bmp, 0, 0, 64, 64);
                     }
-                    targetBmp.Save(iconPath, ImageFormat.Png);
-                    return iconPath;
+                    using var ms = new MemoryStream();
+                    targetBmp.Save(ms, ImageFormat.Png);
+                    return ms.ToArray();
                 }
                 finally
                 {
@@ -367,7 +390,7 @@ public sealed class WindowIslandLauncher
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WindowIslandLauncher] ExtractOrFetchIcon failed: {ex.Message}");
+            Debug.WriteLine($"[WindowIslandLauncher] ExtractShellIconPngBytes failed: {ex.Message}");
         }
 
         return null;
