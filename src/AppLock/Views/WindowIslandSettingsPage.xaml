@@ -12,6 +12,23 @@
             <Setter Property="Padding" Value="10,2"/>
             <Setter Property="MinHeight" Value="34"/>
         </Style>
+        <Style x:Key="IslandSettingsCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+        <Style x:Key="IslandSettingTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="IslandSettingDescStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
     </Page.Resources>
 
     <Grid Padding="24,20,24,24" RowSpacing="14" MaxWidth="1120" HorizontalAlignment="Left">
@@ -186,64 +203,97 @@
                     </StackPanel>
 
                     <!-- ░░ Appearance ░░ -->
-                    <StackPanel x:Name="SectionAppearance" Spacing="14" Visibility="Collapsed">
-                        <Grid ColumnSpacing="16" RowSpacing="6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <ComboBox x:Name="ShapeBox" Grid.Column="0" Grid.Row="0" Header="Shape" SelectionChanged="OnSelectionChanged" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Notch (flush with screen edge)" Tag="Notch" />
-                                <ComboBoxItem Content="Capsule (floating pill)" Tag="Capsule" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="0" Grid.Row="1"
-                                       Text="Notch attaches flush to the top screen edge; Capsule floats as a rounded pill."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-
-                            <ComboBox x:Name="PositionBox" Grid.Column="1" Grid.Row="0" Header="Position" SelectionChanged="OnSelectionChanged" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Top center" Tag="TopCenter" />
-                                <ComboBoxItem Content="Top left" Tag="TopLeft" />
-                                <ComboBoxItem Content="Top right" Tag="TopRight" />
-                            </ComboBox>
-                            <TextBlock Grid.Column="1" Grid.Row="1"
-                                       Text="Choose where the folded and expanded island sits along the top of your screen."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </Grid>
-
-                        <StackPanel Spacing="4">
-                            <ComboBox x:Name="ThemeBox" Header="Theme" SelectionChanged="OnSelectionChanged" Width="260">
-                                <ComboBoxItem Content="System default" Tag="System" />
-                                <ComboBoxItem Content="Light" Tag="Light" />
-                                <ComboBoxItem Content="Dark" Tag="Dark" />
-                            </ComboBox>
-                            <TextBlock Text="Match your Windows light/dark mode automatically or force a specific island theme."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <ComboBox x:Name="IslandColorBox" Header="Island Color" SelectionChanged="OnIslandColorChanged" Width="260">
-                                    <ComboBoxItem Content="Default (Auto black/white)" Tag="Default" />
-                                    <ComboBoxItem Content="Dark Navy" Tag="Navy" />
-                                    <ComboBoxItem Content="Deep Indigo" Tag="Indigo" />
-                                    <ComboBoxItem Content="Forest Green" Tag="Green" />
-                                    <ComboBoxItem Content="Rich Maroon" Tag="Maroon" />
-                                    <ComboBoxItem Content="Warm Brown" Tag="Brown" />
-                                    <ComboBoxItem Content="Soft Cream" Tag="Cream" />
-                                    <ComboBoxItem Content="Fresh Mint" Tag="Mint" />
-                                    <ComboBoxItem Content="Gentle Lavender" Tag="Lavender" />
-                                    <ComboBoxItem Content="Custom color" Tag="Custom" />
+                    <StackPanel x:Name="SectionAppearance" Spacing="8" Visibility="Collapsed">
+                        <!-- Shape -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Shape" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Notch attaches flush to the top screen edge; Capsule floats as a rounded pill."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="ShapeBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Notch (flush with screen edge)" Tag="Notch" />
+                                    <ComboBoxItem Content="Capsule (floating pill)" Tag="Capsule" />
                                 </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Position -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Position" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Choose where the folded and expanded island sits along the top of your screen."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="PositionBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Top center" Tag="TopCenter" />
+                                    <ComboBoxItem Content="Top left" Tag="TopLeft" />
+                                    <ComboBoxItem Content="Top right" Tag="TopRight" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Theme -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Theme" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Match your Windows light/dark mode automatically or force a specific island theme."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="ThemeBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="System default" Tag="System" />
+                                    <ComboBoxItem Content="Light" Tag="Light" />
+                                    <ComboBoxItem Content="Dark" Tag="Dark" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <!-- Island Color -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Island Color" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Pick a preset tint or custom hex color for the island background; text contrast adjusts automatically."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="IslandColorBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnIslandColorChanged">
+                                        <ComboBoxItem Content="Default (Auto black/white)" Tag="Default" />
+                                        <ComboBoxItem Content="Dark Navy" Tag="Navy" />
+                                        <ComboBoxItem Content="Deep Indigo" Tag="Indigo" />
+                                        <ComboBoxItem Content="Forest Green" Tag="Green" />
+                                        <ComboBoxItem Content="Rich Maroon" Tag="Maroon" />
+                                        <ComboBoxItem Content="Warm Brown" Tag="Brown" />
+                                        <ComboBoxItem Content="Soft Cream" Tag="Cream" />
+                                        <ComboBoxItem Content="Fresh Mint" Tag="Mint" />
+                                        <ComboBoxItem Content="Gentle Lavender" Tag="Lavender" />
+                                        <ComboBoxItem Content="Custom color" Tag="Custom" />
+                                    </ComboBox>
+                                </Grid>
 
                                 <StackPanel x:Name="IslandCustomColorPanel"
                                             Orientation="Horizontal"
                                             Spacing="8"
-                                            VerticalAlignment="Bottom"
+                                            HorizontalAlignment="Right"
                                             Visibility="Collapsed">
                                     <Button x:Name="IslandCustomColorButton"
                                             Width="56" Height="32" Padding="3" CornerRadius="4"
@@ -278,214 +328,75 @@
                                              TextChanged="IslandCustomColorHexBox_TextChanged"/>
                                 </StackPanel>
                             </StackPanel>
-                            <TextBlock Text="Pick a preset tint or custom hex color for the island background; text contrast adjusts automatically."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
+                        </Border>
 
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Size Scale" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="Scale the overall dimensions of the island up or down to fit your screen resolution."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            <Slider x:Name="SizeSlider" Width="320" HorizontalAlignment="Left"
-                                    ValueChanged="OnSliderChanged" />
-                            <TextBlock x:Name="SizeLabelText" FontSize="12" Opacity="0.6"/>
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Background Opacity (Transparency)" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="Adjust how translucent or solid the island backdrop appears over open windows."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            <Slider x:Name="OpacitySlider" Width="320" HorizontalAlignment="Left"
-                                    ValueChanged="OnSliderChanged" />
-                            <TextBlock x:Name="OpacityLabelText" FontSize="12" Opacity="0.6"/>
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Vertical Offset (DIPs)" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="Nudge the island downward from the top edge in device-independent pixels."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            <Slider x:Name="YOffsetSlider" Width="320" HorizontalAlignment="Left"
-                                    ValueChanged="OnSliderChanged" />
-                            <TextBlock x:Name="YOffsetLabelText" FontSize="12" Opacity="0.6"/>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- ░░ Visibility ░░ -->
-                    <StackPanel x:Name="SectionVisibility" Spacing="0" Visibility="Collapsed">
-                        <!-- Hide in full-screen apps -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Hide in full-screen apps"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="Hide the island automatically while games, videos, or presentations are running in full screen."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="HideInFullScreenToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Come out over full-screen apps -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Come out over them when the cursor is at the top edge"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="Half a second (500 ms) of the cursor at the edge above the island's place and it comes out over the app. Better left off for games: the cursor gets there in their menus, and the game may minimize. The island's hotkeys call it out anyway."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="EdgeDwellToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Auto-hide -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Hide the island until it is needed"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="The folded island slides off-screen and stays out of the way of what is under it: browser tabs, window buttons. Rest the cursor at the very top edge above it and it comes back; with a card or hotkey it comes out by itself."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="AutoHideToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Stay in sight on desktop -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Stay in sight on the desktop"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="For auto-hide: while the Windows desktop itself is in front, with no program window on it, the island stays in sight."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="AutoHideStayOnDesktopToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Hide only when overlapped -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Hide only while a window is under the island"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="Keep the island visible when nothing is behind it, and slide it away only while a window overlaps its position."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="AutoHideOnlyWhenOverlappedToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Place under top taskbar -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Place under the taskbar when it is docked at the top"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="When the Windows taskbar is docked at the top edge, position the island right below it so nothing overlaps."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="UnderTopTaskbarToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Through mode -->
-                        <StackPanel Spacing="8" Padding="0,10">
+                        <!-- Size Scale -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Through mode"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               TextWrapping="Wrap" />
-                                    <TextBlock Text="The folded island lets clicks through and does not open under the cursor: it is in sight and in nobody's way. Hotkeys open it. Turn the mode on and off here, with its own hotkey, or with -through in Alt+Space."
-                                               FontSize="12"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="Size Scale" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Scale the overall dimensions of the island up or down to fit your screen resolution."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="SizeLabelText" FontSize="12" Opacity="0.7" />
                                 </StackPanel>
-                                <ToggleSwitch x:Name="ThroughModeToggle"
+                                <Slider x:Name="SizeSlider" Grid.Column="1" Width="240" VerticalAlignment="Center" ValueChanged="OnSliderChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Background Opacity -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Background Opacity (Transparency)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Adjust how translucent or solid the island backdrop appears over open windows."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="OpacityLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="OpacitySlider" Grid.Column="1" Width="240" VerticalAlignment="Center" ValueChanged="OnSliderChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Vertical Offset -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Vertical Offset (DIPs)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Nudge the island downward from the top edge in device-independent pixels."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="YOffsetLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="YOffsetSlider" Grid.Column="1" Width="240" VerticalAlignment="Center" ValueChanged="OnSliderChanged" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ░░ Visibility ░░ -->
+                    <StackPanel x:Name="SectionVisibility" Spacing="8" Visibility="Collapsed">
+                        <!-- Hide in full-screen apps -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hide in full-screen apps" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Hide the island automatically while games, videos, or presentations are running in full screen."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="HideInFullScreenToggle"
                                               Grid.Column="1"
                                               OnContent=""
                                               OffContent=""
@@ -493,787 +404,1071 @@
                                               VerticalAlignment="Center"
                                               Toggled="OnSettingChanged" />
                             </Grid>
-                            <TextBox x:Name="ThroughModeHotkeyBox"
-                                     Header="Through mode hotkey"
-                                     PlaceholderText="e.g. Ctrl+Shift+T (optional)"
-                                     Width="260"
-                                     HorizontalAlignment="Left"
-                                     TextChanged="OnHotkeyChanged" />
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
 
-                        <StackPanel Spacing="12" Padding="0,12,0,0">
-                            <StackPanel Spacing="4">
-                                <ComboBox x:Name="TargetMonitorBox" Header="Show on monitor" SelectionChanged="OnSelectionChanged" Width="260">
+                        <!-- Come out over full-screen apps -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Come out over them when the cursor is at the top edge" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Half a second (500 ms) of the cursor at the edge above the island's place and it comes out over the app. Better left off for games: the cursor gets there in their menus, and the game may minimize. The island's hotkeys call it out anyway."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="EdgeDwellToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Auto-hide -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hide the island until it is needed" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="The folded island slides off-screen and stays out of the way of what is under it: browser tabs, window buttons. Rest the cursor at the very top edge above it and it comes back; with a card or hotkey it comes out by itself."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoHideToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Stay in sight on desktop -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Stay in sight on the desktop" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="For auto-hide: while the Windows desktop itself is in front, with no program window on it, the island stays in sight."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoHideStayOnDesktopToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Hide only when overlapped -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hide only while a window is under the island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Keep the island visible when nothing is behind it, and slide it away only while a window overlaps its position."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="AutoHideOnlyWhenOverlappedToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Place under top taskbar -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Place under the taskbar when it is docked at the top" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="When the Windows taskbar is docked at the top edge, position the island right below it so nothing overlaps."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="UnderTopTaskbarToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Through mode -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Through mode" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="The folded island lets clicks through and does not open under the cursor: it is in sight and in nobody's way. Hotkeys open it. Turn the mode on and off here, with its own hotkey, or with -through in Alt+Space."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ThroughModeToggle"
+                                                  Grid.Column="1"
+                                                  OnContent=""
+                                                  OffContent=""
+                                                  MinWidth="0"
+                                                  VerticalAlignment="Center"
+                                                  Toggled="OnSettingChanged" />
+                                </Grid>
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Through mode hotkey" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Optional keyboard shortcut to toggle click-through mode."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <TextBox x:Name="ThroughModeHotkeyBox"
+                                             Grid.Column="1"
+                                             PlaceholderText="e.g. Ctrl+Shift+T"
+                                             Width="220"
+                                             VerticalAlignment="Center"
+                                             TextChanged="OnHotkeyChanged" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Show on monitor -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show on monitor" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Choose whether the island stays on your primary display or automatically moves to whichever monitor your mouse cursor is currently on."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="TargetMonitorBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
                                     <ComboBoxItem Content="Primary monitor" Tag="Primary" />
                                     <ComboBoxItem Content="Monitor with cursor" Tag="Cursor" />
                                 </ComboBox>
-                                <TextBlock Text="Choose whether the island stays on your primary display or automatically moves to whichever monitor your mouse cursor is currently on."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
+                            </Grid>
+                        </Border>
 
-                            <StackPanel Spacing="4">
-                                <ComboBox x:Name="ChosenAppsModeBox" Header="Chosen apps rule" SelectionChanged="OnSelectionChanged" Width="260">
+                        <!-- Chosen apps rule -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Chosen apps rule" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Automatically hide the island—or show it exclusively—whenever one of your listed apps below becomes the active foreground window."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="ChosenAppsModeBox" Grid.Column="1" MinWidth="240" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
                                     <ComboBoxItem Content="Disabled" Tag="Disabled" />
                                     <ComboBoxItem Content="Hide while one is in front" Tag="Hide" />
                                     <ComboBoxItem Content="Only show while one is in front (Keep)" Tag="Keep" />
                                 </ComboBox>
-                                <TextBlock Text="Automatically hide the island—or show it exclusively—whenever one of your listed apps below becomes the active foreground window."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
+                            </Grid>
+                        </Border>
 
-                            <StackPanel Spacing="4">
+                        <!-- Chosen process names -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Chosen process names" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Enter executable names without .exe, separated by commas (e.g. chrome, notepad). Used by the Chosen apps rule above."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
                                 <TextBox x:Name="ChosenAppsBox"
-                                         Header="Chosen process names (comma-separated, e.g. chrome, notepad)"
-                                         Width="360"
-                                         HorizontalAlignment="Left"
+                                         Grid.Column="1"
+                                         PlaceholderText="e.g. chrome, notepad"
+                                         Width="260"
+                                         VerticalAlignment="Center"
                                          TextChanged="OnChosenAppsChanged" />
-                                <TextBlock Text="Enter executable names without .exe, separated by commas. Used by the Chosen apps rule above."
-                                           FontSize="12"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                        </StackPanel>
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Notch Indicators ░░ -->
-                    <StackPanel x:Name="SectionIndicators" Spacing="0" Visibility="Collapsed">
+                    <StackPanel x:Name="SectionIndicators" Spacing="8" Visibility="Collapsed">
                         <!-- Show clock -->
-                        <StackPanel Spacing="8" Padding="0,10">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Show clock" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Display the current time on the folded island so you can glance at it anytime."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ShowClockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                </Grid>
+                                <StackPanel Margin="4,0,0,0" Spacing="4" Visibility="{x:Bind ShowClockToggle.IsOn, Mode=OneWay}">
+                                    <CheckBox x:Name="TimeFormat24HCheck" Content="24-hour format (e.g. 14:30 vs 2:30 PM)" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+                                    <CheckBox x:Name="ShowSecondsCheck" Content="Show seconds" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Show battery -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Show clock" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBlock Text="Display the current time on the folded island so you can glance at it anytime."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Show battery percentage &amp; status" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show remaining battery percentage and charging icon on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch x:Name="ShowClockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
                             </Grid>
-                            <StackPanel Margin="20,0,0,0" Spacing="6" Visibility="{x:Bind ShowClockToggle.IsOn, Mode=OneWay}">
-                                <CheckBox x:Name="TimeFormat24HCheck" Content="24-hour format (e.g. 14:30 vs 2:30 PM)" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-                                <CheckBox x:Name="ShowSecondsCheck" Content="Show seconds" Checked="OnCheckChanged" Unchecked="OnCheckChanged" />
-                            </StackPanel>
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Show battery -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show battery percentage &amp; status" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show remaining battery percentage and charging icon on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowBatteryToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
 
                         <!-- Temperature -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show temperature on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display current outdoor temperature and weather icon for your configured city."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show temperature on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display current outdoor temperature and weather icon for your configured city."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="WeatherTempOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Mic dot -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Microphone indicator dot on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a privacy indicator dot whenever an application is actively recording from your microphone."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="MicDotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Microphone indicator dot on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a privacy indicator dot whenever an application is actively recording from your microphone."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="MicDotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Cam dot -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Camera indicator dot on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a green privacy indicator dot whenever an application is using your webcam."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CamDotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Camera indicator dot on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a green privacy indicator dot whenever an application is using your webcam."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CamDotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- CPU usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="CPU usage on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show live processor utilization percentage on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowCpuNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="CPU usage on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show live processor utilization percentage on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowCpuNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- RAM usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="RAM usage on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show live system memory usage percentage on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowRamNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="RAM usage on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show live system memory usage percentage on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowRamNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Disk usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Disk usage on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show live storage drive activity percentage on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowDiskNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Disk usage on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show live storage drive activity percentage on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowDiskNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- GPU usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="GPU usage on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show live graphics card utilization percentage on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowGpuNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="GPU usage on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show live graphics card utilization percentage on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowGpuNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Download speed -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Download speed on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display real-time incoming network bandwidth on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowDownSpeedNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Download speed on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display real-time incoming network bandwidth on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowDownSpeedNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Upload speed -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Upload speed on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display real-time outgoing network bandwidth on the folded island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ShowUpSpeedNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Upload speed on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display real-time outgoing network bandwidth on the folded island."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ShowUpSpeedNotchToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Clock & Calendar ░░ -->
-                    <StackPanel x:Name="SectionClock" Spacing="10" Visibility="Collapsed">
-                        <StackPanel Spacing="4">
-                            <ComboBox x:Name="CalendarClockStyleBox"
-                                      Header="Clock style in Date &amp; Calendar tab"
-                                      SelectionChanged="OnSelectionChanged"
-                                      Width="260">
-                                <ComboBoxItem Content="Digital" Tag="Digital" />
-                                <ComboBoxItem Content="Digital with seconds" Tag="DigitalSeconds" />
-                                <ComboBoxItem Content="Analog" Tag="Analog" />
-                                <ComboBoxItem Content="Analog with seconds" Tag="AnalogSeconds" />
-                                <ComboBoxItem Content="Analog classic (numbers &amp; ticks)" Tag="AnalogClassic" />
-                            </ComboBox>
-                            <TextBlock Text="Choose whether the Date &amp; Calendar tab shows a digital readout or an analog clock face."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <StackPanel Spacing="8" Margin="0,8,0,0" MaxWidth="560" HorizontalAlignment="Left">
-                            <TextBlock Text="World clocks" FontWeight="SemiBold" FontSize="14" />
-                            <TextBlock Text="Add, reorder, or remove custom place clocks shown in the island's Date &amp; Calendar tab. Changes sync in real time and persist across restarts."
-                                       FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBox x:Name="SettingsClockPlaceBox"
-                                         PlaceholderText="Place name (e.g. Paris)"
-                                         Width="170" />
-                                <ComboBox x:Name="SettingsClockTzBox"
-                                          PlaceholderText="Select time zone"
-                                          Width="270" />
-                                <Button x:Name="SettingsAddClockBtn"
-                                        Content="Add"
-                                        Click="SettingsAddClockBtn_Click"
-                                        Style="{StaticResource AccentButtonStyle}" />
-                            </StackPanel>
-                            <StackPanel x:Name="SettingsWorldClocksList" Spacing="6" Margin="0,4,0,0" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- ░░ Media & Lyrics ░░ -->
-                    <StackPanel x:Name="SectionMedia" Spacing="14" Visibility="Collapsed">
-                        <StackPanel Spacing="4">
-                            <ComboBox x:Name="MediaPlayerStyleBox"
-                                      Header="Player style on Home"
-                                      SelectionChanged="OnSelectionChanged"
-                                      Width="300">
-                                <ComboBoxItem Content="Compact (album art + subtle glow)" Tag="Compact" />
-                                <ComboBoxItem Content="Fill (whole player in album colors)" Tag="Fill" />
-                                <ComboBoxItem Content="Soft mirror (centered art + blurred sides)" Tag="SoftMirror" />
-                            </ComboBox>
-                            <TextBlock Text="Select how album artwork and background colors are rendered in the expanded media player."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="The pill while music plays" FontWeight="SemiBold" FontSize="14" />
-                            <TextBlock Text="&quot;With the name&quot;: the track and a bar of its time. &quot;Mini player&quot;: the cover, the bar and the buttons; a click opens the island, not the cursor. &quot;With the words&quot;: the line being sung (needs &quot;Show lyrics beside the player&quot; below)."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" MaxWidth="560" />
-                            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="4"
-                                    HorizontalAlignment="Left">
-                                <StackPanel Orientation="Horizontal" Spacing="2">
-                                    <Button x:Name="MediaPillUsualBtn" Content="Usual" Tag="Usual"
-                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
-                                    <Button x:Name="MediaPillWithNameBtn" Content="With the name" Tag="WithName"
-                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
-                                    <Button x:Name="MediaPillMiniPlayerBtn" Content="Mini player" Tag="MiniPlayer"
-                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
-                                    <Button x:Name="MediaPillWithWordsBtn" Content="With the words" Tag="WithWords"
-                                            Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                        <Grid ColumnSpacing="16" Padding="0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show lyrics beside the player" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="When the playing track has lyrics they appear next to the player card on the Home tab. Turn this off to keep the player at full width and skip the lyrics lookup."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="LyricsToggle"
-                                          Grid.Column="1"
-                                          OnContent=""
-                                          OffContent=""
-                                          MinWidth="0"
-                                          VerticalAlignment="Center"
-                                          Toggled="OnSettingChanged" />
-                        </Grid>
-                    </StackPanel>
-
-                    <!-- ░░ Event Cards ░░ -->
-                    <StackPanel x:Name="SectionCards" Spacing="0" Visibility="Collapsed">
-                        <!-- Caps Lock -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Caps Lock on/off notification" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a quick card whenever you toggle Caps Lock so you always know its state."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardCapsLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Num Lock -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Num Lock on/off notification" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a quick card whenever you toggle Num Lock on your keyboard."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardNumLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-                        <!-- Delete key warning + custom keys -->
-                        <StackPanel Spacing="8" Padding="0,10">
+                    <StackPanel x:Name="SectionClock" Spacing="8" Visibility="Collapsed">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <Grid ColumnSpacing="16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Delete key press warning" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBlock Text="Flash a brief warning card when the Delete key is pressed to help prevent accidental deletions."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Clock style in Date &amp; Calendar tab" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Choose whether the Date &amp; Calendar tab shows a digital readout or an analog clock face."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch x:Name="CardDeleteKeyWarningToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                <ComboBox x:Name="CalendarClockStyleBox"
+                                          Grid.Column="1"
+                                          MinWidth="240"
+                                          VerticalAlignment="Center"
+                                          SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Digital" Tag="Digital" />
+                                    <ComboBoxItem Content="Digital with seconds" Tag="DigitalSeconds" />
+                                    <ComboBoxItem Content="Analog" Tag="Analog" />
+                                    <ComboBoxItem Content="Analog with seconds" Tag="AnalogSeconds" />
+                                    <ComboBoxItem Content="Analog classic (numbers &amp; ticks)" Tag="AnalogClassic" />
+                                </ComboBox>
                             </Grid>
-                            <StackPanel Spacing="4">
-                                <TextBox x:Name="CardCustomKeyWarningsBox"
-                                         Width="360"
-                                         HorizontalAlignment="Left"
-                                         Header="Custom key warnings (comma-separated)"
-                                         PlaceholderText="e.g. Insert, PrintScreen, F12"
-                                         TextChanged="OnCustomKeyWarningsChanged" />
-                                <TextBlock Text="Add extra key names to trigger a quick warning card whenever any of them is pressed."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="World clocks" Style="{StaticResource IslandSettingTitleStyle}" />
+                                <TextBlock Text="Add, reorder, or remove custom place clocks shown in the island's Date &amp; Calendar tab. Changes sync in real time and persist across restarts."
+                                           Style="{StaticResource IslandSettingDescStyle}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBox x:Name="SettingsClockPlaceBox"
+                                             PlaceholderText="Place name (e.g. Paris)"
+                                             Width="170" />
+                                    <ComboBox x:Name="SettingsClockTzBox"
+                                              PlaceholderText="Select time zone"
+                                              Width="270" />
+                                    <Button x:Name="SettingsAddClockBtn"
+                                            Content="Add"
+                                            Click="SettingsAddClockBtn_Click"
+                                            Style="{StaticResource AccentButtonStyle}" />
+                                </StackPanel>
+                                <StackPanel x:Name="SettingsWorldClocksList" Spacing="6" Margin="0,4,0,0" />
                             </StackPanel>
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ░░ Media & Lyrics ░░ -->
+                    <StackPanel x:Name="SectionMedia" Spacing="8" Visibility="Collapsed">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Player style on Home" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Select how album artwork and background colors are rendered in the expanded media player."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="MediaPlayerStyleBox"
+                                          Grid.Column="1"
+                                          MinWidth="260"
+                                          VerticalAlignment="Center"
+                                          SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Compact (album art + subtle glow)" Tag="Compact" />
+                                    <ComboBoxItem Content="Fill (whole player in album colors)" Tag="Fill" />
+                                    <ComboBoxItem Content="Soft mirror (centered art + blurred sides)" Tag="SoftMirror" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="The pill while music plays" Style="{StaticResource IslandSettingTitleStyle}" />
+                                <TextBlock Text="&quot;With the name&quot;: the track and a bar of its time. &quot;Mini player&quot;: the cover, the bar and the buttons; a click opens the island, not the cursor. &quot;With the words&quot;: the line being sung (needs &quot;Show lyrics beside the player&quot; below)."
+                                           Style="{StaticResource IslandSettingDescStyle}" />
+                                <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="4"
+                                        HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <Button x:Name="MediaPillUsualBtn" Content="Usual" Tag="Usual"
+                                                Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                        <Button x:Name="MediaPillWithNameBtn" Content="With the name" Tag="WithName"
+                                                Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                        <Button x:Name="MediaPillMiniPlayerBtn" Content="Mini player" Tag="MiniPlayer"
+                                                Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                        <Button x:Name="MediaPillWithWordsBtn" Content="With the words" Tag="WithWords"
+                                                Click="OnMediaPillModeClick" BorderThickness="0" CornerRadius="6" Padding="12,6" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show lyrics beside the player" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="When the playing track has lyrics they appear next to the player card on the Home tab. Turn this off to keep the player at full width and skip the lyrics lookup."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LyricsToggle"
+                                              Grid.Column="1"
+                                              OnContent=""
+                                              OffContent=""
+                                              MinWidth="0"
+                                              VerticalAlignment="Center"
+                                              Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ░░ Event Cards ░░ -->
+                    <StackPanel x:Name="SectionCards" Spacing="8" Visibility="Collapsed">
+                        <!-- Caps Lock -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Caps Lock on/off notification" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a quick card whenever you toggle Caps Lock so you always know its state." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardCapsLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Num Lock -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Num Lock on/off notification" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a quick card whenever you toggle Num Lock on your keyboard." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardNumLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Delete key warning + custom keys -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Delete key press warning" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Flash a brief warning card when the Delete key is pressed to help prevent accidental deletions." Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="CardDeleteKeyWarningToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                </Grid>
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="Custom key warnings" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Text="Add extra comma-separated key names to trigger a quick warning card when pressed." Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <TextBox x:Name="CardCustomKeyWarningsBox"
+                                             Grid.Column="1"
+                                             Width="260"
+                                             VerticalAlignment="Center"
+                                             PlaceholderText="e.g. Insert, PrintScreen, F12"
+                                             TextChanged="OnCustomKeyWarningsChanged" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Volume -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Volume adjustments (+ mouse wheel)" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a live volume bar card when volume changes, and allow scrolling on the island to adjust volume."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardVolumeToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Volume adjustments (+ mouse wheel)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a live volume bar card when volume changes, and allow scrolling on the island to adjust volume." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardVolumeToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Clipboard -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Clipboard copy (text and images)" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Preview newly copied text snippets and images briefly on the island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardClipboardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Clipboard copy (text and images)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Preview newly copied text snippets and images briefly on the island." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardClipboardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Screenshot -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Screenshot saved alert" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a thumbnail preview card with quick open actions whenever a screenshot is saved."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardScreenshotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Screenshot saved alert" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a thumbnail preview card with quick open actions whenever a screenshot is saved." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardScreenshotToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Downloads -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Downloads" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show download progress and a completion card with a shortcut to the finished file."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardDownloadsToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Downloads" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show download progress and a completion card with a shortcut to the finished file." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardDownloadsToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- File copy progress -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="File copy progress" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a live progress bar card while Windows Explorer copies or moves files."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardFileCopyToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="File copy progress" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a live progress bar card while Windows Explorer copies or moves files." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardFileCopyToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- VPN -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="VPN connect / disconnect" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Notify you on the island when a VPN connection starts or drops."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardVpnToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="VPN connect / disconnect" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Notify you on the island when a VPN connection starts or drops." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardVpnToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Low battery -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Low battery alert (20 %, 10 %, 5 %)" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display an urgent battery warning card when charge drops to 20%, 10%, or 5%."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardBatteryLowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Low battery alert (20 %, 10 %, 5 %)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display an urgent battery warning card when charge drops to 20%, 10%, or 5%." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardBatteryLowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Charger plugged/unplugged -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Charger plugged / unplugged" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Show a confirmation card when power adapter is connected, disconnected, or reaches 100%."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardChargingToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Charger plugged / unplugged" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Show a confirmation card when power adapter is connected, disconnected, or reaches 100%." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardChargingToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Mic usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Microphone usage detected" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Alert you with a card (including a quick system-wide mute button) when an app activates your microphone."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardMicToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Microphone usage detected" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Alert you with a card (including a quick system-wide mute button) when an app activates your microphone." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardMicToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Cam usage -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Camera usage detected" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Alert you with a card showing which app started recording from your webcam."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="CardCamToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Camera usage detected" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Alert you with a card showing which app started recording from your webcam." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="CardCamToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Spacing="8" Padding="0,12,0,4">
+                        <!-- Card display duration -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Card display duration" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Set how long temporary notification cards remain expanded before collapsing back into the island." Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="CardStayBox" Grid.Column="1" MinWidth="220" VerticalAlignment="Center" SelectionChanged="OnCardStaySelectionChanged">
+                                        <ComboBoxItem Content="Brief (1.0s)" Tag="1s" />
+                                        <ComboBoxItem Content="Shorter (2.0s)" Tag="Shorter" />
+                                        <ComboBoxItem Content="Usual (3.5s)" Tag="Usual" />
+                                        <ComboBoxItem Content="Longer (6.0s)" Tag="Longer" />
+                                        <ComboBoxItem Content="Custom" Tag="Custom" />
+                                    </ComboBox>
+                                </Grid>
+                                <StackPanel x:Name="CardStayCustomPanel" Spacing="4" Visibility="Collapsed">
+                                    <TextBlock x:Name="CardStayCustomLabel" Text="Custom duration: 4.0 s" FontSize="12" Opacity="0.8" />
+                                    <Slider x:Name="CardStayCustomSlider"
+                                            Minimum="0.5"
+                                            Maximum="30"
+                                            StepFrequency="0.5"
+                                            TickFrequency="5"
+                                            Width="260"
+                                            HorizontalAlignment="Left"
+                                            ValueChanged="OnCardStayCustomSliderChanged" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Windows Notifications — unavailable without package identity -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}" Opacity="0.72">
                             <StackPanel Spacing="4">
-                                <ComboBox x:Name="CardStayBox" Header="Card display duration" SelectionChanged="OnCardStaySelectionChanged" Width="260">
-                                    <ComboBoxItem Content="Brief (1.0s)" Tag="1s" />
-                                    <ComboBoxItem Content="Shorter (2.0s)" Tag="Shorter" />
-                                    <ComboBoxItem Content="Usual (3.5s)" Tag="Usual" />
-                                    <ComboBoxItem Content="Longer (6.0s)" Tag="Longer" />
-                                    <ComboBoxItem Content="Custom" Tag="Custom" />
-                                </ComboBox>
-                                <TextBlock Text="Set how long temporary notification cards remain expanded before collapsing back into the island."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel x:Name="CardStayCustomPanel" Spacing="4" Visibility="Collapsed" Margin="0,2,0,0">
-                                <TextBlock x:Name="CardStayCustomLabel" Text="Custom duration: 4.0 s" FontSize="12" Opacity="0.8" />
-                                <Slider x:Name="CardStayCustomSlider"
-                                        Minimum="0.5"
-                                        Maximum="30"
-                                        StepFrequency="0.5"
-                                        TickFrequency="5"
-                                        Width="260"
-                                        HorizontalAlignment="Left"
-                                        ValueChanged="OnCardStayCustomSliderChanged" />
-                            </StackPanel>
-
-                            <!-- Windows Notifications — unavailable without package identity -->
-                            <StackPanel Spacing="4" Opacity="0.65" Margin="0,6,0,0">
-                                <TextBlock Text="Windows Notifications" FontWeight="SemiBold" FontSize="13" />
-                                <TextBlock TextWrapping="Wrap" FontSize="12"
+                                <TextBlock Text="Windows Notifications" Style="{StaticResource IslandSettingTitleStyle}" />
+                                <TextBlock Style="{StaticResource IslandSettingDescStyle}"
                                            Text="Not available in this build — AppLock runs as an unpackaged app. Package identity (MSIX) is required to listen to Windows notifications." />
                                 <HyperlinkButton Content="Open Windows Notification Settings"
                                                  NavigateUri="ms-settings:notifications" />
                             </StackPanel>
-                        </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Controls Tab ░░ -->
-                    <StackPanel x:Name="SectionControls" Spacing="0" Visibility="Collapsed">
+                    <StackPanel x:Name="SectionControls" Spacing="8" Visibility="Collapsed">
                         <!-- Close after quick card -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Close Island after running a quick-action card" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Automatically fold the island back down right after you trigger a quick action such as Mute or Lock."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ControlsCloseAfterCardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Close Island after running a quick-action card" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Automatically fold the island back down right after you trigger a quick action such as Mute or Lock." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ControlsCloseAfterCardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Show BT battery card -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show Bluetooth battery card" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display a quick card inside the Controls tab listing connected Bluetooth accessories and their battery levels."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ControlsShowBtBatteryCardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show Bluetooth battery card" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display a quick card inside the Controls tab listing connected Bluetooth accessories and their battery levels." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ControlsShowBtBatteryCardToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Show BT battery on folded island -->
-                        <StackPanel Spacing="10" Padding="0,10">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Show connected Bluetooth battery on folded island" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBlock Text="Pin the battery level of your active Bluetooth headset or device directly onto the folded island."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="ControlsShowBtBatteryOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                            </Grid>
-                            <StackPanel Margin="20,0,0,0" Spacing="10" Visibility="{x:Bind ControlsShowBtBatteryOnIslandToggle.IsOn, Mode=OneWay}">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="12">
                                 <Grid ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                        <TextBlock Text="Show multiple connected devices on folded island" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <TextBlock Text="Display every connected Bluetooth audio/input device side-by-side (expands folded island width)."
-                                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Show connected Bluetooth battery on folded island" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Pin the battery level of your active Bluetooth headset or device directly onto the folded island." Style="{StaticResource IslandSettingDescStyle}" />
                                     </StackPanel>
-                                    <ToggleSwitch x:Name="ControlsShowMultipleBtOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                    <ToggleSwitch x:Name="ControlsShowBtBatteryOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
                                 </Grid>
-                                <StackPanel Spacing="4">
-                                    <ComboBox x:Name="ControlsBtBatteryIslandStyleBox"
-                                              Header="Folded Bluetooth battery display"
-                                              SelectionChanged="OnSelectionChanged"
-                                              Width="280">
-                                        <ComboBoxItem Content="Device icon + percentage (e.g. 🎧 100%)" Tag="IconAndPercent" />
-                                        <ComboBoxItem Content="Device icon + battery icon (e.g. 🎧 🔋)" Tag="IconAndBattery" />
-                                        <ComboBoxItem Content="Device icon + battery + percentage" Tag="IconBatteryAndPercent" />
-                                    </ComboBox>
-                                    <TextBlock Text="Choose how Bluetooth battery status is formatted on the folded pill."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                <StackPanel Spacing="10" Visibility="{x:Bind ControlsShowBtBatteryOnIslandToggle.IsOn, Mode=OneWay}">
+                                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="Show multiple connected devices on folded island" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="Display every connected Bluetooth audio/input device side-by-side (expands folded island width)." Style="{StaticResource IslandSettingDescStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="ControlsShowMultipleBtOnIslandToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                    </Grid>
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="Folded Bluetooth battery display" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="Choose how Bluetooth battery status is formatted on the folded pill." Style="{StaticResource IslandSettingDescStyle}" />
+                                        </StackPanel>
+                                        <ComboBox x:Name="ControlsBtBatteryIslandStyleBox"
+                                                  Grid.Column="1"
+                                                  MinWidth="240"
+                                                  VerticalAlignment="Center"
+                                                  SelectionChanged="OnSelectionChanged">
+                                            <ComboBoxItem Content="Device icon + percentage (e.g. 🎧 100%)" Tag="IconAndPercent" />
+                                            <ComboBoxItem Content="Device icon + battery icon (e.g. 🎧 🔋)" Tag="IconAndBattery" />
+                                            <ComboBoxItem Content="Device icon + battery + percentage" Tag="IconBatteryAndPercent" />
+                                        </ComboBox>
+                                    </Grid>
                                 </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
 
                         <!-- Bluetooth battery warning notifications -->
-                        <StackPanel Spacing="10" Padding="0,10">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Bluetooth battery warning notifications" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBlock Text="Trigger a low-battery warning card when a connected Bluetooth device drops below your chosen thresholds."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="ControlsBtLowBatteryAlertToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                            </Grid>
-                            <StackPanel Margin="20,0,0,0" Spacing="10" Visibility="{x:Bind ControlsBtLowBatteryAlertToggle.IsOn, Mode=OneWay}">
-                                <StackPanel Spacing="4">
-                                    <TextBox x:Name="ControlsBtWarningLevelsBox"
-                                             Width="280"
-                                             HorizontalAlignment="Left"
-                                             Header="Warning levels (% below, comma-separated)"
-                                             PlaceholderText="e.g. 80, 50, 20, 10"
-                                             TextChanged="OnBtWarningLevelsChanged" />
-                                    <TextBlock Text="Comma-separated battery percentages at which an alert fires as the device discharges."
-                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                </StackPanel>
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="12">
                                 <Grid ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                        <TextBlock Text="Also show in Windows notifications" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <TextBlock Text="Send a Windows system tray toast in addition to the island warning card."
-                                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Bluetooth battery warning notifications" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Trigger a low-battery warning card when a connected Bluetooth device drops below your chosen thresholds." Style="{StaticResource IslandSettingDescStyle}" />
                                     </StackPanel>
-                                    <ToggleSwitch x:Name="ControlsBtWarningWindowsNotificationToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                    <ToggleSwitch x:Name="ControlsBtLowBatteryAlertToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
                                 </Grid>
+                                <StackPanel Spacing="10" Visibility="{x:Bind ControlsBtLowBatteryAlertToggle.IsOn, Mode=OneWay}">
+                                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="Warning levels (% below)" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="Comma-separated battery percentages at which an alert fires as the device discharges." Style="{StaticResource IslandSettingDescStyle}" />
+                                        </StackPanel>
+                                        <TextBox x:Name="ControlsBtWarningLevelsBox"
+                                                 Grid.Column="1"
+                                                 Width="220"
+                                                 VerticalAlignment="Center"
+                                                 PlaceholderText="e.g. 80, 50, 20, 10"
+                                                 TextChanged="OnBtWarningLevelsChanged" />
+                                    </Grid>
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                            <TextBlock Text="Also show in Windows notifications" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="Send a Windows system tray toast in addition to the island warning card." Style="{StaticResource IslandSettingDescStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="ControlsBtWarningWindowsNotificationToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Border>
 
                         <!-- Brightness slider -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show Brightness slider" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Include a screen brightness slider inside the Controls tab."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ControlsShowBrightnessToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show Brightness slider" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Include a screen brightness slider inside the Controls tab." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ControlsShowBrightnessToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Microphone control -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show Microphone control" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Include a system-wide microphone mute/unmute control and input level slider in Controls."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ControlsShowMicrophoneToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show Microphone control" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Include a system-wide microphone mute/unmute control and input level slider in Controls." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ControlsShowMicrophoneToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Power buttons row -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Show Power buttons row" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Display Lock, Sleep, Restart, and Shut down quick-action buttons at the bottom of Controls."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ControlsShowPowerRowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Show Power buttons row" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Display Lock, Sleep, Restart, and Shut down quick-action buttons at the bottom of Controls." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ControlsShowPowerRowToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Padding="0,12,0,0">
-                            <Button x:Name="ControlsResetCardsBtn"
-                                    Content="Reset Quick Cards to Defaults"
-                                    Click="ControlsResetCardsBtn_Click" />
-                        </StackPanel>
+                        <!-- Reset Quick Cards -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Quick Cards Layout" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Restore all quick-action tiles in the Controls tab back to their default order and visibility." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <Button x:Name="ControlsResetCardsBtn"
+                                        Grid.Column="1"
+                                        Content="Reset to Defaults"
+                                        VerticalAlignment="Center"
+                                        Click="ControlsResetCardsBtn_Click" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Weather ░░ -->
-                    <StackPanel x:Name="SectionWeather" Spacing="12" Visibility="Collapsed">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Configured City" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="Enter a city name to fetch local forecasts and current temperature for the Weather tab and folded indicator."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                <TextBox x:Name="WeatherCityBox" Width="260" PlaceholderText="e.g. London, Tokyo, New York" />
-                                <Button x:Name="WeatherSearchBtn" Content="Set City" Click="WeatherSearchBtn_Click" />
+                    <StackPanel x:Name="SectionWeather" Spacing="8" Visibility="Collapsed">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="6">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Configured City" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Enter a city name to fetch local forecasts and current temperature for the Weather tab and folded indicator."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBox x:Name="WeatherCityBox" Width="200" PlaceholderText="e.g. London, Tokyo" />
+                                        <Button x:Name="WeatherSearchBtn" Content="Set City" Click="WeatherSearchBtn_Click" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="WeatherCityStatus" FontSize="11" Opacity="0.65" />
                             </StackPanel>
-                            <TextBlock x:Name="WeatherCityStatus" FontSize="11" Opacity="0.6"/>
-                        </StackPanel>
+                        </Border>
 
-                        <StackPanel Spacing="4">
-                            <ComboBox x:Name="WeatherUnitsBox" Header="Units" SelectionChanged="OnSelectionChanged" Width="260">
-                                <ComboBoxItem Content="Metric (°C · m/s)" Tag="metric" />
-                                <ComboBoxItem Content="Imperial (°F · mph)" Tag="imperial" />
-                            </ComboBox>
-                            <TextBlock Text="Switch between Celsius / meters-per-second and Fahrenheit / miles-per-hour."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Units" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Switch between Celsius / meters-per-second and Fahrenheit / miles-per-hour."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ComboBox x:Name="WeatherUnitsBox" Grid.Column="1" MinWidth="220" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                    <ComboBoxItem Content="Metric (°C · m/s)" Tag="metric" />
+                                    <ComboBoxItem Content="Imperial (°F · mph)" Tag="imperial" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
 
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                        <Grid ColumnSpacing="16" Padding="0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Warn about rain and snow" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Pop up an alert card roughly one hour before rain or snow is expected at your location."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="WeatherRainWarningToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Warn about rain and snow" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Pop up an alert card roughly one hour before rain or snow is expected at your location."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="WeatherRainWarningToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Chat ░░ -->
-                    <StackPanel x:Name="SectionChat" Spacing="12" Visibility="Collapsed">
-                        <TextBlock Text="Embedded web AI assistants (Gemini, DeepSeek, ChatGPT, and custom sites). Logins persist in your local user data folder."
-                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <StackPanel x:Name="SectionChat" Spacing="8" Visibility="Collapsed">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="AI Assistants" Style="{StaticResource IslandSettingTitleStyle}" />
+                                <TextBlock Text="Embedded web AI assistants (Gemini, DeepSeek, ChatGPT, and custom sites). Logins persist in your local user data folder."
+                                           Style="{StaticResource IslandSettingDescStyle}" />
+                            </StackPanel>
+                        </Border>
 
-                        <StackPanel Spacing="4">
-                            <ComboBox x:Name="ChatIdleBox" Header="Idle release timeout" SelectionChanged="OnSelectionChanged" Width="260">
-                                <ComboBoxItem Content="1 minute" Tag="1" />
-                                <ComboBoxItem Content="3 minutes" Tag="3" />
-                                <ComboBoxItem Content="5 minutes (default)" Tag="5" />
-                                <ComboBoxItem Content="10 minutes" Tag="10" />
-                                <ComboBoxItem Content="15 minutes" Tag="15" />
-                            </ComboBox>
-                            <TextBlock Text="Automatically unload the embedded WebView2 session after this period of inactivity to free RAM."
-                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <TextBlock x:Name="ChatRuntimeStatusText" FontSize="11" Opacity="0.6" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="6">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Idle release timeout" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Automatically unload the embedded WebView2 session after this period of inactivity to free RAM."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="ChatIdleBox" Grid.Column="1" MinWidth="220" VerticalAlignment="Center" SelectionChanged="OnSelectionChanged">
+                                        <ComboBoxItem Content="1 minute" Tag="1" />
+                                        <ComboBoxItem Content="3 minutes" Tag="3" />
+                                        <ComboBoxItem Content="5 minutes (default)" Tag="5" />
+                                        <ComboBoxItem Content="10 minutes" Tag="10" />
+                                        <ComboBoxItem Content="15 minutes" Tag="15" />
+                                    </ComboBox>
+                                </Grid>
+                                <TextBlock x:Name="ChatRuntimeStatusText" FontSize="11" Opacity="0.65" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ Search Commands ░░ -->
@@ -1284,18 +1479,27 @@
                                 CornerRadius="8"
                                 Padding="16">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="Default Command Search Engine" FontWeight="SemiBold" FontSize="13" />
-                                <TextBlock Text="Choose which search engine opens when you type a plain query in the Command Bar."
-                                           FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
-                                <ComboBox x:Name="DefaultSearchEngineBox"
-                                          Header="Search engine"
-                                          Width="220"
-                                          SelectionChanged="OnDefaultSearchEngineChanged">
-                                    <ComboBoxItem Content="Google" Tag="google" />
-                                    <ComboBoxItem Content="Bing" Tag="bing" />
-                                    <ComboBoxItem Content="DuckDuckGo" Tag="duckduckgo" />
-                                    <ComboBoxItem Content="Custom" Tag="custom" />
-                                </ComboBox>
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Default Command Search Engine" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Choose which search engine opens when you type a plain query in the Command Bar."
+                                                   Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="DefaultSearchEngineBox"
+                                              Grid.Column="1"
+                                              MinWidth="200"
+                                              VerticalAlignment="Center"
+                                              SelectionChanged="OnDefaultSearchEngineChanged">
+                                        <ComboBoxItem Content="Google" Tag="google" />
+                                        <ComboBoxItem Content="Bing" Tag="bing" />
+                                        <ComboBoxItem Content="DuckDuckGo" Tag="duckduckgo" />
+                                        <ComboBoxItem Content="Custom" Tag="custom" />
+                                    </ComboBox>
+                                </Grid>
                                 <TextBox x:Name="CustomDefaultSearchUrlBox"
                                          Header="Custom search URL"
                                          PlaceholderText="https://example.com/search?q={query}"
@@ -1373,90 +1577,123 @@
                     </StackPanel>
 
                     <!-- ░░ Performance ░░ -->
-                    <StackPanel x:Name="SectionPerformance" Spacing="0" Visibility="Collapsed">
+                    <StackPanel x:Name="SectionPerformance" Spacing="8" Visibility="Collapsed">
                         <!-- Lite mode -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Lite mode" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Use fewer visual effects (solid background, 120 ms fades) to minimize GPU and CPU usage."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="LiteModeToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Lite mode" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Use fewer visual effects (solid background, 120 ms fades) to minimize GPU and CPU usage." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="LiteModeToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Reduced motion -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Reduced motion" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Switch to fast 80 ms transitions and disable animated equalizers for a calmer, snappier feel."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ReducedMotionToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Reduced motion" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Switch to fast 80 ms transitions and disable animated equalizers for a calmer, snappier feel." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ReducedMotionToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
                         <!-- Hide from screenshots & recordings -->
-                        <Grid ColumnSpacing="16" Padding="0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                <TextBlock Text="Hide island from screenshots and screen recordings" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="Exclude the island window from screen capture tools, streams, and screenshots. Turn off if your recording software flags capture protection."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="ExcludeFromCaptureToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hide island from screenshots and screen recordings" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Exclude the island window from screen capture tools, streams, and screenshots. Turn off if your recording software flags capture protection." Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ExcludeFromCaptureToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Spacing="12" Padding="0,12,0,0">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Opening Animation Duration (ms)" FontSize="14" FontWeight="SemiBold"/>
-                                <TextBlock Text="Control how quickly the island expands when hovered or triggered."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <Slider x:Name="AnimationDurationSlider" Width="320" HorizontalAlignment="Left"
+                        <!-- Opening duration -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Opening Animation Duration (ms)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Control how quickly the island expands when hovered or triggered." Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="AnimationDurationLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="AnimationDurationSlider" Grid.Column="1" Width="240" VerticalAlignment="Center"
                                         Minimum="80" Maximum="1000" StepFrequency="20" TickFrequency="100"
                                         ValueChanged="OnDelaySliderChanged" />
-                                <TextBlock x:Name="AnimationDurationLabelText" FontSize="12" Opacity="0.6"/>
-                            </StackPanel>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Closing Animation Duration (ms)" FontSize="14" FontWeight="SemiBold"/>
-                                <TextBlock Text="Control how quickly the island folds back into its compact pill."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <Slider x:Name="CloseAnimationDurationSlider" Width="320" HorizontalAlignment="Left"
+                            </Grid>
+                        </Border>
+
+                        <!-- Closing duration -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Closing Animation Duration (ms)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Control how quickly the island folds back into its compact pill." Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="CloseAnimationDurationLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="CloseAnimationDurationSlider" Grid.Column="1" Width="240" VerticalAlignment="Center"
                                         Minimum="80" Maximum="1000" StepFrequency="20" TickFrequency="100"
                                         ValueChanged="OnDelaySliderChanged" />
-                                <TextBlock x:Name="CloseAnimationDurationLabelText" FontSize="12" Opacity="0.6"/>
-                            </StackPanel>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Hover Open Delay (ms)" FontSize="14" FontWeight="SemiBold"/>
-                                <TextBlock Text="How long the cursor must rest over the folded island before it automatically opens."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <Slider x:Name="OpenDelaySlider" Width="320" HorizontalAlignment="Left"
+                            </Grid>
+                        </Border>
+
+                        <!-- Hover open delay -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hover Open Delay (ms)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="How long the cursor must rest over the folded island before it automatically opens." Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="OpenDelayLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="OpenDelaySlider" Grid.Column="1" Width="240" VerticalAlignment="Center"
                                         Minimum="0" Maximum="600" StepFrequency="25" TickFrequency="50"
                                         ValueChanged="OnDelaySliderChanged" />
-                                <TextBlock x:Name="OpenDelayLabelText" FontSize="12" Opacity="0.6"/>
-                            </StackPanel>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Hover Close Delay (ms)" FontSize="14" FontWeight="SemiBold"/>
-                                <TextBlock Text="Grace period after your cursor leaves the expanded island before it folds shut."
-                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <Slider x:Name="CloseDelaySlider" Width="320" HorizontalAlignment="Left"
+                            </Grid>
+                        </Border>
+
+                        <!-- Hover close delay -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Hover Close Delay (ms)" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Grace period after your cursor leaves the expanded island before it folds shut." Style="{StaticResource IslandSettingDescStyle}" />
+                                    <TextBlock x:Name="CloseDelayLabelText" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                                <Slider x:Name="CloseDelaySlider" Grid.Column="1" Width="240" VerticalAlignment="Center"
                                         Minimum="0" Maximum="1500" StepFrequency="50" TickFrequency="100"
                                         ValueChanged="OnDelaySliderChanged" />
-                                <TextBlock x:Name="CloseDelayLabelText" FontSize="12" Opacity="0.6"/>
-                            </StackPanel>
-                        </StackPanel>
+                            </Grid>
+                        </Border>
                     </StackPanel>
 
                     <!-- ░░ About & Developer ░░ -->
