@@ -110,6 +110,11 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         switch (preset)
         {
+            case "Glass":
+                // ConfigurableAcrylicBackdrop renders the frosted blur + tint on the live window;
+                // keep the XAML card fill transparent so the blurred content below shows through.
+                opacity = _backdropAvailable ? 0.0 : opacity * 0.65;
+                break;
             case "FollowWindows":
                 // Follow Windows is a Mica surface: the window paints the backdrop and the card only
                 // adds a faint theme tint. Filling it with #202020 is what made Mica look black.
@@ -648,7 +653,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         return points;
     }
 
-    private static Color ParseColor(string? value, Color fallback)
+    internal static Color ParseColor(string? value, Color fallback)
     {
         if (string.IsNullOrWhiteSpace(value)) return fallback;
 

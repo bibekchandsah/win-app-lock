@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using AppLock.Services;
 using AppLock.Services.SpeedMeter;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -86,8 +87,6 @@ public sealed partial class SpeedWidgetWindow : Window
     private bool _idleHidden;
     private bool _disconnectedHidden;
     private bool _currentlyHidden;
-    private POINT _dragStartCursor;
-    private PointInt32 _dragStartWindow;
 
     public SpeedWidgetWindow()
     {
@@ -110,6 +109,7 @@ public sealed partial class SpeedWidgetWindow : Window
         // Rows and top-app lines change at runtime; the window has to follow the content.
         Widget.SizeChanged += (_, _) => ResizeToContent();
 
+        Widget.ManipulationMode = ManipulationModes.None;
         Widget.PointerPressed += OnPointerPressed;
         Widget.PointerMoved += OnPointerMoved;
         Widget.PointerReleased += OnPointerReleased;
@@ -186,24 +186,43 @@ public sealed partial class SpeedWidgetWindow : Window
     /// at all, so it needs the transparent backdrop for the same reason: otherwise the window's own
     /// opaque surface is what shows behind the readings.
     /// </summary>
+    private ConfigurableAcrylicBackdrop? _acrylicBackdrop;
+
     private void ApplyBackdrop()
     {
         try
         {
-            var preset = ServiceContainer.Settings.SpeedMeter.ThemePreset ?? "Glass";
+            var settings = ServiceContainer.Settings.SpeedMeter;
+            var preset = settings.ThemePreset ?? "Glass";
 
-            // Follow Windows means Mica; the widget's card only tints it, so the wallpaper shows
-            // through instead of a flat dark fill. Unsupported systems get no backdrop, and the
-            // control falls back to its solid theme card.
+            // Follow Windows means Mica; Glass uses a configurable Acrylic blur + tint whose
+            // opacity slider drives the frost/blur intensity so background content shows through.
             var mica = MicaController.IsSupported();
             var acrylic = DesktopAcrylicController.IsSupported();
 
-            SystemBackdrop = preset switch
+            if (preset == "Glass" && acrylic)
             {
-                "Glass" => acrylic ? new DesktopAcrylicBackdrop() : new TransparentBackdrop(),
-                "FollowWindows" => mica ? new MicaBackdrop() : new TransparentBackdrop(),
-                _ => new TransparentBackdrop()
-            };
+                _acrylicBackdrop ??= new ConfigurableAcrylicBackdrop();
+                var tint = Controls.SpeedWidgetControl.ParseColor(
+                    settings.BackgroundColor,
+                    Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20));
+                float opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100f;
+                _acrylicBackdrop.Update(tint, opacity);
+
+                if (!ReferenceEquals(SystemBackdrop, _acrylicBackdrop))
+                {
+                    SystemBackdrop = _acrylicBackdrop;
+                }
+            }
+            else
+            {
+                _acrylicBackdrop = null;
+                SystemBackdrop = preset switch
+                {
+                    "FollowWindows" => mica ? new AlwaysActiveMicaBackdrop() : new TransparentBackdrop(),
+                    _ => new TransparentBackdrop()
+                };
+            }
 
             Widget.SetBackdropAvailable(preset switch
             {
@@ -215,6 +234,103 @@ public sealed partial class SpeedWidgetWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Backdrop error: {ex.Message}");
+        }
+    }
+
+    private abstract class AlwaysActiveBackdropBase : SystemBackdrop
+    {
+        private ISystemBackdropControllerWithTargets? _controller;
+        private SystemBackdropConfiguration? _config;
+
+        protected abstract ISystemBackdropControllerWithTargets CreateController();
+        protected virtual void ConfigureController(ISystemBackdropControllerWithTargets controller) { }
+
+        protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop connectedTarget, XamlRoot xamlRoot)
+        {
+            base.OnTargetConnected(connectedTarget, xamlRoot);
+            _controller = CreateController();
+            _config = new SystemBackdropConfiguration
+            {
+                IsInputActive = true,
+                Theme = ResolveBackdropTheme(xamlRoot)
+            };
+            ConfigureController(_controller);
+            _controller.AddSystemBackdropTarget(connectedTarget);
+            _controller.SetSystemBackdropConfiguration(_config);
+        }
+
+        protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop disconnectedTarget)
+        {
+            base.OnTargetDisconnected(disconnectedTarget);
+            _controller?.RemoveSystemBackdropTarget(disconnectedTarget);
+            _controller?.Dispose();
+            _controller = null;
+            _config = null;
+        }
+
+        protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target, XamlRoot xamlRoot)
+        {
+            base.OnDefaultSystemBackdropConfigurationChanged(target, xamlRoot);
+            if (_controller != null && _config != null)
+            {
+                _config.IsInputActive = true;
+                _config.Theme = ResolveBackdropTheme(xamlRoot);
+                _controller.SetSystemBackdropConfiguration(_config);
+            }
+        }
+
+        private static SystemBackdropTheme ResolveBackdropTheme(XamlRoot xamlRoot)
+        {
+            var theme = (xamlRoot?.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default;
+            return theme switch
+            {
+                ElementTheme.Light => SystemBackdropTheme.Light,
+                ElementTheme.Dark => SystemBackdropTheme.Dark,
+                _ => Application.Current.RequestedTheme == ApplicationTheme.Light
+                    ? SystemBackdropTheme.Light
+                    : SystemBackdropTheme.Dark
+            };
+        }
+
+        protected ISystemBackdropControllerWithTargets? ActiveController => _controller;
+    }
+
+    private sealed class AlwaysActiveMicaBackdrop : AlwaysActiveBackdropBase
+    {
+        protected override ISystemBackdropControllerWithTargets CreateController() => new MicaController();
+    }
+
+    private sealed class ConfigurableAcrylicBackdrop : AlwaysActiveBackdropBase
+    {
+        private Windows.UI.Color _tintColor = Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20);
+        private float _opacity = 0.7f;
+
+        public void Update(Windows.UI.Color tintColor, float opacity)
+        {
+            _tintColor = tintColor;
+            _opacity = Math.Clamp(opacity, 0f, 1f);
+            if (ActiveController is DesktopAcrylicController acrylic)
+            {
+                ApplyToController(acrylic);
+            }
+        }
+
+        protected override ISystemBackdropControllerWithTargets CreateController() => new DesktopAcrylicController();
+
+        protected override void ConfigureController(ISystemBackdropControllerWithTargets controller)
+        {
+            if (controller is DesktopAcrylicController acrylic)
+            {
+                ApplyToController(acrylic);
+            }
+        }
+
+        private void ApplyToController(DesktopAcrylicController controller)
+        {
+            controller.TintColor = _tintColor;
+            controller.FallbackColor = _tintColor;
+            controller.TintOpacity = _opacity * 0.65f;
+            controller.LuminosityOpacity = _opacity * 0.85f;
         }
     }
 
@@ -543,17 +659,18 @@ public sealed partial class SpeedWidgetWindow : Window
 
     // ── Dragging ─────────────────────────────────────────────────────────────
 
+    private Windows.Foundation.Point _dragStartPointDip;
+
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
         if (!settings.Draggable || settings.LockPosition || _clickThroughActive) return;
 
         var point = e.GetCurrentPoint(Widget);
-        if (!point.Properties.IsLeftButtonPressed) return;
-        if (!GetCursorPos(out _dragStartCursor)) return;
+        if (!point.Properties.IsLeftButtonPressed && !point.IsInContact) return;
         if (AppWindow is null) return;
 
-        _dragStartWindow = AppWindow.Position;
+        _dragStartPointDip = point.Position;
         _dragging = Widget.CapturePointer(e.Pointer);
 
         // Not marked handled: a press-and-release without movement should still raise Tapped.
@@ -562,13 +679,15 @@ public sealed partial class SpeedWidgetWindow : Window
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
         if (!_dragging || AppWindow is null) return;
-        if (!GetCursorPos(out var cursor)) return;
 
-        var target = new PointInt32(
-            _dragStartWindow.X + (cursor.x - _dragStartCursor.x),
-            _dragStartWindow.Y + (cursor.y - _dragStartCursor.y));
+        var point = e.GetCurrentPoint(Widget);
+        double scale = Widget.XamlRoot?.RasterizationScale ?? 1.0;
+        int dx = (int)Math.Round((point.Position.X - _dragStartPointDip.X) * scale);
+        int dy = (int)Math.Round((point.Position.Y - _dragStartPointDip.Y) * scale);
+        if (dx == 0 && dy == 0) return;
 
-        AppWindow.Move(target);
+        var pos = AppWindow.Position;
+        AppWindow.Move(new PointInt32(pos.X + dx, pos.Y + dy));
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
