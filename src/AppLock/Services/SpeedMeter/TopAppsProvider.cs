@@ -23,6 +23,15 @@ public sealed class TopAppsStats
     public TopAppStat? Disk { get; init; }
     public TopAppStat? Gpu { get; init; }
 
+    /// <summary>Top-15 CPU consumers (descending), for the carousel view.</summary>
+    public IReadOnlyList<TopAppStat> CpuList { get; init; } = Array.Empty<TopAppStat>();
+    /// <summary>Top-15 RAM consumers (descending), for the carousel view.</summary>
+    public IReadOnlyList<TopAppStat> RamList { get; init; } = Array.Empty<TopAppStat>();
+    /// <summary>Top-15 disk consumers (descending), for the carousel view.</summary>
+    public IReadOnlyList<TopAppStat> DiskList { get; init; } = Array.Empty<TopAppStat>();
+    /// <summary>Top-15 GPU consumers (descending), for the carousel view.</summary>
+    public IReadOnlyList<TopAppStat> GpuList { get; init; } = Array.Empty<TopAppStat>();
+
     public static TopAppsStats Empty { get; } = new();
 }
 
@@ -108,27 +117,34 @@ public sealed class TopAppsProvider
 
     private TopAppsStats Build(Dictionary<int, Snapshot> current, double elapsedSeconds, HashSet<int> pids)
     {
+        const int TopN = 15;
+        var cores = Math.Max(1, Environment.ProcessorCount);
+
+        // ── CPU ──────────────────────────────────────────────────────────────
         TopAppStat? cpu = null;
+        var cpuList = new List<TopAppStat>();
 
         if (elapsedSeconds > 0.05)
         {
-            var cores = Math.Max(1, Environment.ProcessorCount);
-            double bestValue = 0;
-
             foreach (var (id, snapshot) in current)
             {
                 if (!_previous.TryGetValue(id, out var previous)) continue;
 
                 var delta = (snapshot.CpuTime - previous.CpuTime).TotalSeconds;
                 var percent = Math.Clamp(delta / (elapsedSeconds * cores) * 100, 0, 100);
-                if (percent <= bestValue) continue;
+                if (percent <= 0) continue;
 
-                bestValue = percent;
-                cpu = new TopAppStat { Name = snapshot.Name, Value = percent, Text = $"{snapshot.Name} {percent:F0}%" };
+                cpuList.Add(new TopAppStat { Name = snapshot.Name, Value = percent, Text = $"{snapshot.Name} {percent:F0}%" });
             }
+
+            cpuList.Sort((a, b) => b.Value.CompareTo(a.Value));
+            if (cpuList.Count > TopN) cpuList.RemoveRange(TopN, cpuList.Count - TopN);
+            cpu = cpuList.Count > 0 ? cpuList[0] : null;
         }
 
+        // ── Disk ─────────────────────────────────────────────────────────────
         TopAppStat? disk = null;
+        var diskList = new List<TopAppStat>();
 
         foreach (var (id, snapshot) in current)
         {
@@ -138,36 +154,60 @@ public sealed class TopAppsProvider
             if (bytes <= 0) continue;
 
             var perSecond = bytes / Math.Max(0.2, elapsedSeconds);
-            if (disk is not null && perSecond <= disk.Value) continue;
-
             var text = perSecond >= 1024 * 1024
                 ? $"{perSecond / (1024 * 1024):F1} MB/s"
                 : $"{perSecond / 1024:F0} KB/s";
 
-            disk = new TopAppStat { Name = snapshot.Name, Value = perSecond, Text = $"{snapshot.Name} {text}" };
+            diskList.Add(new TopAppStat { Name = snapshot.Name, Value = perSecond, Text = $"{snapshot.Name} {text}" });
         }
 
-        var ramProcess = current.OrderByDescending(pair => pair.Value.WorkingSet).FirstOrDefault();
-        TopAppStat? ram = ramProcess.Value is null
-            ? null
-            : new TopAppStat
+        diskList.Sort((a, b) => b.Value.CompareTo(a.Value));
+        if (diskList.Count > TopN) diskList.RemoveRange(TopN, diskList.Count - TopN);
+        disk = diskList.Count > 0 ? diskList[0] : null;
+
+        // ── RAM ──────────────────────────────────────────────────────────────
+        TopAppStat? ram = null;
+        var ramList = current
+            .OrderByDescending(pair => pair.Value.WorkingSet)
+            .Take(TopN)
+            .Select(pair => new TopAppStat
             {
-                Name = ramProcess.Value.Name,
-                Value = ramProcess.Value.WorkingSet,
-                Text = $"{ramProcess.Value.Name} {ramProcess.Value.WorkingSet / (1024d * 1024d):F0} MB"
-            };
+                Name = pair.Value.Name,
+                Value = pair.Value.WorkingSet,
+                Text = $"{pair.Value.Name} {pair.Value.WorkingSet / (1024d * 1024d):F0} MB"
+            })
+            .ToList();
+        ram = ramList.Count > 0 ? ramList[0] : null;
 
+        // ── GPU ──────────────────────────────────────────────────────────────
         TopAppStat? gpu = null;
-        foreach (var (pid, percent) in _gpuByPid)
+        var gpuByPidSorted = _gpuByPid
+            .Where(pair => pids.Contains(pair.Pid) && pair.Percent > 0)
+            .OrderByDescending(pair => pair.Percent)
+            .ToList();
+
+        var gpuList = gpuByPidSorted
+            .Take(TopN)
+            .Select(pair =>
+            {
+                var name = current.TryGetValue(pair.Pid, out var sn) ? sn.Name : $"pid {pair.Pid}";
+                return new TopAppStat { Name = name, Value = pair.Percent, Text = $"{name} {pair.Percent:F0}%" };
+            })
+            .ToList();
+
+        gpu = gpuList.Count > 0 ? gpuList[0] : null;
+
+        return new TopAppsStats
         {
-            if (!pids.Contains(pid) || percent <= 0) continue;
-            if (gpu is not null && percent <= gpu.Value) continue;
-
-            var name = current.TryGetValue(pid, out var snapshot) ? snapshot.Name : $"pid {pid}";
-            gpu = new TopAppStat { Name = name, Value = percent, Text = $"{name} {percent:F0}%" };
-        }
-
-        return new TopAppsStats { Cpu = cpu, Ram = ram, Disk = disk, Gpu = gpu };
+            Cpu = cpu,
+            Ram = ram,
+            Disk = disk,
+            Gpu = gpu,
+            CpuList = cpuList,
+            RamList = ramList,
+            DiskList = diskList,
+            GpuList = gpuList
+        };
     }
 
     /// <summary>Disk bytes read + written by a process so far (kernel counters).</summary>

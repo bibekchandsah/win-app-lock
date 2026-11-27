@@ -9,7 +9,9 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.UI;
 
 namespace AppLock.Views.Controls;
@@ -63,11 +65,23 @@ public sealed partial class SpeedWidgetControl : UserControl
     private double _scale = 1.0;
     private double _textScale = 1.0;
 
+    /// <summary>Raised when the carousel page changes or the nav pill toggles, so the host window can resize.</summary>
+    public event Action? CarouselChanged;
+
+    private bool _clickThroughActive;
+    private bool _isHovered;
+    private int _carouselIndex = -1; // -1 = summary card; >= 0 = index into enabled carousel metrics
+
     public SpeedWidgetControl()
     {
         InitializeComponent();
 
         SparkCanvas.SizeChanged += (_, _) => DrawSpark();
+
+        // Prevent clicks/taps on the carousel nav pill from triggering window drag or flyout tap.
+        NavPill.PointerPressed += (_, e) => e.Handled = true;
+        NavPill.Tapped += (_, e) => e.Handled = true;
+        NavPill.DoubleTapped += (_, e) => e.Handled = true;
 
         // The clock has its own one-second timer; it only runs while the control is in the tree.
         Loaded += (_, _) =>
@@ -215,7 +229,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         // Sparkline and extra rows scale with the widget too. The canvas stretches to the card
         // width (it used to be pinned to a fixed width, which cut the graph short in horizontal
         // layout); DrawSpark reads its actual width.
-        SparkCanvas.Visibility = settings.ShowSparkline ? Visibility.Visible : Visibility.Collapsed;
+        SparkCanvas.Visibility = (_carouselIndex < 0 && settings.ShowSparkline) ? Visibility.Visible : Visibility.Collapsed;
         SparkCanvas.HorizontalAlignment = HorizontalAlignment.Stretch;
         SparkCanvas.Height = SparkHeight * scale;
         DownSpark.Stroke = new SolidColorBrush(ParseColor(settings.DownloadColor, DefaultDown));
@@ -284,6 +298,34 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         BuildRows(settings, textBrush, 11 * textScale, font, textBrush);
         ApplyStatsValues();
+
+        // Style the carousel nav pill to match the widget's typography and colors.
+        NavPill.Background = new SolidColorBrush(Muted(textColor, 0x1A));
+        NavPill.CornerRadius = new CornerRadius(Math.Max(6, 8 * scale));
+        NavPill.Padding = new Thickness(6 * scale, 2 * scale, 6 * scale, 2 * scale);
+
+        NavLabel.FontFamily = font;
+        NavLabel.FontWeight = weight;
+        NavLabel.FontSize = 9.5 * textScale;
+        NavLabel.Foreground = textBrush;
+
+        foreach (var btn in new[] { NavPrevBtn, NavNextBtn })
+        {
+            btn.Foreground = textBrush;
+            btn.Background = new SolidColorBrush(Colors.Transparent);
+            btn.BorderThickness = new Thickness(0);
+            btn.FontSize = 9.5 * textScale;
+            btn.Padding = new Thickness(5 * scale, 2 * scale, 5 * scale, 2 * scale);
+        }
+
+        // Validate current carousel index against enabled metrics.
+        var metrics = GetEnabledCarouselMetrics(settings);
+        if (metrics.Count == 0 || _carouselIndex >= metrics.Count)
+        {
+            _carouselIndex = -1;
+        }
+
+        SyncCardView();
     }
 
     // ── Readable numbers ────────────────────────────────────────────────────────
@@ -327,7 +369,7 @@ public sealed partial class SpeedWidgetControl : UserControl
     private void UpdateBadgesVisibility()
     {
         if (BadgesPanel == null) return;
-        BadgesPanel.Visibility = (MeteredBadge.Visibility == Visibility.Visible || VpnBadge.Visibility == Visibility.Visible)
+        BadgesPanel.Visibility = (_carouselIndex < 0 && (MeteredBadge.Visibility == Visibility.Visible || VpnBadge.Visibility == Visibility.Visible))
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
@@ -335,6 +377,12 @@ public sealed partial class SpeedWidgetControl : UserControl
     /// <summary>The hairline only separates the header when there is something under it.</summary>
     private void UpdateHeaderDivider()
     {
+        if (_carouselIndex >= 0)
+        {
+            HeaderDivider.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         var settings = ServiceContainer.Settings.SpeedMeter;
 
         var hasRows = settings.ShowCpu || settings.ShowRam || settings.ShowDisk
@@ -358,7 +406,7 @@ public sealed partial class SpeedWidgetControl : UserControl
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
 
-        ClockPanel.Visibility = settings.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        ClockPanel.Visibility = (_carouselIndex < 0 && settings.ShowClock) ? Visibility.Visible : Visibility.Collapsed;
         if (!settings.ShowClock) return;
 
         var now = DateTime.Now;
@@ -449,7 +497,9 @@ public sealed partial class SpeedWidgetControl : UserControl
             ExtraPanel.Children.Add(grid);
         }
 
-        ExtraPanel.Visibility = ExtraPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ExtraPanel.Visibility = (_carouselIndex < 0 && ExtraPanel.Children.Count > 0)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private static string RowLabel(string id) => id switch
@@ -584,6 +634,19 @@ public sealed partial class SpeedWidgetControl : UserControl
     {
         _topApps = stats;
         UpdateTicker();
+        if (_carouselIndex >= 0)
+        {
+            BuildCarouselRows();
+        }
+    }
+
+    /// <summary>Updates click-through state so the hover nav pill stays hidden and non-interactive.</summary>
+    public void SetClickThroughActive(bool active)
+    {
+        if (_clickThroughActive == active) return;
+        _clickThroughActive = active;
+        if (active) _isHovered = false;
+        UpdateNavPillVisibility();
     }
 
     private void UpdateTicker()
@@ -592,9 +655,10 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         TopAppsPanel.Children.Clear();
 
-        if (!settings.ShowTopApps || _topApps is null)
+        if (_carouselIndex >= 0 || !settings.ShowTopApps || _topApps is null)
         {
             TopAppsPanel.Visibility = Visibility.Collapsed;
+            UpdateHeaderDivider();
             return;
         }
 
@@ -624,6 +688,249 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         TopAppsPanel.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateHeaderDivider();
+    }
+
+    // ── Carousel ─────────────────────────────────────────────────────────────
+
+    private static List<string> GetEnabledCarouselMetrics(SpeedMeterSettings settings)
+    {
+        var list = new List<string>(4);
+        if (!settings.ShowTopApps) return list;
+        if (settings.TopAppsCpu) list.Add("CPU");
+        if (settings.TopAppsRam) list.Add("RAM");
+        if (settings.TopAppsDisk) list.Add("Disk");
+        if (settings.TopAppsGpu) list.Add("GPU");
+        return list;
+    }
+
+    private void Root_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        _isHovered = true;
+        UpdateNavPillVisibility();
+    }
+
+    private void Root_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        _isHovered = false;
+        UpdateNavPillVisibility();
+    }
+
+    private void UpdateNavPillVisibility()
+    {
+        var metrics = GetEnabledCarouselMetrics(ServiceContainer.Settings.SpeedMeter);
+        var show = _isHovered && !_clickThroughActive && metrics.Count > 0;
+        var target = show ? Visibility.Visible : Visibility.Collapsed;
+
+        if (NavPill.Visibility == target) return;
+        NavPill.Visibility = target;
+        CarouselChanged?.Invoke();
+    }
+
+    private void NavPrevBtn_Click(object sender, RoutedEventArgs e) => StepCarousel(-1);
+
+    private void NavNextBtn_Click(object sender, RoutedEventArgs e) => StepCarousel(1);
+
+    private void StepCarousel(int delta)
+    {
+        if (_clickThroughActive) return;
+
+        var metrics = GetEnabledCarouselMetrics(ServiceContainer.Settings.SpeedMeter);
+        if (metrics.Count == 0) return;
+
+        // Cycle seamlessly: -1 (Summary) <-> 0 .. Count-1 (CPU, RAM, Disk, GPU).
+        int totalStates = metrics.Count + 1;
+        int currentState = _carouselIndex + 1; // 0 = Summary, 1..Count = metrics
+        int nextState = ((currentState + delta) % totalStates + totalStates) % totalStates;
+        _carouselIndex = nextState - 1;
+
+        SyncCardView();
+        AnimateCardTransition(delta > 0 ? 14 : -14);
+        CarouselChanged?.Invoke();
+    }
+
+    private void SyncCardView()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        var metrics = GetEnabledCarouselMetrics(settings);
+        bool inCarousel = _carouselIndex >= 0 && _carouselIndex < metrics.Count;
+
+        Row.Visibility = inCarousel ? Visibility.Collapsed : Visibility.Visible;
+        ClockPanel.Visibility = (!inCarousel && settings.ShowClock) ? Visibility.Visible : Visibility.Collapsed;
+        SparkCanvas.Visibility = (!inCarousel && settings.ShowSparkline) ? Visibility.Visible : Visibility.Collapsed;
+        ExtraPanel.Visibility = (!inCarousel && ExtraPanel.Children.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBadgesVisibility();
+        UpdateHeaderDivider();
+        UpdateTicker();
+
+        if (inCarousel)
+        {
+            NavLabel.Text = metrics[_carouselIndex];
+            CarouselPanel.Visibility = Visibility.Visible;
+            BuildCarouselRows();
+        }
+        else
+        {
+            NavLabel.Text = "Info";
+            CarouselPanel.Visibility = Visibility.Collapsed;
+            CarouselPanel.Children.Clear();
+        }
+
+        UpdateNavPillVisibility();
+    }
+
+    private void BuildCarouselRows()
+    {
+        var settings = ServiceContainer.Settings.SpeedMeter;
+        var metrics = GetEnabledCarouselMetrics(settings);
+        if (_carouselIndex < 0 || _carouselIndex >= metrics.Count) return;
+
+        var metric = metrics[_carouselIndex];
+        CarouselPanel.Children.Clear();
+        CarouselPanel.Spacing = (settings.Compact ? 2 : 3) * _scale;
+
+        var textColor = ParseColor(settings.TextColor, DefaultText);
+
+        // Card header: "Top CPU" on left, page indicator on right.
+        var headerGrid = new Grid { ColumnSpacing = 12 * _scale };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new TextBlock
+        {
+            Text = $"Top {metric}",
+            FontFamily = _fontFamily,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            FontSize = 11.5 * _textScale,
+            Foreground = _textBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(title, 0);
+
+        var page = new TextBlock
+        {
+            Text = $"{_carouselIndex + 1}/{metrics.Count}",
+            FontFamily = _fontFamily,
+            FontWeight = _fontWeight,
+            FontSize = 9.5 * _textScale,
+            Foreground = _textBrush,
+            Opacity = 0.65,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(page, 1);
+
+        headerGrid.Children.Add(title);
+        headerGrid.Children.Add(page);
+        CarouselPanel.Children.Add(headerGrid);
+
+        CarouselPanel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Muted(textColor, 0x24)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 1 * _scale, 0, 2 * _scale)
+        });
+
+        IReadOnlyList<TopAppStat> items = metric switch
+        {
+            "CPU" => _topApps?.CpuList ?? Array.Empty<TopAppStat>(),
+            "RAM" => _topApps?.RamList ?? Array.Empty<TopAppStat>(),
+            "Disk" => _topApps?.DiskList ?? Array.Empty<TopAppStat>(),
+            "GPU" => _topApps?.GpuList ?? Array.Empty<TopAppStat>(),
+            _ => Array.Empty<TopAppStat>()
+        };
+
+        if (items.Count == 0)
+        {
+            CarouselPanel.Children.Add(new TextBlock
+            {
+                Text = "No active processes",
+                FontFamily = _fontFamily,
+                FontWeight = _fontWeight,
+                FontSize = 10 * _textScale,
+                Foreground = _textBrush,
+                Opacity = 0.65
+            });
+            return;
+        }
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var valueText = item.Text.Length > item.Name.Length + 1
+                ? item.Text[(item.Name.Length + 1)..]
+                : item.Text;
+
+            var row = new Grid { ColumnSpacing = 12 * _scale };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var nameBlock = new TextBlock
+            {
+                Text = $"{i + 1}. {item.Name}",
+                FontFamily = _fontFamily,
+                FontWeight = _fontWeight,
+                FontSize = 10 * _textScale,
+                Foreground = _textBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 140 * _scale,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(nameBlock, 0);
+
+            var valBlock = new TextBlock
+            {
+                Text = valueText,
+                FontFamily = _fontFamily,
+                FontWeight = _fontWeight,
+                FontSize = 10 * _textScale,
+                Foreground = _textBrush,
+                Opacity = 0.9,
+                TextAlignment = TextAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(valBlock, 1);
+
+            row.Children.Add(nameBlock);
+            row.Children.Add(valBlock);
+            CarouselPanel.Children.Add(row);
+        }
+    }
+
+    private void AnimateCardTransition(double startOffsetX)
+    {
+        if (CardStack.RenderTransform is not TranslateTransform translate)
+        {
+            translate = new TranslateTransform();
+            CardStack.RenderTransform = translate;
+        }
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(160));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        var slideAnim = new DoubleAnimation
+        {
+            From = startOffsetX,
+            To = 0,
+            Duration = duration,
+            EasingFunction = ease
+        };
+        Storyboard.SetTarget(slideAnim, translate);
+        Storyboard.SetTargetProperty(slideAnim, nameof(TranslateTransform.X));
+
+        var fadeAnim = new DoubleAnimation
+        {
+            From = 0.25,
+            To = 1.0,
+            Duration = duration,
+            EasingFunction = ease
+        };
+        Storyboard.SetTarget(fadeAnim, CardStack);
+        Storyboard.SetTargetProperty(fadeAnim, nameof(Opacity));
+
+        var sb = new Storyboard();
+        sb.Children.Add(slideAnim);
+        sb.Children.Add(fadeAnim);
+        sb.Begin();
     }
 
     /// <summary>Adds one sample to the mini graph and redraws it.</summary>

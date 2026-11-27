@@ -112,6 +112,7 @@ public sealed partial class SpeedWidgetWindow : Window
 
         // Rows and top-app lines change at runtime; the window has to follow the content.
         Widget.SizeChanged += (_, _) => ResizeToContent();
+        Widget.CarouselChanged += ResizeToContent;
 
         Widget.ManipulationMode = ManipulationModes.None;
         Widget.PointerPressed += OnPointerPressed;
@@ -905,6 +906,7 @@ public sealed partial class SpeedWidgetWindow : Window
             }
 
             _clickThroughActive = want;
+            Widget.SetClickThroughActive(want);
 
             // Keep the Alt poll timer running whenever ClickThrough is enabled in settings,
             // so releasing Alt restores click-through instead of leaving it permanently off.

@@ -410,7 +410,7 @@ fixed - when the appearance theme is set to "follows window" then show mica back
 fixed - date and time in net speed with second support
 fixed - remember the position of widget 
 implemented - when notification is shown black window border flashes everytime when i fixed - choose the color picker and notification flashes then color picker gets closed 
-speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
+implemented - speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
 font weight has no effect
 implemented - make network access toast notificaton as default custom notification and user can customize it in setting page
 fixed - transparent has no opacity effect

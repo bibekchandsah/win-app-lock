@@ -7,7 +7,9 @@
     mc:Ignorable="d">
 
     <Grid x:Name="Root" Background="Transparent"
-          AutomationProperties.Name="Speed meter widget">
+          AutomationProperties.Name="Speed meter widget"
+          PointerEntered="Root_PointerEntered"
+          PointerExited="Root_PointerExited">
         <Border x:Name="Card"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
@@ -110,6 +112,48 @@
 
                 <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
                 <StackPanel x:Name="ExtraPanel" Spacing="2" Visibility="Collapsed" AutomationProperties.Name="Additional stats"/>
+
+                <!-- ── Carousel: top-N process list for one metric ── -->
+                <!-- Shown when the user clicks the nav pill chevron   -->
+                <StackPanel x:Name="CarouselPanel"
+                            Spacing="2"
+                            Visibility="Collapsed"
+                            AutomationProperties.Name="Top processes carousel"/>
+
+                <!-- ── Nav pill: appears on hover when carousel metrics are enabled ── -->
+                <!-- The pill sits at the bottom of the card; chevrons cycle the view  -->
+                <Border x:Name="NavPill"
+                        Visibility="Collapsed"
+                        HorizontalAlignment="Center"
+                        CornerRadius="8"
+                        Padding="6,2"
+                        Margin="0,2,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="NavPrevBtn"
+                                Content="&#xE76B;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="9"
+                                Padding="4,2"
+                                MinWidth="0" MinHeight="0"
+                                Click="NavPrevBtn_Click"
+                                AutomationProperties.Name="Previous metric"/>
+                        <TextBlock x:Name="NavLabel"
+                                   FontSize="9"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   MinWidth="28"
+                                   TextAlignment="Center"
+                                   Opacity="0.85"/>
+                        <Button x:Name="NavNextBtn"
+                                Content="&#xE76C;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="9"
+                                Padding="4,2"
+                                MinWidth="0" MinHeight="0"
+                                Click="NavNextBtn_Click"
+                                AutomationProperties.Name="Next metric"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </Border>
     </Grid>
