@@ -3217,14 +3217,16 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Centered Add Custom World Clock Overlay -->
+                            <!-- Add Custom World Clock Overlay (above right-side Calendar) -->
                             <Grid x:Name="CalendarAddClockPanel"
-                                  Grid.ColumnSpan="2"
+                                  Grid.Column="1"
+                                  CornerRadius="14"
                                   Visibility="Collapsed"
                                   Background="#B8000000">
                                 <Border x:Name="CalendarAddClockCard"
-                                        Width="320"
-                                        HorizontalAlignment="Center"
+                                        MaxWidth="320"
+                                        Margin="12"
+                                        HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
                                         CornerRadius="14"
                                         Background="#FF202228"

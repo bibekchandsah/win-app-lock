@@ -48,11 +48,8 @@ public sealed class WindowIslandReminderStore : IDisposable
 
         Load();
 
-        // Check reminders every 1 second
+        // Check reminders every 1 second (fires both newly due and any uncompleted overdue reminders once subscribers attach)
         _checkTimer = new Timer(CheckDueReminders, null, 1000, 1000);
-
-        // Fire missed reminders on startup (within last 3 days)
-        CheckMissedReminders();
     }
 
     public IReadOnlyList<IslandReminder> ActiveReminders
@@ -167,6 +164,13 @@ public sealed class WindowIslandReminderStore : IDisposable
     public static string FormatRelativeTime(DateTime dueTimeUtc)
     {
         var diff = dueTimeUtc - DateTime.UtcNow;
+        if (diff.TotalMinutes < -1)
+        {
+            var localDue = dueTimeUtc.ToLocalTime();
+            return localDue.Date == DateTime.Now.Date
+                ? $"overdue · {localDue:h:mm tt}"
+                : $"overdue · {localDue:MMM d h:mm tt}";
+        }
         if (diff.TotalSeconds <= 0) return "due now";
         if (diff.TotalSeconds < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalSeconds))}s";
         if (diff.TotalMinutes < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
@@ -193,29 +197,6 @@ public sealed class WindowIslandReminderStore : IDisposable
         foreach (var due in dueItems)
         {
             ReminderTriggered?.Invoke(due);
-        }
-    }
-
-    private void CheckMissedReminders()
-    {
-        DateTime now = DateTime.UtcNow;
-        DateTime cutoff = now.AddDays(-3);
-        List<IslandReminder> missed = new();
-
-        lock (_lock)
-        {
-            foreach (var r in _reminders)
-            {
-                if (!r.IsCompleted && r.DueTimeUtc <= now && r.DueTimeUtc >= cutoff && _triggeredIds.Add(r.Id))
-                {
-                    missed.Add(r);
-                }
-            }
-        }
-
-        foreach (var m in missed)
-        {
-            ReminderTriggered?.Invoke(m);
         }
     }
 

@@ -7074,6 +7074,7 @@ public sealed partial class WindowIslandWindow : Window
 
     private Grid BuildReminderRow(IslandReminder rem)
     {
+        bool isOverdue = rem.DueTimeUtc < DateTime.UtcNow.AddMinutes(-1);
         bool isNow = rem.DueTimeUtc <= DateTime.UtcNow.AddMinutes(1);
 
         var grid = new Grid
@@ -7110,7 +7111,9 @@ public sealed partial class WindowIslandWindow : Window
         };
         var relTime = new TextBlock
         {
-            Text = isNow ? "now" : WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc),
+            Text = isOverdue
+                ? WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc)
+                : (isNow ? "now" : WindowIslandReminderStore.FormatRelativeTime(rem.DueTimeUtc)),
             FontSize = 9,
             FontWeight = isNow ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = isNow
@@ -7284,10 +7287,13 @@ public sealed partial class WindowIslandWindow : Window
         {
             var accent = GetSystemAccentColor();
             string accentHex = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+            string cardTitle = reminder.DueTimeUtc < DateTime.UtcNow.AddMinutes(-1)
+                ? $"Reminder · {(reminder.DueTimeUtc.ToLocalTime().Date == DateTime.Now.Date ? reminder.DueTimeUtc.ToLocalTime().ToString("h:mm tt") : reminder.DueTimeUtc.ToLocalTime().ToString("MMM d h:mm tt"))}"
+                : "Reminder";
             _eventQueue?.Push(new WindowIslandCard(
                 Kind: "reminder",
                 Icon: "\uEA8F",
-                Title: "Reminder",
+                Title: cardTitle,
                 Detail: reminder.Title,
                 AccentHex: accentHex,
                 Priority: WindowIslandCardPriority.ReminderTimer,
