@@ -497,7 +497,7 @@ public sealed class SpeedMeterService : IDisposable
 
         var intervalSeconds = Math.Clamp(ServiceContainer.Settings.SpeedMeter.IntervalSeconds, 0.5, 2.0);
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
@@ -542,7 +542,7 @@ public sealed class SpeedMeterService : IDisposable
                     topApps = _lastTopApps;
                 }
 
-                CheckWarnings(stats, sample, topApps);
+                await CheckWarningsAsync(stats, sample, topApps);
                 CheckBattery(stats);
 
                 _dispatcher.TryEnqueue(() =>
@@ -608,7 +608,7 @@ public sealed class SpeedMeterService : IDisposable
     /// Fires one toast when a value crosses its warning threshold and re-arms once it drops back
     /// below 90% of that threshold, so a value hovering at the limit does not spam.
     /// </summary>
-    private void CheckWarnings(SystemStats stats, NetworkSpeedSample sample, TopAppsStats topApps)
+    private async Task CheckWarningsAsync(SystemStats stats, NetworkSpeedSample sample, TopAppsStats topApps)
     {
         var settings = ServiceContainer.Settings.SpeedMeter;
         if (!settings.WarnNotifications) return;
@@ -617,8 +617,8 @@ public sealed class SpeedMeterService : IDisposable
         CheckPercent("ram", stats.RamPercent, settings.WarnRamPercent, "RAM", topApps.Ram?.Name);
         CheckPercent("disk", stats.DiskPercent, settings.WarnDiskPercent, "disk", topApps.Disk?.Name);
 
-        CheckMbps("down", sample.BytesDownPerSec, settings.WarnDownMbps, "download");
-        CheckMbps("up", sample.BytesUpPerSec, settings.WarnUpMbps, "upload");
+        await CheckMbpsAsync("down", sample.BytesDownPerSec, settings.WarnDownMbps, "download", isDownload: true);
+        await CheckMbpsAsync("up", sample.BytesUpPerSec, settings.WarnUpMbps, "upload", isDownload: false);
     }
 
     private void CheckPercent(string id, double? value, int limit, string label, string? app)
@@ -640,7 +640,7 @@ public sealed class SpeedMeterService : IDisposable
         ShowWarning(title, $"{current:F0}% · warning at {limit}%");
     }
 
-    private void CheckMbps(string id, double bytesPerSec, int limitMbps, string label)
+    private async Task CheckMbpsAsync(string id, double bytesPerSec, int limitMbps, string label, bool isDownload)
     {
         if (limitMbps <= 0) return;
 
@@ -654,7 +654,21 @@ public sealed class SpeedMeterService : IDisposable
 
         if (!_warningsFired.Add(id)) return;
 
-        ShowWarning($"High {label} usage", $"{mbps:F1} Mbps · warning above {limitMbps} Mbps");
+        string? app = null;
+        try
+        {
+            app = await AppBandwidthProvider.FindTopAppAsync(isDownload);
+        }
+        catch
+        {
+            // Fall back to generic warning title if attribution lookup fails.
+        }
+
+        var title = string.IsNullOrWhiteSpace(app)
+            ? $"High {label} usage"
+            : $"{app} is using high {label}";
+
+        ShowWarning(title, $"{mbps:F1} Mbps · warning above {limitMbps} Mbps");
     }
 
     /// <summary>

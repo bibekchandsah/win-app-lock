@@ -223,6 +223,32 @@ public static class AppBandwidthProvider
             .ToList();
     }
 
+    /// <summary>
+    /// Finds the app responsible for the most recent download or upload traffic (1-minute window,
+    /// falling back to 3 minutes if nothing is recorded yet). Used by high-speed warning toasts.
+    /// </summary>
+    public static async Task<string?> FindTopAppAsync(bool isDownload, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.Now;
+        var recent = await QueryAsync(now.AddMinutes(-1), now, ct).ConfigureAwait(false);
+        var top = PickTopApp(recent, isDownload);
+        if (top is not null) return top;
+
+        var fallback = await QueryAsync(now.AddMinutes(-3), now, ct).ConfigureAwait(false);
+        return PickTopApp(fallback, isDownload);
+    }
+
+    /// <summary>Returns the name of the app with the highest received (download) or sent (upload) bytes.</summary>
+    public static string? PickTopApp(IEnumerable<AppBandwidthUsage> items, bool isDownload)
+    {
+        var best = items
+            .Where(x => (isDownload ? x.BytesReceived : x.BytesSent) > 0)
+            .OrderByDescending(x => isDownload ? x.BytesReceived : x.BytesSent)
+            .FirstOrDefault();
+
+        return best?.AppName;
+    }
+
     /// <summary>Converts a WinRT AttributionName / AttributionId into a readable app label.</summary>
     public static string FormatAppName(string? attributionName, string? attributionId)
     {

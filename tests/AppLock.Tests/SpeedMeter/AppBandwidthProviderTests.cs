@@ -73,4 +73,18 @@ public class AppBandwidthProviderTests
         Assert.Equal(new DateTimeOffset(2026, 11, 22, 0, 0, 0, TimeSpan.FromHours(5)), rStart);
         Assert.Equal(now, rEnd);
     }
+
+    [Fact]
+    public void PickTopApp_SelectsHighestDownloadOrUploadConsumer()
+    {
+        var items = new[]
+        {
+            new AppBandwidthUsage { AppName = "edge", BytesReceived = 5_000_000, BytesSent = 100_000 },
+            new AppBandwidthUsage { AppName = "obs", BytesReceived = 200_000, BytesSent = 8_000_000 }
+        };
+
+        Assert.Equal("edge", AppBandwidthProvider.PickTopApp(items, isDownload: true));
+        Assert.Equal("obs", AppBandwidthProvider.PickTopApp(items, isDownload: false));
+        Assert.Null(AppBandwidthProvider.PickTopApp(Array.Empty<AppBandwidthUsage>(), isDownload: true));
+    }
 }
