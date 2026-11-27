@@ -159,13 +159,15 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         Card.CornerRadius = new CornerRadius(radius);
         Card.Padding = settings.Compact
-            ? new Thickness(10 * scale, 6 * scale, 10 * scale, 6 * scale)
-            : new Thickness(16 * scale, 10 * scale, 16 * scale, 10 * scale);
+            ? new Thickness(10 * scale, 5 * scale, 10 * scale, 5 * scale)
+            : new Thickness(14 * scale, 8 * scale, 14 * scale, 8 * scale);
+        CardStack.Spacing = (settings.Compact ? 3 : 5) * scale;
 
-        Row.Orientation = string.Equals(settings.Layout, "Vertical", StringComparison.OrdinalIgnoreCase)
+        bool isVerticalLayout = string.Equals(settings.Layout, "Vertical", StringComparison.OrdinalIgnoreCase);
+        Row.Orientation = isVerticalLayout
             ? Orientation.Vertical
             : Orientation.Horizontal;
-        Row.Spacing = 14 * scale;
+        Row.Spacing = isVerticalLayout ? (settings.Compact ? 3 : 5) * scale : 14 * scale;
         DownBlock.Spacing = 4 * textScale;
         UpBlock.Spacing = 4 * textScale;
 
@@ -225,6 +227,7 @@ public sealed partial class SpeedWidgetControl : UserControl
         MeteredBadge.Foreground = textBrush;
 
         VpnBadge.Visibility = _vpn ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBadgesVisibility();
 
         // The badge's icon and caption are plain children, so the weight is set on each of them.
         foreach (var child in VpnBadge.Children)
@@ -297,15 +300,16 @@ public sealed partial class SpeedWidgetControl : UserControl
         var split = text.LastIndexOf(' ');
         if (split <= 0)
         {
-            block.Inlines.Add(new Run { Text = text });
+            block.Inlines.Add(new Run { Text = text, FontWeight = block.FontWeight });
             return;
         }
 
-        block.Inlines.Add(new Run { Text = text[..split] });
+        block.Inlines.Add(new Run { Text = text[..split], FontWeight = block.FontWeight });
         block.Inlines.Add(new Run
         {
             Text = " " + text[(split + 1)..],
-            FontSize = Math.Max(8, block.FontSize * 0.7)
+            FontSize = Math.Max(8, block.FontSize * 0.7),
+            FontWeight = block.FontWeight
         });
     }
 
@@ -315,9 +319,17 @@ public sealed partial class SpeedWidgetControl : UserControl
         if (!_rowValues.TryGetValue("today", out var block)) return;
 
         block.Inlines.Clear();
-        block.Inlines.Add(new Run { Text = "↓" + FormatBytes(_todayDown), Foreground = _downBrush });
-        block.Inlines.Add(new Run { Text = "   " });
-        block.Inlines.Add(new Run { Text = "↑" + FormatBytes(_todayUp), Foreground = _upBrush });
+        block.Inlines.Add(new Run { Text = "↓" + FormatBytes(_todayDown), Foreground = _downBrush, FontWeight = _fontWeight });
+        block.Inlines.Add(new Run { Text = "   ", FontWeight = _fontWeight });
+        block.Inlines.Add(new Run { Text = "↑" + FormatBytes(_todayUp), Foreground = _upBrush, FontWeight = _fontWeight });
+    }
+
+    private void UpdateBadgesVisibility()
+    {
+        if (BadgesPanel == null) return;
+        BadgesPanel.Visibility = (MeteredBadge.Visibility == Visibility.Visible || VpnBadge.Visibility == Visibility.Visible)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     /// <summary>The hairline only separates the header when there is something under it.</summary>
@@ -436,6 +448,8 @@ public sealed partial class SpeedWidgetControl : UserControl
             _rowValues[id] = value;
             ExtraPanel.Children.Add(grid);
         }
+
+        ExtraPanel.Visibility = ExtraPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string RowLabel(string id) => id switch

@@ -11,8 +11,8 @@
         <Border x:Name="Card"
                 CornerRadius="14"
                 BorderThickness="0"
-                Padding="16,10">
-            <StackPanel Spacing="8">
+                Padding="14,8">
+            <StackPanel x:Name="CardStack" Spacing="5">
                 <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
                     <!-- Download -->
                     <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -92,7 +92,7 @@
                             Visibility="Collapsed"/>
 
                 <!-- Status badges: metered connection and VPN adapter -->
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel x:Name="BadgesPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
                     <TextBlock x:Name="MeteredBadge"
                                AutomationProperties.Name="Metered connection"
                                Text="metered"
@@ -107,7 +107,7 @@
                 </StackPanel>
 
                 <!-- CPU / RAM / disk / GPU / battery rows, built in code -->
-                <StackPanel x:Name="ExtraPanel" Spacing="2" AutomationProperties.Name="Additional stats"/>
+                <StackPanel x:Name="ExtraPanel" Spacing="2" Visibility="Collapsed" AutomationProperties.Name="Additional stats"/>
             </StackPanel>
         </Border>
     </Grid>
