@@ -100,8 +100,8 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         var scale = Math.Clamp(settings.ScalePercent, 50, 250) / 100.0;
 
-        // Text size is its own setting, so a user can enlarge the numbers without enlarging the card.
-        var textScale = scale * Math.Clamp(settings.FontSizePercent, 50, 250) / 100.0;
+        // Text size scales directly with widget ScalePercent.
+        var textScale = scale;
         var opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100.0;
         var radius = Math.Clamp(settings.CornerRadiusPx, 0, 40);
 

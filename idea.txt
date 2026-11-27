@@ -416,8 +416,8 @@ implemented - make network access toast notificaton as default custom notificati
 fixed - transparent has no opacity effect
 fixed - glass has only effect when it's getting dragged
 fixed - window effect only shows when it's in focus
-add touch guesture for dragging
-remove the font size as scaling is doing same 
+fixed - add touch guesture for dragging
+fixed - remove the font size as scaling is doing same 
 
 
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.

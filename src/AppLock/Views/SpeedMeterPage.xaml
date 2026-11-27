@@ -396,29 +396,6 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         </Grid>
 
-                        <!-- Font size (independent of the widget scale) -->
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="160"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Grid.Column="0" Text="Font size"
-                                       FontSize="13" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-
-                            <Slider x:Name="FontSizeSlider"
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    ValueChanged="FontSizeSlider_ValueChanged"/>
-
-                            <TextBlock x:Name="FontSizeValueText"
-                                       Grid.Column="2" Width="48" FontSize="12" TextAlignment="Right"
-                                       VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        </Grid>
-
                         <!-- Font -->
                         <Grid ColumnSpacing="12" RowSpacing="8">
                             <Grid.ColumnDefinitions>

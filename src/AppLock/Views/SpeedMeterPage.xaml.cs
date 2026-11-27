@@ -50,9 +50,9 @@ public sealed partial class SpeedMeterPage : Page
         ScaleSlider.Maximum = 250;
         ScaleSlider.StepFrequency = 5;
 
-        FontSizeSlider.Minimum = 60;
-        FontSizeSlider.Maximum = 200;
-        FontSizeSlider.StepFrequency = 5;
+        BlurSlider.Minimum = 0;
+        BlurSlider.Maximum = 40;
+        BlurSlider.StepFrequency = 1;
 
         RadiusSlider.Minimum = 0;
         RadiusSlider.Maximum = 40;
@@ -176,9 +176,8 @@ public sealed partial class SpeedMeterPage : Page
         MasterToggle.IsOn = Settings.Enabled;
 
         OpacitySlider.Value = Math.Clamp(Settings.BackgroundOpacityPercent, 0, 100);
-        BlurSlider.Value = Math.Clamp(Settings.BlurAmountPercent, 0, 100);
+        BlurSlider.Value = Math.Clamp(Settings.BlurAmountPercent, 0, 40);
         ScaleSlider.Value = Math.Clamp(Settings.ScalePercent, 50, 250);
-        FontSizeSlider.Value = Math.Clamp(Settings.FontSizePercent, 60, 200);
         RadiusSlider.Value = Math.Clamp(Settings.CornerRadiusPx, 0, 40);
 
         BackgroundColorPicker.Color = ParseColor(Settings.BackgroundColor, Color.FromArgb(255, 0x20, 0x20, 0x20));
@@ -373,9 +372,8 @@ public sealed partial class SpeedMeterPage : Page
     {
         OpacityValueText.Text = $"{(int)Math.Round(OpacitySlider.Value)}%";
         ScaleValueText.Text = $"{(int)Math.Round(ScaleSlider.Value)}%";
-        FontSizeValueText.Text = $"{(int)Math.Round(FontSizeSlider.Value)}%";
         RadiusValueText.Text = $"{(int)Math.Round(RadiusSlider.Value)} px";
-        if (BlurValueText != null) BlurValueText.Text = $"{(int)Math.Round(BlurSlider.Value)}%";
+        if (BlurValueText != null) BlurValueText.Text = $"{(int)Math.Round(BlurSlider.Value)} px";
         if (BlurRow != null)
         {
             BlurRow.Visibility = string.Equals(Settings.ThemePreset, "Custom", StringComparison.OrdinalIgnoreCase)
@@ -556,14 +554,6 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         Settings.ScalePercent = (int)Math.Round(e.NewValue);
-        UpdateValueLabels();
-        ApplyAppearance();
-    }
-
-    private void FontSizeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_loading) return;
-        Settings.FontSizePercent = (int)Math.Round(e.NewValue);
         UpdateValueLabels();
         ApplyAppearance();
     }

@@ -210,7 +210,7 @@ public sealed partial class SpeedWidgetWindow : Window
                     settings.BackgroundColor,
                     Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20));
                 float opacity = Math.Clamp(settings.BackgroundOpacityPercent, 0, 100) / 100f;
-                float blur = Math.Clamp(settings.BlurAmountPercent, 0, 100) / 100f;
+                float blur = Math.Clamp(settings.BlurAmountPercent, 0, 40) / 40f;
                 float tintOpacity = preset == "Glass" ? opacity * 0.65f : opacity;
                 float luminosity = preset == "Glass" ? opacity * 0.85f : blur * 0.9f;
                 _acrylicBackdrop.Update(tint, tintOpacity, luminosity);
