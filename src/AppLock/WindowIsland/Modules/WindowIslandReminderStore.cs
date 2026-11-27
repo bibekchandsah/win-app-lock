@@ -175,7 +175,10 @@ public sealed class WindowIslandReminderStore : IDisposable
         if (diff.TotalSeconds < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalSeconds))}s";
         if (diff.TotalMinutes < 60) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
         if (diff.TotalHours < 24) return $"in {Math.Max(1, (int)Math.Ceiling(diff.TotalHours))}h";
-        return dueTimeUtc.ToLocalTime().ToString("MMM d h:mm tt");
+        var localFuture = dueTimeUtc.ToLocalTime();
+        return localFuture.Year == DateTime.Now.Year
+            ? localFuture.ToString("MMM d h:mm tt")
+            : localFuture.ToString("MMM d, yyyy h:mm tt");
     }
 
     private void CheckDueReminders(object? state)

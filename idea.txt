@@ -525,7 +525,8 @@ optimize ai buttons for light mode
 
 when remainder is still there of previous date and time then show the remainder so that user don't miss remainder 
 
-webview isn't stick to the chat layout and sometime it gets separate 
+webview isn't stick to the chat layout and sometime it gets separate when island toggle on/off
+
 
 
 

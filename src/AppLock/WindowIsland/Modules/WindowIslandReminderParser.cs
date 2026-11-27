@@ -268,7 +268,9 @@ public static class WindowIslandReminderParser
             return $"{dueLocal:dddd} {dueLocal:h:mm tt}";
         }
 
-        return dueLocal.ToString("MMM d, h:mm tt");
+        return dueLocal.Year == now.Year
+            ? dueLocal.ToString("MMM d, h:mm tt")
+            : dueLocal.ToString("MMM d, yyyy h:mm tt");
     }
 
     private static string ExtractTitle(string raw, int matchIndex, int matchLength)
