@@ -560,6 +560,12 @@ public sealed partial class WindowIslandWindow : Window
         };
         _controlsTimer.Start();
 
+        _audioMeterTimer = DispatcherQueue.CreateTimer();
+        _audioMeterTimer.Interval = TimeSpan.FromMilliseconds(70);
+        _audioMeterTimer.IsRepeating = true;
+        _audioMeterTimer.Tick += (_, _) => TickAudioMeters();
+        _audioMeterTimer.Start();
+
         UpdateRenderingSubscription();
     }
 
@@ -776,6 +782,8 @@ public sealed partial class WindowIslandWindow : Window
         _fileCopySource = null;
         _volumeController?.Dispose();
         _volumeController = null;
+        _audioMeterTimer?.Stop();
+        _audioMeterTimer = null;
         StopVolumeUi();
         DisposeBrightnessListener();
         _controlsMicService?.Dispose();
@@ -2772,6 +2780,8 @@ public sealed partial class WindowIslandWindow : Window
         _homeState.StatsUpdated -= OnStatsUpdated;
         _homeState.Dispose();
         _homeState = null;
+        _audioMeterTimer?.Stop();
+        _audioMeterTimer = null;
         StopVolumeUi();
         StopEqTimer();
         _hasMediaSession = false;
@@ -3806,6 +3816,51 @@ public sealed partial class WindowIslandWindow : Window
         _volumeUiTimer.Tick += (_, _) => RefreshVolumeUi();
         _volumeUiTimer.Start();
         RefreshVolumeUi();
+    }
+
+    private DQTimer? _audioMeterTimer;
+    private float _speakerPeakSmooth;
+    private float _micPeakSmooth;
+
+    private void TickAudioMeters()
+    {
+        if (_compositor?.IsOpen != true)
+        {
+            if (_speakerPeakSmooth > 0.001f || _micPeakSmooth > 0.001f)
+            {
+                _speakerPeakSmooth = 0f;
+                _micPeakSmooth = 0f;
+                if (VolumePeakBar != null) VolumePeakBar.Width = 0;
+                if (ControlsMicPeakBar != null) ControlsMicPeakBar.Width = 0;
+            }
+            return;
+        }
+
+        if (_activeTab == 0 && VolumePeakBar != null && VolumeSlider != null)
+        {
+            float raw = _audio?.GetDefaultOutputPeak(_appVolumeMode ? _appSessionId : null) ?? 0f;
+            _speakerPeakSmooth = Math.Max(raw, _speakerPeakSmooth * 0.72f);
+            double trackWidth = Math.Max(0.0, VolumeSlider.ActualWidth);
+            VolumePeakBar.Width = trackWidth * Math.Clamp(_speakerPeakSmooth * 1.4, 0.0, 1.0);
+        }
+        else if (_speakerPeakSmooth > 0.001f)
+        {
+            _speakerPeakSmooth = 0f;
+            if (VolumePeakBar != null) VolumePeakBar.Width = 0;
+        }
+
+        if (_activeTab == TabIndexControls && ControlsMicPeakBar != null && ControlsMicSlider != null && _settings.Controls.ShowMicrophone)
+        {
+            float raw = _controlsMicService?.GetPeakLevel(_selectedMicDeviceId) ?? 0f;
+            _micPeakSmooth = Math.Max(raw, _micPeakSmooth * 0.72f);
+            double trackWidth = Math.Max(0.0, ControlsMicSlider.ActualWidth);
+            ControlsMicPeakBar.Width = trackWidth * Math.Clamp(_micPeakSmooth * 1.6, 0.0, 1.0);
+        }
+        else if (_micPeakSmooth > 0.001f)
+        {
+            _micPeakSmooth = 0f;
+            if (ControlsMicPeakBar != null) ControlsMicPeakBar.Width = 0;
+        }
     }
 
     private void StopVolumeUi()

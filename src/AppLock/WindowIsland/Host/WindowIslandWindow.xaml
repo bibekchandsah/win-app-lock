@@ -1405,15 +1405,26 @@
                                                           Foreground="{ThemeResource IslandTextSecondary}" />
                                             </Button>
 
-                                            <Slider x:Name="VolumeSlider"
-                                                    Grid.Column="2"
-                                                    VerticalAlignment="Center"
-                                                    ValueChanged="VolumeSlider_ValueChanged"
-                                                    PointerWheelChanged="VolumeSlider_PointerWheelChanged"
-                                                    PointerPressed="VolumeSlider_PointerPressed"
-                                                    PointerReleased="VolumeSlider_PointerReleased"
-                                                    PointerCaptureLost="VolumeSlider_PointerReleased"
-                                                    PointerCanceled="VolumeSlider_PointerReleased" />
+                                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <Border x:Name="VolumePeakBar"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Center"
+                                                        Height="8"
+                                                        Width="0"
+                                                        CornerRadius="4"
+                                                        Margin="0"
+                                                        IsHitTestVisible="False"
+                                                        Opacity="0.45"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                <Slider x:Name="VolumeSlider"
+                                                        VerticalAlignment="Center"
+                                                        ValueChanged="VolumeSlider_ValueChanged"
+                                                        PointerWheelChanged="VolumeSlider_PointerWheelChanged"
+                                                        PointerPressed="VolumeSlider_PointerPressed"
+                                                        PointerReleased="VolumeSlider_PointerReleased"
+                                                        PointerCaptureLost="VolumeSlider_PointerReleased"
+                                                        PointerCanceled="VolumeSlider_PointerReleased" />
+                                            </Grid>
 
                                             <TextBlock x:Name="VolumeText"
                                                        Grid.Column="3"
@@ -3693,16 +3704,16 @@
                                     </Border>
                                 </Grid>
                             </Grid>
-                        </Grid>
 
-                        <!-- ── Multiple Cities Management Overlay ────────────────── -->
-                        <Border x:Name="WeatherCityOverlay"
-                                Background="{ThemeResource IslandPopupOverlayBg}"
-                                BorderBrush="{ThemeResource IslandBorderStrong}"
-                                BorderThickness="1"
-                                CornerRadius="12"
-                                Padding="16,14"
-                                Visibility="Collapsed">
+                            <!-- ── Multiple Cities Management Overlay (Right side over forecast/tiles) ── -->
+                            <Border x:Name="WeatherCityOverlay"
+                                    Grid.Column="1"
+                                    Background="{ThemeResource IslandPopupOverlayBg}"
+                                    BorderBrush="{ThemeResource IslandBorderStrong}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="12,10"
+                                    Visibility="Collapsed">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/> <!-- Title + close -->
@@ -3788,6 +3799,7 @@
                                 </ScrollViewer>
                             </Grid>
                         </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- ═══════════════════════════════════════════════════════════
@@ -4072,14 +4084,24 @@
                                           MinHeight="24"
                                           VerticalAlignment="Center"
                                           ToolTipService.ToolTip="Select microphone"/>
-                                <Slider Grid.Column="1"
-                                        x:Name="ControlsMicSlider"
-                                        ValueChanged="ControlsMicSlider_ValueChanged"
-                                        PointerPressed="ControlsMicSlider_PointerPressed"
-                                        PointerReleased="ControlsMicSlider_PointerReleased"
-                                        PointerWheelChanged="ControlsMicSlider_PointerWheelChanged"
-                                        VerticalAlignment="Center"
-                                        Margin="0,-6,0,-6"/>
+                                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,-6,0,-6">
+                                    <Border x:Name="ControlsMicPeakBar"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Height="8"
+                                            Width="0"
+                                            CornerRadius="4"
+                                            Margin="0"
+                                            IsHitTestVisible="False"
+                                            Opacity="0.45"
+                                            Background="{ThemeResource AccentFillColorDefaultBrush}" />
+                                    <Slider x:Name="ControlsMicSlider"
+                                            ValueChanged="ControlsMicSlider_ValueChanged"
+                                            PointerPressed="ControlsMicSlider_PointerPressed"
+                                            PointerReleased="ControlsMicSlider_PointerReleased"
+                                            PointerWheelChanged="ControlsMicSlider_PointerWheelChanged"
+                                            VerticalAlignment="Center" />
+                                </Grid>
                                 <TextBlock Grid.Column="2"
                                            x:Name="ControlsMicText"
                                            Text="100%"

@@ -67,6 +67,34 @@ public sealed class WindowIslandAudio : IDisposable
         ?? _devices.FirstOrDefault()?.Name
         ?? "No output device";
 
+    public float GetDefaultOutputPeak(string? appSessionId = null)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(appSessionId) && _sessionManager != null)
+            {
+                var sessions = _sessionManager.Sessions;
+                for (int i = 0; i < sessions.Count; i++)
+                {
+                    var s = sessions[i];
+                    if (string.Equals(s.GetSessionIdentifier, appSessionId, StringComparison.Ordinal))
+                    {
+                        return s.SimpleAudioVolume?.Mute == true
+                            ? 0f
+                            : (s.AudioMeterInformation?.MasterPeakValue ?? 0f);
+                    }
+                }
+            }
+
+            if (_endpointVolume?.Mute == true) return 0f;
+            return _defaultDevice?.AudioMeterInformation?.MasterPeakValue ?? 0f;
+        }
+        catch
+        {
+            return 0f;
+        }
+    }
+
     private MMDeviceEnumerator Enumerator
     {
         get

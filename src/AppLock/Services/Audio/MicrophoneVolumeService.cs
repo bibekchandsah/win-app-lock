@@ -55,6 +55,19 @@ namespace AppLock.Services.Audio
             }
         }
 
+        public float GetPeakLevel()
+        {
+            try
+            {
+                if (IsMuted()) return 0f;
+                return Device?.AudioMeterInformation?.MasterPeakValue ?? 0f;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
         public void SetMute(bool mute)
         {
             try
@@ -242,6 +255,23 @@ namespace AppLock.Services.Audio
             DisposeDevices(_microphones);
             _microphones = map;
             _defaultDeviceId = defaultId;
+        }
+
+        public float GetPeakLevel(string? deviceId)
+        {
+            if (!string.IsNullOrEmpty(deviceId) && _microphones.TryGetValue(deviceId, out var mic))
+            {
+                return mic.GetPeakLevel();
+            }
+            if (!string.IsNullOrEmpty(_defaultDeviceId) && _microphones.TryGetValue(_defaultDeviceId, out var defMic))
+            {
+                return defMic.GetPeakLevel();
+            }
+            foreach (var m in _microphones.Values)
+            {
+                return m.GetPeakLevel();
+            }
+            return 0f;
         }
 
         private static void DisposeDevices(Dictionary<string, MicrophoneDevice> map)
