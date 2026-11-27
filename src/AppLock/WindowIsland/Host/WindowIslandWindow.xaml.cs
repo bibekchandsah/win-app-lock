@@ -7330,7 +7330,7 @@ public sealed partial class WindowIslandWindow : Window
 
     private void OnRingLightCameraUsageChanged(object? sender, (bool InUse, IReadOnlyList<string> ActiveApps) e)
     {
-        string appName = e.ActiveApps.Count > 0 ? e.ActiveApps[0] : string.Empty;
+        string appName = e.ActiveApps.Count > 0 ? string.Join(", ", e.ActiveApps) : string.Empty;
         _cameraMonitorInUse = e.InUse;
         _cameraMonitorApp = appName;
         WindowIslandHost.Log(e.InUse
@@ -7342,7 +7342,7 @@ public sealed partial class WindowIslandWindow : Window
             bool wasCamActive = _camDotActive;
             bool nowCamActive = e.InUse || _registryCamActive;
             _camDotActive = nowCamActive;
-            if (e.InUse && !_registryCamActive)
+            if (e.InUse)
                 _activeCamAppName = appName;
             else if (!nowCamActive)
                 _activeCamAppName = string.Empty;
@@ -7370,6 +7370,8 @@ public sealed partial class WindowIslandWindow : Window
             else if (!nowCamActive)
             {
                 _lastWarnedCamApp = null;
+                _lastCamCardApp = null;
+                if (_eventQueue?.CurrentCard?.Kind == "cam-in-use") _eventQueue.Clear();
             }
 
             UpdateMicCamDots();
@@ -7431,6 +7433,7 @@ public sealed partial class WindowIslandWindow : Window
             else if (!e.MicActive)
             {
                 _lastWarnedMicApp = null;
+                if (_eventQueue?.CurrentCard?.Kind == "mic-in-use") _eventQueue.Clear();
             }
 
             if (e.CamActive && _settings.CardCamEnabled &&
@@ -7455,6 +7458,11 @@ public sealed partial class WindowIslandWindow : Window
             else if (!e.CamActive)
             {
                 _lastWarnedCamApp = null;
+                if (!_cameraMonitorInUse)
+                {
+                    _lastCamCardApp = null;
+                    if (_eventQueue?.CurrentCard?.Kind == "cam-in-use") _eventQueue.Clear();
+                }
             }
 
             UpdateMicCamDots();
@@ -7474,6 +7482,9 @@ public sealed partial class WindowIslandWindow : Window
             var sessions = device.AudioSessionManager?.Sessions;
             if (sessions == null) return (false, string.Empty);
 
+            var names = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             for (int i = 0; i < sessions.Count; i++)
             {
                 var session = sessions[i];
@@ -7488,14 +7499,20 @@ public sealed partial class WindowIslandWindow : Window
                             if (pid > 0)
                             {
                                 using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
-                                name = proc.ProcessName;
+                                name = AppLock.Services.RingLight.CameraUsageMonitor.FriendlyAppName(
+                                    proc.ProcessName + ".exe", nonPackaged: true);
                             }
                         }
                         catch { }
                     }
-                    return (true, name);
+                    if (!string.IsNullOrWhiteSpace(name) && seen.Add(name))
+                    {
+                        names.Add(name);
+                    }
                 }
             }
+
+            if (names.Count > 0) return (true, string.Join(", ", names));
         }
         catch { }
         return (false, string.Empty);

@@ -251,9 +251,18 @@ public sealed class WindowIslandNotificationService : IDisposable
         string micApp = string.Empty, camApp = string.Empty;
 
         try { (micActive, micApp) = IsDeviceInUse(MicConsentKey); } catch { }
-        if (!micActive && CaptureSessionFallback != null)
+        if (CaptureSessionFallback != null)
         {
-            try { (micActive, micApp) = CaptureSessionFallback(); } catch { }
+            try
+            {
+                var (capActive, capApp) = CaptureSessionFallback();
+                if (capActive)
+                {
+                    micActive = true;
+                    micApp = MergeCommaApps(micApp, capApp);
+                }
+            }
+            catch { }
         }
         // Windows' own per-app camera records decide *who* is capturing; the shared reader also turns
         // raw keys (msedge.exe, package family names) into product names and lists the newest session
@@ -264,30 +273,71 @@ public sealed class WindowIslandNotificationService : IDisposable
             if (camApps.Count > 0)
             {
                 camActive = true;
-                camApp = camApps[0];
+                camApp = string.Join(", ", camApps);
             }
         }
         catch { }
-        if (!camActive && CameraFallback != null)
+        if (CameraFallback != null)
         {
-            try { (camActive, camApp) = CameraFallback(); } catch { }
+            try
+            {
+                var (fbActive, fbApp) = CameraFallback();
+                if (fbActive)
+                {
+                    camActive = true;
+                    camApp = MergeCommaApps(camApp, fbApp);
+                }
+            }
+            catch { }
         }
 
         return (micActive, micApp, camActive, camApp);
     }
 
-    private static (bool Active, string AppName) IsDeviceInUse(string registrySubKey)
+    private static string MergeCommaApps(string existing, string incoming)
     {
-        long bestStart = 0;
-        string bestApp = string.Empty;
+        if (string.IsNullOrWhiteSpace(incoming)) return existing;
+        if (string.IsNullOrWhiteSpace(existing)) return incoming;
 
-        CheckRootDeviceInUse(Microsoft.Win32.Registry.CurrentUser, registrySubKey, ref bestStart, ref bestApp);
-        CheckRootDeviceInUse(Microsoft.Win32.Registry.LocalMachine, registrySubKey, ref bestStart, ref bestApp);
-
-        return (bestStart > 0, bestApp);
+        var list = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string part in existing.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (seen.Add(part)) list.Add(part);
+        }
+        foreach (string part in incoming.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (seen.Add(part)) list.Add(part);
+        }
+        return string.Join(", ", list);
     }
 
-    private static void CheckRootDeviceInUse(Microsoft.Win32.RegistryKey root, string registrySubKey, ref long bestStart, ref string bestApp)
+    private static (bool Active, string AppName) IsDeviceInUse(string registrySubKey)
+    {
+        var activeEntries = new List<(long Start, string App)>();
+
+        CheckRootDeviceInUse(Microsoft.Win32.Registry.CurrentUser, registrySubKey, activeEntries);
+        CheckRootDeviceInUse(Microsoft.Win32.Registry.LocalMachine, registrySubKey, activeEntries);
+
+        if (activeEntries.Count == 0) return (false, string.Empty);
+
+        activeEntries.Sort((a, b) => b.Start.CompareTo(a.Start));
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (_, app) in activeEntries)
+        {
+            if (!string.IsNullOrWhiteSpace(app) && seen.Add(app))
+            {
+                names.Add(app);
+            }
+        }
+        return (names.Count > 0, string.Join(", ", names));
+    }
+
+    private static void CheckRootDeviceInUse(
+        Microsoft.Win32.RegistryKey root,
+        string registrySubKey,
+        List<(long Start, string App)> activeEntries)
     {
         try
         {
@@ -298,10 +348,9 @@ public sealed class WindowIslandNotificationService : IDisposable
             foreach (string subName in key.GetSubKeyNames())
             {
                 if (string.Equals(subName, "NonPackaged", StringComparison.OrdinalIgnoreCase)) continue;
-                if (TryGetActiveSubKey(key, subName, out long start, out string appName) && start > bestStart)
+                if (TryGetActiveSubKey(key, subName, nonPackaged: false, out long start, out string appName))
                 {
-                    bestStart = start;
-                    bestApp = appName;
+                    activeEntries.Add((start, appName));
                 }
             }
 
@@ -311,10 +360,9 @@ public sealed class WindowIslandNotificationService : IDisposable
             {
                 foreach (string subName in nonPkg.GetSubKeyNames())
                 {
-                    if (TryGetActiveSubKey(nonPkg, subName, out long start, out string appName) && start > bestStart)
+                    if (TryGetActiveSubKey(nonPkg, subName, nonPackaged: true, out long start, out string appName))
                     {
-                        bestStart = start;
-                        bestApp = appName;
+                        activeEntries.Add((start, appName));
                     }
                 }
             }
@@ -322,7 +370,7 @@ public sealed class WindowIslandNotificationService : IDisposable
         catch { }
     }
 
-    private static bool TryGetActiveSubKey(Microsoft.Win32.RegistryKey parent, string subName, out long startTime, out string appName)
+    private static bool TryGetActiveSubKey(Microsoft.Win32.RegistryKey parent, string subName, bool nonPackaged, out long startTime, out string appName)
     {
         startTime = 0;
         appName = string.Empty;
@@ -332,16 +380,17 @@ public sealed class WindowIslandNotificationService : IDisposable
             if (sub == null) return false;
 
             var startVal = sub.GetValue("LastUsedTimeStart");
-            if (startVal == null) return false;
-
             var stopVal = sub.GetValue("LastUsedTimeStop");
-            long start = ToInt64Safe(startVal);
-            long stop  = stopVal != null ? ToInt64Safe(stopVal) : 0;
+            if (startVal == null || stopVal == null) return false;
 
-            if (start > stop)
+            long start = ToInt64Safe(startVal);
+            long stop  = ToInt64Safe(stopVal);
+
+            if (start != 0 && stop == 0)
             {
                 startTime = start;
-                appName = FriendlyAppName(subName);
+                string nice = AppLock.Services.RingLight.CameraUsageMonitor.FriendlyAppName(subName, nonPackaged);
+                appName = !string.IsNullOrWhiteSpace(nice) ? nice : FriendlyAppName(subName);
                 return true;
             }
         }
