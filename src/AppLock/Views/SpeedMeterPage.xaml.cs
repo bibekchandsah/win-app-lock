@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.Brightness;
@@ -31,6 +33,7 @@ public sealed partial class SpeedMeterPage : Page
     private NetworkSpeedSample? _lastSample;
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer? _previewTimer;
+    private CancellationTokenSource? _appBandwidthCts;
 
     private static SpeedMeterSettings Settings => ServiceContainer.Settings.SpeedMeter;
 
@@ -109,7 +112,16 @@ public sealed partial class SpeedMeterPage : Page
         {
             _settingsLoaded = true;
             LoadFromSettings();
+
+            AppBandwidthDatePicker.MaxDate = DateTimeOffset.Now;
+            AppBandwidthDatePicker.Date = DateTimeOffset.Now;
+            if (AppBandwidthPeriodCombo.SelectedIndex < 0)
+            {
+                AppBandwidthPeriodCombo.SelectedIndex = 0;
+            }
         }
+
+        _ = RefreshAppBandwidthAsync();
 
         if (ServiceContainer.SpeedMeterService is { } service)
         {
@@ -124,6 +136,9 @@ public sealed partial class SpeedMeterPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _previewTimer?.Stop();
+        _appBandwidthCts?.Cancel();
+        _appBandwidthCts?.Dispose();
+        _appBandwidthCts = null;
         if (ServiceContainer.SpeedMeterService is { } service)
         {
             service.SampleUpdated -= OnSampleUpdated;
@@ -943,6 +958,162 @@ public sealed partial class SpeedMeterPage : Page
 
         store.Reset();
         UsageSummaryText.Text = BuildUsageSummary();
+    }
+
+    // ── Per-app bandwidth breakdown ─────────────────────────────────────────
+
+    private void AppBandwidthPeriodCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+
+        var period = GetSelectedBandwidthPeriod();
+        AppBandwidthDatePicker.Visibility = period == BandwidthPeriod.SpecificDate
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        _ = RefreshAppBandwidthAsync();
+    }
+
+    private void AppBandwidthDatePicker_DateChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (_loading || GetSelectedBandwidthPeriod() != BandwidthPeriod.SpecificDate) return;
+        _ = RefreshAppBandwidthAsync();
+    }
+
+    private void RefreshAppBandwidth_Click(object sender, RoutedEventArgs e)
+    {
+        _ = RefreshAppBandwidthAsync();
+    }
+
+    private BandwidthPeriod GetSelectedBandwidthPeriod()
+    {
+        var tag = (AppBandwidthPeriodCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        return Enum.TryParse<BandwidthPeriod>(tag, out var parsed) ? parsed : BandwidthPeriod.Today;
+    }
+
+    private async Task RefreshAppBandwidthAsync()
+    {
+        _appBandwidthCts?.Cancel();
+        _appBandwidthCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _appBandwidthCts = cts;
+
+        var period = GetSelectedBandwidthPeriod();
+        DateTime? specificDate = AppBandwidthDatePicker.Date?.DateTime;
+        var (start, end, label) = AppBandwidthProvider.ResolveRange(period, specificDate);
+
+        AppBandwidthRangeText.Text = label;
+        AppBandwidthLoadingRing.IsActive = true;
+        AppBandwidthLoadingRing.Visibility = Visibility.Visible;
+
+        try
+        {
+            var items = await AppBandwidthProvider.QueryAsync(start, end, cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            AppBandwidthList.Children.Clear();
+
+            if (items.Count == 0)
+            {
+                AppBandwidthSummaryText.Text = "0 apps";
+                AppBandwidthEmptyText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            AppBandwidthEmptyText.Visibility = Visibility.Collapsed;
+
+            ulong totalRx = 0, totalTx = 0;
+            foreach (var item in items)
+            {
+                totalRx += item.BytesReceived;
+                totalTx += item.BytesSent;
+            }
+
+            var totalAll = totalRx + totalTx;
+            AppBandwidthSummaryText.Text =
+                $"{items.Count} {(items.Count == 1 ? "app" : "apps")} · ↓ {FormatBytes((long)Math.Min(totalRx, long.MaxValue))} · ↑ {FormatBytes((long)Math.Min(totalTx, long.MaxValue))} · {FormatBytes((long)Math.Min(totalAll, long.MaxValue))} total";
+
+            var maxBytes = Math.Max(1UL, items[0].TotalBytes);
+            foreach (var item in items)
+            {
+                AppBandwidthList.Children.Add(BuildAppBandwidthRow(item, maxBytes));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer selection or page unload.
+        }
+        catch (Exception ex)
+        {
+            AppBandwidthSummaryText.Text = $"Could not load per-app usage: {ex.Message}";
+            AppBandwidthEmptyText.Visibility = Visibility.Collapsed;
+        }
+        finally
+        {
+            if (ReferenceEquals(_appBandwidthCts, cts))
+            {
+                AppBandwidthLoadingRing.IsActive = false;
+                AppBandwidthLoadingRing.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
+
+    private UIElement BuildAppBandwidthRow(AppBandwidthUsage item, ulong maxBytes)
+    {
+        var container = new StackPanel { Spacing = 3 };
+
+        var topGrid = new Grid { ColumnSpacing = 12 };
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var nameText = new TextBlock
+        {
+            Text = item.AppName,
+            FontSize = 12.5,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        if (!string.IsNullOrWhiteSpace(item.AttributionId))
+        {
+            ToolTipService.SetToolTip(nameText, item.AttributionId);
+        }
+        Grid.SetColumn(nameText, 0);
+
+        var totalText = new TextBlock
+        {
+            Text = FormatBytes((long)Math.Min(item.TotalBytes, long.MaxValue)),
+            FontSize = 12.5,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(totalText, 1);
+
+        topGrid.Children.Add(nameText);
+        topGrid.Children.Add(totalText);
+        container.Children.Add(topGrid);
+
+        var ratio = Math.Clamp((double)item.TotalBytes / maxBytes, 0.0, 1.0);
+        var bar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = ratio * 100,
+            Height = 4,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        container.Children.Add(bar);
+
+        var detailText = new TextBlock
+        {
+            Text = $"↓ {FormatBytes((long)Math.Min(item.BytesReceived, long.MaxValue))}   ↑ {FormatBytes((long)Math.Min(item.BytesSent, long.MaxValue))}",
+            FontSize = 11,
+            Opacity = 0.72
+        };
+        container.Children.Add(detailText);
+
+        return container;
     }
 
     private void SaveAlerts()

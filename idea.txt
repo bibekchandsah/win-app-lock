@@ -342,7 +342,7 @@ fixed - show arrows, border, compact show this toggle next to text instead of wr
 fixed - in extra stats card move "ram format, warn cpu above %, warn ram above %" below the warn disk above %, warn download above mbps, warn upload above mbps"
 fixed - when all top apps line is toggled on then show all four top apps currently it shows only CPU
 fixed - in data usage history it don't show used value when selected or hovered on bar
-when the appearance theme is set to transparent and glass then widget background still shows black and background opacity has no effect
+fixed - when the appearance theme is set to transparent and glass then widget background still shows black and background opacity has no effect
 fixed - in appearance card when background color, text color, download color, upload color is selected then selected color don't show in preview which is infront of color code value
 fixed - show the color preview of selected color in appearance card
 fixed - when window is minimized manually then "auto lock on idle" isn't working
@@ -396,7 +396,7 @@ fixed - import into always allow
 fixed - credit and licenses 
 fixed - icon in "privacy &  torrents" category
 fixed - restore my network settings is freezing the program 
-by travelling to all page and go to activity tab then application restart itself
+fixed - by travelling to all page and go to activity tab then application restart itself
 implemented - Screen time tracker: per-app foreground time with daily and weekly charts, and a limit that feeds into Self-Discipline.
 
 eye care sometime don't show the loaded templet and just shows blank screen
@@ -524,10 +524,10 @@ fixed - notch mute icon isn't sync
 fixed - in weather tab while adding new place show that card above the right side cards so that user can see current place in left side card can select or add new places in right side 
 fixed - when remainder is still there of previous date and time then show the remainder so that user don't miss remainder 
 fixed - multiple @incognito @youtube english music 
+fixed - optimize ai buttons for light mode 
+fixed - webview isn't stick to the chat layout and sometime it gets separate when island toggle on/off
 
 theme sync hover effect for play/pause icon, check icon for timer & remainder & screenshot captured, microphone mute icon, screenshot check icon, 
-optimize ai buttons for light mode 
-webview isn't stick to the chat layout and sometime it gets separate when island toggle on/off
 
 
 

@@ -80,6 +80,7 @@
     <Compile Include="..\..\src\AppLock\Models\ListeningPort.cs" Link="Models\ListeningPort.cs" />
     <Compile Include="..\..\src\AppLock\Models\ActiveConnection.cs" Link="Models\ActiveConnection.cs" />
     <Compile Include="..\..\src\AppLock\Models\SpeedMeterSettings.cs" Link="Models\SpeedMeterSettings.cs" />
+    <Compile Include="..\..\src\AppLock\Services\SpeedMeter\AppBandwidthProvider.cs" Link="Services\SpeedMeter\AppBandwidthProvider.cs" />
     <Compile Include="..\..\src\AppLock\Models\WebFilterSettings.cs" Link="Models\WebFilterSettings.cs" />
     <Compile Include="..\..\src\AppLock\Models\FilteredDnsProvider.cs" Link="Models\FilteredDnsProvider.cs" />
     <Compile Include="..\..\src\AppLock\Services\WebFilter\WebFilterCatalog.cs" Link="Services\WebFilter\WebFilterCatalog.cs" />
