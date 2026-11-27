@@ -352,6 +352,9 @@ public sealed class WindowIslandSettings
     /// <summary>Optional global hotkey to toggle Through mode (e.g. "Ctrl+Shift+T").</summary>
     public string ThroughModeHotkey { get; set; } = string.Empty;
 
+    /// <summary>Global hotkey to open/toggle the Window Island Command Bar (default: "Alt+Space").</summary>
+    public string CommandBarHotkey { get; set; } = "Alt+Space";
+
     // ── Milestone 16: Settings Completion & Polish ───────────────────────────
     /// <summary>Lite mode: disable shadow, 100% opacity, 120ms transitions, 30 fps equalizer, 1 min clock.</summary>
     public bool LiteMode { get; set; } = false;

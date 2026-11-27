@@ -1548,6 +1548,26 @@
 
                     <!-- ░░ Search Commands ░░ -->
                     <StackPanel x:Name="SectionSearch" Spacing="12" Visibility="Collapsed">
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Command Bar Hotkey" Style="{StaticResource IslandSettingTitleStyle}" />
+                                    <TextBlock Text="Global keyboard shortcut to open or toggle the Command Bar (default: Alt+Space)."
+                                               Style="{StaticResource IslandSettingDescStyle}" />
+                                </StackPanel>
+                                <TextBox x:Name="CommandBarHotkeyBox"
+                                         Grid.Column="1"
+                                         PlaceholderText="Alt+Space"
+                                         Width="220"
+                                         VerticalAlignment="Center"
+                                         TextChanged="OnHotkeyChanged" />
+                            </Grid>
+                        </Border>
+
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"

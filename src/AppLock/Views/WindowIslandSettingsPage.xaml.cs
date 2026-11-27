@@ -469,6 +469,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         UnderTopTaskbarToggle.IsOn              = s.UnderTopTaskbar;
         ThroughModeToggle.IsOn                  = s.ThroughMode;
         ThroughModeHotkeyBox.Text               = s.ThroughModeHotkey ?? string.Empty;
+        CommandBarHotkeyBox.Text                = s.CommandBarHotkey ?? "Alt+Space";
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.ThroughModeChanged += OnExternalThroughModeChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
@@ -825,6 +826,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.UnderTopTaskbar            = UnderTopTaskbarToggle.IsOn;
         s.ThroughMode                = ThroughModeToggle.IsOn;
         s.ThroughModeHotkey          = ThroughModeHotkeyBox?.Text?.Trim() ?? string.Empty;
+        s.CommandBarHotkey           = CommandBarHotkeyBox?.Text?.Trim() ?? "Alt+Space";
         s.TargetMonitorMode          = TagOf(TargetMonitorBox)  ?? s.TargetMonitorMode;
         s.ChosenAppsMode             = TagOf(ChosenAppsModeBox) ?? s.ChosenAppsMode;
         s.ChosenApps                 = ChosenAppsBox.Text

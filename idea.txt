@@ -406,18 +406,17 @@ selected microphone isn't synced with window
 
 fixed - remove white color from activity and donut graph 
 fixed - unlock isn't detected 
-
 fixed - when the appearance theme is set to "follows window" then show mica background effect instead of black background
-remember the position of widget 
-implemented - when notification is shown black window border flashes everytime when i choose the color picker and notification flashes then color picker gets closed 
+fixed - date and time in net speed with second support
+fixed - remember the position of widget 
+implemented - when notification is shown black window border flashes everytime when i fixed - choose the color picker and notification flashes then color picker gets closed 
 speed meter widget: top cpu usage app, top ram usage app, top disk usage app, top gpu usage app, top internet usage app in the scrolling widget and user can toggle it from setting UI
 font weight has no effect
 implemented - make network access toast notificaton as default custom notification and user can customize it in setting page
-fixed - date and time in net speed with second support
 
-add search box to search in google, edge 
 Encrypted backup and restore: export all settings with a password, and import them on a new PC.
 
+fixed - add search box to search in google, edge 
 fixed - clicking in any tab except home don''t show it's content on first time and have to go to other tab and come back again to see it's content. apply the same height and width for clipboard, shelf, text tools, control page as it's in home page so that navigation will looks smooth and for "AI chat and weather" it's height will be larger than other as it has larger content.
 fixed - when in the clipboard tab then auto focus the search input box and meke the clipboard list little bit bigger, currently it looks so small and difficult to read and see images preview 
 fixed - make the shelf tab height and length same as home tab and clicking in shelf tab don't show it's content in first click and have to navigate to other tab and come back again to shelf tab to see it's content. 
@@ -443,10 +442,10 @@ fixed - change control tab icon
 fixed - in controls tab add support of wifi list and bluetooth list
 fixed - add the card for showing battery of bluetooths connected devices 
 fixed - lock screen, show/hide desktop, task view, calculator, custom card like :
-card name: Default apps 
-command: ms-settings:defaultapps
-card name: startup apps
-command: ms-settings:startupapps
+     card name: Default apps 
+     command: ms-settings:defaultapps
+     card name: startup apps
+     command: ms-settings:startupapps
 fixed - move brightness bar above the last row "lock, sleep, restart, shutdown" and add mouse and scroll guesture in slider 
 fixed - move "lock, sleep, restart, shut down" to the bottom
 fixed - notes are getting cleared on new build
@@ -470,8 +469,6 @@ fixed - in island it shows battery status after few seconds not in realtime
 fixed - after new build of app saved note aren't shown that is when new features are added then previous saved notes get lost and user can't find their previous notes 
 fixed - in home tab mouse wheel volume is effected all over the island not just in volume slider
 fixed - we have volume  slider in home tab and mouse and touch pad guesture is effected all over the tab not just in home tab volume slider
-
-
 fixed - realtime battery status with plugged/unpluggedarate 
 fixed - live music beat in the right side end and music icon in the left side end
 fixed - music preview is overlapped with weather
@@ -520,33 +517,12 @@ fixed - though microphone is not muted it show muted
 fixed - notch mute icon isn't sync
 fixed - in weather tab while adding new place show that card above the right side cards so that user can see current place in left side card can select or add new places in right side 
 fixed - when remainder is still there of previous date and time then show the remainder so that user don't miss remainder 
+fixed - multiple @incognito @youtube english music 
 
 theme sync hover effect for play/pause icon, check icon for timer & remainder & screenshot captured, microphone mute icon, screenshot check icon, 
 optimize ai buttons for light mode 
 webview isn't stick to the chat layout and sometime it gets separate when island toggle on/off
 
-multiple @incognito @youtube english music 
-
-
-
-
-general:
-hide in full-screen apps
-coe out over them ...
-show the island in screenshots and recordings
-hide the island until it is needed
-stay in sight on the desktop
-hide only while a window is under the island
-the island in choosen apps
-island shaped
-island theme
-island color
-island size
-transparency of the folded island
-place along the top edge
-under the taskbar when it is at the top
-the pill while music plays
-the player on home: compact, fill, soft mirror
 
 
 

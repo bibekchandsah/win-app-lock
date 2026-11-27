@@ -94,7 +94,7 @@ public sealed class WindowIslandHost
             App.MainWindowInstance?.DispatcherQueue.TryEnqueue(CreateWindow);
         }
 
-        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey);
+        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey, settings.CommandBarHotkey);
     }
 
     public void Stop()
@@ -128,7 +128,7 @@ public sealed class WindowIslandHost
             App.MainWindowInstance?.DispatcherQueue.TryEnqueue(Do);
         }
 
-        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey);
+        RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey, settings.CommandBarHotkey);
     }
 
     public void ToggleThroughMode()
@@ -234,20 +234,24 @@ public sealed class WindowIslandHost
 
     // ── Hotkey ─────────────────────────────────────────────────────────────────
 
-    private void RegisterHotkey(string hotkey, string? throughHotkey = null)
+    private void RegisterHotkey(string hotkey, string? throughHotkey = null, string? commandBarHotkey = "Alt+Space")
     {
         UnregisterHotkey();
 
-        // Register Command Bar hotkey (Alt+Space)
-        try
+        // Register Command Bar hotkey (default: Alt+Space)
+        string cmdHotkey = commandBarHotkey ?? "Alt+Space";
+        if (!string.IsNullOrWhiteSpace(cmdHotkey))
         {
-            var (cmdMods, cmdKey) = HotkeyService.ParseHotkey("Alt+Space");
-            _cmdHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(cmdMods, cmdKey, ToggleCommandBar);
-            Log($"Registered Command Bar hotkey Alt+Space id={_cmdHotkeyId}");
-        }
-        catch (Exception ex)
-        {
-            Log($"Command Bar hotkey registration failed: {ex}");
+            try
+            {
+                var (cmdMods, cmdKey) = HotkeyService.ParseHotkey(cmdHotkey);
+                _cmdHotkeyId = ServiceContainer.HotkeyService.RegisterHotkey(cmdMods, cmdKey, ToggleCommandBar);
+                Log($"Registered Command Bar hotkey {cmdHotkey} id={_cmdHotkeyId}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Command Bar hotkey registration failed: {ex}");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(throughHotkey))

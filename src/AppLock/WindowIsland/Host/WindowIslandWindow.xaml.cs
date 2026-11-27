@@ -11348,17 +11348,24 @@ public sealed partial class WindowIslandWindow : Window
         var activeSite = WindowIslandChatManager.GetActiveSite(_settings);
         if (_chatWebView != null && _chatInitialized)
         {
-            if (_chatLastNavigatedUrl != activeSite.Url)
+            if (_chatWebView.CoreWebView2 == null || !ChatWebViewHost.Children.Contains(_chatWebView))
             {
-                _chatLastNavigatedUrl = activeSite.Url;
-                try
-                {
-                    ChatSkeletonPanel.Visibility = Visibility.Visible;
-                    _chatWebView.Source = new Uri(activeSite.Url);
-                }
-                catch { }
+                DisposeChatWebView();
             }
-            return;
+            else
+            {
+                if (_chatLastNavigatedUrl != activeSite.Url)
+                {
+                    _chatLastNavigatedUrl = activeSite.Url;
+                    try
+                    {
+                        ChatSkeletonPanel.Visibility = Visibility.Visible;
+                        _chatWebView.Source = new Uri(activeSite.Url);
+                    }
+                    catch { }
+                }
+                return;
+            }
         }
 
         _chatInitializing = true;
@@ -11400,14 +11407,21 @@ public sealed partial class WindowIslandWindow : Window
 
             string userDataFolder = WindowIslandChatManager.GetUserDataFolder();
             var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, null);
+            if (_chatWebView == null) return;
             await _chatWebView.EnsureCoreWebView2Async(env);
+            if (_chatWebView?.CoreWebView2 is not { } core) return;
 
-            _chatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-            _chatWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            core.Settings.IsStatusBarEnabled = false;
+            core.Settings.AreDevToolsEnabled = false;
+            core.ProcessFailed += (_, _) =>
+            {
+                DispatcherQueue.TryEnqueue(DisposeChatWebView);
+            };
 
             _chatInitialized = true;
             _chatLastNavigatedUrl = activeSite.Url;
             _chatWebView.Source = new Uri(activeSite.Url);
+            _chatWebView.InvalidateMeasure();
         }
         catch (Exception ex)
         {
@@ -11437,12 +11451,19 @@ public sealed partial class WindowIslandWindow : Window
     {
         try
         {
-            if (_chatWebView?.CoreWebView2 != null)
+            if (_chatInitializing) return;
+
+            if (_chatWebView?.CoreWebView2 != null && ChatWebViewHost.Children.Contains(_chatWebView))
             {
                 _chatWebView.CoreWebView2.Resume();
+                _chatWebView.InvalidateMeasure();
             }
             else if (_activeTab == 4)
             {
+                if (_chatWebView != null && !ChatWebViewHost.Children.Contains(_chatWebView))
+                {
+                    DisposeChatWebView();
+                }
                 _ = EnsureChatWebViewAsync();
             }
         }
@@ -11455,8 +11476,8 @@ public sealed partial class WindowIslandWindow : Window
         {
             if (_chatWebView != null)
             {
+                try { _chatWebView.Close(); } catch { }
                 ChatWebViewHost.Children.Clear();
-                _chatWebView.Close();
                 _chatWebView = null;
                 _chatInitialized = false;
                 _chatLastNavigatedUrl = null;
