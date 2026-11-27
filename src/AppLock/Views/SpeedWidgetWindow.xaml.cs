@@ -714,12 +714,17 @@ public sealed partial class SpeedWidgetWindow : Window
 
         var point = e.GetCurrentPoint(Widget);
         double scale = Widget.XamlRoot?.RasterizationScale ?? 1.0;
-        int dx = (int)Math.Round((point.Position.X - _dragStartPointDip.X) * scale);
-        int dy = (int)Math.Round((point.Position.Y - _dragStartPointDip.Y) * scale);
-        if (dx == 0 && dy == 0) return;
+        int dx = (int)Math.Truncate((point.Position.X - _dragStartPointDip.X) * scale);
+        int dy = (int)Math.Truncate((point.Position.Y - _dragStartPointDip.Y) * scale);
+        if (Math.Abs(dx) < 2 && Math.Abs(dy) < 2) return;
 
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        if (hWnd == nint.Zero) return;
         var pos = AppWindow.Position;
-        AppWindow.Move(new PointInt32(pos.X + dx, pos.Y + dy));
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_NOZORDER = 0x0004;
+        const uint SWP_NOACTIVATE = 0x0010;
+        SetWindowPos(hWnd, nint.Zero, pos.X + dx, pos.Y + dy, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)

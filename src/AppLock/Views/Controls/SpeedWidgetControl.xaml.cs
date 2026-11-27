@@ -165,9 +165,9 @@ public sealed partial class SpeedWidgetControl : UserControl
         Row.Orientation = string.Equals(settings.Layout, "Vertical", StringComparison.OrdinalIgnoreCase)
             ? Orientation.Vertical
             : Orientation.Horizontal;
-        Row.Spacing = 16 * scale;
-        DownBlock.Spacing = 6 * textScale;
-        UpBlock.Spacing = 6 * textScale;
+        Row.Spacing = 14 * scale;
+        DownBlock.Spacing = 4 * textScale;
+        UpBlock.Spacing = 4 * textScale;
 
         var font = new FontFamily(string.IsNullOrWhiteSpace(settings.FontFamily) ? "Segoe UI Variable" : settings.FontFamily);
         var weight = settings.FontWeight switch
@@ -179,14 +179,13 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         var fontSize = 14 * textScale;
         var iconSize = 12 * textScale;
-        var numberWidth = 84 * textScale;
 
         foreach (var block in new[] { DownText, UpText })
         {
             block.FontFamily = font;
             block.FontWeight = weight;
             block.FontSize = fontSize;
-            block.Width = numberWidth;
+            block.Width = double.NaN;
         }
 
         // The unit is part of the reading, so it is re-split whenever the size changes.
@@ -256,12 +255,12 @@ public sealed partial class SpeedWidgetControl : UserControl
 
         ClockDateText.FontFamily = font;
         ClockDateText.FontWeight = weight;
-        ClockDateText.FontSize = 10.5 * textScale;
+        ClockDateText.FontSize = 11.5 * textScale;
         ClockDateText.Foreground = textBrush;
 
         ClockTimeText.FontFamily = font;
         ClockTimeText.FontWeight = weight;
-        ClockTimeText.FontSize = (settings.Compact ? 11 : 12) * textScale;
+        ClockTimeText.FontSize = (settings.Compact ? 12 : 13) * textScale;
         ClockTimeText.Foreground = textBrush;
 
         HeaderDivider.Background = new SolidColorBrush(Muted(textColor, 0x24));

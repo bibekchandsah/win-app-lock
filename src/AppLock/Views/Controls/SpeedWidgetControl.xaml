@@ -13,9 +13,9 @@
                 BorderThickness="0"
                 Padding="16,10">
             <StackPanel Spacing="8">
-                <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16">
+                <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
                     <!-- Download -->
-                    <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <StackPanel x:Name="DownBlock" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <TextBlock x:Name="DownLabel"
                                    Text="DL"
                                    FontSize="11"
@@ -29,15 +29,13 @@
                         <TextBlock x:Name="DownText"
                                    AutomationProperties.Name="Download speed"
                                    Text="0 B/s"
-                                   Width="84"
-                                   TextAlignment="Right"
                                    FontSize="14"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- Upload -->
-                    <StackPanel x:Name="UpBlock" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <StackPanel x:Name="UpBlock" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                         <TextBlock x:Name="UpLabel"
                                    Text="UL"
                                    FontSize="11"
@@ -51,8 +49,6 @@
                         <TextBlock x:Name="UpText"
                                    AutomationProperties.Name="Upload speed"
                                    Text="0 B/s"
-                                   Width="84"
-                                   TextAlignment="Right"
                                    FontSize="14"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"/>
