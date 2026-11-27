@@ -519,7 +519,11 @@ public sealed partial class WindowIslandWindow : Window
         _clockTimer = DispatcherQueue.CreateTimer();
         _clockTimer.Interval = TimeSpan.FromSeconds(1);
         _clockTimer.IsRepeating = true;
-        _clockTimer.Tick += (_, _) => UpdateClock();
+        _clockTimer.Tick += (_, _) =>
+        {
+            UpdateClock();
+            SyncMicMuteState(forceNotifyCard: false);
+        };
         _clockTimer.Start();
         UpdateClock();
         RefreshCalendarTabUI();
@@ -7534,6 +7538,8 @@ public sealed partial class WindowIslandWindow : Window
         }
     }
 
+    private bool? _lastObservedMicMuted;
+
     private void ToggleSystemDefaultMicMute()
     {
         try
@@ -7549,10 +7555,46 @@ public sealed partial class WindowIslandWindow : Window
         }
         catch { }
 
+        SyncMicMuteState(forceNotifyCard: true);
+    }
+
+    private void SyncMicMuteState(bool forceNotifyCard)
+    {
+        bool muted = IsSystemDefaultMicMuted();
+        if (_lastObservedMicMuted == null)
+        {
+            _lastObservedMicMuted = muted;
+            UpdateMicCamDots();
+            return;
+        }
+
+        if (muted == _lastObservedMicMuted.Value) return;
+        _lastObservedMicMuted = muted;
+
         UpdateMicCamDots();
         if (_compositor?.IsOpen == true && _activeTab == TabIndexControls && _settings.Controls.ShowMicrophone)
         {
             RefreshControlsMicrophoneUi();
+        }
+
+        if ((_micDotActive || forceNotifyCard) && _settings.CardMicEnabled)
+        {
+            var accent = GetSystemAccentColor();
+            string accentHex = muted ? "#FF6B6B" : $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+            string title = muted ? "Microphone muted" : "Microphone unmuted";
+            string detail = string.IsNullOrEmpty(_activeMicAppName)
+                ? (muted ? "System-wide mute active" : "Microphone is live")
+                : (muted ? $"Muted while {_activeMicAppName} is using mic" : $"Live for {_activeMicAppName}");
+
+            _eventQueue?.Push(new WindowIslandCard(
+                Kind: "mic-mute-state",
+                Icon: muted ? "\uEC54" : "\uE720",
+                Title: title,
+                Detail: detail,
+                AccentHex: accentHex,
+                Priority: WindowIslandCardPriority.Notification,
+                StayMs: _settings.GetCardStayMs() > 0 ? Math.Max(_settings.GetCardStayMs(), 2500) : 2500,
+                IsStacked: true));
         }
     }
 
@@ -7583,10 +7625,18 @@ public sealed partial class WindowIslandWindow : Window
 
         if (_micDotActive)
         {
-            MicDot.Glyph = micMuted ? "\uEC54" : "\uE720";
-            MicDot.Foreground = micMuted
+            var micBrush = micMuted
                 ? new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xFF, 0x6B, 0x6B))
                 : accentBrush;
+            string micGlyph = micMuted ? "\uEC54" : "\uE720";
+
+            MicDot.Glyph = micGlyph;
+            MicDot.Foreground = micBrush;
+            if (MiniMicDot != null)
+            {
+                MiniMicDot.Glyph = micGlyph;
+                MiniMicDot.Foreground = micBrush;
+            }
 
             string micTip = string.IsNullOrEmpty(micApp)
                 ? (micMuted ? "Microphone in use (Muted)" : "Microphone in use")
@@ -7595,6 +7645,7 @@ public sealed partial class WindowIslandWindow : Window
             {
                 _micDotLastTooltip = micTip;
                 ToolTipService.SetToolTip(MicDot, micTip);
+                if (MiniMicDot != null) ToolTipService.SetToolTip(MiniMicDot, micTip);
             }
         }
         string? camApp = _activeCamAppName;

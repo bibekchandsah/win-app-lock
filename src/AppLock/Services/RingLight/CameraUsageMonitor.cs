@@ -1100,7 +1100,36 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
     public async Task<CameraCheckResult> CheckCameraStatusAsync()
     {
         var installed = await GetInstalledCamerasAsync();
-        var details = GetActiveDetailsSnapshot();
+
+        bool startedTempSensor = false;
+        lock (_sensorLock)
+        {
+            if (_sensorMonitor == null && _sensorSupported)
+            {
+                StartSensorMonitor();
+                startedTempSensor = _sensorMonitor != null;
+            }
+        }
+
+        if (startedTempSensor)
+        {
+            // Allow Media Foundation to deliver the initial OnActivitiesReport callback.
+            await Task.Delay(250);
+        }
+
+        IReadOnlyList<(string Name, string ExePath)> details;
+        try
+        {
+            details = CollectAllActiveDetails();
+        }
+        finally
+        {
+            if (startedTempSensor)
+            {
+                StopSensorMonitor();
+            }
+        }
+
         var activeApps = new List<string>(details.Count);
         foreach (var d in details) AddAppName(activeApps, d.Name);
 
@@ -1109,10 +1138,10 @@ public sealed class CameraUsageMonitor : ICameraUsageSource
         {
             new("Camera hardware", installed.Count > 0,
                 installed.Count > 0 ? string.Join(", ", installed) : "no camera device found"),
-            new("Sensor Activity Monitor", _sensorMonitor != null,
-                _sensorMonitor != null
-                    ? (activeApps.Count > 0 ? string.Join(", ", activeApps) : "listening (no active stream)")
-                    : (_sensorSupported ? "not started" : "unsupported on this OS")),
+            new("Sensor Activity Monitor", _sensorSupported,
+                activeApps.Count > 0
+                    ? string.Join(", ", activeApps)
+                    : (_sensorSupported ? "listening (no active stream)" : "unsupported on this OS")),
             new("Windows ConsentStore", regApps.Count > 0,
                 regApps.Count > 0 ? string.Join(", ", regApps) : "no active ConsentStore entry"),
         };
