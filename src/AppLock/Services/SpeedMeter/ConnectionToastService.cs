@@ -62,7 +62,7 @@ public sealed class ConnectionToastService
         toast.Closed += (_, _) => _open.Remove(toast);
         _open.Add(toast);
 
-        toast.Activate();
+        toast.ShowWithoutActivating();
         PlaySound(lost);
     }
 
@@ -130,7 +130,7 @@ public sealed class ConnectionToastService
         toast.Closed += (_, _) => _open.Remove(toast);
         _open.Add(toast);
 
-        toast.Activate();
+        toast.ShowWithoutActivating();
         PlaySound(lost: true);
     }
 

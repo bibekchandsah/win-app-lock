@@ -45,6 +45,14 @@ public sealed partial class ConnectionToastWindow : Window
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
     private static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, uint dwAttribute, ref uint pvAttribute, uint cbAttribute);
 
@@ -228,6 +236,34 @@ public sealed partial class ConnectionToastWindow : Window
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Toast chrome error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Shows the toast without activating it, so open flyouts, color pickers, and other windows
+    /// never lose focus when a notification appears.
+    /// </summary>
+    public void ShowWithoutActivating()
+    {
+        try
+        {
+            ApplyNoActivate();
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd == nint.Zero) return;
+
+            const int SW_SHOWNA = 8;
+            const uint SWP_NOSIZE = 0x0001;
+            const uint SWP_NOMOVE = 0x0002;
+            const uint SWP_NOACTIVATE = 0x0010;
+            const uint SWP_SHOWWINDOW = 0x0040;
+
+            ShowWindow(hWnd, SW_SHOWNA);
+            SetWindowPos(hWnd, (nint)(-1) /* HWND_TOPMOST */, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SpeedMeter] Toast show error: {ex.Message}");
         }
     }
 
