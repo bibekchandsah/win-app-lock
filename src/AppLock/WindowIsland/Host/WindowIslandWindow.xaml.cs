@@ -730,9 +730,29 @@ public sealed partial class WindowIslandWindow : Window
     {
         if (_isVisible == visible) return;
         _isVisible = visible;
+        if (!visible)
+        {
+            if (_compositor?.IsOpen == true) Collapse();
+            if (_chatWebView != null) _chatWebView.Visibility = Visibility.Collapsed;
+            SuspendChatWebView();
+        }
         ShowWindow(_hwnd, visible ? 4 : 0 /* SW_HIDE */);
         if (visible)
+        {
+            PositionAndSize();
+            UpdateHitRegion(open: _compositor?.IsOpen ?? false);
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            if (_chatWebView != null && _activeTab == 4)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (_chatWebView == null || !_isVisible) return;
+                    _chatWebView.Visibility = Visibility.Collapsed;
+                    _chatWebView.Visibility = Visibility.Visible;
+                    ChatWebViewHost?.UpdateLayout();
+                });
+            }
+        }
     }
 
     public new void Close()
@@ -11456,6 +11476,9 @@ public sealed partial class WindowIslandWindow : Window
             if (_chatWebView?.CoreWebView2 != null && ChatWebViewHost.Children.Contains(_chatWebView))
             {
                 _chatWebView.CoreWebView2.Resume();
+                _chatWebView.Visibility = Visibility.Collapsed;
+                _chatWebView.Visibility = Visibility.Visible;
+                ChatWebViewHost.UpdateLayout();
                 _chatWebView.InvalidateMeasure();
             }
             else if (_activeTab == 4)

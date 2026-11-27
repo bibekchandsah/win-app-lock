@@ -68,10 +68,19 @@ public sealed class WindowIslandHost
 
         _uiQueue = DispatcherQueue.GetForCurrentThread();
 
-        void CreateWindow()
+        void CreateOrShowWindow()
         {
             try
             {
+                if (_window != null)
+                {
+                    _uiQueue = _window.DispatcherQueue;
+                    _window.SetIslandVisible(true);
+                    _window.ApplySettings(settings);
+                    Log("Existing window re-shown and settings applied");
+                    return;
+                }
+
                 _window = new WindowIslandWindow();
                 _uiQueue = _window.DispatcherQueue;
                 _window.Show(settings);
@@ -86,12 +95,12 @@ public sealed class WindowIslandHost
 
         if (_uiQueue != null)
         {
-            CreateWindow();
+            CreateOrShowWindow();
         }
         else
         {
             // If called off-thread, dispatch to the UI thread
-            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(CreateWindow);
+            App.MainWindowInstance?.DispatcherQueue.TryEnqueue(CreateOrShowWindow);
         }
 
         RegisterHotkey(settings.Hotkey, settings.ThroughModeHotkey, settings.CommandBarHotkey);
@@ -102,17 +111,35 @@ public sealed class WindowIslandHost
         lock (_lock) { _started = false; }
         UnregisterHotkey();
 
+        var existingWindow = _window;
+        if (existingWindow == null) return;
+
+        void DoHide()
+        {
+            try { existingWindow.SetIslandVisible(false); } catch { }
+            Log("Window hidden and paused");
+        }
+
+        if (_uiQueue != null && !_uiQueue.HasThreadAccess) _uiQueue.TryEnqueue(DoHide);
+        else DoHide();
+    }
+
+    public void Shutdown()
+    {
+        lock (_lock) { _started = false; }
+        UnregisterHotkey();
+
         var closingWindow = _window;
         _window = null;
 
-        void DoStop()
+        void DoClose()
         {
             try { closingWindow?.Close(); } catch { }
             Log("Window closed and stopped");
         }
 
-        if (_uiQueue != null && !_uiQueue.HasThreadAccess) _uiQueue.TryEnqueue(DoStop);
-        else DoStop();
+        if (_uiQueue != null && !_uiQueue.HasThreadAccess) _uiQueue.TryEnqueue(DoClose);
+        else DoClose();
     }
 
     public void ApplySettings(WindowIslandSettings settings)
