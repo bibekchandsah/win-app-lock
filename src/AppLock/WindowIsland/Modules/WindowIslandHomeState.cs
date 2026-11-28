@@ -123,6 +123,7 @@ public sealed class WindowIslandHomeState : IDisposable
 
     /// <summary>Seeks the shown track to <paramref name="seconds"/> from the start.</summary>
     public Task SeekMediaAsync(double seconds) => _media.SeekAsync(seconds);
+    public void FocusMediaWindow(string? titleHint = null) => _media.FocusCurrentWindow(titleHint);
 
     public void Dispose()
     {

@@ -572,7 +572,7 @@
                             <Grid VerticalAlignment="Center" Height="3.5">
                                 <Border Background="#2EFFFFFF" CornerRadius="2" />
                                 <Border x:Name="MiniProgressFill"
-                                        Background="#FF60CDFF"
+                                        Background="{ThemeResource SystemAccentColor}"
                                         CornerRadius="2"
                                         HorizontalAlignment="Stretch"
                                         RenderTransformOrigin="0,0.5">
@@ -594,9 +594,10 @@
                                 <FontIcon Glyph="&#xE892;" FontSize="13" Foreground="{ThemeResource IslandTextPrimary}" />
                             </Button>
                             <Button x:Name="MiniPlayPauseBtn" Click="MediaPlayPause_Click"
-                                    Width="30" Height="30" Padding="0" CornerRadius="15" BorderThickness="0"
-                                    Background="#F2FFFFFF">
-                                <FontIcon x:Name="MiniPlayPauseIcon" Glyph="&#xE769;" FontSize="12" Foreground="#FF141414" />
+                                    Width="30" Height="30" CornerRadius="15"
+                                    Style="{StaticResource MediaPlayButtonStyle}">
+                                <FontIcon x:Name="MiniPlayPauseIcon" Glyph="&#xE769;" FontSize="12"
+                                          Foreground="{ThemeResource IslandPlayBtnFg}" />
                             </Button>
                             <Button x:Name="MiniNextBtn" Click="MediaNext_Click"
                                     Background="Transparent" BorderThickness="0" Padding="8,4" CornerRadius="8">
@@ -1144,7 +1145,9 @@
                                                                 Grid.Row="0"
                                                                 Width="58" Height="58"
                                                                 CornerRadius="9"
-                                                                Background="{ThemeResource IslandSurfaceCard}">
+                                                                Background="{ThemeResource IslandSurfaceCard}"
+                                                                Tapped="MediaTargetWindow_Tapped"
+                                                                ToolTipService.ToolTip="Switch to app">
                                                             <Grid>
                                                                 <Image x:Name="MediaArt" Stretch="UniformToFill" />
                                                                 <FontIcon x:Name="MediaArtFallback"
@@ -1163,7 +1166,9 @@
                                                                        FontWeight="SemiBold"
                                                                        CharacterSpacing="90"
                                                                        Foreground="{ThemeResource IslandTextMuted}"
-                                                                       TextTrimming="CharacterEllipsis" />
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Tapped="MediaTargetWindow_Tapped"
+                                                                       ToolTipService.ToolTip="Switch to app" />
                                                             <TextBlock x:Name="MediaTitle"
                                                                        Text="&#8212;"
                                                                        FontFamily="Segoe UI Variable Display"
@@ -1172,7 +1177,9 @@
                                                                        Foreground="{ThemeResource IslandTextPrimary}"
                                                                        TextWrapping="Wrap"
                                                                        MaxLines="2"
-                                                                       TextTrimming="CharacterEllipsis" />
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Tapped="MediaTargetWindow_Tapped"
+                                                                       ToolTipService.ToolTip="Switch to app" />
                                                             <TextBlock x:Name="MediaArtist"
                                                                        Text=""
                                                                        FontSize="11"
@@ -1195,7 +1202,7 @@
                                                                          Minimum="0" Maximum="1" Value="0"
                                                                          Height="3"
                                                                          CornerRadius="1.5"
-                                                                         Foreground="#D9A0E8"
+                                                                         Foreground="{ThemeResource SystemAccentColor}"
                                                                          Background="{ThemeResource IslandSurfaceCard}"
                                                                          VerticalAlignment="Center"
                                                                          IsHitTestVisible="False"
@@ -1250,7 +1257,7 @@
                                                             <FontIcon x:Name="MediaPlayPauseIcon"
                                                                       Glyph="&#xE768;"
                                                                       FontSize="16"
-                                                                      Foreground="#101010" />
+                                                                      Foreground="{ThemeResource IslandPlayBtnFg}" />
                                                         </Button>
                                                         <Button x:Name="MediaNext"
                                                                 Click="MediaNext_Click"

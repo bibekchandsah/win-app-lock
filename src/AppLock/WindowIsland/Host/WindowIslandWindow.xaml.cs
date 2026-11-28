@@ -3108,6 +3108,11 @@ public sealed partial class WindowIslandWindow : Window
         if (MediaMirrorBg != null)
             MediaMirrorBg.Source = null;
 
+        if (MediaProgress != null)
+            MediaProgress.Foreground = new SolidColorBrush(GetSystemAccentColor());
+        if (MiniProgressFill != null)
+            MiniProgressFill.Background = new SolidColorBrush(GetSystemAccentColor());
+
         MediaApp?.ClearValue(TextBlock.ForegroundProperty);
         MediaTitle?.ClearValue(TextBlock.ForegroundProperty);
         MediaArtist?.ClearValue(TextBlock.ForegroundProperty);
@@ -3449,22 +3454,25 @@ public sealed partial class WindowIslandWindow : Window
                     rtb.Blocks.Add(p);
                 }
 
-                // Tap a line to seek, but ignore when the user finished dragging a text selection.
-                rtb.Tapped += (_, e) =>
+                // Tap a line to seek (handledEventsToo: true because IsTextSelectionEnabled marks Tapped handled).
+                rtb.AddHandler(UIElement.TappedEvent, new TappedEventHandler((_, e) =>
                 {
                     if (!string.IsNullOrEmpty(rtb.SelectedText)) return;
-                    var pos = rtb.GetPositionFromPoint(e.GetPosition(rtb));
-                    if (pos == null) return;
+                    double tapY = e.GetPosition(rtb).Y;
+                    int match = -1;
                     for (int i = 0; i < _homeLyricParagraphs.Count && i < synced.Count; i++)
                     {
                         var p = _homeLyricParagraphs[i];
-                        if (pos.Offset >= p.ContentStart.Offset && pos.Offset <= p.ContentEnd.Offset)
-                        {
-                            _ = _homeState?.SeekMediaAsync(synced[i].TimeSeconds);
-                            break;
-                        }
+                        var ptr = p.Inlines.Count > 0 ? p.Inlines[0].ContentStart : p.ContentStart;
+                        var rect = ptr.GetCharacterRect(LogicalDirection.Forward);
+                        if (rect.Y <= tapY + 2) match = i;
+                        else break;
                     }
-                };
+                    if (match >= 0)
+                    {
+                        _ = _homeState?.SeekMediaAsync(synced[match].TimeSeconds);
+                    }
+                }), true);
 
                 AttachLyricsDragScroll(rtb);
                 LyricsStack.Children.Add(rtb);
@@ -4237,6 +4245,9 @@ public sealed partial class WindowIslandWindow : Window
     }
 
     // ── Media controls ────────────────────────────────────────────────────────
+
+    private void MediaTargetWindow_Tapped(object sender, TappedRoutedEventArgs e)
+        => _homeState?.FocusMediaWindow(_lastMediaTitle);
 
     private void MediaPlayPause_Click(object sender, RoutedEventArgs e)
         => _ = _homeState?.MediaCommandAsync("toggle");

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Media.Control;
@@ -350,6 +352,130 @@ public sealed class MediaSessionSource : IDisposable
         int dot = id.LastIndexOf('.');
         return dot >= 0 && dot < id.Length - 1 ? id[(dot + 1)..] : id;
     }
+
+    /// <summary>Brings the window of the active media session's app to the foreground.</summary>
+    public void FocusCurrentWindow(string? titleHint = null)
+    {
+        try
+        {
+            var session = _session ?? ResolveSession();
+            if (session == null) return;
+
+            string aumid = session.SourceAppUserModelId ?? string.Empty;
+            string friendly = FriendlyAppName(aumid);
+            string procHint = ExtractProcessHint(aumid);
+
+            nint bestHwnd = nint.Zero;
+            nint fallbackHwnd = nint.Zero;
+
+            EnumWindows((hwnd, _) =>
+            {
+                if (!IsWindowVisible(hwnd)) return true;
+
+                GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid == 0) return true;
+
+                string procName;
+                try
+                {
+                    using var proc = Process.GetProcessById((int)pid);
+                    procName = proc.ProcessName;
+                }
+                catch
+                {
+                    return true;
+                }
+
+                bool procMatches =
+                    (!string.IsNullOrEmpty(procHint) && procName.Contains(procHint, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(aumid) && aumid.Contains(procName, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(friendly) && procName.Contains(friendly.Replace(" ", ""), StringComparison.OrdinalIgnoreCase));
+
+                if (!procMatches) return true;
+
+                var sb = new StringBuilder(256);
+                GetWindowText(hwnd, sb, sb.Capacity);
+                string winTitle = sb.ToString();
+                if (string.IsNullOrWhiteSpace(winTitle)) return true;
+
+                if (fallbackHwnd == nint.Zero) fallbackHwnd = hwnd;
+
+                if (!string.IsNullOrWhiteSpace(titleHint) &&
+                    winTitle.Contains(titleHint, StringComparison.OrdinalIgnoreCase))
+                {
+                    bestHwnd = hwnd;
+                    return false;
+                }
+
+                return true;
+            }, nint.Zero);
+
+            nint target = bestHwnd != nint.Zero ? bestHwnd : fallbackHwnd;
+            if (target == nint.Zero) return;
+
+            if (IsIconic(target))
+                ShowWindow(target, SwRestore);
+            else if (!IsWindowVisible(target))
+                ShowWindow(target, SwShow);
+
+            SetForegroundWindow(target);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Island] focus media window failed: {ex.Message}");
+        }
+    }
+
+    private static string ExtractProcessHint(string aumid)
+    {
+        if (string.IsNullOrWhiteSpace(aumid)) return string.Empty;
+
+        string id = aumid;
+        int bang = id.IndexOf('!');
+        if (bang > 0) id = id[..bang];
+
+        if (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            id = id[..^4];
+
+        string lower = id.ToLowerInvariant();
+        if (lower.Contains("zunemusic") || lower.Contains("mediaplayer")) return "Microsoft.Media.Player";
+        if (lower.Contains("spotify")) return "Spotify";
+        if (lower.Contains("msedge")) return "msedge";
+        if (lower.Contains("chrome")) return "chrome";
+        if (lower.Contains("firefox")) return "firefox";
+        if (lower.Contains("brave")) return "brave";
+        if (lower.Contains("opera")) return "opera";
+        if (lower.Contains("vlc")) return "vlc";
+
+        int dot = id.LastIndexOf('.');
+        return dot >= 0 && dot < id.Length - 1 ? id[(dot + 1)..] : id;
+    }
+
+    private const int SwShow = 5;
+    private const int SwRestore = 9;
+
+    private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(nint hwnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hwnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(nint hwnd, StringBuilder lpString, int nMaxCount);
 
     public void Dispose()
     {
