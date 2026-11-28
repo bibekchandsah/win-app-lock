@@ -526,6 +526,7 @@ public sealed partial class WindowIslandWindow : Window
         {
             UpdateClock();
             SyncMicMuteState(forceNotifyCard: false);
+            CheckAutoLockSchedules();
         };
         _clockTimer.Start();
         UpdateClock();
@@ -695,6 +696,11 @@ public sealed partial class WindowIslandWindow : Window
         // Refresh lyrics visibility & toggle state without dropping the cached track lookup.
         ShowLyrics(_currentLyrics);
         UpdateFoldedMediaPillMode();
+        if (!settings.Controls.AutoLockEnabled)
+        {
+            _lastAutoLockTriggeredMinute = null;
+            CancelAutoLockCountdown(clearCard: true);
+        }
 
         _ = UpdateFoldedBtBatteriesAsync();
 
@@ -789,6 +795,7 @@ public sealed partial class WindowIslandWindow : Window
         FlushPendingNoteSave();
         _noteSaveTimer?.Stop();
         _notesStore = null;
+        CancelAutoLockCountdown(clearCard: false);
 
         _eventQueue?.Dispose();
         _eventQueue = null;
@@ -2648,7 +2655,11 @@ public sealed partial class WindowIslandWindow : Window
 
     private void CardPrimaryActionBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
+        if (_activeCardKind == "auto-lock")
+        {
+            CancelAutoLockCountdown(clearCard: false);
+        }
+        else if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
         {
             _reminderStore?.Snooze(_activeCardTagId, 10);
             RefreshRemindersUI();
@@ -2693,7 +2704,11 @@ public sealed partial class WindowIslandWindow : Window
 
     private void CardDismissActionBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
+        if (_activeCardKind == "auto-lock")
+        {
+            CancelAutoLockCountdown(clearCard: false);
+        }
+        else if (_activeCardKind == "reminder" && !string.IsNullOrEmpty(_activeCardTagId))
         {
             _reminderStore?.Complete(_activeCardTagId);
             RefreshRemindersUI();
@@ -6962,7 +6977,7 @@ public sealed partial class WindowIslandWindow : Window
 
     /// <summary>
     /// Moves the line the caret is on up (direction == -1) or down (direction == 1),
-    /// preserving the caret's column offset within the moved line — VS Code Alt+Up / Alt+Down.
+    /// preserving bullet lists, numbered lists, character formatting, and the caret's column offset.
     /// </summary>
     private void MoveNoteLine(int direction)
     {
@@ -6971,14 +6986,14 @@ public sealed partial class WindowIslandWindow : Window
             var doc = NoteContentBox.Document;
             var sel = doc.Selection;
 
-            // ── Snapshot the whole document as plain text ──────────────────────
             doc.GetText(TextGetOptions.None, out string fullText);
-            // RichEditBox uses \r as paragraph separator; strip trailing NUL/\r
             fullText = (fullText ?? string.Empty).TrimEnd('\0');
-            // Split on \r — each element is one line (no line break suffix)
+            // RichEditBox always ends the story with a single implicit '\r'; strip only that one
+            // so intentional trailing blank lines are still represented accurately.
+            if (fullText.EndsWith('\r')) fullText = fullText[..^1];
             var lines = fullText.Split('\r');
+            if (lines.Length < 2) return;
 
-            // ── Find which line the caret is on ───────────────────────────────
             int caretPos = sel.StartPosition;
             int offset = 0;
             int lineIndex = 0;
@@ -6990,38 +7005,56 @@ public sealed partial class WindowIslandWindow : Window
                     lineIndex = i;
                     break;
                 }
-                offset = lineEnd + 1; // +1 for the \r separator
+                offset = lineEnd + 1; // +1 for the '\r' separator
             }
 
             int targetIndex = lineIndex + direction;
-            if (targetIndex < 0 || targetIndex >= lines.Length) return; // already at edge
+            if (targetIndex < 0 || targetIndex >= lines.Length) return;
 
-            // ── Compute caret column within the current line ───────────────────
             int lineStart = 0;
             for (int i = 0; i < lineIndex; i++) lineStart += lines[i].Length + 1;
             int caretCol = Math.Max(0, caretPos - lineStart);
 
-            // ── Swap the two lines ─────────────────────────────────────────────
-            (lines[targetIndex], lines[lineIndex]) = (lines[lineIndex], lines[targetIndex]);
+            int firstIdx = Math.Min(lineIndex, targetIndex);
+            int secondIdx = firstIdx + 1;
 
-            // ── Write back while suppressing auto-save guard ──────────────────
+            int aStart = 0;
+            for (int i = 0; i < firstIdx; i++) aStart += lines[i].Length + 1;
+            int aEnd = aStart + lines[firstIdx].Length;
+            int bStart = aEnd + 1;
+            int bEnd = bStart + lines[secondIdx].Length;
+
+            var aRange = doc.GetRange(aStart, aEnd);
+            var bRange = doc.GetRange(bStart, bEnd);
+
+            var aParaFmt = aRange.ParagraphFormat.GetClone();
+            var bParaFmt = bRange.ParagraphFormat.GetClone();
+
+            string aRtf = string.Empty;
+            if (aEnd > aStart) aRange.GetText(TextGetOptions.FormatRtf, out aRtf);
+            string bRtf = string.Empty;
+            if (bEnd > bStart) bRange.GetText(TextGetOptions.FormatRtf, out bRtf);
+
             _noteUpdating = true;
             try
             {
-                doc.SetText(TextSetOptions.None, string.Join("\r", lines));
+                // Replace the later paragraph (B) first so A's offsets [aStart..aEnd] stay valid.
+                SetParagraphContentAndFormat(doc, bStart, bEnd, aRtf, lines[firstIdx], aParaFmt);
+                SetParagraphContentAndFormat(doc, aStart, aEnd, bRtf, lines[secondIdx], bParaFmt);
             }
             finally
             {
                 _noteUpdating = false;
             }
 
-            // ── Restore caret to moved line ───────────────────────────────────
-            int newLineStart = 0;
-            for (int i = 0; i < targetIndex; i++) newLineStart += lines[i].Length + 1;
-            int newCaretPos = newLineStart + Math.Min(caretCol, lines[targetIndex].Length);
+            int newLineStart = (lineIndex == firstIdx)
+                ? aStart + lines[secondIdx].Length + 1
+                : aStart;
+            int movedLineLen = lines[lineIndex].Length;
+            int newCaretPos = newLineStart + Math.Min(caretCol, movedLineLen);
             sel.SetRange(newCaretPos, newCaretPos);
+            UpdateFormattingToolbarUI();
 
-            // ── Schedule save (NoteContentBox_TextChanged was suppressed) ─────
             if (!string.IsNullOrEmpty(_activeNoteId))
             {
                 _noteSavePending = true;
@@ -7034,6 +7067,34 @@ public sealed partial class WindowIslandWindow : Window
             }
         }
         catch (Exception ex) { WindowIslandHost.Log("MoveNoteLine: " + ex.Message); }
+    }
+
+    private static void SetParagraphContentAndFormat(
+        Microsoft.UI.Text.RichEditTextDocument doc,
+        int start,
+        int end,
+        string rtf,
+        string plainText,
+        ITextParagraphFormat paraFmt)
+    {
+        var range = doc.GetRange(start, end);
+        if (string.IsNullOrEmpty(plainText) || string.IsNullOrEmpty(rtf))
+        {
+            range.SetText(TextSetOptions.None, plainText);
+        }
+        else
+        {
+            // Strip a trailing \par before the closing brace if RichEdit emitted one, so SetText
+            // doesn't inject an extra paragraph break.
+            string cleaned = System.Text.RegularExpressions.Regex.Replace(
+                rtf, @"\\par(?:\r?\n)?\}$", "}");
+            range.SetText(TextSetOptions.FormatRtf, cleaned);
+        }
+
+        // Re-acquire the updated content range and apply the original paragraph format
+        // (preserves MarkerType.Bullet, MarkerType.Arabic, ListStart, indentation, etc.).
+        var updated = doc.GetRange(start, start + plainText.Length);
+        updated.ParagraphFormat = paraFmt;
     }
 
     public static string MarkdownToRtf(string input)
@@ -10748,7 +10809,7 @@ public sealed partial class WindowIslandWindow : Window
             _restartConfirmTimer?.Stop();
             _restartConfirming = false;
             ControlsRestartText.Text = "Restarting...";
-            ControlsRestartBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
+            ControlsRestartBtn.ClearValue(Control.BackgroundProperty);
             WindowIslandControlsService.RestartComputer();
         }
         else
@@ -10765,7 +10826,7 @@ public sealed partial class WindowIslandWindow : Window
                 _restartConfirmTimer.Stop();
                 _restartConfirming = false;
                 ControlsRestartText.Text = "Restart";
-                ControlsRestartBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
+                ControlsRestartBtn.ClearValue(Control.BackgroundProperty);
             };
             _restartConfirmTimer.Start();
         }
@@ -10778,7 +10839,7 @@ public sealed partial class WindowIslandWindow : Window
             _shutdownConfirmTimer?.Stop();
             _shutdownConfirming = false;
             ControlsShutdownText.Text = "Shutting down...";
-            ControlsShutdownBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
+            ControlsShutdownBtn.ClearValue(Control.BackgroundProperty);
             WindowIslandControlsService.ShutdownComputer();
         }
         else
@@ -10795,9 +10856,81 @@ public sealed partial class WindowIslandWindow : Window
                 _shutdownConfirmTimer.Stop();
                 _shutdownConfirming = false;
                 ControlsShutdownText.Text = "Shut down";
-                ControlsShutdownBtn.Background = new SolidColorBrush(AdaptiveSurfaceColor(0x18));
+                ControlsShutdownBtn.ClearValue(Control.BackgroundProperty);
             };
             _shutdownConfirmTimer.Start();
+        }
+    }
+
+    // ── Scheduled Auto-Lock PC (with 5-second auto-confirmation countdown) ────
+
+    private DQTimer? _autoLockCountdownTimer;
+    private int _autoLockSecondsRemaining;
+    private string? _lastAutoLockTriggeredMinute;
+
+    private void CheckAutoLockSchedules()
+    {
+        if (!_settings.Controls.AutoLockEnabled || _autoLockCountdownTimer != null) return;
+        var schedules = _settings.Controls.AutoLockSchedules;
+        if (schedules == null || schedules.Count == 0) return;
+
+        var now = DateTime.Now;
+        string hhmm = now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        string minuteKey = now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        if (string.Equals(_lastAutoLockTriggeredMinute, minuteKey, StringComparison.Ordinal)) return;
+
+        if (schedules.Contains(hhmm, StringComparer.Ordinal))
+        {
+            _lastAutoLockTriggeredMinute = minuteKey;
+            StartAutoLockCountdown();
+        }
+    }
+
+    private void StartAutoLockCountdown()
+    {
+        CancelAutoLockCountdown(clearCard: false);
+        _autoLockSecondsRemaining = 5;
+
+        _eventQueue?.Push(new WindowIslandCard(
+            Kind: "auto-lock",
+            Icon: "\uE72E",
+            Title: "Auto-locking PC",
+            Detail: $"Locking in {_autoLockSecondsRemaining}s — tap Cancel to stop",
+            AccentHex: "#FF6B6B",
+            Priority: WindowIslandCardPriority.ReminderTimer,
+            StayMs: 6500,
+            IsStacked: true,
+            PrimaryActionLabel: "Cancel"));
+
+        _autoLockCountdownTimer = DispatcherQueue.CreateTimer();
+        _autoLockCountdownTimer.Interval = TimeSpan.FromSeconds(1);
+        _autoLockCountdownTimer.IsRepeating = true;
+        _autoLockCountdownTimer.Tick += (_, _) =>
+        {
+            _autoLockSecondsRemaining--;
+            if (_autoLockSecondsRemaining > 0)
+            {
+                if (_activeCardKind == "auto-lock" && CardStackedDetail != null)
+                {
+                    CardStackedDetail.Text = $"Locking in {_autoLockSecondsRemaining}s — tap Cancel to stop";
+                }
+            }
+            else
+            {
+                CancelAutoLockCountdown(clearCard: true);
+                WindowIslandControlsService.LockComputer();
+            }
+        };
+        _autoLockCountdownTimer.Start();
+    }
+
+    private void CancelAutoLockCountdown(bool clearCard)
+    {
+        _autoLockCountdownTimer?.Stop();
+        _autoLockCountdownTimer = null;
+        if (clearCard && _eventQueue?.CurrentCard?.Kind == "auto-lock")
+        {
+            _eventQueue.Clear();
         }
     }
 

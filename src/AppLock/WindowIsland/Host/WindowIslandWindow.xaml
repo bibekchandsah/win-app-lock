@@ -183,6 +183,18 @@
                     <Setter Property="VerticalContentAlignment" Value="Center" />
                 </Style>
 
+                <!-- Power row & inline control buttons: 1px theme-adaptive border + crisp hover/press states -->
+                <Style x:Key="PowerButtonStyle" TargetType="Button" BasedOn="{StaticResource TabButtonStyle}">
+                    <Setter Property="Background" Value="{ThemeResource IslandSurfaceSubtle}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource IslandBorderSubtle}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="6" />
+                    <Setter Property="Height" Value="Auto" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="Padding" Value="4,6" />
+                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                </Style>
+
                 <Style x:Key="QuietButtonStyle" TargetType="ToggleButton">
                     <Setter Property="Background" Value="Transparent" />
                     <Setter Property="BorderBrush" Value="{ThemeResource IslandBorderDefault}" />
@@ -4218,11 +4230,7 @@
                             <Button Grid.Column="0"
                                     x:Name="ControlsLockBtn"
                                     Click="ControlsLockBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderThickness="0"
-                                    CornerRadius="6"
-                                    Padding="4,6">
+                                    Style="{StaticResource PowerButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="{ThemeResource IslandTextSecondary}"/>
                                     <TextBlock Text="Lock" FontSize="11" Foreground="{ThemeResource IslandTextPrimary}"/>
@@ -4233,11 +4241,7 @@
                             <Button Grid.Column="1"
                                     x:Name="ControlsSleepBtn"
                                     Click="ControlsSleepBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderThickness="0"
-                                    CornerRadius="6"
-                                    Padding="4,6">
+                                    Style="{StaticResource PowerButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE708;" FontSize="12" Foreground="{ThemeResource IslandTextSecondary}"/>
                                     <TextBlock Text="Sleep" FontSize="11" Foreground="{ThemeResource IslandTextPrimary}"/>
@@ -4248,11 +4252,7 @@
                             <Button Grid.Column="2"
                                     x:Name="ControlsRestartBtn"
                                     Click="ControlsRestartBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderThickness="0"
-                                    CornerRadius="6"
-                                    Padding="4,6">
+                                    Style="{StaticResource PowerButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                     <FontIcon x:Name="ControlsRestartIcon" Glyph="&#xE777;" FontSize="12" Foreground="{ThemeResource IslandTextSecondary}"/>
                                     <TextBlock x:Name="ControlsRestartText" Text="Restart" FontSize="11" Foreground="{ThemeResource IslandTextPrimary}"/>
@@ -4263,11 +4263,7 @@
                             <Button Grid.Column="3"
                                     x:Name="ControlsShutdownBtn"
                                     Click="ControlsShutdownBtn_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderThickness="0"
-                                    CornerRadius="6"
-                                    Padding="4,6">
+                                    Style="{StaticResource PowerButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                     <FontIcon x:Name="ControlsShutdownIcon" Glyph="&#xE7E8;" FontSize="12" Foreground="{ThemeResource IslandRedAccent}"/>
                                     <TextBlock x:Name="ControlsShutdownText" Text="Shut down" FontSize="11" Foreground="{ThemeResource IslandTextPrimary}"/>

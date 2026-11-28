@@ -69,6 +69,12 @@ public class ControlsSettings
 
     /// <summary>Also send Bluetooth battery warnings as Windows notifications.</summary>
     public bool BtWarningWindowsNotification { get; set; } = true;
+
+    /// <summary>Whether scheduled auto-lock PC is enabled in the Controls tab.</summary>
+    public bool AutoLockEnabled { get; set; } = false;
+
+    /// <summary>Scheduled daily lock times in 24-hour "HH:mm" format (e.g. "22:30").</summary>
+    public List<string> AutoLockSchedules { get; set; } = new();
 }
 
 public class ControlsTileVisibility

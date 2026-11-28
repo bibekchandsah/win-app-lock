@@ -1518,6 +1518,83 @@
                             </Grid>
                         </Border>
 
+                        <!-- Scheduled Auto-Lock PC -->
+                        <Border Style="{StaticResource IslandSettingsCardStyle}">
+                            <StackPanel Spacing="12">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Auto-lock PC on scheduled time" Style="{StaticResource IslandSettingTitleStyle}" />
+                                        <TextBlock Text="Automatically lock your PC at chosen times with a 5-second countdown on the Island to cancel." Style="{StaticResource IslandSettingDescStyle}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ControlsAutoLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                </Grid>
+
+                                <StackPanel Spacing="10" Visibility="{x:Bind ControlsAutoLockToggle.IsOn, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TimePicker x:Name="ControlsAutoLockTimePicker" ClockIdentifier="12HourClock" VerticalAlignment="Center" />
+                                        <Button x:Name="ControlsAutoLockAddBtn"
+                                                Content="Add Schedule"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                VerticalAlignment="Center"
+                                                Click="ControlsAutoLockAddBtn_Click" />
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="ControlsAutoLockEmptyText"
+                                               Text="No schedules added yet."
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Visibility="Collapsed" />
+
+                                    <ItemsControl x:Name="ControlsAutoLockList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,0,0,6"
+                                                        CornerRadius="8"
+                                                        Padding="12,8,8,8"
+                                                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1">
+                                                    <Grid ColumnSpacing="10">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <FontIcon Grid.Column="0"
+                                                                  Glyph="&#xE823;"
+                                                                  FontSize="14"
+                                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                                  VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding DisplayTime}"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                                   VerticalAlignment="Center" />
+                                                        <Button Grid.Column="2"
+                                                                Tag="{Binding Time24}"
+                                                                Click="ControlsAutoLockRemoveBtn_Click"
+                                                                ToolTipService.ToolTip="Remove schedule"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Padding="6">
+                                                            <FontIcon Glyph="&#xE74D;"
+                                                                      FontSize="13"
+                                                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        </Button>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Reset Quick Cards -->
                         <Border Style="{StaticResource IslandSettingsCardStyle}">
                             <Grid ColumnSpacing="16">

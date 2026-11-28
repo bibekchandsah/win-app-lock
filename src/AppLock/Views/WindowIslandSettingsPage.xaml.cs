@@ -495,6 +495,9 @@ public sealed partial class WindowIslandSettingsPage : Page
         ControlsShowBrightnessToggle.IsOn       = s.Controls.ShowBrightness;
         ControlsShowMicrophoneToggle.IsOn       = s.Controls.ShowMicrophone;
         ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
+        ControlsAutoLockToggle.IsOn             = s.Controls.AutoLockEnabled;
+        ControlsAutoLockTimePicker.Time         = new TimeSpan(22, 0, 0);
+        RefreshAutoLockSchedulesList();
 
         // Milestone 15: Visibility rules
         HideInFullScreenToggle.IsOn             = s.HideInFullScreen;
@@ -862,6 +865,7 @@ public sealed partial class WindowIslandSettingsPage : Page
         s.Controls.ShowBrightness                  = ControlsShowBrightnessToggle.IsOn;
         s.Controls.ShowMicrophone                  = ControlsShowMicrophoneToggle.IsOn;
         s.Controls.ShowPowerRow                    = ControlsShowPowerRowToggle.IsOn;
+        s.Controls.AutoLockEnabled                 = ControlsAutoLockToggle.IsOn;
 
         // Milestone 15: Visibility rules
         s.HideInFullScreen           = HideInFullScreenToggle.IsOn;
@@ -1622,6 +1626,60 @@ public sealed partial class WindowIslandSettingsPage : Page
         var s = ServiceContainer.Settings.WindowIsland;
         s.Controls.Cards = QuickCard.Defaults();
         Save();
+    }
+
+    private sealed class AutoLockScheduleDisplayItem
+    {
+        public string Time24 { get; init; } = string.Empty;
+        public string DisplayTime { get; init; } = string.Empty;
+    }
+
+    private void RefreshAutoLockSchedulesList()
+    {
+        if (ControlsAutoLockList == null) return;
+        var list = ServiceContainer.Settings.WindowIsland.Controls.AutoLockSchedules ??= new List<string>();
+        var items = list.Select(t =>
+        {
+            string display = t;
+            if (TimeSpan.TryParseExact(t, "hh\\:mm", System.Globalization.CultureInfo.InvariantCulture, out var ts))
+            {
+                display = DateTime.Today.Add(ts).ToString("h:mm tt", System.Globalization.CultureInfo.CurrentCulture);
+            }
+            return new AutoLockScheduleDisplayItem { Time24 = t, DisplayTime = display };
+        }).ToList();
+
+        ControlsAutoLockList.ItemsSource = items;
+        if (ControlsAutoLockEmptyText != null)
+        {
+            ControlsAutoLockEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void ControlsAutoLockAddBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var time = ControlsAutoLockTimePicker.Time;
+        string formatted = $"{time.Hours:D2}:{time.Minutes:D2}";
+        var list = ServiceContainer.Settings.WindowIsland.Controls.AutoLockSchedules ??= new List<string>();
+        if (!list.Contains(formatted, StringComparer.Ordinal))
+        {
+            list.Add(formatted);
+            list.Sort(StringComparer.Ordinal);
+            RefreshAutoLockSchedulesList();
+            Save();
+        }
+    }
+
+    private void ControlsAutoLockRemoveBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string time24)
+        {
+            var list = ServiceContainer.Settings.WindowIsland.Controls.AutoLockSchedules;
+            if (list != null && list.Remove(time24))
+            {
+                RefreshAutoLockSchedulesList();
+                Save();
+            }
+        }
     }
 
     private void OnDelaySliderChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
