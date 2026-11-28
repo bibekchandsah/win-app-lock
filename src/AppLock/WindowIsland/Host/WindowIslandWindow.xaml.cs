@@ -1419,6 +1419,10 @@ public sealed partial class WindowIslandWindow : Window
         => Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift)
            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
+    private static bool IsAltDown()
+        => Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
+           .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
     // ── Content Configuration ──────────────────────────────────────────────────
 
     private void ApplyContentVisibility()
@@ -6893,6 +6897,14 @@ public sealed partial class WindowIslandWindow : Window
 
     private void NoteContentBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        // ── Alt+Up / Alt+Down: move current line (VS Code style) ──────────────
+        if ((e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.Down) && IsAltDown())
+        {
+            MoveNoteLine(e.Key == Windows.System.VirtualKey.Up ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             var sel = NoteContentBox.Document.Selection;
@@ -6946,6 +6958,82 @@ public sealed partial class WindowIslandWindow : Window
                 e.Handled = true;
             }
         }
+    }
+
+    /// <summary>
+    /// Moves the line the caret is on up (direction == -1) or down (direction == 1),
+    /// preserving the caret's column offset within the moved line — VS Code Alt+Up / Alt+Down.
+    /// </summary>
+    private void MoveNoteLine(int direction)
+    {
+        try
+        {
+            var doc = NoteContentBox.Document;
+            var sel = doc.Selection;
+
+            // ── Snapshot the whole document as plain text ──────────────────────
+            doc.GetText(TextGetOptions.None, out string fullText);
+            // RichEditBox uses \r as paragraph separator; strip trailing NUL/\r
+            fullText = (fullText ?? string.Empty).TrimEnd('\0');
+            // Split on \r — each element is one line (no line break suffix)
+            var lines = fullText.Split('\r');
+
+            // ── Find which line the caret is on ───────────────────────────────
+            int caretPos = sel.StartPosition;
+            int offset = 0;
+            int lineIndex = 0;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                int lineEnd = offset + lines[i].Length;
+                if (caretPos <= lineEnd || i == lines.Length - 1)
+                {
+                    lineIndex = i;
+                    break;
+                }
+                offset = lineEnd + 1; // +1 for the \r separator
+            }
+
+            int targetIndex = lineIndex + direction;
+            if (targetIndex < 0 || targetIndex >= lines.Length) return; // already at edge
+
+            // ── Compute caret column within the current line ───────────────────
+            int lineStart = 0;
+            for (int i = 0; i < lineIndex; i++) lineStart += lines[i].Length + 1;
+            int caretCol = Math.Max(0, caretPos - lineStart);
+
+            // ── Swap the two lines ─────────────────────────────────────────────
+            (lines[targetIndex], lines[lineIndex]) = (lines[lineIndex], lines[targetIndex]);
+
+            // ── Write back while suppressing auto-save guard ──────────────────
+            _noteUpdating = true;
+            try
+            {
+                doc.SetText(TextSetOptions.None, string.Join("\r", lines));
+            }
+            finally
+            {
+                _noteUpdating = false;
+            }
+
+            // ── Restore caret to moved line ───────────────────────────────────
+            int newLineStart = 0;
+            for (int i = 0; i < targetIndex; i++) newLineStart += lines[i].Length + 1;
+            int newCaretPos = newLineStart + Math.Min(caretCol, lines[targetIndex].Length);
+            sel.SetRange(newCaretPos, newCaretPos);
+
+            // ── Schedule save (NoteContentBox_TextChanged was suppressed) ─────
+            if (!string.IsNullOrEmpty(_activeNoteId))
+            {
+                _noteSavePending = true;
+                UpdateNoteSaveStatusVisual(false);
+                _noteSaveTimer?.Stop();
+                _noteSaveTimer = DispatcherQueue.CreateTimer();
+                _noteSaveTimer.Interval = TimeSpan.FromMilliseconds(400);
+                _noteSaveTimer.Tick += (_, _) => FlushPendingNoteSave();
+                _noteSaveTimer.Start();
+            }
+        }
+        catch (Exception ex) { WindowIslandHost.Log("MoveNoteLine: " + ex.Message); }
     }
 
     public static string MarkdownToRtf(string input)

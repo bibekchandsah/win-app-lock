@@ -39,6 +39,9 @@
                         <SolidColorBrush x:Key="TextControlBackground" Color="#14FFFFFF" />
                         <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1CFFFFFF" />
                         <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#22FFFFFF" />
+                        <SolidColorBrush x:Key="IslandAmberBg" Color="#2AFFA726" />
+                        <SolidColorBrush x:Key="IslandAmberBorder" Color="#55FFA726" />
+                        <SolidColorBrush x:Key="IslandAmberFg" Color="#FFFFA726" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="Light">
                         <SolidColorBrush x:Key="IslandTextStrong" Color="#FF111115" />
@@ -72,6 +75,9 @@
                         <SolidColorBrush x:Key="TextControlBackground" Color="#44FFFFFF" />
                         <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#5CFFFFFF" />
                         <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#74FFFFFF" />
+                        <SolidColorBrush x:Key="IslandAmberBg" Color="#1AB45309" />
+                        <SolidColorBrush x:Key="IslandAmberBorder" Color="#44B45309" />
+                        <SolidColorBrush x:Key="IslandAmberFg" Color="#FFB45309" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
 
@@ -2884,8 +2890,8 @@
                                                 Visibility="Collapsed">
                                         <!-- Row 1: Detected Time Pill -->
                                         <Button x:Name="ReminderDetectedPill"
-                                                Background="#332405"
-                                                BorderBrush="#664600"
+                                                Background="{ThemeResource IslandAmberBg}"
+                                                BorderBrush="{ThemeResource IslandAmberBorder}"
                                                 BorderThickness="1"
                                                 CornerRadius="12"
                                                 Padding="10,2"
@@ -2893,12 +2899,12 @@
                                                 HorizontalAlignment="Left"
                                                 Click="ReminderDetectedPill_Click">
                                             <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                                <TextBlock Text="&#x21B5;" FontSize="10.5" Foreground="#FFA726" FontWeight="Bold" VerticalAlignment="Center" />
+                                                <TextBlock Text="&#x21B5;" FontSize="10.5" Foreground="{ThemeResource IslandAmberFg}" FontWeight="Bold" VerticalAlignment="Center" />
                                                 <TextBlock x:Name="ReminderDetectedText"
                                                            Text="in 5 min"
                                                            FontSize="9.5"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#FFA726"
+                                                           Foreground="{ThemeResource IslandAmberFg}"
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
@@ -2906,7 +2912,7 @@
                                         <!-- Row 2: Steppers Row -->
                                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
                                             <!-- Day Stepper -->
-                                            <Border Background="#252528" CornerRadius="10" Padding="2,0" Height="22">
+                                            <Border Background="{ThemeResource IslandSubPanelBg}" CornerRadius="10" Padding="2,0" Height="22">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Button Content="&#x2212;" FontSize="10" Padding="6,0" Background="Transparent" BorderThickness="0" Foreground="{ThemeResource IslandTextSubtle}" Style="{StaticResource TabButtonStyle}" Click="ReminderAdjust_Click" Tag="-day" />
                                                     <TextBlock Text="day" FontSize="8.5" Foreground="{ThemeResource IslandTextMuted}" VerticalAlignment="Center" Margin="2,0" />
