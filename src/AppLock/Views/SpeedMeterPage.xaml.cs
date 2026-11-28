@@ -39,6 +39,7 @@ public sealed partial class SpeedMeterPage : Page
     private static SpeedMeterSettings Settings => ServiceContainer.Settings.SpeedMeter;
 
     private static readonly string[] Presets = { "Transparent", "Glass", "Solid", "FollowWindows", "Custom" };
+    private SpeedMeterSettings? _presetPreviewSettings;
 
     public SpeedMeterPage()
     {
@@ -142,6 +143,11 @@ public sealed partial class SpeedMeterPage : Page
         _appBandwidthCts?.Cancel();
         _appBandwidthCts?.Dispose();
         _appBandwidthCts = null;
+        if (_presetPreviewSettings is not null)
+        {
+            _presetPreviewSettings = null;
+            ServiceContainer.SpeedMeterService?.ApplySettings();
+        }
         if (ServiceContainer.SpeedMeterService is { } service)
         {
             service.SampleUpdated -= OnSampleUpdated;
@@ -162,8 +168,9 @@ public sealed partial class SpeedMeterPage : Page
 
     private void UpdatePreview()
     {
-        var units = Settings.Units;
-        var decimals = Settings.Decimals;
+        var active = _presetPreviewSettings ?? Settings;
+        var units = active.Units;
+        var decimals = active.Decimals;
         var sample = _lastSample;
 
         // Without the service running there are no readings yet, so the preview gets a small
@@ -286,13 +293,17 @@ public sealed partial class SpeedMeterPage : Page
 
         UpdateValueLabels();
         _loading = false;
+        _presetPreviewSettings = null;
 
         ApplyAppearance();
 
         // Sync conditional sub-panels after all values are loaded
+        IdleSubOptions.Visibility = HideIdleToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         ClockSubOptions.Visibility = ShowClockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        WarnSubOptions.Visibility = WarnToastsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         TopAppsSubOptions.Visibility = ShowTopAppsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWarnUnitHeaders();
     }
 
     private void BuildComboItems()
@@ -414,6 +425,8 @@ public sealed partial class SpeedMeterPage : Page
     /// <summary>Pushes the current settings into the preview and the floating widget, then saves.</summary>
     private void ApplyAppearance()
     {
+        _presetPreviewSettings = null;
+        if (CancelPresetButton != null) CancelPresetButton.IsEnabled = false;
         if (BlurRow != null)
         {
             BlurRow.Visibility = string.Equals(Settings.ThemePreset, "Custom", StringComparison.OrdinalIgnoreCase)
@@ -449,13 +462,17 @@ public sealed partial class SpeedMeterPage : Page
         _loading = true;
         UpdateValueLabels();
         _loading = false;
+        _presetPreviewSettings = null;
 
         ApplyAppearance();
 
         // Sync conditional sub-panels after all values are loaded
+        IdleSubOptions.Visibility = HideIdleToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         ClockSubOptions.Visibility = ShowClockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        WarnSubOptions.Visibility = WarnToastsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         TopAppsSubOptions.Visibility = ShowTopAppsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWarnUnitHeaders();
     }
 
     private void BackgroundColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
@@ -620,7 +637,15 @@ public sealed partial class SpeedMeterPage : Page
     {
         if (_loading) return;
         if (GetComboTag(UnitsCombo) is { } units) Settings.Units = units;
+        UpdateWarnUnitHeaders();
         ApplyAppearance();
+    }
+
+    private void UpdateWarnUnitHeaders()
+    {
+        var unit = string.Equals(Settings.Units, "Bytes", StringComparison.OrdinalIgnoreCase) ? "MBps" : "Mbps";
+        WarnDownBox.Header = $"Warn download above {unit}";
+        WarnUpBox.Header = $"Warn upload above {unit}";
     }
 
     private void IntervalCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -857,7 +882,8 @@ public sealed partial class SpeedMeterPage : Page
         Settings.WarnNotifications = WarnToastsToggle.IsOn;
         Settings.BatteryAlerts = BatteryAlertsToggle.IsOn;
 
-        // Show battery threshold inputs only when battery alerts are enabled
+        // Show warning inputs and battery threshold inputs only when their respective toggles are enabled
+        WarnSubOptions.Visibility = WarnToastsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         BatteryAlertsSubOptions.Visibility = BatteryAlertsToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
         SaveExtraStats();
@@ -1283,6 +1309,7 @@ public sealed partial class SpeedMeterPage : Page
         if (_loading) return;
 
         Settings.HideWhenIdle = HideIdleToggle.IsOn;
+        IdleSubOptions.Visibility = HideIdleToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
         if (!HideIdleToggle.IsOn) ServiceContainer.SpeedMeterService?.RevealWidget();
         SaveBehavior();
     }
@@ -1345,12 +1372,76 @@ public sealed partial class SpeedMeterPage : Page
         }
 
         if (PresetCombo.Items.Count > 0) PresetCombo.SelectedIndex = index;
+        UpdateDeletePresetButton();
+    }
+
+    private void UpdateDeletePresetButton()
+    {
+        var tag = (PresetCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        DeletePresetButton.IsEnabled = tag is not null && tag.StartsWith("custom:", StringComparison.Ordinal);
+    }
+
+    private void PresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateDeletePresetButton();
+        if (_loading) return;
+
+        var tag = (PresetCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        if (tag is null) return;
+
+        var preview = new SpeedMeterSettings();
+        SpeedMeterPresets.CopyAppearance(Settings, preview);
+
+        if (tag.StartsWith("builtin:", StringComparison.Ordinal))
+        {
+            SpeedMeterPresets.Apply(preview, tag["builtin:".Length..]);
+        }
+        else if (tag.StartsWith("custom:", StringComparison.Ordinal))
+        {
+            var name = tag["custom:".Length..];
+            var preset = Settings.CustomPresets.FirstOrDefault(p => p.Name == name);
+            if (preset is null) return;
+
+            SpeedMeterPresets.ApplyAppearanceJson(preview, preset.SettingsJson);
+        }
+        else
+        {
+            return;
+        }
+
+        _presetPreviewSettings = preview;
+        PreviewWidget.ApplyAppearance(preview);
+        UpdatePreview();
+        ServiceContainer.SpeedMeterService?.PreviewAppearance(preview);
+        CancelPresetButton.IsEnabled = true;
+    }
+
+    private void CancelPreset_Click(object sender, RoutedEventArgs e)
+    {
+        _presetPreviewSettings = null;
+        CancelPresetButton.IsEnabled = false;
+
+        _loading = true;
+        try
+        {
+            BuildPresetCombo();
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        PreviewWidget.ApplyAppearance(Settings);
+        UpdatePreview();
+        ServiceContainer.SpeedMeterService?.ApplySettings();
     }
 
     private void ApplyPreset_Click(object sender, RoutedEventArgs e)
     {
         var tag = (PresetCombo.SelectedItem as ComboBoxItem)?.Tag as string;
         if (tag is null) return;
+
+        _presetPreviewSettings = null;
 
         if (tag.StartsWith("builtin:", StringComparison.Ordinal))
         {

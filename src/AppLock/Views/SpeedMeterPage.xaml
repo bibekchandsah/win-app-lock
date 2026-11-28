@@ -493,33 +493,26 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Units / decimals / interval -->
+                        <!-- Decimals / interval -->
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0" Text="Units"
+                            <TextBlock Grid.Column="0" Text="Sampling"
                                        FontSize="13" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
 
-                            <ComboBox x:Name="UnitsCombo"
-                                      Grid.Column="1"
-                                      Header="Speed units"
-                                      HorizontalAlignment="Stretch"
-                                      SelectionChanged="UnitsCombo_SelectionChanged"/>
-
                             <NumberBox x:Name="DecimalsBox"
-                                       Grid.Column="2"
+                                       Grid.Column="1"
                                        Header="Decimals"
                                        SpinButtonPlacementMode="Inline"
                                        ValueChanged="DecimalsBox_ValueChanged"/>
 
                             <ComboBox x:Name="IntervalCombo"
-                                      Grid.Column="3"
+                                      Grid.Column="2"
                                       Header="Update interval"
                                       HorizontalAlignment="Stretch"
                                       SelectionChanged="IntervalCombo_SelectionChanged"/>
@@ -669,9 +662,8 @@
                                           Toggled="HideIdleToggle_Toggled"/>
                         </Grid>
 
-                        <Grid ColumnSpacing="12">
+                        <Grid x:Name="IdleSubOptions" ColumnSpacing="12" Visibility="Collapsed">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
@@ -685,10 +677,23 @@
                                        Header="For (seconds)"
                                        SpinButtonPlacementMode="Inline"
                                        ValueChanged="IdleNumber_ValueChanged"/>
-                            <ToggleSwitch x:Name="HideDisconnectedToggle"
-                                          Grid.Column="2"
-                                          Header="Hide while disconnected"
-                                          OffContent="" OnContent=""
+                        </Grid>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Hide while disconnected" FontSize="13"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="Automatically hides the widget when no network connection is active"
+                                           FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="HideDisconnectedToggle" Grid.Column="1"
+                                          MinWidth="0" OffContent="" OnContent=""
                                           Toggled="HideDisconnectedToggle_Toggled"/>
                         </Grid>
 
@@ -900,6 +905,25 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ComboBox x:Name="RamFormatCombo"
+                                      Grid.Column="0"
+                                      Header="RAM format"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="RamFormatCombo_SelectionChanged"/>
+
+                            <ComboBox x:Name="UnitsCombo"
+                                      Grid.Column="1"
+                                      Header="Download / upload format"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="UnitsCombo_SelectionChanged"/>
+                        </Grid>
+
                         <!-- Warning thresholds -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Warnings"
@@ -923,7 +947,7 @@
                                               OffContent="" OnContent="" Toggled="WarnOption_Toggled"/>
                             </Grid>
 
-                            <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid x:Name="WarnSubOptions" ColumnSpacing="12" RowSpacing="8" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
@@ -949,10 +973,6 @@
                                 <NumberBox x:Name="WarnUpBox" Grid.Row="1" Grid.Column="1"
                                            Header="Warn upload above Mbps" SpinButtonPlacementMode="Inline"
                                            ValueChanged="WarnBox_ValueChanged"/>
-                                <ComboBox x:Name="RamFormatCombo" Grid.Row="1" Grid.Column="2"
-                                          Header="RAM format"
-                                          HorizontalAlignment="Stretch"
-                                          SelectionChanged="RamFormatCombo_SelectionChanged"/>
                             </Grid>
 
                             <Grid ColumnSpacing="16">
@@ -1106,19 +1126,6 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
-
-                        <Grid ColumnSpacing="24" RowSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                        </Grid>
 
                         <StackPanel Spacing="8">
                             <Grid ColumnSpacing="16">
@@ -1288,14 +1295,21 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <ComboBox x:Name="PresetCombo"
                                       Grid.Column="0"
                                       Header="Preset"
-                                      HorizontalAlignment="Stretch"/>
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="PresetCombo_SelectionChanged"/>
                             <Button Grid.Column="1" Content="Apply" Click="ApplyPreset_Click" VerticalAlignment="Bottom"/>
-                            <Button Grid.Column="2" Content="Delete" Click="DeletePreset_Click" VerticalAlignment="Bottom"/>
+                            <Button x:Name="CancelPresetButton" Grid.Column="2" Content="Cancel"
+                                    Click="CancelPreset_Click" VerticalAlignment="Bottom"
+                                    IsEnabled="False"/>
+                            <Button x:Name="DeletePresetButton" Grid.Column="3" Content="Delete"
+                                    Click="DeletePreset_Click" VerticalAlignment="Bottom"
+                                    IsEnabled="False"/>
                         </Grid>
 
                         <Grid ColumnSpacing="8">

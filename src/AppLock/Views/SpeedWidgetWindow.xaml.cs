@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using AppLock.Models;
 using AppLock.Services;
 using AppLock.Services.SpeedMeter;
 using Microsoft.UI.Composition;
@@ -193,11 +194,11 @@ public sealed partial class SpeedWidgetWindow : Window
     /// </summary>
     private ConfigurableAcrylicBackdrop? _acrylicBackdrop;
 
-    private void ApplyBackdrop()
+    private void ApplyBackdrop(SpeedMeterSettings? settingsOverride = null)
     {
         try
         {
-            var settings = ServiceContainer.Settings.SpeedMeter;
+            var settings = settingsOverride ?? ServiceContainer.Settings.SpeedMeter;
             var preset = settings.ThemePreset ?? "Glass";
 
             // Follow Windows means Mica; Glass uses a configurable Acrylic blur + tint whose
@@ -564,13 +565,21 @@ public sealed partial class SpeedWidgetWindow : Window
     /// <summary>Re-applies appearance, chrome flags and geometry after a settings change.</summary>
     public void ApplySettings()
     {
-        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
         ApplyBackdrop();
+        Widget.ApplyAppearance(ServiceContainer.Settings.SpeedMeter);
         ResizeToContent();
         PositionOnScreen();
         ApplyCaptureAffinity();
         ApplyClickThrough();
         ApplyAlwaysOnTop();
+    }
+
+    /// <summary>Temporarily applies a preset appearance for live preview without saving or moving the window.</summary>
+    public void PreviewAppearance(SpeedMeterSettings settings)
+    {
+        ApplyBackdrop(settings);
+        Widget.ApplyAppearance(settings);
+        ResizeToContent();
     }
 
     /// <summary>Writes one reading into the widget with the configured units and decimals.</summary>

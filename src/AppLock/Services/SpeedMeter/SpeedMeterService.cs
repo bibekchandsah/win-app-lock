@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using AppLock.Models;
 using AppLock.Views;
 using Microsoft.UI.Dispatching;
 
@@ -156,6 +157,19 @@ public sealed class SpeedMeterService : IDisposable
         }
 
         _widget?.ApplySettings();
+    }
+
+    /// <summary>Temporarily previews an appearance preset on the floating widget without persisting it.</summary>
+    public void PreviewAppearance(SpeedMeterSettings settings)
+    {
+        var warn = settings.WarnNotifications;
+        _systemStats.TrackCpu = settings.ShowCpu || (warn && settings.WarnCpuPercent > 0);
+        _systemStats.TrackRam = settings.ShowRam || (warn && settings.WarnRamPercent > 0);
+        _systemStats.TrackDisk = settings.ShowDisk || (warn && settings.WarnDiskPercent > 0);
+        _systemStats.TrackGpu = settings.ShowGpu || settings.ShowTopApps;
+        _systemStats.TrackBattery = settings.ShowBattery || settings.BatteryAlerts;
+
+        _widget?.PreviewAppearance(settings);
     }
 
     /// <summary>Shows the widget again if it was closed while the service kept running.</summary>
@@ -617,8 +631,8 @@ public sealed class SpeedMeterService : IDisposable
         CheckPercent("ram", stats.RamPercent, settings.WarnRamPercent, "RAM", topApps.Ram?.Name);
         CheckPercent("disk", stats.DiskPercent, settings.WarnDiskPercent, "disk", topApps.Disk?.Name);
 
-        await CheckMbpsAsync("down", sample.BytesDownPerSec, settings.WarnDownMbps, "download", isDownload: true);
-        await CheckMbpsAsync("up", sample.BytesUpPerSec, settings.WarnUpMbps, "upload", isDownload: false);
+        await CheckSpeedAsync("down", sample.BytesDownPerSec, settings.WarnDownMbps, settings.Units, "download", isDownload: true);
+        await CheckSpeedAsync("up", sample.BytesUpPerSec, settings.WarnUpMbps, settings.Units, "upload", isDownload: false);
     }
 
     private void CheckPercent(string id, double? value, int limit, string label, string? app)
@@ -640,15 +654,19 @@ public sealed class SpeedMeterService : IDisposable
         ShowWarning(title, $"{current:F0}% · warning at {limit}%");
     }
 
-    private async Task CheckMbpsAsync(string id, double bytesPerSec, int limitMbps, string label, bool isDownload)
+    private async Task CheckSpeedAsync(string id, double bytesPerSec, int limit, string? units, string label, bool isDownload)
     {
-        if (limitMbps <= 0) return;
+        if (limit <= 0) return;
 
-        var mbps = bytesPerSec * 8 / 1_000_000d;
+        var isBytes = string.Equals(units, "Bytes", StringComparison.OrdinalIgnoreCase);
+        var current = isBytes
+            ? bytesPerSec / (1024d * 1024d)
+            : bytesPerSec * 8 / 1_000_000d;
+        var unit = isBytes ? "MBps" : "Mbps";
 
-        if (mbps < limitMbps)
+        if (current < limit)
         {
-            if (mbps < limitMbps * 0.9) _warningsFired.Remove(id);
+            if (current < limit * 0.9) _warningsFired.Remove(id);
             return;
         }
 
@@ -668,7 +686,7 @@ public sealed class SpeedMeterService : IDisposable
             ? $"High {label} usage"
             : $"{app} is using high {label}";
 
-        ShowWarning(title, $"{mbps:F1} Mbps · warning above {limitMbps} Mbps");
+        ShowWarning(title, $"{current:F1} {unit} · warning above {limit} {unit}");
     }
 
     /// <summary>
