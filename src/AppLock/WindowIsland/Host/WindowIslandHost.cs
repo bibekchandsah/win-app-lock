@@ -32,9 +32,11 @@ public sealed class WindowIslandHost
     private int _throughHotkeyId = -1;
 
     public event Action<bool>? ThroughModeChanged;
+    public event Action<bool>? LyricsEnabledChanged;
     public event Action? CustomClocksChanged;
     public event Action? ChatSitesChanged;
 
+    public void NotifyLyricsEnabledChanged(bool enabled) => LyricsEnabledChanged?.Invoke(enabled);
     public void NotifyCustomClocksChanged() => CustomClocksChanged?.Invoke();
     public void NotifyChatSitesChanged() => ChatSitesChanged?.Invoke();
 

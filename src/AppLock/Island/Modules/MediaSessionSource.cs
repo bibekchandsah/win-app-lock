@@ -93,10 +93,11 @@ public sealed class MediaSessionSource : IDisposable
             double position = Math.Max(0, (timeline.Position - timeline.StartTime).TotalSeconds);
 
             // SMTC only reports the position when it last changed; between updates the bar has to
-            // advance by itself or it looks frozen.
+            // advance by itself (scaled by playback rate) or it looks frozen or drifts at 1.5x/2x.
             if (playing && timeline.LastUpdatedTime != default)
             {
-                position += Math.Max(0, (DateTimeOffset.Now - timeline.LastUpdatedTime).TotalSeconds);
+                double rate = playback.PlaybackRate is { } r && r > 0 ? r : 1.0;
+                position += Math.Max(0, (DateTimeOffset.Now - timeline.LastUpdatedTime).TotalSeconds) * rate;
             }
 
             if (duration > 0) position = Math.Min(position, duration);

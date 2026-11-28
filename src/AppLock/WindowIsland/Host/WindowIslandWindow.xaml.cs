@@ -12,6 +12,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -236,8 +237,9 @@ public sealed partial class WindowIslandWindow : Window
     private string _lyricsKey = string.Empty;
     private LyricsResult? _currentLyrics;
     private int _lastMiniLyricIndex = -2;
-    private readonly List<TextBlock> _homeLyricBlocks = new();
+    private readonly List<Paragraph> _homeLyricParagraphs = new();
     private int _lastHomeLyricIndex = -2;
+    private bool _isLyricsDragging;
     private string _lastMediaTitle = string.Empty;
     private string _lastMediaArtist = string.Empty;
     private double _lastMediaPositionSeconds;
@@ -690,9 +692,8 @@ public sealed partial class WindowIslandWindow : Window
         _screenshotSource?.Start(settings.GetEffectiveScreenshotsFolder());
         _fileCopySource?.SetEnabled(settings.CardFileCopyEnabled);
 
-        // Turning lyrics off removes the current sheet at once (and drops the cached track lookup, so
-        // switching it back on refetches for the song that is playing).
-        if (!settings.LyricsEnabled) ClearLyrics();
+        // Refresh lyrics visibility & toggle state without dropping the cached track lookup.
+        ShowLyrics(_currentLyrics);
         UpdateFoldedMediaPillMode();
 
         _ = UpdateFoldedBtBatteriesAsync();
@@ -3022,13 +3023,6 @@ public sealed partial class WindowIslandWindow : Window
 
     private async Task UpdateLyricsAsync(MediaSnapshot snap)
     {
-        // Lyrics are optional: with the setting off nothing is fetched and the sheet stays hidden.
-        if (!_settings.LyricsEnabled)
-        {
-            ClearLyrics();
-            return;
-        }
-
         string key = snap.Artist + "\u0001" + snap.Title;
         if (key == _lyricsKey) return;
         _lyricsKey = key;
@@ -3334,8 +3328,76 @@ public sealed partial class WindowIslandWindow : Window
 
     private void StopLyricsDragScroll()
     {
+        _isLyricsDragging = false;
         _lyricsDragDelta = 0;
         _lyricsDragTimer?.Stop();
+    }
+
+    private void AttachLyricsDragScroll(UIElement element)
+    {
+        element.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) =>
+        {
+            if (e.GetCurrentPoint(element).Properties.IsLeftButtonPressed)
+                _isLyricsDragging = true;
+        }), true);
+
+        element.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler((_, e) =>
+        {
+            if (!_isLyricsDragging || LyricsScrollViewer == null) return;
+            if (!e.GetCurrentPoint(element).Properties.IsLeftButtonPressed)
+            {
+                StopLyricsDragScroll();
+                return;
+            }
+
+            double y = e.GetCurrentPoint(LyricsScrollViewer).Position.Y;
+            double h = LyricsScrollViewer.ActualHeight;
+            const double edgeZone = 20.0;
+            if (y > h - edgeZone)
+                _lyricsDragDelta = Math.Clamp((y - (h - edgeZone)) * 0.65, 4, 24);
+            else if (y < edgeZone)
+                _lyricsDragDelta = -Math.Clamp((edgeZone - y) * 0.65, 4, 24);
+            else
+                _lyricsDragDelta = 0;
+
+            if (Math.Abs(_lyricsDragDelta) > 0.1)
+            {
+                if (_lyricsDragTimer == null)
+                {
+                    _lyricsDragTimer = DispatcherQueue.CreateTimer();
+                    _lyricsDragTimer.Interval = TimeSpan.FromMilliseconds(35);
+                    _lyricsDragTimer.Tick += (_, _) =>
+                    {
+                        if (LyricsScrollViewer == null || Math.Abs(_lyricsDragDelta) <= 0.1) return;
+                        double next = Math.Clamp(
+                            LyricsScrollViewer.VerticalOffset + _lyricsDragDelta,
+                            0,
+                            LyricsScrollViewer.ScrollableHeight);
+                        LyricsScrollViewer.ChangeView(null, next, null, true);
+                    };
+                }
+                if (!_lyricsDragTimer.IsRunning) _lyricsDragTimer.Start();
+            }
+            else
+            {
+                _lyricsDragTimer?.Stop();
+            }
+        }), true);
+
+        element.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler((_, _) => StopLyricsDragScroll()), true);
+        element.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler((_, _) => StopLyricsDragScroll()), true);
+    }
+
+    private void MediaLyricsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        bool next = !_settings.LyricsEnabled;
+        _settings.LyricsEnabled = next;
+        ServiceContainer.Settings.WindowIsland.LyricsEnabled = next;
+        ServiceContainer.SettingsStore.Save(ServiceContainer.Settings);
+
+        ShowLyrics(_currentLyrics);
+        UpdateFoldedMediaPillMode();
+        WindowIslandHost.Instance.NotifyLyricsEnabledChanged(next);
     }
 
     private void ShowLyrics(LyricsResult? lyrics)
@@ -3345,32 +3407,67 @@ public sealed partial class WindowIslandWindow : Window
             _currentLyrics = lyrics;
             _lastMiniLyricIndex = -2;
             _lastHomeLyricIndex = -2;
-            _homeLyricBlocks.Clear();
+            _homeLyricParagraphs.Clear();
             StopLyricsDragScroll();
             LyricsStack.Children.Clear();
 
             var synced = lyrics?.SyncedLines ?? Array.Empty<SyncedLyricLine>();
             var lines = lyrics?.Lines ?? Array.Empty<string>();
+            bool hasLyrics = synced.Count > 0 || lines.Count > 0;
+
+            if (MediaLyricsToggle != null)
+            {
+                MediaLyricsToggle.Visibility = hasLyrics ? Visibility.Visible : Visibility.Collapsed;
+                MediaLyricsToggle.Opacity = _settings.LyricsEnabled ? 1.0 : 0.6;
+                if (MediaLyricsToggleIcon != null)
+                {
+                    MediaLyricsToggleIcon.Foreground = new SolidColorBrush(
+                        _settings.LyricsEnabled ? AdaptiveInkColor(245) : AdaptiveInkColor(135));
+                }
+            }
+
             if (synced.Count > 0)
             {
-                var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(200));
+                var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(95));
+                var rtb = new RichTextBlock
+                {
+                    FontSize = 11.5,
+                    LineHeight = 17,
+                    TextWrapping = TextWrapping.Wrap,
+                    IsTextSelectionEnabled = true
+                };
+
                 foreach (var sl in synced)
                 {
-                    var lineTb = new TextBlock
+                    var p = new Paragraph
                     {
-                        Text = sl.Text,
-                        FontSize = 11.5,
-                        LineHeight = 17,
-                        TextWrapping = TextWrapping.Wrap,
-                        Opacity = 0.42,
                         Margin = new Thickness(0, 1, 0, 1),
                         Foreground = secondaryBrush
                     };
-                    double ts = sl.TimeSeconds;
-                    lineTb.Tapped += (_, _) => _ = _homeState?.SeekMediaAsync(ts);
-                    _homeLyricBlocks.Add(lineTb);
-                    LyricsStack.Children.Add(lineTb);
+                    p.Inlines.Add(new Run { Text = sl.Text });
+                    _homeLyricParagraphs.Add(p);
+                    rtb.Blocks.Add(p);
                 }
+
+                // Tap a line to seek, but ignore when the user finished dragging a text selection.
+                rtb.Tapped += (_, e) =>
+                {
+                    if (!string.IsNullOrEmpty(rtb.SelectedText)) return;
+                    var pos = rtb.GetPositionFromPoint(e.GetPosition(rtb));
+                    if (pos == null) return;
+                    for (int i = 0; i < _homeLyricParagraphs.Count && i < synced.Count; i++)
+                    {
+                        var p = _homeLyricParagraphs[i];
+                        if (pos.Offset >= p.ContentStart.Offset && pos.Offset <= p.ContentEnd.Offset)
+                        {
+                            _ = _homeState?.SeekMediaAsync(synced[i].TimeSeconds);
+                            break;
+                        }
+                    }
+                };
+
+                AttachLyricsDragScroll(rtb);
+                LyricsStack.Children.Add(rtb);
             }
             else if (lines.Count > 0)
             {
@@ -3384,61 +3481,11 @@ public sealed partial class WindowIslandWindow : Window
                     Foreground = new SolidColorBrush(AdaptiveInkColor(210))
                 };
 
-                bool dragging = false;
-                tb.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) =>
-                {
-                    if (e.GetCurrentPoint(tb).Properties.IsLeftButtonPressed)
-                        dragging = true;
-                }), true);
-                tb.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler((_, e) =>
-                {
-                    if (!dragging || LyricsScrollViewer == null) return;
-                    if (!e.GetCurrentPoint(tb).Properties.IsLeftButtonPressed)
-                    {
-                        dragging = false;
-                        StopLyricsDragScroll();
-                        return;
-                    }
-                    double y = e.GetCurrentPoint(LyricsScrollViewer).Position.Y;
-                    double h = LyricsScrollViewer.ActualHeight;
-                    const double edgeZone = 20.0;
-                    if (y > h - edgeZone)
-                        _lyricsDragDelta = Math.Clamp((y - (h - edgeZone)) * 0.65, 4, 24);
-                    else if (y < edgeZone)
-                        _lyricsDragDelta = -Math.Clamp((edgeZone - y) * 0.65, 4, 24);
-                    else
-                        _lyricsDragDelta = 0;
-
-                    if (Math.Abs(_lyricsDragDelta) > 0.1)
-                    {
-                        if (_lyricsDragTimer == null)
-                        {
-                            _lyricsDragTimer = DispatcherQueue.CreateTimer();
-                            _lyricsDragTimer.Interval = TimeSpan.FromMilliseconds(35);
-                            _lyricsDragTimer.Tick += (_, _) =>
-                            {
-                                if (LyricsScrollViewer == null || Math.Abs(_lyricsDragDelta) <= 0.1) return;
-                                double next = Math.Clamp(
-                                    LyricsScrollViewer.VerticalOffset + _lyricsDragDelta,
-                                    0,
-                                    LyricsScrollViewer.ScrollableHeight);
-                                LyricsScrollViewer.ChangeView(null, next, null, true);
-                            };
-                        }
-                        if (!_lyricsDragTimer.IsRunning) _lyricsDragTimer.Start();
-                    }
-                    else
-                    {
-                        _lyricsDragTimer?.Stop();
-                    }
-                }), true);
-                tb.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler((_, _) => { dragging = false; StopLyricsDragScroll(); }), true);
-                tb.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler((_, _) => { dragging = false; StopLyricsDragScroll(); }), true);
-
+                AttachLyricsDragScroll(tb);
                 LyricsStack.Children.Add(tb);
             }
 
-            bool show = _settings.LyricsEnabled && lines.Count > 0;
+            bool show = _settings.LyricsEnabled && hasLyrics;
             LyricsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
 
             // With lyrics the player card shares the row with the lyrics card; without them it
@@ -3452,60 +3499,79 @@ public sealed partial class WindowIslandWindow : Window
 
     private void UpdateHomeLyricsSync(bool animate)
     {
-        if (!_settings.LyricsEnabled || _currentLyrics == null || _currentLyrics.SyncedLines.Count == 0 || _homeLyricBlocks.Count == 0)
+        if (!_settings.LyricsEnabled || _currentLyrics == null || _currentLyrics.SyncedLines.Count == 0 || _homeLyricParagraphs.Count == 0)
             return;
 
         int idx = Math.Max(0, _currentLyrics.GetCurrentLineIndex(_lastMediaPositionSeconds));
-        if (idx >= _homeLyricBlocks.Count) idx = _homeLyricBlocks.Count - 1;
+        if (idx >= _homeLyricParagraphs.Count) idx = _homeLyricParagraphs.Count - 1;
         if (idx == _lastHomeLyricIndex) return;
 
-        int prevIdx = _lastHomeLyricIndex;
         _lastHomeLyricIndex = idx;
 
         var primaryBrush = new SolidColorBrush(AdaptiveInkColor(245));
-        var secondaryBrush = new SolidColorBrush(AdaptiveInkColor(200));
+        var nearBrush = new SolidColorBrush(AdaptiveInkColor(130));
+        var farBrush = new SolidColorBrush(AdaptiveInkColor(80));
 
-        for (int i = 0; i < _homeLyricBlocks.Count; i++)
+        for (int i = 0; i < _homeLyricParagraphs.Count; i++)
         {
-            var tb = _homeLyricBlocks[i];
+            var p = _homeLyricParagraphs[i];
             if (i == idx)
             {
-                tb.FontWeight = FontWeights.SemiBold;
-                tb.Opacity = 1.0;
-                tb.Foreground = primaryBrush;
+                p.FontWeight = FontWeights.SemiBold;
+                p.Foreground = primaryBrush;
             }
             else
             {
-                tb.FontWeight = FontWeights.Normal;
-                tb.Opacity = Math.Abs(i - idx) == 1 ? 0.52 : 0.32;
-                tb.Foreground = secondaryBrush;
+                p.FontWeight = FontWeights.Normal;
+                p.Foreground = Math.Abs(i - idx) == 1 ? nearBrush : farBrush;
             }
         }
 
-        if (LyricsScrollViewer != null && LyricsStack != null && LyricsPanel?.Visibility == Visibility.Visible)
+        if (!_isLyricsDragging && LyricsScrollViewer != null && LyricsStack != null && LyricsPanel?.Visibility == Visibility.Visible)
         {
-            try
-            {
-                var target = _homeLyricBlocks[idx];
-                var pt = target.TransformToVisual(LyricsStack).TransformPoint(new Windows.Foundation.Point(0, 0));
-                double viewportH = LyricsScrollViewer.ActualHeight;
-                double offset = Math.Clamp(pt.Y - (viewportH * 0.38), 0, Math.Max(0, LyricsScrollViewer.ScrollableHeight));
-                LyricsScrollViewer.ChangeView(null, offset, null, disableAnimation: !animate || _settings.ReducedMotion);
+            ScrollToHomeLyricIndex(idx, animate);
+        }
+    }
 
-                if (animate && prevIdx >= 0 && !_settings.ReducedMotion)
+    private void ScrollToHomeLyricIndex(int idx, bool animate, bool allowDeferredRetry = true)
+    {
+        if (LyricsScrollViewer == null || LyricsStack == null || idx < 0 || idx >= _homeLyricParagraphs.Count)
+            return;
+
+        try
+        {
+            LyricsStack.UpdateLayout();
+
+            double scrollable = LyricsScrollViewer.ScrollableHeight;
+            double viewportH = LyricsScrollViewer.ActualHeight;
+            if (scrollable <= 0 || viewportH <= 0)
+            {
+                if (allowDeferredRetry)
                 {
-                    var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(target);
-                    var comp = visual.Compositor;
-                    var ease = comp.CreateCubicBezierEasingFunction(new System.Numerics.Vector2(0.22f, 1f), new System.Numerics.Vector2(0.36f, 1f));
-                    var anim = comp.CreateVector3KeyFrameAnimation();
-                    anim.InsertKeyFrame(0f, new System.Numerics.Vector3(0f, 6f, 0f));
-                    anim.InsertKeyFrame(1f, System.Numerics.Vector3.Zero, ease);
-                    anim.Duration = TimeSpan.FromMilliseconds(320);
-                    visual.StartAnimation("Offset", anim);
+                    DispatcherQueue.TryEnqueue(() => ScrollToHomeLyricIndex(idx, animate, allowDeferredRetry: false));
+                }
+                return;
+            }
+
+            var target = _homeLyricParagraphs[idx];
+            var ptr = target.Inlines.Count > 0 ? target.Inlines[0].ContentStart : target.ContentStart;
+            var rect = ptr.GetCharacterRect(LogicalDirection.Forward);
+
+            // If layout hasn't populated character rects yet (e.g. first frame), estimate by index and retry once.
+            double targetY = rect.Y;
+            if (targetY <= 0 && idx > 0)
+            {
+                targetY = (double)idx / _homeLyricParagraphs.Count * LyricsScrollViewer.ExtentHeight;
+                if (allowDeferredRetry)
+                {
+                    DispatcherQueue.TryEnqueue(() => ScrollToHomeLyricIndex(idx, animate, allowDeferredRetry: false));
                 }
             }
-            catch { }
+
+            double offset = Math.Clamp(targetY - (viewportH * 0.38), 0, scrollable);
+            LyricsScrollViewer.ChangeView(null, offset, null, disableAnimation: !animate || _settings.ReducedMotion);
         }
+        catch { }
     }
 
     private void RecentChevron_Click(object sender, RoutedEventArgs e) => SwitchTab(1);

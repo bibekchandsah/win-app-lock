@@ -35,6 +35,7 @@ public sealed partial class WindowIslandSettingsPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
+        WindowIslandHost.Instance.LyricsEnabledChanged -= OnExternalLyricsEnabledChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
         WindowIslandHost.Instance.ChatSitesChanged -= OnExternalChatSitesChanged;
         AppLock.WindowIsland.Modules.Weather.WindowIslandWeatherService.Instance.WeatherCitiesChanged -= OnExternalWeatherCitiesChanged;
@@ -77,6 +78,24 @@ public sealed partial class WindowIslandSettingsPage : Page
             try
             {
                 ThroughModeToggle.IsOn = enabled;
+            }
+            finally
+            {
+                _loading = prevLoading;
+            }
+        });
+    }
+
+    private void OnExternalLyricsEnabledChanged(bool enabled)
+    {
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            if (LyricsToggle == null || LyricsToggle.IsOn == enabled) return;
+            bool prevLoading = _loading;
+            _loading = true;
+            try
+            {
+                LyricsToggle.IsOn = enabled;
             }
             finally
             {
@@ -489,6 +508,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         CommandBarHotkeyBox.Text                = s.CommandBarHotkey ?? "Alt+Space";
         WindowIslandHost.Instance.ThroughModeChanged -= OnExternalThroughModeChanged;
         WindowIslandHost.Instance.ThroughModeChanged += OnExternalThroughModeChanged;
+        WindowIslandHost.Instance.LyricsEnabledChanged -= OnExternalLyricsEnabledChanged;
+        WindowIslandHost.Instance.LyricsEnabledChanged += OnExternalLyricsEnabledChanged;
         WindowIslandHost.Instance.CustomClocksChanged -= OnExternalCustomClocksChanged;
         WindowIslandHost.Instance.ChatSitesChanged -= OnExternalChatSitesChanged;
         WindowIslandHost.Instance.CustomClocksChanged += OnExternalCustomClocksChanged;
