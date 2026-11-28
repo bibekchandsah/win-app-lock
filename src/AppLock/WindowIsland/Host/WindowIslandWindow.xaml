@@ -18,8 +18,8 @@
                         <SolidColorBrush x:Key="IslandTextHint" Color="#60FFFFFF" />
                         <SolidColorBrush x:Key="IslandSurfaceSubtle" Color="#14FFFFFF" />
                         <SolidColorBrush x:Key="IslandSurfaceCard" Color="#1CFFFFFF" />
-                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#24FFFFFF" />
-                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#34FFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#30FFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#44FFFFFF" />
                         <SolidColorBrush x:Key="IslandBorderSubtle" Color="#1AFFFFFF" />
                         <SolidColorBrush x:Key="IslandBorderDefault" Color="#28FFFFFF" />
                         <SolidColorBrush x:Key="IslandBorderStrong" Color="#38FFFFFF" />
@@ -54,8 +54,8 @@
                         <SolidColorBrush x:Key="IslandTextHint" Color="#B04E4E5A" />
                         <SolidColorBrush x:Key="IslandSurfaceSubtle" Color="#44FFFFFF" />
                         <SolidColorBrush x:Key="IslandSurfaceCard" Color="#5CFFFFFF" />
-                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#78FFFFFF" />
-                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#90FFFFFF" />
+                        <SolidColorBrush x:Key="IslandSurfaceHover" Color="#14000000" />
+                        <SolidColorBrush x:Key="IslandSurfacePressed" Color="#22000000" />
                         <SolidColorBrush x:Key="IslandBorderSubtle" Color="#24000000" />
                         <SolidColorBrush x:Key="IslandBorderDefault" Color="#32000000" />
                         <SolidColorBrush x:Key="IslandBorderStrong" Color="#44000000" />
@@ -110,11 +110,13 @@
                                             <VisualState x:Name="PointerOver">
                                                 <VisualState.Setters>
                                                     <Setter Target="Root.Background" Value="{ThemeResource IslandSurfaceHover}" />
+                                                    <Setter Target="Root.BorderBrush" Value="{ThemeResource IslandBorderDefault}" />
                                                 </VisualState.Setters>
                                             </VisualState>
                                             <VisualState x:Name="Pressed">
                                                 <VisualState.Setters>
                                                     <Setter Target="Root.Background" Value="{ThemeResource IslandSurfacePressed}" />
+                                                    <Setter Target="Root.BorderBrush" Value="{ThemeResource IslandBorderStrong}" />
                                                 </VisualState.Setters>
                                             </VisualState>
                                         </VisualStateGroup>
@@ -193,6 +195,20 @@
                     <Setter Property="MinWidth" Value="0" />
                     <Setter Property="Padding" Value="4,6" />
                     <Setter Property="HorizontalAlignment" Value="Stretch" />
+                </Style>
+
+                <!-- Event card pill action buttons (+10 min, Cancel, Again): crisp border + theme-adaptive hover -->
+                <Style x:Key="CardActionButtonStyle" TargetType="Button" BasedOn="{StaticResource TabButtonStyle}">
+                    <Setter Property="Background" Value="{ThemeResource IslandSurfaceCard}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource IslandBorderSubtle}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="Foreground" Value="{ThemeResource IslandTextPrimary}" />
+                    <Setter Property="CornerRadius" Value="14" />
+                    <Setter Property="Height" Value="28" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="Padding" Value="12,0" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
                 </Style>
 
                 <Style x:Key="QuietButtonStyle" TargetType="ToggleButton">
@@ -782,23 +798,14 @@
                     <Button x:Name="CardPrimaryActionBtn"
                             Content="+10 min"
                             Click="CardPrimaryActionBtn_Click"
-                            Height="28"
-                            Padding="12,0,12,0"
-                            CornerRadius="14"
-                            BorderThickness="0"
-                            Background="{ThemeResource IslandSurfaceCard}"
-                            Foreground="{ThemeResource IslandTextPrimary}"
-                            FontSize="11"
-                            FontWeight="SemiBold" />
+                            Style="{StaticResource CardActionButtonStyle}" />
                     <Button x:Name="CardDismissActionBtn"
                             Click="CardDismissActionBtn_Click"
+                            Style="{StaticResource MediaPlayButtonStyle}"
                             Width="28" Height="28" MinWidth="28"
-                            Padding="0"
                             CornerRadius="14"
-                            BorderThickness="0"
-                            Background="{ThemeResource IslandPlayBtnBg}"
                             ToolTipService.ToolTip="Dismiss">
-                        <FontIcon x:Name="CardDismissActionIcon" Glyph="&#xE73E;" FontSize="12" Foreground="#FF000000" />
+                        <FontIcon x:Name="CardDismissActionIcon" Glyph="&#xE73E;" FontSize="12" Foreground="{ThemeResource IslandPlayBtnFg}" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -3895,12 +3902,8 @@
                             <Grid Grid.Column="0">
                                 <Button x:Name="ControlsWifiBtn"
                                         Click="ControlsWifiBtn_Click"
-                                        HorizontalAlignment="Stretch"
+                                        Style="{StaticResource PowerButtonStyle}"
                                         HorizontalContentAlignment="Stretch"
-                                        Background="{ThemeResource IslandSurfaceSubtle}"
-                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
                                         Padding="8,6"
                                         ToolTipService.ToolTip="Toggle Wi-Fi">
                                     <StackPanel Spacing="2">
@@ -3927,12 +3930,8 @@
                             <Grid Grid.Column="1">
                                 <Button x:Name="ControlsBtBtn"
                                         Click="ControlsBtBtn_Click"
-                                        HorizontalAlignment="Stretch"
+                                        Style="{StaticResource PowerButtonStyle}"
                                         HorizontalContentAlignment="Stretch"
-                                        Background="{ThemeResource IslandSurfaceSubtle}"
-                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
                                         Padding="8,6"
                                         ToolTipService.ToolTip="Toggle Bluetooth">
                                     <StackPanel Spacing="2">
@@ -3959,12 +3958,8 @@
                             <Button Grid.Column="2"
                                     x:Name="ControlsThemeBtn"
                                     Click="ControlsThemeBtn_Click"
-                                    HorizontalAlignment="Stretch"
+                                    Style="{StaticResource PowerButtonStyle}"
                                     HorizontalContentAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
                                     Padding="8,6"
                                     ToolTipService.ToolTip="Toggle Windows dark theme">
                                 <StackPanel Spacing="2">
@@ -3978,12 +3973,8 @@
                             <Grid Grid.Column="3">
                                 <Button x:Name="ControlsBatteryBtn"
                                         Click="ControlsBatteryBtn_Click"
-                                        HorizontalAlignment="Stretch"
+                                        Style="{StaticResource PowerButtonStyle}"
                                         HorizontalContentAlignment="Stretch"
-                                        Background="{ThemeResource IslandSurfaceSubtle}"
-                                        BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
                                         Padding="8,6"
                                         ToolTipService.ToolTip="Battery &amp; power settings">
                                     <StackPanel Spacing="2">
@@ -4013,12 +4004,8 @@
                             <Button Grid.Column="4"
                                     x:Name="ControlsVpnBtn"
                                     Click="ControlsVpnBtn_Click"
-                                    HorizontalAlignment="Stretch"
+                                    Style="{StaticResource PowerButtonStyle}"
                                     HorizontalContentAlignment="Stretch"
-                                    Background="{ThemeResource IslandSurfaceSubtle}"
-                                    BorderBrush="{ThemeResource IslandBorderSubtle}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
                                     Padding="8,6"
                                     ToolTipService.ToolTip="VPN connection">
                                 <StackPanel Spacing="2">
@@ -4181,11 +4168,10 @@
                                         x:Name="ControlsMicMuteBtn"
                                         Click="ControlsMicMuteBtn_Click"
                                         RightTapped="ControlsMicMuteBtn_RightTapped"
-                                        Background="Transparent"
-                                        BorderThickness="0"
+                                        Style="{StaticResource TabButtonStyle}"
                                         Padding="4"
                                         MinWidth="26"
-                                        MinHeight="24"
+                                        Height="24"
                                         CornerRadius="5"
                                         VerticalAlignment="Center">
                                     <Grid>

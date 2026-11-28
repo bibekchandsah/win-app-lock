@@ -1530,10 +1530,10 @@
                                         <TextBlock Text="Auto-lock PC on scheduled time" Style="{StaticResource IslandSettingTitleStyle}" />
                                         <TextBlock Text="Automatically lock your PC at chosen times with a 5-second countdown on the Island to cancel." Style="{StaticResource IslandSettingDescStyle}" />
                                     </StackPanel>
-                                    <ToggleSwitch x:Name="ControlsAutoLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="OnSettingChanged" />
+                                    <ToggleSwitch x:Name="ControlsAutoLockToggle" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center" Toggled="ControlsAutoLockToggle_Toggled" />
                                 </Grid>
 
-                                <StackPanel Spacing="10" Visibility="{x:Bind ControlsAutoLockToggle.IsOn, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                                <StackPanel x:Name="ControlsAutoLockPanel" Spacing="10" Visibility="{x:Bind ControlsAutoLockToggle.IsOn, Mode=OneWay}">
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <TimePicker x:Name="ControlsAutoLockTimePicker" ClockIdentifier="12HourClock" VerticalAlignment="Center" />
                                         <Button x:Name="ControlsAutoLockAddBtn"

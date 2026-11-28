@@ -2528,7 +2528,7 @@ public sealed partial class WindowIslandWindow : Window
                     CardPrimaryActionBtn.Content = card.PrimaryActionLabel;
                     ToolTipService.SetToolTip(CardPrimaryActionBtn, null);
                     CardDismissActionBtn.Visibility = Visibility.Visible;
-                    CardDismissActionBtn.Background = new SolidColorBrush(AdaptiveInkColor(255));
+                    CardDismissActionBtn.ClearValue(Button.BackgroundProperty);
                     CardDismissActionIcon.Glyph = "\uE73E";
                     CardDismissActionIcon.Foreground = new SolidColorBrush(AdaptiveInverseInkColor(255));
                     ToolTipService.SetToolTip(CardDismissActionBtn, "Dismiss");
@@ -3654,8 +3654,9 @@ public sealed partial class WindowIslandWindow : Window
         // driven by the control template instead of hand-rolled PointerEntered/PointerExited.
         var host = new Button
         {
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 255, 255, 255)),
-            BorderThickness = new Thickness(0),
+            Style = (Style)RootGrid.Resources["TabButtonStyle"],
+            Height = double.NaN,
+            MinWidth = 0,
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(4, 3, 7, 3),
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -4183,8 +4184,9 @@ public sealed partial class WindowIslandWindow : Window
             var item = new Button
             {
                 Content = content,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 255, 255, 255)),
-                BorderThickness = new Thickness(0),
+                Style = (Style)RootGrid.Resources["TabButtonStyle"],
+                Height = double.NaN,
+                MinWidth = 0,
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(8, 6, 8, 6),
                 HorizontalAlignment = HorizontalAlignment.Stretch,

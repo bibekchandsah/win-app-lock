@@ -496,6 +496,8 @@ public sealed partial class WindowIslandSettingsPage : Page
         ControlsShowMicrophoneToggle.IsOn       = s.Controls.ShowMicrophone;
         ControlsShowPowerRowToggle.IsOn         = s.Controls.ShowPowerRow;
         ControlsAutoLockToggle.IsOn             = s.Controls.AutoLockEnabled;
+        if (ControlsAutoLockPanel != null)
+            ControlsAutoLockPanel.Visibility    = s.Controls.AutoLockEnabled ? Visibility.Visible : Visibility.Collapsed;
         ControlsAutoLockTimePicker.Time         = new TimeSpan(22, 0, 0);
         RefreshAutoLockSchedulesList();
 
@@ -1628,10 +1630,18 @@ public sealed partial class WindowIslandSettingsPage : Page
         Save();
     }
 
-    private sealed class AutoLockScheduleDisplayItem
+    public sealed class AutoLockScheduleDisplayItem
     {
         public string Time24 { get; init; } = string.Empty;
         public string DisplayTime { get; init; } = string.Empty;
+    }
+
+    private void ControlsAutoLockToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (ControlsAutoLockPanel != null)
+            ControlsAutoLockPanel.Visibility = ControlsAutoLockToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        RefreshAutoLockSchedulesList();
+        Save();
     }
 
     private void RefreshAutoLockSchedulesList()
