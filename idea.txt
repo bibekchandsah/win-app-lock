@@ -527,9 +527,9 @@ fixed - multiple @incognito @youtube english music
 fixed - optimize ai buttons for light mode 
 fixed - webview isn't stick to the chat layout and sometime it gets separate when island toggle on/off
 
-theme sync hover effect for play/pause icon, check icon for timer & remainder & screenshot captured, microphone mute icon, screenshot check icon, 
+fixed - theme sync hover effect for play/pause icon, check icon for timer & remainder & screenshot captured, microphone mute icon, screenshot check icon, 
+fixed - home recent copied and clipboard tab don't sync instantly with theme
 auto lock pc in scheduled time
-home recent copied and clipboard tab don't sync instantly with theme
 
 
 

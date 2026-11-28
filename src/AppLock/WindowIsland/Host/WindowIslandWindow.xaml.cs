@@ -1127,7 +1127,20 @@ public sealed partial class WindowIslandWindow : Window
         try { UpdateBattery(); } catch { }
         try { UpdateFoldedWeatherMini(); } catch { }
         try { RenderChatSubTabs(); } catch { }
-        try { if (_currentClipboardRows != null) OnClipboardItemsLoaded(_currentClipboardRows); } catch { }
+        try
+        {
+            if (_currentClipboardRows != null)
+            {
+                // Force re-render of home recents and clipboard tab even when content hasn't
+                // changed — the adaptive colors depend on the theme and must be rebuilt.
+                _lastHomeRecentSignature = string.Empty;
+                ClipboardList?.Children.Clear();
+                OnClipboardItemsLoaded(_currentClipboardRows);
+            }
+        }
+        catch { }
+        // Rebuild the audio device flyout so its AdaptiveInkColor items match the new theme.
+        try { if (VolumeDeviceOverlay?.Visibility == Visibility.Visible) BuildVolumeDeviceList(); } catch { }
         try { RefreshShelfUI(); } catch { }
         try { RefreshLauncherUI(); } catch { }
         try { RefreshNotesUI(); RefreshRemindersUI(); } catch { }
@@ -4134,8 +4147,8 @@ public sealed partial class WindowIslandWindow : Window
                 Glyph = device.IsDefault ? "\uE73E" : "\uE7F4",
                 FontSize = device.IsDefault ? 11 : 12,
                 Width = 14,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(
-                    device.IsDefault ? (byte)255 : (byte)150, 255, 255, 255))
+                Foreground = new SolidColorBrush(AdaptiveInkColor(
+                    device.IsDefault ? (byte)255 : (byte)150))
             });
             content.Children.Add(new TextBlock
             {
@@ -4144,8 +4157,8 @@ public sealed partial class WindowIslandWindow : Window
                 MaxWidth = 170,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(
-                    device.IsDefault ? (byte)240 : (byte)190, 255, 255, 255))
+                Foreground = new SolidColorBrush(AdaptiveInkColor(
+                    device.IsDefault ? (byte)240 : (byte)190))
             });
 
             var item = new Button
